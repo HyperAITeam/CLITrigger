@@ -66,7 +66,7 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onEv
     return (
       <TodoForm
         initialTitle={todo.title}
-        initialDescription={todo.description}
+        initialDescription={todo.description ?? undefined}
         onSave={async (title, description) => {
           await onEdit(todo.id, title, description);
           setEditing(false);

@@ -11,7 +11,7 @@ export interface Todo {
   id: string;
   project_id: string;
   title: string;
-  description: string;
+  description: string | null;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
   priority: number;
   branch_name: string | null;

@@ -1,10 +1,27 @@
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager } from './claude-manager.js';
 import { logStreamer } from './log-streamer.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
 export class Orchestrator {
   private maxConcurrent: number = 3;
+
+  /**
+   * Broadcast the current project status summary via WebSocket.
+   */
+  private broadcastProjectStatus(projectId: string): void {
+    const todos = queries.getTodosByProjectId(projectId);
+    const running = todos.filter((t) => t.status === 'running').length;
+    const completed = todos.filter((t) => t.status === 'completed').length;
+    broadcaster.broadcast({
+      type: 'project:status-changed',
+      projectId,
+      running,
+      completed,
+      total: todos.length,
+    });
+  }
 
   /**
    * Start all pending todos for a project.
@@ -20,6 +37,11 @@ export class Orchestrator {
     const todos = queries.getTodosByProjectId(projectId);
     const pending = todos.filter((t) => t.status === 'pending');
     const running = todos.filter((t) => t.status === 'running');
+
+    // Prevent starting if there are already running todos
+    if (running.length >= this.maxConcurrent) {
+      throw new Error(`Project already has ${running.length} running tasks (max ${this.maxConcurrent})`);
+    }
 
     const slotsAvailable = Math.max(0, this.maxConcurrent - running.length);
     const todosToStart = pending.slice(0, slotsAvailable);
@@ -51,6 +73,11 @@ export class Orchestrator {
       throw new Error('Todo not found');
     }
 
+    // Prevent starting an already running todo
+    if (todo.status === 'running') {
+      throw new Error('Todo is already running');
+    }
+
     const project = queries.getProjectById(todo.project_id);
     if (!project) {
       throw new Error('Project not found');
@@ -75,6 +102,9 @@ export class Orchestrator {
     queries.updateTodoStatus(todoId, 'stopped');
     queries.updateTodo(todoId, { process_pid: 0 });
     queries.createTaskLog(todoId, 'output', 'Task stopped by user.');
+
+    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'stopped' });
+    this.broadcastProjectStatus(todo.project_id);
   }
 
   /**
@@ -130,11 +160,16 @@ export class Orchestrator {
     });
     queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName}`);
 
+    // Broadcast status change
+    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running' });
+    this.broadcastProjectStatus(projectId);
+
     // Handle process exit asynchronously
     exitPromise.then((exitCode) => {
       const currentTodo = queries.getTodoById(todoId);
       // Only update if still in running state (not manually stopped)
       if (currentTodo && currentTodo.status === 'running') {
+        const newStatus = exitCode === 0 ? 'completed' : 'failed';
         if (exitCode === 0) {
           queries.updateTodoStatus(todoId, 'completed');
           queries.createTaskLog(todoId, 'output', 'Claude CLI completed successfully.');
@@ -143,6 +178,10 @@ export class Orchestrator {
           queries.createTaskLog(todoId, 'error', `Claude CLI exited with code ${exitCode}.`);
         }
         queries.updateTodo(todoId, { process_pid: 0 });
+
+        // Broadcast status change on exit
+        broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: newStatus });
+        this.broadcastProjectStatus(projectId);
       }
 
       // Try to start the next pending todo for this project

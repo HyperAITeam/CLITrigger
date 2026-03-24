@@ -31,11 +31,9 @@ router.get('/projects/:id/status', (req: Request<{ id: string }>, res: Response)
     }
 
     const todos = getTodosByProjectId(req.params.id);
-    const summary: Record<string, number> = {};
-    for (const todo of todos) {
-      summary[todo.status] = (summary[todo.status] || 0) + 1;
-    }
-    res.json({ project_id: req.params.id, total: todos.length, by_status: summary });
+    const running = todos.filter(t => t.status === 'running').length;
+    const completed = todos.filter(t => t.status === 'completed').length;
+    res.json({ project_id: req.params.id, total: todos.length, running, completed });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

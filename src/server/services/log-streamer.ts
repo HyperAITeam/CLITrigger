@@ -1,4 +1,5 @@
 import * as queries from '../db/queries.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 
 export class LogStreamer {
   /**
@@ -26,8 +27,21 @@ export class LogStreamer {
         // Detect git commit messages
         if (commitPattern.test(line)) {
           queries.createTaskLog(todoId, 'commit', line.trim());
+          const hashMatch = line.match(/[0-9a-f]{7,40}/i);
+          broadcaster.broadcast({
+            type: 'todo:commit',
+            todoId,
+            commitHash: hashMatch ? hashMatch[0] : '',
+            message: line.trim(),
+          });
         } else {
           queries.createTaskLog(todoId, 'output', line.trim());
+          broadcaster.broadcast({
+            type: 'todo:log',
+            todoId,
+            message: line.trim(),
+            logType: 'output',
+          });
         }
       }
     });
@@ -37,8 +51,21 @@ export class LogStreamer {
       if (stdoutBuffer.trim()) {
         if (commitPattern.test(stdoutBuffer)) {
           queries.createTaskLog(todoId, 'commit', stdoutBuffer.trim());
+          const hashMatch = stdoutBuffer.match(/[0-9a-f]{7,40}/i);
+          broadcaster.broadcast({
+            type: 'todo:commit',
+            todoId,
+            commitHash: hashMatch ? hashMatch[0] : '',
+            message: stdoutBuffer.trim(),
+          });
         } else {
           queries.createTaskLog(todoId, 'output', stdoutBuffer.trim());
+          broadcaster.broadcast({
+            type: 'todo:log',
+            todoId,
+            message: stdoutBuffer.trim(),
+            logType: 'output',
+          });
         }
       }
     });
@@ -52,12 +79,24 @@ export class LogStreamer {
       for (const line of lines) {
         if (!line.trim()) continue;
         queries.createTaskLog(todoId, 'error', line.trim());
+        broadcaster.broadcast({
+          type: 'todo:log',
+          todoId,
+          message: line.trim(),
+          logType: 'error',
+        });
       }
     });
 
     stderr.on('end', () => {
       if (stderrBuffer.trim()) {
         queries.createTaskLog(todoId, 'error', stderrBuffer.trim());
+        broadcaster.broadcast({
+          type: 'todo:log',
+          todoId,
+          message: stderrBuffer.trim(),
+          logType: 'error',
+        });
       }
     });
   }

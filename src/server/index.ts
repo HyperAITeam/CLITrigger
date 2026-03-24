@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -24,6 +25,18 @@ app.use(express.json());
 
 // Initialize database
 getDatabase();
+
+// Startup recovery: reset stale 'running' todos to 'failed'
+// (processes are dead after server restart)
+const staleTodos = getTodosByStatus('running');
+if (staleTodos.length > 0) {
+  console.log(`Recovering ${staleTodos.length} stale running task(s)...`);
+  for (const todo of staleTodos) {
+    updateTodoStatus(todo.id, 'failed');
+    updateTodo(todo.id, { process_pid: 0 });
+    console.log(`  Reset todo "${todo.title}" (${todo.id}) from running to failed`);
+  }
+}
 
 // Auth middleware
 initAuth(app);
