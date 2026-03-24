@@ -1,26 +1,27 @@
 import { useState } from 'react';
-import type { Todo, TaskLog } from '../types';
+import type { Todo } from '../types';
+import type { WsEvent } from '../hooks/useWebSocket';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
 
 interface TodoListProps {
   todos: Todo[];
-  logs: TaskLog[];
-  onAddTodo: (title: string, description: string) => void;
-  onStartTodo: (id: string) => void;
-  onStopTodo: (id: string) => void;
-  onDeleteTodo: (id: string) => void;
-  onEditTodo: (id: string, title: string, description: string) => void;
+  onAddTodo: (title: string, description: string) => Promise<void>;
+  onStartTodo: (id: string) => Promise<void>;
+  onStopTodo: (id: string) => Promise<void>;
+  onDeleteTodo: (id: string) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string) => Promise<void>;
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
 }
 
 export default function TodoList({
   todos,
-  logs,
   onAddTodo,
   onStartTodo,
   onStopTodo,
   onDeleteTodo,
   onEditTodo,
+  onEvent,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
 
@@ -46,8 +47,8 @@ export default function TodoList({
       {showForm && (
         <div className="mb-4">
           <TodoForm
-            onSave={(title, description) => {
-              onAddTodo(title, description);
+            onSave={async (title, description) => {
+              await onAddTodo(title, description);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}
@@ -65,11 +66,11 @@ export default function TodoList({
             <TodoItem
               key={todo.id}
               todo={todo}
-              logs={logs.filter((l) => l.todo_id === todo.id)}
               onStart={onStartTodo}
               onStop={onStopTodo}
               onDelete={onDeleteTodo}
               onEdit={onEditTodo}
+              onEvent={onEvent}
             />
           ))
         )}
