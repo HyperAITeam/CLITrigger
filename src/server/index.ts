@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
+import { initAuth } from './middleware/auth.js';
+import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
@@ -21,9 +23,9 @@ app.use(express.json());
 // Initialize database
 getDatabase();
 
-// --- Auth middleware (Phase 7) ---
-// import { initAuth } from './middleware/auth';
-// initAuth(app);
+// Auth middleware
+initAuth(app);
+app.use('/api/auth', authRouter);
 
 // --- Routes ---
 app.use('/api/projects', projectsRouter);
@@ -31,7 +33,7 @@ app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
 
-// --- WebSocket (Phase 5) ---
+// --- WebSocket ---
 initWebSocket(server);
 
 // --- Tunnel (Phase 7) ---
