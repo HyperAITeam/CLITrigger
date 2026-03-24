@@ -41,10 +41,10 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
   return (
     <div className="mb-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">{project.name}</h1>
-          <p className="mt-1 text-sm text-gray-400 font-mono">{project.path}</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{project.name}</h1>
+          <p className="mt-1 text-xs sm:text-sm text-gray-400 font-mono truncate">{project.path}</p>
           <p className="mt-1 text-xs text-gray-500">
             Branch: <span className="text-blue-400">{project.default_branch}</span>
             {' | '}Max concurrent: <span className="text-blue-400">{project.max_concurrent ?? 3}</span>
@@ -54,10 +54,10 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           </p>
         </div>
 
-        <div className="flex gap-3 flex-shrink-0">
+        <div className="flex gap-2 sm:gap-3 flex-shrink-0">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-3 text-base font-bold text-gray-200 hover:bg-gray-600 transition-all active:scale-95"
+            className="flex items-center gap-1 sm:gap-2 rounded-lg bg-gray-700 px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-gray-200 hover:bg-gray-600 transition-all active:scale-95"
             title="Settings"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -69,7 +69,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           <button
             onClick={onStartAll}
             disabled={!hasStartable}
-            className="relative flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-green-600/25 hover:bg-green-500 hover:shadow-green-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
+            className="relative flex items-center gap-1 sm:gap-2 rounded-lg bg-green-600 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white shadow-lg shadow-green-600/25 hover:bg-green-500 hover:shadow-green-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
           >
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
@@ -86,7 +86,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           <button
             onClick={onStopAll}
             disabled={!hasRunning}
-            className="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-red-600/25 hover:bg-red-500 hover:shadow-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
+            className="flex items-center gap-1 sm:gap-2 rounded-lg bg-red-600 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white shadow-lg shadow-red-600/25 hover:bg-red-500 hover:shadow-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
           >
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 6h12v12H6z" />
