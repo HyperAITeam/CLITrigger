@@ -2,6 +2,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
+import { getDatabase } from './db/connection.js';
+import projectsRouter from './routes/projects.js';
+import todosRouter from './routes/todos.js';
+import executionRouter from './routes/execution.js';
+import logsRouter from './routes/logs.js';
 
 const app = express();
 const server = createServer(app);
@@ -11,13 +16,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+// Initialize database
+getDatabase();
+
 // --- Auth middleware (Phase 7) ---
 // import { initAuth } from './middleware/auth';
 // initAuth(app);
 
 // --- Routes ---
-// import { initRoutes } from './routes';
-// initRoutes(app);
+app.use('/api/projects', projectsRouter);
+app.use('/api', todosRouter);
+app.use('/api', executionRouter);
+app.use('/api', logsRouter);
 
 // --- WebSocket (Phase 5) ---
 // import { initWebSocket } from './websocket';
