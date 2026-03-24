@@ -1,0 +1,172 @@
+import { worktreeManager } from './worktree-manager.js';
+import { claudeManager } from './claude-manager.js';
+import { logStreamer } from './log-streamer.js';
+import * as queries from '../db/queries.js';
+
+export class Orchestrator {
+  private maxConcurrent: number = 3;
+
+  /**
+   * Start all pending todos for a project.
+   * Respects maxConcurrent limit. When a Claude process exits,
+   * the next queued todo is started automatically.
+   */
+  async startProject(projectId: string): Promise<void> {
+    const project = queries.getProjectById(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    const todos = queries.getTodosByProjectId(projectId);
+    const pending = todos.filter((t) => t.status === 'pending');
+    const running = todos.filter((t) => t.status === 'running');
+
+    const slotsAvailable = Math.max(0, this.maxConcurrent - running.length);
+    const todosToStart = pending.slice(0, slotsAvailable);
+
+    for (const todo of todosToStart) {
+      await this.startSingleTodo(todo.id, project.path, projectId);
+    }
+  }
+
+  /**
+   * Stop all running todos for a project.
+   * Keeps worktrees so users can inspect results.
+   */
+  async stopProject(projectId: string): Promise<void> {
+    const todos = queries.getTodosByProjectId(projectId);
+    const running = todos.filter((t) => t.status === 'running');
+
+    for (const todo of running) {
+      await this.stopTodo(todo.id);
+    }
+  }
+
+  /**
+   * Start a single todo by ID.
+   */
+  async startTodo(todoId: string): Promise<void> {
+    const todo = queries.getTodoById(todoId);
+    if (!todo) {
+      throw new Error('Todo not found');
+    }
+
+    const project = queries.getProjectById(todo.project_id);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    await this.startSingleTodo(todoId, project.path, project.id);
+  }
+
+  /**
+   * Stop a single todo by ID.
+   */
+  async stopTodo(todoId: string): Promise<void> {
+    const todo = queries.getTodoById(todoId);
+    if (!todo) {
+      throw new Error('Todo not found');
+    }
+
+    if (todo.process_pid) {
+      await claudeManager.stopClaude(todo.process_pid);
+    }
+
+    queries.updateTodoStatus(todoId, 'stopped');
+    queries.updateTodo(todoId, { process_pid: 0 });
+    queries.createTaskLog(todoId, 'output', 'Task stopped by user.');
+  }
+
+  /**
+   * Internal: start a single todo with all the setup.
+   */
+  private async startSingleTodo(todoId: string, projectPath: string, projectId: string): Promise<void> {
+    const todo = queries.getTodoById(todoId);
+    if (!todo) return;
+
+    const branchName = worktreeManager.sanitizeBranchName(todo.title);
+
+    let worktreePath: string;
+    try {
+      worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      queries.updateTodoStatus(todoId, 'failed');
+      queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
+      return;
+    }
+
+    const prompt = `다음 작업을 수행하세요: ${todo.description || todo.title}\n\n작업이 완료되면 모든 변경사항을 커밋하세요.`;
+
+    let pid: number;
+    let exitPromise: Promise<number>;
+
+    try {
+      const result = await claudeManager.startClaude(worktreePath, prompt);
+      pid = result.pid;
+      exitPromise = result.exitPromise;
+
+      // Start streaming logs to DB
+      logStreamer.streamToDb(todoId, result.stdout, result.stderr);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      queries.updateTodoStatus(todoId, 'failed');
+      queries.createTaskLog(todoId, 'error', `Failed to start Claude CLI: ${message}`);
+      // Clean up worktree on failure
+      try {
+        await worktreeManager.removeWorktree(projectPath, worktreePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return;
+    }
+
+    // Update todo with running state
+    queries.updateTodoStatus(todoId, 'running');
+    queries.updateTodo(todoId, {
+      branch_name: branchName,
+      worktree_path: worktreePath,
+      process_pid: pid,
+    });
+    queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName}`);
+
+    // Handle process exit asynchronously
+    exitPromise.then((exitCode) => {
+      const currentTodo = queries.getTodoById(todoId);
+      // Only update if still in running state (not manually stopped)
+      if (currentTodo && currentTodo.status === 'running') {
+        if (exitCode === 0) {
+          queries.updateTodoStatus(todoId, 'completed');
+          queries.createTaskLog(todoId, 'output', 'Claude CLI completed successfully.');
+        } else {
+          queries.updateTodoStatus(todoId, 'failed');
+          queries.createTaskLog(todoId, 'error', `Claude CLI exited with code ${exitCode}.`);
+        }
+        queries.updateTodo(todoId, { process_pid: 0 });
+      }
+
+      // Try to start the next pending todo for this project
+      this.startNextPending(projectId).catch(() => {
+        // Ignore errors when starting next todo
+      });
+    });
+  }
+
+  /**
+   * Start the next pending todo if there are available slots.
+   */
+  private async startNextPending(projectId: string): Promise<void> {
+    const todos = queries.getTodosByProjectId(projectId);
+    const running = todos.filter((t) => t.status === 'running');
+    const pending = todos.filter((t) => t.status === 'pending');
+
+    if (running.length < this.maxConcurrent && pending.length > 0) {
+      const project = queries.getProjectById(projectId);
+      if (project) {
+        await this.startSingleTodo(pending[0].id, project.path, projectId);
+      }
+    }
+  }
+}
+
+export const orchestrator = new Orchestrator();

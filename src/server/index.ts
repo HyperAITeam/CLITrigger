@@ -7,6 +7,7 @@ import projectsRouter from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
+import { claudeManager } from './services/claude-manager.js';
 
 const app = express();
 const server = createServer(app);
@@ -41,6 +42,19 @@ app.use('/api', logsRouter);
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Cleanup on process exit: kill all Claude CLI processes
+function cleanup() {
+  console.log('Shutting down: killing all Claude CLI processes...');
+  claudeManager.killAll().then(() => {
+    process.exit(0);
+  }).catch(() => {
+    process.exit(1);
+  });
+}
+
+process.on('SIGTERM', cleanup);
+process.on('SIGINT', cleanup);
 
 server.listen(PORT, () => {
   console.log(`CLITrigger server running on http://localhost:${PORT}`);

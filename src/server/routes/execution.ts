@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { getTodosByProjectId, getTodoById, updateTodoStatus } from '../db/queries.js';
+import { getTodosByProjectId, getTodoById } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
+import { orchestrator } from '../services/orchestrator.js';
 
 const router = Router();
 
 // POST /api/projects/:id/start - start all pending todos for project
-router.post('/projects/:id/start', (req: Request<{ id: string }>, res: Response) => {
+router.post('/projects/:id/start', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const project = getProjectById(req.params.id);
     if (!project) {
@@ -13,11 +14,12 @@ router.post('/projects/:id/start', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
+    await orchestrator.startProject(req.params.id);
+
+    // Re-fetch todos to return current state
     const todos = getTodosByProjectId(req.params.id);
-    const pending = todos.filter(t => t.status === 'pending');
-    // TODO: Wire up orchestrator to actually spawn Claude CLI processes
-    const updated = pending.map(t => updateTodoStatus(t.id, 'running'));
-    res.json({ started: updated.length, todos: updated });
+    const running = todos.filter(t => t.status === 'running');
+    res.json({ started: running.length, todos: running });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -25,7 +27,7 @@ router.post('/projects/:id/start', (req: Request<{ id: string }>, res: Response)
 });
 
 // POST /api/projects/:id/stop - stop all running todos for project
-router.post('/projects/:id/stop', (req: Request<{ id: string }>, res: Response) => {
+router.post('/projects/:id/stop', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const project = getProjectById(req.params.id);
     if (!project) {
@@ -33,11 +35,12 @@ router.post('/projects/:id/stop', (req: Request<{ id: string }>, res: Response) 
       return;
     }
 
+    await orchestrator.stopProject(req.params.id);
+
+    // Re-fetch todos to return current state
     const todos = getTodosByProjectId(req.params.id);
-    const running = todos.filter(t => t.status === 'running');
-    // TODO: Wire up orchestrator to actually kill processes
-    const updated = running.map(t => updateTodoStatus(t.id, 'stopped'));
-    res.json({ stopped: updated.length, todos: updated });
+    const stopped = todos.filter(t => t.status === 'stopped');
+    res.json({ stopped: stopped.length, todos: stopped });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -45,7 +48,7 @@ router.post('/projects/:id/stop', (req: Request<{ id: string }>, res: Response) 
 });
 
 // POST /api/todos/:id/start - start single todo
-router.post('/todos/:id/start', (req: Request<{ id: string }>, res: Response) => {
+router.post('/todos/:id/start', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const todo = getTodoById(req.params.id);
     if (!todo) {
@@ -53,8 +56,10 @@ router.post('/todos/:id/start', (req: Request<{ id: string }>, res: Response) =>
       return;
     }
 
-    // TODO: Wire up orchestrator to actually spawn Claude CLI process
-    const updated = updateTodoStatus(todo.id, 'running');
+    await orchestrator.startTodo(todo.id);
+
+    // Re-fetch to return current state
+    const updated = getTodoById(todo.id);
     res.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -63,7 +68,7 @@ router.post('/todos/:id/start', (req: Request<{ id: string }>, res: Response) =>
 });
 
 // POST /api/todos/:id/stop - stop single todo
-router.post('/todos/:id/stop', (req: Request<{ id: string }>, res: Response) => {
+router.post('/todos/:id/stop', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const todo = getTodoById(req.params.id);
     if (!todo) {
@@ -71,8 +76,10 @@ router.post('/todos/:id/stop', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
-    // TODO: Wire up orchestrator to actually kill process
-    const updated = updateTodoStatus(todo.id, 'stopped');
+    await orchestrator.stopTodo(todo.id);
+
+    // Re-fetch to return current state
+    const updated = getTodoById(todo.id);
     res.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
