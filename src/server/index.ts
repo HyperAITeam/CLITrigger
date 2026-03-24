@@ -10,7 +10,9 @@ import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
 import { claudeManager } from './services/claude-manager.js';
+import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
+import tunnelRouter from './routes/tunnel.js';
 
 const app = express();
 const server = createServer(app);
@@ -32,13 +34,27 @@ app.use('/api/projects', projectsRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
+app.use('/api/tunnel', tunnelRouter);
 
 // --- WebSocket ---
 initWebSocket(server);
 
 // --- Tunnel (Phase 7) ---
-// import { initTunnel } from './services/tunnel-manager';
-// if (process.env.TUNNEL_ENABLED === 'true') initTunnel(PORT);
+if (process.env.TUNNEL_ENABLED === 'true') {
+  const port = Number(PORT);
+  const tunnelName = process.env.TUNNEL_NAME;
+  if (tunnelName) {
+    tunnelManager.startNamedTunnel(tunnelName, port);
+  } else {
+    tunnelManager.startTunnel(port);
+  }
+  tunnelManager.on('url', (url: string) => {
+    console.log(`Cloudflare Tunnel URL: ${url}`);
+  });
+  tunnelManager.on('error', (err: Error) => {
+    console.error('Tunnel error:', err.message);
+  });
+}
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -47,8 +63,11 @@ app.get('/api/health', (_req, res) => {
 
 // Cleanup on process exit: kill all Claude CLI processes
 function cleanup() {
-  console.log('Shutting down: killing all Claude CLI processes...');
-  claudeManager.killAll().then(() => {
+  console.log('Shutting down: killing all Claude CLI processes and tunnel...');
+  Promise.all([
+    claudeManager.killAll(),
+    tunnelManager.stopTunnel(),
+  ]).then(() => {
     process.exit(0);
   }).catch(() => {
     process.exit(1);
