@@ -11,7 +11,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "cd src/client && npx vite build",
     "start": "node dist/server/index.js",
-    "start:tunnel": "TUNNEL_ENABLED=true node dist/server/index.js"
+    "start:tunnel": "node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\""
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

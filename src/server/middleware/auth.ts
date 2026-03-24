@@ -18,11 +18,11 @@ export const sessionMiddleware: RequestHandler = session({
 // Auth check middleware - skip for /api/auth/* routes
 export const authMiddleware: RequestHandler = (req, res, next) => {
   // Skip auth for login/status endpoints
-  if (req.path.startsWith('/api/auth')) {
+  if (req.path.startsWith('/api/auth') || req.path.startsWith('/auth')) {
     return next();
   }
   // Skip auth for health check
-  if (req.path === '/api/health') {
+  if (req.path === '/api/health' || req.path === '/health') {
     return next();
   }
 

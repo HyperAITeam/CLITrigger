@@ -133,7 +133,7 @@ export class Orchestrator {
       return;
     }
 
-    const prompt = `다음 작업을 수행하세요: ${todo.description || todo.title}\n\n작업이 완료되면 모든 변경사항을 커밋하세요.`;
+    const prompt = `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
 
     // Get project-level Claude CLI options
     const project = queries.getProjectById(projectId);
