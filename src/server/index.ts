@@ -7,6 +7,7 @@ import projectsRouter from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
+import { initWebSocket } from './websocket/index.js';
 
 const app = express();
 const server = createServer(app);
@@ -30,8 +31,7 @@ app.use('/api', executionRouter);
 app.use('/api', logsRouter);
 
 // --- WebSocket (Phase 5) ---
-// import { initWebSocket } from './websocket';
-// initWebSocket(server);
+initWebSocket(server);
 
 // --- Tunnel (Phase 7) ---
 // import { initTunnel } from './services/tunnel-manager';
