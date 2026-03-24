@@ -121,8 +121,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
               >
                 <option value="">Default</option>
-                <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
-                <option value="claude-opus-4-0-20250115">claude-opus-4-0-20250115</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
               </select>
             </div>
 
