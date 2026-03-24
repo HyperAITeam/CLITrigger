@@ -81,6 +81,15 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 
+  const handleMergeTodo = useCallback(async (todoId: string) => {
+    await todosApi.mergeTodo(todoId);
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === todoId ? { ...t, status: 'merged' as const, updated_at: new Date().toISOString() } : t
+      )
+    );
+  }, []);
+
   const handleStartAll = useCallback(async () => {
     if (!id) return;
     await projectsApi.startProject(id);
@@ -154,6 +163,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         todos={todos}
         onStartAll={handleStartAll}
         onStopAll={handleStopAll}
+        onProjectUpdate={(updated) => setProject(updated)}
       />
 
       <ProgressBar todos={todos} />
@@ -165,6 +175,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         onStopTodo={handleStopTodo}
         onDeleteTodo={handleDeleteTodo}
         onEditTodo={handleEditTodo}
+        onMergeTodo={handleMergeTodo}
         onEvent={onEvent}
       />
     </div>

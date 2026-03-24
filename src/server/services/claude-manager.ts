@@ -5,10 +5,10 @@ export class ClaudeManager {
 
   /**
    * Start Claude CLI in a worktree directory.
-   * Command: claude --dangerously-skip-permissions -p "<prompt>"
+   * Command: claude --dangerously-skip-permissions -p "<prompt>" [--model <model>] [extra flags]
    * Returns the PID, stdout/stderr streams, and an exit promise.
    */
-  async startClaude(worktreePath: string, prompt: string): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -17,8 +17,19 @@ export class ClaudeManager {
     return new Promise((resolve, reject) => {
       let child: ChildProcess;
 
+      const args = ['--dangerously-skip-permissions'];
+      if (model) {
+        args.push('--model', model);
+      }
+      if (extraOptions) {
+        // Parse extra options as space-separated flags
+        const extraArgs = extraOptions.split(/\s+/).filter(Boolean);
+        args.push(...extraArgs);
+      }
+      args.push('-p', prompt);
+
       try {
-        child = spawn('claude', ['--dangerously-skip-permissions', '-p', prompt], {
+        child = spawn('claude', args, {
           cwd: worktreePath,
           stdio: ['ignore', 'pipe', 'pipe'],
           shell: true,

@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { Todo, TaskLog } from '../types';
+import type { Todo, TaskLog, DiffResult } from '../types';
 
 export function getTodos(projectId: string): Promise<Todo[]> {
   return get(`/api/projects/${projectId}/todos`);
@@ -33,4 +33,12 @@ export function stopTodo(id: string): Promise<void> {
 
 export function getTodoLogs(id: string): Promise<TaskLog[]> {
   return get(`/api/todos/${id}/logs`);
+}
+
+export function getTodoDiff(id: string): Promise<DiffResult> {
+  return get(`/api/todos/${id}/diff`);
+}
+
+export function mergeTodo(id: string): Promise<{ success: boolean; result?: unknown }> {
+  return post(`/api/todos/${id}/merge`);
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { createProject, getAllProjects, getProjectById, deleteProject } from '../db/queries.js';
+import { createProject, getAllProjects, getProjectById, updateProject, deleteProject } from '../db/queries.js';
 
 const router = Router();
 
@@ -42,6 +42,24 @@ router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Project not found' });
       return;
     }
+    res.json(project);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// PUT /api/projects/:id - update project
+router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const existing = getProjectById(req.params.id);
+    if (!existing) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options } = req.body;
+    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options });
     res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

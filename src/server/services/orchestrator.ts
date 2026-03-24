@@ -5,7 +5,13 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
 export class Orchestrator {
-  private maxConcurrent: number = 3;
+  /**
+   * Get the max concurrent setting for a project.
+   */
+  private getMaxConcurrent(projectId: string): number {
+    const project = queries.getProjectById(projectId);
+    return project?.max_concurrent ?? 3;
+  }
 
   /**
    * Broadcast the current project status summary via WebSocket.
@@ -37,13 +43,14 @@ export class Orchestrator {
     const todos = queries.getTodosByProjectId(projectId);
     const pending = todos.filter((t) => t.status === 'pending');
     const running = todos.filter((t) => t.status === 'running');
+    const maxConcurrent = this.getMaxConcurrent(projectId);
 
     // Prevent starting if there are already running todos
-    if (running.length >= this.maxConcurrent) {
-      throw new Error(`Project already has ${running.length} running tasks (max ${this.maxConcurrent})`);
+    if (running.length >= maxConcurrent) {
+      throw new Error(`Project already has ${running.length} running tasks (max ${maxConcurrent})`);
     }
 
-    const slotsAvailable = Math.max(0, this.maxConcurrent - running.length);
+    const slotsAvailable = Math.max(0, maxConcurrent - running.length);
     const todosToStart = pending.slice(0, slotsAvailable);
 
     for (const todo of todosToStart) {
@@ -128,11 +135,16 @@ export class Orchestrator {
 
     const prompt = `다음 작업을 수행하세요: ${todo.description || todo.title}\n\n작업이 완료되면 모든 변경사항을 커밋하세요.`;
 
+    // Get project-level Claude CLI options
+    const project = queries.getProjectById(projectId);
+    const claudeModel = project?.claude_model || undefined;
+    const claudeOptions = project?.claude_options ? project.claude_options : undefined;
+
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(worktreePath, prompt);
+      const result = await claudeManager.startClaude(worktreePath, prompt, claudeModel, claudeOptions);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -198,8 +210,9 @@ export class Orchestrator {
     const todos = queries.getTodosByProjectId(projectId);
     const running = todos.filter((t) => t.status === 'running');
     const pending = todos.filter((t) => t.status === 'pending');
+    const maxConcurrent = this.getMaxConcurrent(projectId);
 
-    if (running.length < this.maxConcurrent && pending.length > 0) {
+    if (running.length < maxConcurrent && pending.length > 0) {
       const project = queries.getProjectById(projectId);
       if (project) {
         await this.startSingleTodo(pending[0].id, project.path, projectId);

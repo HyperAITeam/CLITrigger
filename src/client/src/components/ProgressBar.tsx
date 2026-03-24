@@ -14,15 +14,17 @@ export default function ProgressBar({ todos }: ProgressBarProps) {
     failed: todos.filter((t) => t.status === 'failed').length,
     stopped: todos.filter((t) => t.status === 'stopped').length,
     pending: todos.filter((t) => t.status === 'pending').length,
+    merged: todos.filter((t) => t.status === 'merged').length,
   };
 
-  const completedPercent = Math.round((counts.completed / total) * 100);
+  const doneCount = counts.completed + counts.merged;
+  const completedPercent = Math.round((doneCount / total) * 100);
 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-gray-400">
-          Progress: {counts.completed}/{total} completed ({completedPercent}%)
+          Progress: {doneCount}/{total} completed ({completedPercent}%)
         </span>
         <div className="flex gap-3 text-xs text-gray-400">
           <span className="flex items-center gap-1">
@@ -42,6 +44,11 @@ export default function ProgressBar({ todos }: ProgressBarProps) {
           {counts.stopped > 0 && (
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-yellow-500" /> {counts.stopped} stopped
+            </span>
+          )}
+          {counts.merged > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-purple-500" /> {counts.merged} merged
             </span>
           )}
         </div>
@@ -70,6 +77,12 @@ export default function ProgressBar({ todos }: ProgressBarProps) {
             <div
               className="bg-yellow-500 transition-all duration-500"
               style={{ width: `${(counts.stopped / total) * 100}%` }}
+            />
+          )}
+          {counts.merged > 0 && (
+            <div
+              className="bg-purple-500 transition-all duration-500"
+              style={{ width: `${(counts.merged / total) * 100}%` }}
             />
           )}
         </div>

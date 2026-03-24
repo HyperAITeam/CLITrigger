@@ -25,6 +25,10 @@ const statusConfig: Record<Todo['status'], { label: string; classes: string }> =
     label: 'Stopped',
     classes: 'bg-yellow-600 text-yellow-100',
   },
+  merged: {
+    label: 'Merged',
+    classes: 'bg-purple-600 text-purple-100',
+  },
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {

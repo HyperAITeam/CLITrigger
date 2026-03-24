@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { getTodosByProjectId, getTodoById } from '../db/queries.js';
+import simpleGit from 'simple-git';
+import { getTodosByProjectId, getTodoById, updateTodoStatus } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { orchestrator } from '../services/orchestrator.js';
 
@@ -81,6 +82,58 @@ router.post('/todos/:id/stop', async (req: Request<{ id: string }>, res: Respons
     // Re-fetch to return current state
     const updated = getTodoById(todo.id);
     res.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/todos/:id/merge - merge todo branch to main
+router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    if (todo.status !== 'completed') {
+      res.status(400).json({ error: 'Can only merge completed todos' });
+      return;
+    }
+
+    if (!todo.branch_name) {
+      res.status(400).json({ error: 'Todo has no branch to merge' });
+      return;
+    }
+
+    const project = getProjectById(todo.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const git = simpleGit(project.path);
+    const defaultBranch = project.default_branch || 'main';
+
+    // Checkout main branch
+    await git.checkout(defaultBranch);
+
+    // Attempt merge
+    try {
+      const mergeResult = await git.merge([todo.branch_name]);
+      updateTodoStatus(todo.id, 'merged');
+      res.json({ success: true, result: mergeResult });
+    } catch (mergeErr: unknown) {
+      // Merge conflict - abort the merge and report
+      try {
+        await git.merge(['--abort']);
+      } catch {
+        // May fail if no merge in progress
+      }
+      const message = mergeErr instanceof Error ? mergeErr.message : 'Merge failed';
+      res.status(409).json({ error: 'Merge conflict', details: message });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

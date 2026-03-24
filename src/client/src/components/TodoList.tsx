@@ -11,6 +11,7 @@ interface TodoListProps {
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string) => Promise<void>;
+  onMergeTodo: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
 }
 
@@ -21,6 +22,7 @@ export default function TodoList({
   onStopTodo,
   onDeleteTodo,
   onEditTodo,
+  onMergeTodo,
   onEvent,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
@@ -70,6 +72,7 @@ export default function TodoList({
               onStop={onStopTodo}
               onDelete={onDeleteTodo}
               onEdit={onEditTodo}
+              onMerge={onMergeTodo}
               onEvent={onEvent}
             />
           ))

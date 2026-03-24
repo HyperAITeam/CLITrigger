@@ -8,6 +8,9 @@ export interface Project {
   name: string;
   path: string;
   default_branch: string;
+  max_concurrent: number;
+  claude_model: string | null;
+  claude_options: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +36,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -41,6 +44,9 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
   if (updates.path !== undefined) { fields.push('path = ?'); values.push(updates.path); }
   if (updates.default_branch !== undefined) { fields.push('default_branch = ?'); values.push(updates.default_branch); }
+  if (updates.max_concurrent !== undefined) { fields.push('max_concurrent = ?'); values.push(updates.max_concurrent); }
+  if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
+  if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }
 
   if (fields.length === 0) return getProjectById(id);
 
@@ -158,4 +164,13 @@ export function createTaskLog(todoId: string, logType: string, message: string):
 export function getTaskLogsByTodoId(todoId: string): TaskLog[] {
   const db = getDatabase();
   return db.prepare('SELECT * FROM task_logs WHERE todo_id = ? ORDER BY created_at ASC').all(todoId) as TaskLog[];
+}
+
+// ── Cleanup ──
+
+export function cleanOldLogs(daysToKeep: number): number {
+  const db = getDatabase();
+  const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString();
+  const result = db.prepare('DELETE FROM task_logs WHERE created_at < ?').run(cutoff);
+  return result.changes;
 }

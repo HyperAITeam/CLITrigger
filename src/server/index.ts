@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -36,6 +36,13 @@ if (staleTodos.length > 0) {
     updateTodo(todo.id, { process_pid: 0 });
     console.log(`  Reset todo "${todo.title}" (${todo.id}) from running to failed`);
   }
+}
+
+// Auto-cleanup old logs (default 30 days)
+const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
+const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
+if (cleaned > 0) {
+  console.log(`Cleaned up ${cleaned} old log entries (older than ${LOG_RETENTION_DAYS} days)`);
 }
 
 // Auth middleware

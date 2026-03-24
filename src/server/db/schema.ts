@@ -7,6 +7,9 @@ export function initDatabase(db: Database.Database): void {
       name TEXT NOT NULL,
       path TEXT NOT NULL UNIQUE,
       default_branch TEXT DEFAULT 'main',
+      max_concurrent INTEGER DEFAULT 3,
+      claude_model TEXT,
+      claude_options TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -33,6 +36,21 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Backwards-compatible migration: add new columns to existing DBs
+  const migrations = [
+    { table: 'projects', column: 'max_concurrent', definition: 'INTEGER DEFAULT 3' },
+    { table: 'projects', column: 'claude_model', definition: 'TEXT' },
+    { table: 'projects', column: 'claude_options', definition: 'TEXT' },
+  ];
+
+  for (const { table, column, definition } of migrations) {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    } catch {
+      // Column already exists - ignore
+    }
+  }
 
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
