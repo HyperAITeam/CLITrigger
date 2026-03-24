@@ -1,38 +1,120 @@
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Project, Todo, TaskLog } from '../types';
+import type { Project, Todo } from '../types';
+import type { WsEvent } from '../hooks/useWebSocket';
+import * as projectsApi from '../api/projects';
+import * as todosApi from '../api/todos';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 
 interface ProjectDetailProps {
-  projects: Project[];
-  todos: Todo[];
-  logs: TaskLog[];
-  onAddTodo: (projectId: string, title: string, description: string) => void;
-  onStartTodo: (id: string) => void;
-  onStopTodo: (id: string) => void;
-  onDeleteTodo: (id: string) => void;
-  onEditTodo: (id: string, title: string, description: string) => void;
-  onStartAll: (projectId: string) => void;
-  onStopAll: (projectId: string) => void;
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
+  connected: boolean;
 }
 
-export default function ProjectDetail({
-  projects,
-  todos,
-  logs,
-  onAddTodo,
-  onStartTodo,
-  onStopTodo,
-  onDeleteTodo,
-  onEditTodo,
-  onStartAll,
-  onStopAll,
-}: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
-  const project = projects.find((p) => p.id === id);
+  const [project, setProject] = useState<Project | null>(null);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!project) {
+  // Fetch project and todos
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id)])
+      .then(([proj, todoList]) => {
+        setProject(proj);
+        setTodos(todoList);
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  // Listen for real-time WebSocket events
+  useEffect(() => {
+    return onEvent((event) => {
+      if (event.type === 'todo:status-changed' && event.todoId && event.status) {
+        setTodos((prev) =>
+          prev.map((t) =>
+            t.id === event.todoId
+              ? { ...t, status: event.status as Todo['status'], updated_at: new Date().toISOString() }
+              : t
+          )
+        );
+      }
+    });
+  }, [onEvent]);
+
+  const handleAddTodo = useCallback(async (title: string, description: string) => {
+    if (!id) return;
+    const newTodo = await todosApi.createTodo(id, { title, description });
+    setTodos((prev) => [...prev, newTodo]);
+  }, [id]);
+
+  const handleStartTodo = useCallback(async (todoId: string) => {
+    await todosApi.startTodo(todoId);
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === todoId ? { ...t, status: 'running' as const, updated_at: new Date().toISOString() } : t
+      )
+    );
+  }, []);
+
+  const handleStopTodo = useCallback(async (todoId: string) => {
+    await todosApi.stopTodo(todoId);
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === todoId ? { ...t, status: 'stopped' as const, updated_at: new Date().toISOString() } : t
+      )
+    );
+  }, []);
+
+  const handleDeleteTodo = useCallback(async (todoId: string) => {
+    await todosApi.deleteTodo(todoId);
+    setTodos((prev) => prev.filter((t) => t.id !== todoId));
+  }, []);
+
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string) => {
+    const updated = await todosApi.updateTodo(todoId, { title, description });
+    setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
+  }, []);
+
+  const handleStartAll = useCallback(async () => {
+    if (!id) return;
+    await projectsApi.startProject(id);
+    // Optimistically mark startable todos as running
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
+          ? { ...t, status: 'running' as const, updated_at: new Date().toISOString() }
+          : t
+      )
+    );
+  }, [id]);
+
+  const handleStopAll = useCallback(async () => {
+    if (!id) return;
+    await projectsApi.stopProject(id);
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.status === 'running'
+          ? { ...t, status: 'stopped' as const, updated_at: new Date().toISOString() }
+          : t
+      )
+    );
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-4xl px-6 py-8">
+        <div className="text-center py-12 text-gray-400">Loading project...</div>
+      </div>
+    );
+  }
+
+  if (notFound || !project) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-8">
         <div className="rounded-xl bg-gray-800 border border-gray-700 p-12 text-center">
@@ -48,11 +130,6 @@ export default function ProjectDetail({
     );
   }
 
-  const projectTodos = todos.filter((t) => t.project_id === project.id);
-  const projectLogs = logs.filter((l) =>
-    projectTodos.some((t) => t.id === l.todo_id)
-  );
-
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link
@@ -65,23 +142,30 @@ export default function ProjectDetail({
         Back to projects
       </Link>
 
+      {connected && (
+        <span className="ml-3 inline-flex items-center gap-1 text-xs text-green-500">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+          Live
+        </span>
+      )}
+
       <ProjectHeader
         project={project}
-        todos={projectTodos}
-        onStartAll={() => onStartAll(project.id)}
-        onStopAll={() => onStopAll(project.id)}
+        todos={todos}
+        onStartAll={handleStartAll}
+        onStopAll={handleStopAll}
       />
 
-      <ProgressBar todos={projectTodos} />
+      <ProgressBar todos={todos} />
 
       <TodoList
-        todos={projectTodos}
-        logs={projectLogs}
-        onAddTodo={(title, description) => onAddTodo(project.id, title, description)}
-        onStartTodo={onStartTodo}
-        onStopTodo={onStopTodo}
-        onDeleteTodo={onDeleteTodo}
-        onEditTodo={onEditTodo}
+        todos={todos}
+        onAddTodo={handleAddTodo}
+        onStartTodo={handleStartTodo}
+        onStopTodo={handleStopTodo}
+        onDeleteTodo={handleDeleteTodo}
+        onEditTodo={handleEditTodo}
+        onEvent={onEvent}
       />
     </div>
   );

@@ -1,24 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import type { Project, Todo } from '../types';
+import type { Project } from '../types';
+import * as projectsApi from '../api/projects';
 import ProjectForm from './ProjectForm';
+import type { WsEvent } from '../hooks/useWebSocket';
 
 interface ProjectListProps {
-  projects: Project[];
-  todos: Todo[];
-  onAddProject: (name: string, path: string) => void;
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
+  onLogout: () => void;
 }
 
-export default function ProjectList({ projects, todos, onAddProject }: ProjectListProps) {
-  const [showForm, setShowForm] = useState(false);
+interface ProjectStatus {
+  running: number;
+  completed: number;
+  total: number;
+}
 
-  const getTodoCounts = (projectId: string) => {
-    const projectTodos = todos.filter((t) => t.project_id === projectId);
-    return {
-      total: projectTodos.length,
-      completed: projectTodos.filter((t) => t.status === 'completed').length,
-      running: projectTodos.filter((t) => t.status === 'running').length,
-    };
+export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch projects on mount
+  useEffect(() => {
+    projectsApi.getProjects()
+      .then((data) => {
+        setProjects(data);
+        // Fetch status for each project
+        data.forEach((p) => {
+          projectsApi.getProjectStatus(p.id)
+            .then((status) => {
+              setStatusMap((prev) => ({ ...prev, [p.id]: status }));
+            })
+            .catch(() => { /* ignore */ });
+        });
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Listen for real-time project status updates
+  useEffect(() => {
+    return onEvent((event) => {
+      if (event.type === 'project:status-changed' && event.projectId) {
+        setStatusMap((prev) => ({
+          ...prev,
+          [event.projectId!]: {
+            running: event.running ?? 0,
+            completed: event.completed ?? 0,
+            total: event.total ?? 0,
+          },
+        }));
+      }
+    });
+  }, [onEvent]);
+
+  const handleAddProject = async (name: string, path: string) => {
+    try {
+      const newProject = await projectsApi.createProject({ name, path });
+      setProjects((prev) => [...prev, newProject]);
+      setShowForm(false);
+    } catch {
+      // TODO: show error
+    }
+  };
+
+  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await projectsApi.deleteProject(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      // TODO: show error
+    }
   };
 
   return (
@@ -28,18 +84,31 @@ export default function ProjectList({ projects, todos, onAddProject }: ProjectLi
           <h1 className="text-3xl font-bold text-white">CLITrigger</h1>
           <p className="text-gray-400 mt-1">Manage your projects and trigger Claude CLI tasks</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Project
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Project
+          </button>
+          <button
+            onClick={onLogout}
+            className="rounded-lg bg-gray-700 px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            title="Logout"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {projects.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-12 text-gray-400">Loading projects...</div>
+      ) : projects.length === 0 ? (
         <div className="rounded-xl bg-gray-800 border border-gray-700 p-12 text-center">
           <p className="text-gray-400 text-lg">No projects yet.</p>
           <p className="text-gray-500 mt-2">Create your first project to get started.</p>
@@ -47,13 +116,23 @@ export default function ProjectList({ projects, todos, onAddProject }: ProjectLi
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
-            const counts = getTodoCounts(project.id);
+            const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
             return (
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="group rounded-xl bg-gray-800 border border-gray-700 p-5 hover:border-gray-600 hover:bg-gray-750 transition-all shadow-lg hover:shadow-xl"
+                className="group relative rounded-xl bg-gray-800 border border-gray-700 p-5 hover:border-gray-600 hover:bg-gray-750 transition-all shadow-lg hover:shadow-xl"
               >
+                <button
+                  onClick={(e) => handleDeleteProject(project.id, e)}
+                  className="absolute top-3 right-3 rounded p-1 text-gray-500 hover:bg-red-900/40 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                  title="Delete project"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
                 <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
                   {project.name}
                 </h3>
@@ -92,10 +171,7 @@ export default function ProjectList({ projects, todos, onAddProject }: ProjectLi
 
       {showForm && (
         <ProjectForm
-          onSubmit={(name, path) => {
-            onAddProject(name, path);
-            setShowForm(false);
-          }}
+          onSubmit={(name, path) => handleAddProject(name, path)}
           onCancel={() => setShowForm(false)}
         />
       )}

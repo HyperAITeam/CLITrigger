@@ -1,32 +1,74 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Todo, TaskLog } from '../types';
+import type { WsEvent } from '../hooks/useWebSocket';
+import * as todosApi from '../api/todos';
 import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
 
 interface TodoItemProps {
   todo: Todo;
-  logs: TaskLog[];
-  onStart: (id: string) => void;
-  onStop: (id: string) => void;
-  onDelete: (id: string) => void;
-  onEdit: (id: string, title: string, description: string) => void;
+  onStart: (id: string) => Promise<void>;
+  onStop: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onEdit: (id: string, title: string, description: string) => Promise<void>;
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
 }
 
-export default function TodoItem({ todo, logs, onStart, onStop, onDelete, onEdit }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onEvent }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [logs, setLogs] = useState<TaskLog[]>([]);
+  const [logsLoaded, setLogsLoaded] = useState(false);
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canStop = todo.status === 'running';
+
+  // Fetch logs when expanded
+  useEffect(() => {
+    if (expanded && !logsLoaded) {
+      todosApi.getTodoLogs(todo.id)
+        .then((data) => {
+          setLogs(data);
+          setLogsLoaded(true);
+        })
+        .catch(() => { /* ignore */ });
+    }
+  }, [expanded, logsLoaded, todo.id]);
+
+  // Listen for real-time log events
+  useEffect(() => {
+    return onEvent((event) => {
+      if (event.type === 'todo:log' && event.todoId === todo.id && event.message) {
+        const newLog: TaskLog = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          todo_id: todo.id,
+          log_type: (event.logType as TaskLog['log_type']) || 'output',
+          message: event.message,
+          created_at: new Date().toISOString(),
+        };
+        setLogs((prev) => [...prev, newLog]);
+      }
+      if (event.type === 'todo:commit' && event.todoId === todo.id && event.message) {
+        const newLog: TaskLog = {
+          id: `ws-commit-${Date.now()}-${Math.random()}`,
+          todo_id: todo.id,
+          log_type: 'commit',
+          message: `${event.commitHash ? `[${event.commitHash}] ` : ''}${event.message}`,
+          created_at: new Date().toISOString(),
+        };
+        setLogs((prev) => [...prev, newLog]);
+      }
+    });
+  }, [onEvent, todo.id]);
 
   if (editing) {
     return (
       <TodoForm
         initialTitle={todo.title}
         initialDescription={todo.description}
-        onSave={(title, description) => {
-          onEdit(todo.id, title, description);
+        onSave={async (title, description) => {
+          await onEdit(todo.id, title, description);
           setEditing(false);
         }}
         onCancel={() => setEditing(false)}
