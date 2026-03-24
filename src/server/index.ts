@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
 import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs } from './db/queries.js';
@@ -75,6 +77,14 @@ if (process.env.TUNNEL_ENABLED === 'true') {
     console.error('Tunnel error:', err.message);
   });
 }
+
+// Serve frontend static files in production
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(__dirname, '../../src/client/dist');
+app.use(express.static(clientDist));
+app.get(/^\/(?!api|ws).*/, (_req, res) => {
+  res.sendFile(path.join(clientDist, 'index.html'));
+});
 
 // Health check
 app.get('/api/health', (_req, res) => {

@@ -5,8 +5,7 @@ export class ClaudeManager {
 
   /**
    * Start Claude CLI in a worktree directory.
-   * Command: claude --dangerously-skip-permissions -p "<prompt>" [--model <model>] [extra flags]
-   * Returns the PID, stdout/stderr streams, and an exit promise.
+   * Spawns without shell to avoid escaping issues on Windows.
    */
   async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string): Promise<{
     pid: number;
@@ -22,17 +21,18 @@ export class ClaudeManager {
         args.push('--model', model);
       }
       if (extraOptions) {
-        // Parse extra options as space-separated flags
         const extraArgs = extraOptions.split(/\s+/).filter(Boolean);
         args.push(...extraArgs);
       }
       args.push('-p', prompt);
 
       try {
+        // shell: false — pass args array directly, no escaping needed
         child = spawn('claude', args, {
           cwd: worktreePath,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: true,
+          shell: false,
+          windowsHide: true,
         });
       } catch (err) {
         reject(new Error(
@@ -47,7 +47,6 @@ export class ClaudeManager {
         ));
       });
 
-      // Wait briefly for potential spawn errors before resolving
       const pid = child.pid;
       if (pid === undefined) {
         reject(new Error('Failed to get PID for Claude CLI process'));
@@ -63,7 +62,6 @@ export class ClaudeManager {
         });
       });
 
-      // Use setImmediate to allow spawn error events to fire first
       setImmediate(() => {
         resolve({
           pid,
@@ -102,7 +100,6 @@ export class ClaudeManager {
       try {
         child.kill('SIGTERM');
       } catch {
-        // Process may already be dead
         clearTimeout(killTimer);
         this.processes.delete(pid);
         resolve();
@@ -110,18 +107,12 @@ export class ClaudeManager {
     });
   }
 
-  /**
-   * Check if a process is still running.
-   */
   isRunning(pid: number): boolean {
     const child = this.processes.get(pid);
     if (!child) return false;
     return !child.killed && child.exitCode === null;
   }
 
-  /**
-   * Kill all tracked processes (for cleanup on shutdown).
-   */
   async killAll(): Promise<void> {
     const pids = Array.from(this.processes.keys());
     await Promise.all(pids.map((pid) => this.stopClaude(pid)));
