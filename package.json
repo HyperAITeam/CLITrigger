@@ -11,7 +11,12 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "cd src/client && npx vite build",
     "start": "node dist/server/index.js",
-    "start:tunnel": "node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\""
+    "start:tunnel": "node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\"",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "vitest run --config vitest.config.ts",
+    "test:client": "cd src/client && npx vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage && cd src/client && npx vitest run --config vitest.config.ts --coverage"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
@@ -31,8 +36,10 @@
     "@types/node": "^22.10.0",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.13",
+    "@vitest/coverage-v8": "^4.1.1",
     "concurrently": "^9.1.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.1"
   }
 }
