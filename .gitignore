@@ -35,3 +35,4 @@ logs/
 # Worktrees (Claude CLI 작업용)
 worktrees/
 .claude/settings.local.json
+.hecaton/
