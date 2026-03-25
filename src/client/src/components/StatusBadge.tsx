@@ -6,28 +6,28 @@ interface StatusBadgeProps {
 
 const statusConfig: Record<Todo['status'], { label: string; classes: string }> = {
   pending: {
-    label: 'Pending',
-    classes: 'bg-gray-600 text-gray-200',
+    label: 'IDLE',
+    classes: 'bg-street-600 text-street-300 border-street-500',
   },
   running: {
-    label: 'Running',
-    classes: 'bg-blue-600 text-blue-100 animate-pulse',
+    label: 'LIVE',
+    classes: 'bg-neon-cyan/10 text-neon-cyan border-neon-cyan/50 animate-pulse',
   },
   completed: {
-    label: 'Completed',
-    classes: 'bg-green-600 text-green-100',
+    label: 'DONE',
+    classes: 'bg-neon-green/10 text-neon-green border-neon-green/50',
   },
   failed: {
-    label: 'Failed',
-    classes: 'bg-red-600 text-red-100',
+    label: 'FAIL',
+    classes: 'bg-neon-pink/10 text-neon-pink border-neon-pink/50',
   },
   stopped: {
-    label: 'Stopped',
-    classes: 'bg-yellow-600 text-yellow-100',
+    label: 'STOP',
+    classes: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/50',
   },
   merged: {
-    label: 'Merged',
-    classes: 'bg-purple-600 text-purple-100',
+    label: 'MRGD',
+    classes: 'bg-neon-purple/10 text-neon-purple border-neon-purple/50',
   },
 };
 
@@ -35,10 +35,10 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const config = statusConfig[status];
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${config.classes}`}
+      className={`inline-flex items-center border px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest ${config.classes}`}
     >
       {status === 'running' && (
-        <span className="mr-1.5 h-2 w-2 rounded-full bg-blue-300 animate-ping" />
+        <span className="mr-1.5 h-1.5 w-1.5 bg-neon-cyan animate-ping" />
       )}
       {config.label}
     </span>

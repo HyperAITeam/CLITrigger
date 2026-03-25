@@ -33,7 +33,6 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
 
-  // Fetch logs when expanded
   useEffect(() => {
     if (expanded && !logsLoaded) {
       todosApi.getTodoLogs(todo.id)
@@ -45,7 +44,6 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     }
   }, [expanded, logsLoaded, todo.id]);
 
-  // Listen for real-time log events
   useEffect(() => {
     return onEvent((event) => {
       if (event.type === 'todo:log' && event.todoId === todo.id && event.message) {
@@ -115,42 +113,51 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     );
   }
 
+  // Left border color based on status
+  const borderColor = {
+    pending: 'border-l-street-500',
+    running: 'border-l-neon-cyan',
+    completed: 'border-l-neon-green',
+    failed: 'border-l-neon-pink',
+    stopped: 'border-l-neon-yellow',
+    merged: 'border-l-neon-purple',
+  }[todo.status];
+
   return (
-    <div className="rounded-lg bg-gray-800 border border-gray-700 overflow-hidden transition-all">
-      {/* Collapsed header */}
+    <div className={`bg-street-800 border-2 border-street-600 border-l-4 ${borderColor} overflow-hidden transition-all hover:border-street-500`}>
+      {/* Header row */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-750"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-street-700/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <button
-          className="text-gray-400 hover:text-gray-200 flex-shrink-0 transition-transform"
-          aria-label="Toggle details"
-        >
+        {/* Expand arrow */}
+        <button className="text-street-500 hover:text-neon-green flex-shrink-0 transition-colors">
           <svg
-            className={`h-4 w-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
-            fill="none"
+            className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+            fill="currentColor"
             viewBox="0 0 24 24"
-            stroke="currentColor"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <path d="M8 5v14l11-7z" />
           </svg>
         </button>
 
-        <span className="text-sm text-gray-500 font-mono w-6">#{todo.priority}</span>
+        {/* Priority */}
+        <span className="text-[10px] font-mono text-street-500 w-6">#{todo.priority}</span>
 
-        <span className="flex-1 text-gray-100 font-medium truncate">{todo.title}</span>
+        {/* Title */}
+        <span className="flex-1 text-sm text-white font-mono truncate">{todo.title}</span>
 
         <StatusBadge status={todo.status} />
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
           {canStart && (
             <button
               onClick={() => onStart(todo.id)}
-              className="rounded p-1.5 text-green-400 hover:bg-green-900/40 hover:text-green-300 transition-colors"
+              className="p-1.5 text-neon-green/70 hover:text-neon-green hover:bg-neon-green/10 transition-colors"
               title="Start"
             >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" />
               </svg>
             </button>
@@ -158,10 +165,10 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           {canStop && (
             <button
               onClick={() => onStop(todo.id)}
-              className="rounded p-1.5 text-red-400 hover:bg-red-900/40 hover:text-red-300 transition-colors"
+              className="p-1.5 text-neon-pink/70 hover:text-neon-pink hover:bg-neon-pink/10 transition-colors"
               title="Stop"
             >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z" />
               </svg>
             </button>
@@ -170,10 +177,10 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
             <button
               onClick={handleViewDiff}
               disabled={diffLoading}
-              className="rounded p-1.5 text-cyan-400 hover:bg-cyan-900/40 hover:text-cyan-300 transition-colors disabled:opacity-50"
+              className="p-1.5 text-neon-cyan/70 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors disabled:opacity-30"
               title="View Diff"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </button>
@@ -182,40 +189,30 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
             <button
               onClick={handleMerge}
               disabled={merging}
-              className="rounded p-1.5 text-purple-400 hover:bg-purple-900/40 hover:text-purple-300 transition-colors disabled:opacity-50"
-              title="Merge to Main"
+              className="p-1.5 text-neon-purple/70 hover:text-neon-purple hover:bg-neon-purple/10 transition-colors disabled:opacity-30"
+              title="Merge"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             </button>
           )}
           <button
             onClick={() => setEditing(true)}
-            className="rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition-colors"
+            className="p-1.5 text-street-500 hover:text-neon-yellow hover:bg-neon-yellow/10 transition-colors"
             title="Edit"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
           <button
             onClick={() => onDelete(todo.id)}
-            className="rounded p-1.5 text-gray-400 hover:bg-red-900/40 hover:text-red-300 transition-colors"
+            className="p-1.5 text-street-500 hover:text-neon-pink hover:bg-neon-pink/10 transition-colors"
             title="Delete"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
         </div>
@@ -223,64 +220,75 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-gray-700 px-4 py-4 space-y-4">
+        <div className="border-t-2 border-street-600 px-5 py-5 space-y-5 animate-slide-up">
+          {/* Description */}
           <div>
-            <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Description</h4>
-            <p className="text-sm text-gray-300 whitespace-pre-wrap">
-              {todo.description || 'No description provided.'}
+            <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-2">
+              DESCRIPTION
+            </h4>
+            <p className="text-sm text-street-300 font-mono whitespace-pre-wrap leading-relaxed">
+              {todo.description || '// No description provided.'}
             </p>
           </div>
 
+          {/* Branch info */}
           {todo.branch_name && (
-            <div className="flex gap-4 text-xs text-gray-400">
-              <span>
-                Branch: <code className="text-blue-400">{todo.branch_name}</code>
+            <div className="flex flex-wrap gap-3 text-xs font-mono">
+              <span className="px-2 py-1 bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan">
+                BRANCH: {todo.branch_name}
               </span>
               {todo.worktree_path && (
-                <span>
-                  Worktree: <code className="text-gray-300">{todo.worktree_path}</code>
+                <span className="px-2 py-1 bg-street-700 border border-street-600 text-street-300">
+                  PATH: {todo.worktree_path}
                 </span>
               )}
             </div>
           )}
 
+          {/* Errors */}
           {mergeError && (
-            <div className="rounded-lg bg-red-900/30 border border-red-700 p-3 text-sm text-red-300">
-              Merge failed: {mergeError}
+            <div className="py-2 px-3 bg-neon-pink/10 border border-neon-pink/30 font-mono text-xs text-neon-pink">
+              ! MERGE FAILED: {mergeError}
             </div>
           )}
 
           {diffError && (
-            <div className="rounded-lg bg-red-900/30 border border-red-700 p-3 text-sm text-red-300">
-              Diff error: {diffError}
+            <div className="py-2 px-3 bg-neon-pink/10 border border-neon-pink/30 font-mono text-xs text-neon-pink">
+              ! DIFF ERROR: {diffError}
             </div>
           )}
 
+          {/* Diff viewer */}
           {showDiff && diffData && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold uppercase text-gray-400">Diff</h4>
-                <div className="flex gap-3 text-xs text-gray-400">
-                  <span>{diffData.stats.files_changed} file(s) changed</span>
-                  <span className="text-green-400">+{diffData.stats.insertions}</span>
-                  <span className="text-red-400">-{diffData.stats.deletions}</span>
+                <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase">
+                  DIFF OUTPUT
+                </h4>
+                <div className="flex gap-4 text-[10px] font-mono tracking-wider">
+                  <span className="text-street-400">{diffData.stats.files_changed} FILES</span>
+                  <span className="text-neon-green">+{diffData.stats.insertions}</span>
+                  <span className="text-neon-pink">-{diffData.stats.deletions}</span>
                 </div>
               </div>
-              <pre className="h-80 overflow-auto rounded-lg bg-gray-950 border border-gray-700 p-4 font-mono text-xs leading-relaxed">
+              <pre className="h-80 overflow-auto bg-street-900 border-2 border-street-600 p-4 font-mono text-xs leading-relaxed">
                 {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                  let className = 'text-gray-400';
-                  if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';
-                  else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-red-400';
-                  else if (line.startsWith('@@')) className = 'text-cyan-400';
-                  else if (line.startsWith('diff ')) className = 'text-yellow-400 font-bold';
+                  let className = 'text-street-400';
+                  if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-neon-green';
+                  else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-neon-pink';
+                  else if (line.startsWith('@@')) className = 'text-neon-cyan';
+                  else if (line.startsWith('diff ')) className = 'text-neon-yellow font-bold';
                   return <div key={i} className={className}>{line}</div>;
-                }) : <span className="text-gray-500 italic">No changes detected.</span>}
+                }) : <span className="text-street-500 italic">// No changes detected.</span>}
               </pre>
             </div>
           )}
 
+          {/* Logs */}
           <div>
-            <h4 className="text-xs font-semibold uppercase text-gray-400 mb-2">Logs</h4>
+            <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-2">
+              SYSTEM LOG
+            </h4>
             <LogViewer logs={logs} />
           </div>
         </div>

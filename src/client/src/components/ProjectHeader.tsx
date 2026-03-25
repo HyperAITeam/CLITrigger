@@ -40,85 +40,96 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   };
 
   return (
-    <div className="mb-6">
+    <div className="mb-8">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{project.name}</h1>
-          <p className="mt-1 text-xs sm:text-sm text-gray-400 font-mono truncate">{project.path}</p>
-          <p className="mt-1 text-xs text-gray-500">
-            Branch: <span className="text-blue-400">{project.default_branch}</span>
-            {' | '}Max concurrent: <span className="text-blue-400">{project.max_concurrent ?? 3}</span>
+          <h1 className="text-2xl sm:text-3xl font-mono font-bold text-white truncate">
+            {project.name}
+          </h1>
+          <p className="mt-1 text-xs text-street-400 font-mono truncate">{project.path}</p>
+          <div className="mt-2 flex flex-wrap gap-3 text-xs font-mono">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan">
+              BRANCH: {project.default_branch}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-neon-yellow/10 border border-neon-yellow/30 text-neon-yellow">
+              WORKERS: {project.max_concurrent ?? 3}
+            </span>
             {project.claude_model && (
-              <>{' | '}Model: <span className="text-blue-400">{project.claude_model}</span></>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-neon-purple/10 border border-neon-purple/30 text-neon-purple">
+                MODEL: {project.claude_model}
+              </span>
             )}
-          </p>
+          </div>
         </div>
 
         <div className="flex gap-2 sm:gap-3 flex-shrink-0">
+          {/* Settings */}
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-1 sm:gap-2 rounded-lg bg-gray-700 px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-gray-200 hover:bg-gray-600 transition-all active:scale-95"
+            className="street-btn bg-street-700 border-2 border-street-500 px-4 py-3 text-xs text-street-300 hover:border-neon-cyan hover:text-neon-cyan"
             title="Settings"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            CFG
           </button>
 
+          {/* Start All */}
           <button
             onClick={onStartAll}
             disabled={!hasStartable}
-            className="relative flex items-center gap-1 sm:gap-2 rounded-lg bg-green-600 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white shadow-lg shadow-green-600/25 hover:bg-green-500 hover:shadow-green-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
+            className="street-btn relative bg-neon-green px-5 sm:px-8 py-3 text-xs text-street-900 hover:bg-neon-green/80 hover:shadow-neon-green disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            START ALL
             {hasStartable && (
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-300" />
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full bg-neon-green opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 bg-white" />
               </span>
             )}
+            RUN ALL
           </button>
 
+          {/* Stop All */}
           <button
             onClick={onStopAll}
             disabled={!hasRunning}
-            className="flex items-center gap-1 sm:gap-2 rounded-lg bg-red-600 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white shadow-lg shadow-red-600/25 hover:bg-red-500 hover:shadow-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all active:scale-95"
+            className="street-btn bg-neon-pink px-5 sm:px-8 py-3 text-xs text-white hover:bg-neon-pink/80 hover:shadow-neon-pink disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 6h12v12H6z" />
-            </svg>
-            STOP ALL
+            KILL ALL
           </button>
         </div>
       </div>
 
+      {/* Settings panel */}
       {showSettings && (
-        <div className="mt-4 rounded-lg bg-gray-800 border border-gray-700 p-4 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-200">Project Settings</h3>
+        <div className="mt-5 bg-street-800 border-2 border-street-500 p-6 animate-slide-up"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))' }}
+        >
+          <h3 className="text-xs font-mono font-bold text-neon-cyan tracking-[0.2em] uppercase mb-5">
+            &gt; PROJECT_CONFIG
+          </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Max Concurrent Workers</label>
+              <label className="block text-xs font-mono text-street-400 mb-2 uppercase tracking-wider">
+                Max Workers
+              </label>
               <input
                 type="number"
                 min={1}
                 max={10}
                 value={maxConcurrent}
                 onChange={(e) => setMaxConcurrent(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-                className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+                className="street-input"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Claude Model</label>
+              <label className="block text-xs font-mono text-street-400 mb-2 uppercase tracking-wider">
+                Claude Model
+              </label>
               <select
                 value={claudeModel}
                 onChange={(e) => setClaudeModel(e.target.value)}
-                className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+                className="street-input"
               >
                 <option value="">Default</option>
                 <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
@@ -128,30 +139,32 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Additional CLI Flags</label>
+              <label className="block text-xs font-mono text-street-400 mb-2 uppercase tracking-wider">
+                CLI Flags
+              </label>
               <input
                 type="text"
                 value={claudeOptions}
                 onChange={(e) => setClaudeOptions(e.target.value)}
-                placeholder="e.g. --verbose"
-                className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+                placeholder="--verbose"
+                className="street-input"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={() => setShowSettings(false)}
-              className="rounded-md px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              className="font-mono text-xs text-street-400 hover:text-white px-4 py-2 transition-colors uppercase tracking-wider"
             >
               Cancel
             </button>
             <button
               onClick={handleSaveSettings}
               disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
+              className="street-btn bg-neon-cyan px-6 py-2.5 text-xs text-street-900 hover:bg-neon-cyan/80 disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save Settings'}
+              {saving ? 'SAVING...' : 'SAVE'}
             </button>
           </div>
         </div>

@@ -11,8 +11,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-400 text-lg">Loading...</div>
+      <div className="min-h-screen bg-street-900 flex items-center justify-center">
+        <div className="text-neon-green font-mono text-lg animate-flicker">
+          LOADING<span className="animate-pulse">_</span>
+        </div>
       </div>
     );
   }
@@ -23,7 +25,8 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-900 text-gray-100">
+      <div className="min-h-screen bg-street-900 text-white font-display relative scanline">
+        <div className="noise-overlay" />
         <Routes>
           <Route
             path="/"

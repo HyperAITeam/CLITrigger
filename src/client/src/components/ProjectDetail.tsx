@@ -20,7 +20,6 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // Fetch project and todos
   useEffect(() => {
     if (!id) return;
     Promise.all([projectsApi.getProject(id), todosApi.getTodos(id)])
@@ -32,7 +31,6 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Listen for real-time WebSocket events
   useEffect(() => {
     return onEvent((event) => {
       if (event.type === 'todo:status-changed' && event.todoId && event.status) {
@@ -93,7 +91,6 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const handleStartAll = useCallback(async () => {
     if (!id) return;
     await projectsApi.startProject(id);
-    // Optimistically mark startable todos as running
     setTodos((prev) =>
       prev.map((t) =>
         t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
@@ -117,22 +114,24 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
-        <div className="text-center py-12 text-gray-400">Loading project...</div>
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="text-center py-20 font-mono text-neon-green animate-flicker">
+          LOADING<span className="animate-pulse">_</span>
+        </div>
       </div>
     );
   }
 
   if (notFound || !project) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
-        <div className="rounded-xl bg-gray-800 border border-gray-700 p-12 text-center">
-          <p className="text-gray-400 text-lg">Project not found.</p>
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="street-card p-16 text-center">
+          <p className="text-neon-pink font-mono text-lg">// ERROR: PROJECT NOT FOUND</p>
           <Link
             to="/"
-            className="mt-4 inline-block text-blue-400 hover:text-blue-300 transition-colors"
+            className="mt-6 inline-block font-mono text-sm text-neon-green hover:underline"
           >
-            Back to projects
+            &lt;-- BACK TO PROJECTS
           </Link>
         </div>
       </div>
@@ -140,23 +139,31 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <Link
-        to="/"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
-      >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Back to projects
-      </Link>
+    <div className="mx-auto max-w-5xl px-6 py-8">
+      {/* Navigation */}
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 font-mono text-xs text-street-400 hover:text-neon-green transition-colors tracking-wider uppercase"
+        >
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          PROJECTS
+        </Link>
 
-      {connected && (
-        <span className="ml-3 inline-flex items-center gap-1 text-xs text-green-500">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-          Live
-        </span>
-      )}
+        <span className="text-street-600 font-mono">/</span>
+        <span className="font-mono text-xs text-street-300 truncate">{project.name}</span>
+
+        {connected && (
+          <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-xs text-neon-green">
+            <span className="h-1.5 w-1.5 bg-neon-green animate-pulse" />
+            LIVE
+          </span>
+        )}
+      </div>
+
+      <div className="h-px bg-gradient-to-r from-neon-green/50 via-street-600 to-transparent mb-6" />
 
       <ProjectHeader
         project={project}

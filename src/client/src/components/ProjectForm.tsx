@@ -16,48 +16,66 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-800 border border-gray-700 p-6 shadow-2xl">
-        <h2 className="text-xl font-bold text-white mb-4">New Project</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Project Name</label>
-            <input
-              type="text"
-              placeholder="my-awesome-project"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md bg-gray-700 border border-gray-600 px-3 py-2 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Folder Path</label>
-            <input
-              type="text"
-              placeholder="C:/Projects/my-awesome-project"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              className="w-full rounded-md bg-gray-700 border border-gray-600 px-3 py-2 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm"
-            />
-          </div>
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md bg-gray-600 px-4 py-2 text-sm text-gray-200 hover:bg-gray-500 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || !path.trim()}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Create Project
-            </button>
-          </div>
-        </form>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="w-full max-w-md relative animate-slide-up">
+        <div
+          className="bg-street-800 border-2 border-street-500 p-8"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))' }}
+        >
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-8 h-0.5 bg-neon-green" />
+          <div className="absolute top-0 left-0 w-0.5 h-8 bg-neon-green" />
+          <div className="absolute bottom-0 right-0 w-8 h-0.5 bg-neon-cyan" />
+          <div className="absolute bottom-0 right-0 w-0.5 h-8 bg-neon-cyan" />
+
+          <h2 className="text-sm font-mono font-bold text-neon-green tracking-[0.2em] uppercase mb-6">
+            &gt; NEW_PROJECT
+          </h2>
+
+          <form onSubmit={handleSubmit}>
+            <div className="mb-5">
+              <label className="block text-xs font-mono text-street-400 mb-2 uppercase tracking-wider">
+                Project Name
+              </label>
+              <input
+                type="text"
+                placeholder="my-project"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="street-input"
+                autoFocus
+              />
+            </div>
+            <div className="mb-8">
+              <label className="block text-xs font-mono text-street-400 mb-2 uppercase tracking-wider">
+                Folder Path
+              </label>
+              <input
+                type="text"
+                placeholder="C:/Projects/my-project"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                className="street-input text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="font-mono text-xs text-street-400 hover:text-white px-4 py-2.5 transition-colors uppercase tracking-wider"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim() || !path.trim()}
+                className="street-btn bg-neon-green px-6 py-2.5 text-xs text-street-900 hover:bg-neon-green/80 hover:shadow-neon-green disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                CREATE
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

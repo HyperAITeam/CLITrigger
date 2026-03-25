@@ -1,3 +1,165 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-street-900 text-white font-display;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    @apply bg-neon-green/30 text-neon-green;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-street-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-street-500 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neon-green/50;
+  }
+}
+
+@layer components {
+  /* Noise texture overlay */
+  .noise-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  /* Scanline effect */
+  .scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+  }
+
+  /* Glitch text effect */
+  .glitch-text {
+    position: relative;
+  }
+  .glitch-text::before,
+  .glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .glitch-text::before {
+    color: #FF006E;
+    animation: glitch-1 0.5s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+    transform: translate(-2px, -1px);
+    opacity: 0.7;
+  }
+  .glitch-text::after {
+    color: #00F5FF;
+    animation: glitch-2 0.5s infinite;
+    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+    transform: translate(2px, 1px);
+    opacity: 0.7;
+  }
+
+  /* Street-style card */
+  .street-card {
+    @apply relative bg-street-800 border-2 border-street-600 transition-all duration-200;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+  .street-card::before {
+    content: '';
+    @apply absolute top-0 right-0 w-3 h-3 border-b-2 border-l-2 border-street-600;
+    transform: translate(-1px, 1px) rotate(0deg);
+  }
+  .street-card:hover {
+    @apply border-neon-green shadow-neon-green;
+  }
+
+  /* Neon border animation */
+  .neon-border {
+    position: relative;
+  }
+  .neon-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(45deg, #39FF14, #00F5FF, #FF006E, #BF00FF, #39FF14);
+    background-size: 400% 400%;
+    animation: gradient-rotate 3s linear infinite;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .neon-border:hover::before {
+    opacity: 1;
+  }
+
+  /* Tag/label style */
+  .street-tag {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wider;
+    clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  }
+
+  /* Street button */
+  .street-btn {
+    @apply relative font-mono font-bold uppercase tracking-wider transition-all duration-150;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  }
+  .street-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* Input street style */
+  .street-input {
+    @apply w-full bg-street-900 border-2 border-street-500 px-4 py-3 text-white font-mono
+           placeholder-street-400 transition-all duration-200
+           focus:border-neon-green focus:outline-none focus:shadow-neon-green;
+  }
+}
+
+@keyframes glitch-1 {
+  0% { transform: translate(0); }
+  20% { transform: translate(-3px, 3px); }
+  40% { transform: translate(3px, -3px); }
+  60% { transform: translate(-1px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  100% { transform: translate(0); }
+}
+
+@keyframes glitch-2 {
+  0% { transform: translate(0); }
+  20% { transform: translate(3px, -1px); }
+  40% { transform: translate(-3px, 1px); }
+  60% { transform: translate(1px, -3px); }
+  80% { transform: translate(-1px, 3px); }
+  100% { transform: translate(0); }
+}
+
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
