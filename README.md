@@ -47,6 +47,19 @@ npm run dev
 
 브라우저에서 `http://localhost:5173` 접속 → 비밀번호 입력 → 프로젝트 등록 → TODO 작성 → Start.
 
+### 원클릭 실행 (Windows)
+
+`scripts/` 폴더의 bat 파일을 더블클릭하면 명령어 입력 없이 바로 실행:
+
+| 파일 | 기능 |
+|------|------|
+| `scripts/install.bat` | 의존성 설치 (처음 한 번) |
+| `scripts/dev.bat` | 개발 모드 실행 |
+| `scripts/build.bat` | 프로젝트 빌드 |
+| `scripts/start.bat` | 프로덕션 서버 실행 |
+| `scripts/start-tunnel.bat` | 터널 모드 실행 |
+| `scripts/build-and-start.bat` | 빌드 후 바로 실행 |
+
 ## 외부에서 접속하기 (Cloudflare Tunnel)
 
 ```bash
