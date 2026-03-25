@@ -1,16 +1,21 @@
 import { spawn, ChildProcess } from 'child_process';
 
+export type ClaudeMode = 'headless' | 'interactive' | 'streaming';
+
 export class ClaudeManager {
   private processes: Map<number, ChildProcess> = new Map();
+  private stdinStreams: Map<number, NodeJS.WritableStream> = new Map();
 
   /**
    * Start Claude CLI in a worktree directory.
    * Spawns without shell to avoid escaping issues on Windows.
+   * mode: 'headless' uses -p flag, 'interactive' pipes stdin for user input.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: ClaudeMode = 'headless'): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
+    stdin: NodeJS.WritableStream | null;
     exitPromise: Promise<number>;
   }> {
     return new Promise((resolve, reject) => {
@@ -24,13 +29,18 @@ export class ClaudeManager {
         const extraArgs = extraOptions.split(/\s+/).filter(Boolean);
         args.push(...extraArgs);
       }
-      args.push('-p', prompt);
+
+      const needsStdin = mode === 'interactive' || mode === 'streaming';
+
+      if (!needsStdin) {
+        args.push('-p', prompt);
+      }
 
       try {
         // shell: false — pass args array directly, no escaping needed
         child = spawn('claude', args, {
           cwd: worktreePath,
-          stdio: ['ignore', 'pipe', 'pipe'],
+          stdio: [needsStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
           shell: false,
           windowsHide: true,
         });
@@ -55,9 +65,22 @@ export class ClaudeManager {
 
       this.processes.set(pid, child);
 
+      // For non-headless modes, send prompt via stdin
+      if (needsStdin && child.stdin) {
+        child.stdin.write(prompt + '\n');
+        if (mode === 'interactive') {
+          // Keep stdin open for user input
+          this.stdinStreams.set(pid, child.stdin);
+        } else {
+          // Streaming mode: close stdin so Claude works autonomously
+          child.stdin.end();
+        }
+      }
+
       const exitPromise = new Promise<number>((resolveExit) => {
         child.on('exit', (code) => {
           this.processes.delete(pid);
+          this.stdinStreams.delete(pid);
           resolveExit(code ?? 1);
         });
       });
@@ -67,10 +90,21 @@ export class ClaudeManager {
           pid,
           stdout: child.stdout!,
           stderr: child.stderr!,
+          stdin: child.stdin ?? null,
           exitPromise,
         });
       });
     });
+  }
+
+  /**
+   * Write data to the stdin of an interactive Claude process.
+   */
+  writeToStdin(pid: number, data: string): boolean {
+    const stdin = this.stdinStreams.get(pid);
+    if (!stdin || (stdin as any).destroyed) return false;
+    stdin.write(data);
+    return true;
   }
 
   /**
@@ -80,6 +114,13 @@ export class ClaudeManager {
     const child = this.processes.get(pid);
     if (!child) {
       return;
+    }
+
+    // End stdin stream before killing
+    const stdin = this.stdinStreams.get(pid);
+    if (stdin) {
+      try { stdin.end(); } catch { /* ignore */ }
+      this.stdinStreams.delete(pid);
     }
 
     return new Promise<void>((resolve) => {

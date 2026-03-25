@@ -8,15 +8,17 @@ import TodoForm from './TodoForm';
 
 interface TodoItemProps {
   todo: Todo;
-  onStart: (id: string) => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  isInteractive?: boolean;
+  onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onEvent }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onEvent, isInteractive, onSendInput }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -152,15 +154,35 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
           {canStart && (
-            <button
-              onClick={() => onStart(todo.id)}
-              className="p-1.5 text-neon-green/70 hover:text-neon-green hover:bg-neon-green/10 transition-colors"
-              title="Start"
-            >
-              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={() => onStart(todo.id, 'headless')}
+                className="p-1.5 text-neon-green/70 hover:text-neon-green hover:bg-neon-green/10 transition-colors"
+                title="Run Headless (-p)"
+              >
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => onStart(todo.id, 'streaming')}
+                className="p-1.5 text-neon-yellow/70 hover:text-neon-yellow hover:bg-neon-yellow/10 transition-colors"
+                title="Run Streaming (autonomous, no -p)"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => onStart(todo.id, 'interactive')}
+                className="p-1.5 text-neon-cyan/70 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
+                title="Run Interactive"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </>
           )}
           {canStop && (
             <button
@@ -289,7 +311,12 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
             <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-2">
               SYSTEM LOG
             </h4>
-            <LogViewer logs={logs} />
+            <LogViewer
+              logs={logs}
+              interactive={isInteractive && todo.status === 'running'}
+              todoId={todo.id}
+              onSendInput={onSendInput}
+            />
           </div>
         </div>
       )}

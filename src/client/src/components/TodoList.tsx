@@ -7,12 +7,14 @@ import TodoForm from './TodoForm';
 interface TodoListProps {
   todos: Todo[];
   onAddTodo: (title: string, description: string) => Promise<void>;
-  onStartTodo: (id: string) => Promise<void>;
+  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  onSendInput: (todoId: string, input: string) => void;
+  interactiveTodos: Set<string>;
 }
 
 export default function TodoList({
@@ -24,6 +26,8 @@ export default function TodoList({
   onEditTodo,
   onMergeTodo,
   onEvent,
+  onSendInput,
+  interactiveTodos,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
 
@@ -75,6 +79,8 @@ export default function TodoList({
                 onEdit={onEditTodo}
                 onMerge={onMergeTodo}
                 onEvent={onEvent}
+                isInteractive={interactiveTodos.has(todo.id)}
+                onSendInput={onSendInput}
               />
             </div>
           ))

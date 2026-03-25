@@ -1,5 +1,5 @@
 import { worktreeManager } from './worktree-manager.js';
-import { claudeManager } from './claude-manager.js';
+import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { logStreamer } from './log-streamer.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
@@ -74,7 +74,7 @@ export class Orchestrator {
   /**
    * Start a single todo by ID.
    */
-  async startTodo(todoId: string): Promise<void> {
+  async startTodo(todoId: string, mode: ClaudeMode = 'headless'): Promise<void> {
     const todo = queries.getTodoById(todoId);
     if (!todo) {
       throw new Error('Todo not found');
@@ -90,7 +90,7 @@ export class Orchestrator {
       throw new Error('Project not found');
     }
 
-    await this.startSingleTodo(todoId, project.path, project.id);
+    await this.startSingleTodo(todoId, project.path, project.id, mode);
   }
 
   /**
@@ -117,7 +117,7 @@ export class Orchestrator {
   /**
    * Internal: start a single todo with all the setup.
    */
-  private async startSingleTodo(todoId: string, projectPath: string, projectId: string): Promise<void> {
+  private async startSingleTodo(todoId: string, projectPath: string, projectId: string, mode: ClaudeMode = 'headless'): Promise<void> {
     const todo = queries.getTodoById(todoId);
     if (!todo) return;
 
@@ -144,7 +144,7 @@ export class Orchestrator {
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(worktreePath, prompt, claudeModel, claudeOptions);
+      const result = await claudeManager.startClaude(worktreePath, prompt, claudeModel, claudeOptions, mode);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -170,10 +170,10 @@ export class Orchestrator {
       worktree_path: worktreePath,
       process_pid: pid,
     });
-    queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName}`);
+    queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`);
 
-    // Broadcast status change
-    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running' });
+    // Broadcast status change with mode
+    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode });
     this.broadcastProjectStatus(projectId);
 
     // Handle process exit asynchronously

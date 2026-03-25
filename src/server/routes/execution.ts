@@ -57,7 +57,9 @@ router.post('/todos/:id/start', async (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    await orchestrator.startTodo(todo.id);
+    const validModes = ['headless', 'interactive', 'streaming'] as const;
+    const mode = validModes.includes(req.body.mode) ? req.body.mode : 'headless';
+    await orchestrator.startTodo(todo.id, mode);
 
     // Re-fetch to return current state
     const updated = getTodoById(todo.id);

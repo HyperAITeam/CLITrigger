@@ -11,6 +11,7 @@ export interface WsEvent {
   completed?: number;
   total?: number;
   commitHash?: string;
+  mode?: string;
 }
 
 type EventCallback = (event: WsEvent) => void;
@@ -78,5 +79,11 @@ export function useWebSocket(authenticated: boolean) {
     };
   }, []);
 
-  return { connected, onEvent };
+  const sendMessage = useCallback((event: object) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(event));
+    }
+  }, []);
+
+  return { connected, onEvent, sendMessage };
 }
