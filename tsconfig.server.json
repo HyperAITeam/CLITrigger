@@ -4,5 +4,6 @@
     "outDir": "./dist/server",
     "rootDir": "./src/server"
   },
-  "include": ["src/server/**/*"]
+  "include": ["src/server/**/*"],
+  "exclude": ["src/server/**/__tests__/**"]
 }

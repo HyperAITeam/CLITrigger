@@ -254,6 +254,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onEditTodo={handleEditTodo}
           onMergeTodo={handleMergeTodo}
           onEvent={onEvent}
+          onSendInput={() => {}}
+          interactiveTodos={new Set<string>()}
         />
       ) : (
         <PipelineList
