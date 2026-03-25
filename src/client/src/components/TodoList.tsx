@@ -3,6 +3,7 @@ import type { Todo } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
+import { useI18n } from '../i18n';
 
 interface TodoListProps {
   todos: Todo[];
@@ -30,22 +31,25 @@ export default function TodoList({
   interactiveTodos,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
+  const { t } = useI18n();
 
   const sortedTodos = [...todos].sort((a, b) => a.priority - b.priority);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-sm font-mono font-bold text-street-300 tracking-[0.2em] uppercase">
-          &gt; TASK_QUEUE
+        <h2 className="text-sm font-semibold text-warm-600 uppercase tracking-wider">
+          {t('todos.title')}
         </h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="street-btn flex items-center gap-2 bg-neon-green px-4 py-2 text-[10px] text-street-900 hover:bg-neon-green/80 hover:shadow-neon-green"
+            className="btn-primary text-xs py-2"
           >
-            <span className="text-sm leading-none">+</span>
-            ADD TASK
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {t('todos.add')}
           </button>
         )}
       </div>
@@ -62,11 +66,11 @@ export default function TodoList({
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {sortedTodos.length === 0 ? (
-          <div className="street-card p-10 text-center">
-            <p className="font-mono text-street-400 text-sm">// EMPTY QUEUE</p>
-            <p className="font-mono text-street-500 text-xs mt-1">Add a task to begin execution.</p>
+          <div className="card p-10 text-center">
+            <p className="text-warm-600 font-medium">{t('todos.empty')}</p>
+            <p className="text-warm-400 text-sm mt-1">{t('todos.emptyHint')}</p>
           </div>
         ) : (
           sortedTodos.map((todo, index) => (

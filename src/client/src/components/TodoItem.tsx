@@ -5,20 +5,19 @@ import * as todosApi from '../api/todos';
 import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
+import { useI18n } from '../i18n';
 
 interface TodoItemProps {
   todo: Todo;
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onStart: (id: string) => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
-  isInteractive?: boolean;
-  onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onEvent, isInteractive, onSendInput }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onEvent }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -29,6 +28,7 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const [diffError, setDiffError] = useState<string | null>(null);
   const [merging, setMerging] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canStop = todo.status === 'running';
@@ -115,27 +115,26 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     );
   }
 
-  // Left border color based on status
   const borderColor = {
-    pending: 'border-l-street-500',
-    running: 'border-l-neon-cyan',
-    completed: 'border-l-neon-green',
-    failed: 'border-l-neon-pink',
-    stopped: 'border-l-neon-yellow',
-    merged: 'border-l-neon-purple',
+    pending: 'border-l-warm-300',
+    running: 'border-l-status-running',
+    completed: 'border-l-status-success',
+    failed: 'border-l-status-error',
+    stopped: 'border-l-status-warning',
+    merged: 'border-l-status-merged',
   }[todo.status];
 
   return (
-    <div className={`bg-street-800 border-2 border-street-600 border-l-4 ${borderColor} overflow-hidden transition-all hover:border-street-500`}>
+    <div className={`card border-l-4 ${borderColor} overflow-hidden`}>
       {/* Header row */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-street-700/50 transition-colors"
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         {/* Expand arrow */}
-        <button className="text-street-500 hover:text-neon-green flex-shrink-0 transition-colors">
+        <button className="text-warm-400 hover:text-accent-gold flex-shrink-0 transition-colors">
           <svg
-            className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+            className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
             fill="currentColor"
             viewBox="0 0 24 24"
           >
@@ -144,51 +143,31 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
         </button>
 
         {/* Priority */}
-        <span className="text-[10px] font-mono text-street-500 w-6">#{todo.priority}</span>
+        <span className="text-[10px] font-mono text-warm-400 w-6">#{todo.priority}</span>
 
         {/* Title */}
-        <span className="flex-1 text-sm text-white font-mono truncate">{todo.title}</span>
+        <span className="flex-1 text-sm text-warm-800 font-medium truncate">{todo.title}</span>
 
         <StatusBadge status={todo.status} />
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
           {canStart && (
-            <>
-              <button
-                onClick={() => onStart(todo.id, 'headless')}
-                className="p-1.5 text-neon-green/70 hover:text-neon-green hover:bg-neon-green/10 transition-colors"
-                title="Run Headless (-p)"
-              >
-                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => onStart(todo.id, 'streaming')}
-                className="p-1.5 text-neon-yellow/70 hover:text-neon-yellow hover:bg-neon-yellow/10 transition-colors"
-                title="Run Streaming (autonomous, no -p)"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => onStart(todo.id, 'interactive')}
-                className="p-1.5 text-neon-cyan/70 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
-                title="Run Interactive"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
-            </>
+            <button
+              onClick={() => onStart(todo.id)}
+              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors"
+              title={t('todo.start')}
+            >
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </button>
           )}
           {canStop && (
             <button
               onClick={() => onStop(todo.id)}
-              className="p-1.5 text-neon-pink/70 hover:text-neon-pink hover:bg-neon-pink/10 transition-colors"
-              title="Stop"
+              className="p-1.5 text-status-error/60 hover:text-status-error hover:bg-status-error/10 rounded-lg transition-colors"
+              title={t('todo.stop')}
             >
               <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z" />
@@ -199,8 +178,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
             <button
               onClick={handleViewDiff}
               disabled={diffLoading}
-              className="p-1.5 text-neon-cyan/70 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors disabled:opacity-30"
-              title="View Diff"
+              className="p-1.5 text-status-info/60 hover:text-status-info hover:bg-status-info/10 rounded-lg transition-colors disabled:opacity-30"
+              title={t('todo.viewDiff')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -211,8 +190,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
             <button
               onClick={handleMerge}
               disabled={merging}
-              className="p-1.5 text-neon-purple/70 hover:text-neon-purple hover:bg-neon-purple/10 transition-colors disabled:opacity-30"
-              title="Merge"
+              className="p-1.5 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded-lg transition-colors disabled:opacity-30"
+              title={t('todo.merge')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -221,8 +200,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           )}
           <button
             onClick={() => setEditing(true)}
-            className="p-1.5 text-street-500 hover:text-neon-yellow hover:bg-neon-yellow/10 transition-colors"
-            title="Edit"
+            className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
+            title={t('todo.edit')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -230,8 +209,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           </button>
           <button
             onClick={() => onDelete(todo.id)}
-            className="p-1.5 text-street-500 hover:text-neon-pink hover:bg-neon-pink/10 transition-colors"
-            title="Delete"
+            className="p-1.5 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded-lg transition-colors"
+            title={t('todo.delete')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -242,26 +221,26 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t-2 border-street-600 px-5 py-5 space-y-5 animate-slide-up">
+        <div className="border-t border-warm-200 px-5 py-5 space-y-5 animate-fade-in bg-warm-50/50">
           {/* Description */}
           <div>
-            <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-2">
-              DESCRIPTION
+            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
+              {t('todo.description')}
             </h4>
-            <p className="text-sm text-street-300 font-mono whitespace-pre-wrap leading-relaxed">
-              {todo.description || '// No description provided.'}
+            <p className="text-sm text-warm-600 whitespace-pre-wrap leading-relaxed">
+              {todo.description || t('todo.noDescription')}
             </p>
           </div>
 
           {/* Branch info */}
           {todo.branch_name && (
-            <div className="flex flex-wrap gap-3 text-xs font-mono">
-              <span className="px-2 py-1 bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan">
-                BRANCH: {todo.branch_name}
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="badge bg-status-running/10 text-status-running">
+                {t('todo.branch')}: {todo.branch_name}
               </span>
               {todo.worktree_path && (
-                <span className="px-2 py-1 bg-street-700 border border-street-600 text-street-300">
-                  PATH: {todo.worktree_path}
+                <span className="badge bg-warm-200 text-warm-600 font-mono">
+                  {t('todo.path')}: {todo.worktree_path}
                 </span>
               )}
             </div>
@@ -269,14 +248,14 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
 
           {/* Errors */}
           {mergeError && (
-            <div className="py-2 px-3 bg-neon-pink/10 border border-neon-pink/30 font-mono text-xs text-neon-pink">
-              ! MERGE FAILED: {mergeError}
+            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
+              {t('todo.mergeFailed')}: {mergeError}
             </div>
           )}
 
           {diffError && (
-            <div className="py-2 px-3 bg-neon-pink/10 border border-neon-pink/30 font-mono text-xs text-neon-pink">
-              ! DIFF ERROR: {diffError}
+            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
+              {t('todo.diffError')}: {diffError}
             </div>
           )}
 
@@ -284,39 +263,34 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           {showDiff && diffData && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase">
-                  DIFF OUTPUT
+                <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider">
+                  {t('todo.diffOutput')}
                 </h4>
-                <div className="flex gap-4 text-[10px] font-mono tracking-wider">
-                  <span className="text-street-400">{diffData.stats.files_changed} FILES</span>
-                  <span className="text-neon-green">+{diffData.stats.insertions}</span>
-                  <span className="text-neon-pink">-{diffData.stats.deletions}</span>
+                <div className="flex gap-3 text-xs">
+                  <span className="text-warm-400">{diffData.stats.files_changed} {t('todo.files')}</span>
+                  <span className="text-status-success">+{diffData.stats.insertions}</span>
+                  <span className="text-status-error">-{diffData.stats.deletions}</span>
                 </div>
               </div>
-              <pre className="h-80 overflow-auto bg-street-900 border-2 border-street-600 p-4 font-mono text-xs leading-relaxed">
+              <pre className="h-80 overflow-auto bg-warm-800 rounded-xl border border-warm-700 p-4 font-mono text-xs leading-relaxed">
                 {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                  let className = 'text-street-400';
-                  if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-neon-green';
-                  else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-neon-pink';
-                  else if (line.startsWith('@@')) className = 'text-neon-cyan';
-                  else if (line.startsWith('diff ')) className = 'text-neon-yellow font-bold';
+                  let className = 'text-warm-400';
+                  if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';
+                  else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-red-400';
+                  else if (line.startsWith('@@')) className = 'text-blue-400';
+                  else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
                   return <div key={i} className={className}>{line}</div>;
-                }) : <span className="text-street-500 italic">// No changes detected.</span>}
+                }) : <span className="text-warm-500 italic">{t('log.noChanges')}</span>}
               </pre>
             </div>
           )}
 
           {/* Logs */}
           <div>
-            <h4 className="text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-2">
-              SYSTEM LOG
+            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
+              {t('todo.systemLog')}
             </h4>
-            <LogViewer
-              logs={logs}
-              interactive={isInteractive && todo.status === 'running'}
-              todoId={todo.id}
-              onSendInput={onSendInput}
-            />
+            <LogViewer logs={logs} />
           </div>
         </div>
       )}
