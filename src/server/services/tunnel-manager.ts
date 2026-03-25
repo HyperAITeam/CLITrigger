@@ -29,6 +29,7 @@ export class TunnelManager extends EventEmitter {
     return new Promise<string>((resolve, reject) => {
       const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], {
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true,
       });
 
       this.process = proc;
@@ -114,6 +115,7 @@ export class TunnelManager extends EventEmitter {
     return new Promise<string>((resolve, reject) => {
       const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`, 'run', tunnelName], {
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true,
       });
 
       this.process = proc;
@@ -234,7 +236,7 @@ export class TunnelManager extends EventEmitter {
    */
   async isCloudflaredInstalled(): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
-      execFile('cloudflared', ['--version'], (error) => {
+      execFile('cloudflared', ['--version'], { shell: true }, (error) => {
         resolve(!error);
       });
     });
