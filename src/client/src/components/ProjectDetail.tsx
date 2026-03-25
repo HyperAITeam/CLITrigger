@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Project, Todo } from '../types';
+import type { Project, Todo, Pipeline } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
+import * as pipelinesApi from '../api/pipelines';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
+import PipelineList from './PipelineList';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -18,16 +20,19 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines'>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id)])
-      .then(([proj, todoList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id)])
+      .then(([proj, todoList, pipelineList]) => {
         setProject(proj);
         setTodos(todoList);
+        setPipelines(pipelineList);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -41,6 +46,15 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             t.id === event.todoId
               ? { ...t, status: event.status as Todo['status'], updated_at: new Date().toISOString() }
               : t
+          )
+        );
+      }
+      if (event.type === 'pipeline:status-changed' && event.pipelineId) {
+        setPipelines((prev) =>
+          prev.map((p) =>
+            p.id === event.pipelineId
+              ? { ...p, status: event.status as Pipeline['status'], current_phase: event.currentPhase ?? null, updated_at: new Date().toISOString() }
+              : p
           )
         );
       }
@@ -88,6 +102,32 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         t.id === todoId ? { ...t, status: 'merged' as const, updated_at: new Date().toISOString() } : t
       )
     );
+  }, []);
+
+  // Pipeline handlers
+  const handleAddPipeline = useCallback(async (title: string, description: string) => {
+    if (!id) return;
+    const newPipeline = await pipelinesApi.createPipeline(id, { title, description });
+    setPipelines((prev) => [newPipeline, ...prev]);
+  }, [id]);
+
+  const handleStartPipeline = useCallback(async (pipelineId: string) => {
+    await pipelinesApi.startPipeline(pipelineId);
+    setPipelines((prev) =>
+      prev.map((p) => p.id === pipelineId ? { ...p, status: 'running' as const, updated_at: new Date().toISOString() } : p)
+    );
+  }, []);
+
+  const handleStopPipeline = useCallback(async (pipelineId: string) => {
+    await pipelinesApi.stopPipeline(pipelineId);
+    setPipelines((prev) =>
+      prev.map((p) => p.id === pipelineId ? { ...p, status: 'paused' as const, updated_at: new Date().toISOString() } : p)
+    );
+  }, []);
+
+  const handleDeletePipeline = useCallback(async (pipelineId: string) => {
+    await pipelinesApi.deletePipeline(pipelineId);
+    setPipelines((prev) => prev.filter((p) => p.id !== pipelineId));
   }, []);
 
   const handleStartAll = useCallback(async () => {
@@ -180,16 +220,50 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
       <ProgressBar todos={todos} />
 
-      <TodoList
-        todos={todos}
-        onAddTodo={handleAddTodo}
-        onStartTodo={handleStartTodo}
-        onStopTodo={handleStopTodo}
-        onDeleteTodo={handleDeleteTodo}
-        onEditTodo={handleEditTodo}
-        onMergeTodo={handleMergeTodo}
-        onEvent={onEvent}
-      />
+      {/* Tab toggle */}
+      <div className="flex gap-0 mb-4 border-b-2 border-street-700">
+        <button
+          onClick={() => setActiveTab('tasks')}
+          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+            activeTab === 'tasks'
+              ? 'text-neon-green border-neon-green'
+              : 'text-street-500 border-transparent hover:text-street-300'
+          }`}
+        >
+          TASKS ({todos.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('pipelines')}
+          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+            activeTab === 'pipelines'
+              ? 'text-neon-cyan border-neon-cyan'
+              : 'text-street-500 border-transparent hover:text-street-300'
+          }`}
+        >
+          PIPELINES ({pipelines.length})
+        </button>
+      </div>
+
+      {activeTab === 'tasks' ? (
+        <TodoList
+          todos={todos}
+          onAddTodo={handleAddTodo}
+          onStartTodo={handleStartTodo}
+          onStopTodo={handleStopTodo}
+          onDeleteTodo={handleDeleteTodo}
+          onEditTodo={handleEditTodo}
+          onMergeTodo={handleMergeTodo}
+          onEvent={onEvent}
+        />
+      ) : (
+        <PipelineList
+          pipelines={pipelines}
+          onAddPipeline={handleAddPipeline}
+          onStartPipeline={handleStartPipeline}
+          onStopPipeline={handleStopPipeline}
+          onDeletePipeline={handleDeletePipeline}
+        />
+      )}
     </div>
   );
 }

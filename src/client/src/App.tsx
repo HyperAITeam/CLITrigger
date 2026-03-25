@@ -5,6 +5,7 @@ import { useI18n } from './i18n';
 import LoginPage from './components/LoginPage';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
+import PipelineDetail from './components/PipelineDetail';
 
 function App() {
   const { authenticated, loading, login, logout } = useAuth();
@@ -39,6 +40,12 @@ function App() {
             path="/projects/:id"
             element={
               <ProjectDetail onEvent={onEvent} connected={connected} />
+            }
+          />
+          <Route
+            path="/projects/:id/pipelines/:pipelineId"
+            element={
+              <PipelineDetail onEvent={onEvent} connected={connected} />
             }
           />
         </Routes>

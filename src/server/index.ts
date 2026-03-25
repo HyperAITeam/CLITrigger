@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -16,6 +16,7 @@ import { claudeManager } from './services/claude-manager.js';
 import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
+import pipelinesRouter from './routes/pipelines.js';
 
 const app = express();
 const server = createServer(app);
@@ -40,6 +41,17 @@ if (staleTodos.length > 0) {
   }
 }
 
+// Startup recovery: reset stale 'running' pipelines to 'paused'
+const stalePipelines = getPipelinesByStatus('running');
+if (stalePipelines.length > 0) {
+  console.log(`Recovering ${stalePipelines.length} stale running pipeline(s)...`);
+  for (const pipeline of stalePipelines) {
+    updatePipelineStatus(pipeline.id, 'paused');
+    updatePipeline(pipeline.id, { process_pid: 0 });
+    console.log(`  Reset pipeline "${pipeline.title}" (${pipeline.id}) from running to paused`);
+  }
+}
+
 // Auto-cleanup old logs (default 30 days)
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
 const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
@@ -56,6 +68,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
+app.use('/api', pipelinesRouter);
 app.use('/api/tunnel', tunnelRouter);
 
 // --- WebSocket ---
