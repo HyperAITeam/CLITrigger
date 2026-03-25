@@ -35,7 +35,7 @@ export interface DiffResult {
 export interface TaskLog {
   id: string;
   todo_id: string;
-  log_type: 'info' | 'error' | 'output' | 'commit';
+  log_type: 'info' | 'error' | 'output' | 'commit' | 'input';
   message: string;
   created_at: string;
 }

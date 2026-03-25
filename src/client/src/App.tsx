@@ -7,7 +7,7 @@ import ProjectDetail from './components/ProjectDetail';
 
 function App() {
   const { authenticated, loading, login, logout } = useAuth();
-  const { connected, onEvent } = useWebSocket(authenticated);
+  const { connected, onEvent, sendMessage } = useWebSocket(authenticated);
 
   if (loading) {
     return (
@@ -37,7 +37,7 @@ function App() {
           <Route
             path="/projects/:id"
             element={
-              <ProjectDetail onEvent={onEvent} connected={connected} />
+              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} />
             }
           />
         </Routes>

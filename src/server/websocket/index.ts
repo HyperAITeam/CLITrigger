@@ -3,6 +3,8 @@ import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
 import { broadcaster } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
+import { claudeManager } from '../services/claude-manager.js';
+import { getTodoById, createTaskLog } from '../db/queries.js';
 
 export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -47,6 +49,30 @@ export function initWebSocket(server: Server): void {
     ws.on('error', (err) => {
       console.error('WebSocket error:', err);
       broadcaster.removeClient(ws);
+    });
+
+    // Handle incoming messages (stdin for interactive mode)
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.type === 'todo:stdin' && msg.todoId && typeof msg.input === 'string') {
+          const todo = getTodoById(msg.todoId);
+          if (todo && todo.process_pid && todo.status === 'running') {
+            const written = claudeManager.writeToStdin(todo.process_pid, msg.input + '\n');
+            if (written) {
+              createTaskLog(msg.todoId, 'input', msg.input);
+              broadcaster.broadcast({
+                type: 'todo:log',
+                todoId: msg.todoId,
+                message: msg.input,
+                logType: 'input',
+              });
+            }
+          }
+        }
+      } catch {
+        // Ignore malformed messages
+      }
     });
 
     // Send welcome message

@@ -11,14 +11,16 @@ import ProgressBar from './ProgressBar';
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
+  sendMessage: (event: object) => void;
 }
 
-export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected, sendMessage }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +43,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
               : t
           )
         );
+        // Track interactive mode todos
+        if (event.status === 'running' && event.mode === 'interactive') {
+          setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
+        } else if (event.status !== 'running') {
+          setInteractiveTodos((prev) => {
+            const next = new Set(prev);
+            next.delete(event.todoId!);
+            return next;
+          });
+        }
       }
     });
   }, [onEvent]);
@@ -51,13 +63,17 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string) => {
-    await todosApi.startTodo(todoId);
+  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
+    const m = mode || 'headless';
+    await todosApi.startTodo(todoId, m);
     setTodos((prev) =>
       prev.map((t) =>
         t.id === todoId ? { ...t, status: 'running' as const, updated_at: new Date().toISOString() } : t
       )
     );
+    if (m === 'interactive') {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
   }, []);
 
   const handleStopTodo = useCallback(async (todoId: string) => {
@@ -78,6 +94,10 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     const updated = await todosApi.updateTodo(todoId, { title, description });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
+
+  const handleSendInput = useCallback((todoId: string, input: string) => {
+    sendMessage({ type: 'todo:stdin', todoId, input });
+  }, [sendMessage]);
 
   const handleMergeTodo = useCallback(async (todoId: string) => {
     await todosApi.mergeTodo(todoId);
@@ -184,6 +204,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         onEditTodo={handleEditTodo}
         onMergeTodo={handleMergeTodo}
         onEvent={onEvent}
+        onSendInput={handleSendInput}
+        interactiveTodos={interactiveTodos}
       />
     </div>
   );
