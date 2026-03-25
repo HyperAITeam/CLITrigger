@@ -23,40 +23,44 @@ export default function TodoForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg bg-gray-800 border border-gray-600 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="bg-street-800 border-2 border-neon-green/30 p-5"
+      style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))' }}
+    >
       <div className="mb-3">
         <input
           type="text"
           placeholder="Task title..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-md bg-gray-700 border border-gray-600 px-3 py-2 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="street-input"
           autoFocus
         />
       </div>
-      <div className="mb-3">
+      <div className="mb-4">
         <textarea
           placeholder="Description (optional)..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full rounded-md bg-gray-700 border border-gray-600 px-3 py-2 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+          className="street-input resize-none"
         />
       </div>
-      <div className="flex gap-2 justify-end">
+      <div className="flex gap-3 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md bg-gray-600 px-4 py-2 text-sm text-gray-200 hover:bg-gray-500 transition-colors"
+          className="font-mono text-xs text-street-400 hover:text-white px-4 py-2 transition-colors uppercase tracking-wider"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!title.trim()}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="street-btn bg-neon-green px-5 py-2 text-[10px] text-street-900 hover:bg-neon-green/80 disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          Save
+          SAVE
         </button>
       </div>
     </form>

@@ -31,23 +31,23 @@ export default function TodoList({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-200">Tasks</h2>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-sm font-mono font-bold text-street-300 tracking-[0.2em] uppercase">
+          &gt; TASK_QUEUE
+        </h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500 transition-colors"
+            className="street-btn flex items-center gap-2 bg-neon-green px-4 py-2 text-[10px] text-street-900 hover:bg-neon-green/80 hover:shadow-neon-green"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Task
+            <span className="text-sm leading-none">+</span>
+            ADD TASK
           </button>
         )}
       </div>
 
       {showForm && (
-        <div className="mb-4">
+        <div className="mb-5 animate-slide-up">
           <TodoForm
             onSave={async (title, description) => {
               await onAddTodo(title, description);
@@ -60,21 +60,23 @@ export default function TodoList({
 
       <div className="space-y-2">
         {sortedTodos.length === 0 ? (
-          <div className="rounded-lg bg-gray-800 border border-gray-700 p-8 text-center text-gray-400">
-            No tasks yet. Click "Add Task" to get started.
+          <div className="street-card p-10 text-center">
+            <p className="font-mono text-street-400 text-sm">// EMPTY QUEUE</p>
+            <p className="font-mono text-street-500 text-xs mt-1">Add a task to begin execution.</p>
           </div>
         ) : (
-          sortedTodos.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
-              onStart={onStartTodo}
-              onStop={onStopTodo}
-              onDelete={onDeleteTodo}
-              onEdit={onEditTodo}
-              onMerge={onMergeTodo}
-              onEvent={onEvent}
-            />
+          sortedTodos.map((todo, index) => (
+            <div key={todo.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+              <TodoItem
+                todo={todo}
+                onStart={onStartTodo}
+                onStop={onStopTodo}
+                onDelete={onDeleteTodo}
+                onEdit={onEditTodo}
+                onMerge={onMergeTodo}
+                onEvent={onEvent}
+              />
+            </div>
           ))
         )}
       </div>
