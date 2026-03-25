@@ -1,4 +1,5 @@
 import type { Todo } from '../types';
+import { useI18n } from '../i18n';
 
 interface ProgressBarProps {
   todos: Todo[];
@@ -6,6 +7,7 @@ interface ProgressBarProps {
 
 export default function ProgressBar({ todos }: ProgressBarProps) {
   const total = todos.length;
+  const { t } = useI18n();
   if (total === 0) return null;
 
   const counts = {
@@ -23,74 +25,73 @@ export default function ProgressBar({ todos }: ProgressBarProps) {
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-mono text-sm text-white">
-          <span className="text-neon-green">{completedPercent}%</span>
-          <span className="text-street-500 ml-2">// {doneCount}/{total} COMPLETE</span>
+        <span className="text-sm font-medium text-warm-700">
+          <span className="text-accent-goldDark">{completedPercent}%</span>
+          <span className="text-warm-400 ml-2">{doneCount}/{total} {t('progress.complete')}</span>
         </span>
-        <div className="flex gap-4 text-[10px] font-mono tracking-wider">
+        <div className="flex gap-3 text-xs text-warm-500">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 bg-neon-green" /> {counts.completed} DONE
+            <span className="h-2 w-2 rounded-full bg-status-success" /> {counts.completed} {t('progress.done')}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 bg-neon-cyan animate-pulse" /> {counts.running} LIVE
+            <span className="h-2 w-2 rounded-full bg-status-running animate-pulse" /> {counts.running} {t('progress.live')}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 bg-street-500" /> {counts.pending} IDLE
+            <span className="h-2 w-2 rounded-full bg-warm-300" /> {counts.pending} {t('progress.idle')}
           </span>
           {counts.failed > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 bg-neon-pink" /> {counts.failed} FAIL
+              <span className="h-2 w-2 rounded-full bg-status-error" /> {counts.failed} {t('progress.fail')}
             </span>
           )}
           {counts.stopped > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 bg-neon-yellow" /> {counts.stopped} STOP
+              <span className="h-2 w-2 rounded-full bg-status-warning" /> {counts.stopped} {t('progress.stop')}
             </span>
           )}
           {counts.merged > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 bg-neon-purple" /> {counts.merged} MRGD
+              <span className="h-2 w-2 rounded-full bg-status-merged" /> {counts.merged} {t('progress.merged')}
             </span>
           )}
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="h-2 w-full overflow-hidden bg-street-700 relative">
+      <div className="h-2 w-full overflow-hidden bg-warm-200 rounded-full">
         <div className="flex h-full">
           {counts.completed > 0 && (
             <div
-              className="bg-neon-green transition-all duration-500 shadow-neon-green"
+              className="bg-status-success transition-all duration-500 first:rounded-l-full last:rounded-r-full"
               style={{ width: `${(counts.completed / total) * 100}%` }}
             />
           )}
           {counts.running > 0 && (
             <div
-              className="bg-neon-cyan transition-all duration-500 animate-pulse"
+              className="bg-status-running transition-all duration-500 animate-pulse last:rounded-r-full"
               style={{ width: `${(counts.running / total) * 100}%` }}
             />
           )}
           {counts.failed > 0 && (
             <div
-              className="bg-neon-pink transition-all duration-500"
+              className="bg-status-error transition-all duration-500 last:rounded-r-full"
               style={{ width: `${(counts.failed / total) * 100}%` }}
             />
           )}
           {counts.stopped > 0 && (
             <div
-              className="bg-neon-yellow transition-all duration-500"
+              className="bg-status-warning transition-all duration-500 last:rounded-r-full"
               style={{ width: `${(counts.stopped / total) * 100}%` }}
             />
           )}
           {counts.merged > 0 && (
             <div
-              className="bg-neon-purple transition-all duration-500"
+              className="bg-status-merged transition-all duration-500 last:rounded-r-full"
               style={{ width: `${(counts.merged / total) * 100}%` }}
             />
           )}
         </div>
       </div>
-      <div className="h-px bg-gradient-to-r from-neon-green/30 via-transparent to-neon-pink/30 mt-1" />
     </div>
   );
 }

@@ -1,46 +1,48 @@
 import type { Todo } from '../types';
+import { useI18n } from '../i18n';
 
 interface StatusBadgeProps {
   status: Todo['status'];
 }
 
-const statusConfig: Record<Todo['status'], { label: string; classes: string }> = {
-  pending: {
-    label: 'IDLE',
-    classes: 'bg-street-600 text-street-300 border-street-500',
-  },
-  running: {
-    label: 'LIVE',
-    classes: 'bg-neon-cyan/10 text-neon-cyan border-neon-cyan/50 animate-pulse',
-  },
-  completed: {
-    label: 'DONE',
-    classes: 'bg-neon-green/10 text-neon-green border-neon-green/50',
-  },
-  failed: {
-    label: 'FAIL',
-    classes: 'bg-neon-pink/10 text-neon-pink border-neon-pink/50',
-  },
-  stopped: {
-    label: 'STOP',
-    classes: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/50',
-  },
-  merged: {
-    label: 'MRGD',
-    classes: 'bg-neon-purple/10 text-neon-purple border-neon-purple/50',
-  },
-};
-
 export default function StatusBadge({ status }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const { t } = useI18n();
+
+  const config: Record<Todo['status'], { labelKey: string; classes: string }> = {
+    pending: {
+      labelKey: 'status.pending',
+      classes: 'bg-warm-200 text-warm-500',
+    },
+    running: {
+      labelKey: 'status.running',
+      classes: 'bg-status-running/10 text-status-running',
+    },
+    completed: {
+      labelKey: 'status.completed',
+      classes: 'bg-status-success/10 text-status-success',
+    },
+    failed: {
+      labelKey: 'status.failed',
+      classes: 'bg-status-error/10 text-status-error',
+    },
+    stopped: {
+      labelKey: 'status.stopped',
+      classes: 'bg-status-warning/10 text-status-warning',
+    },
+    merged: {
+      labelKey: 'status.merged',
+      classes: 'bg-status-merged/10 text-status-merged',
+    },
+  };
+
+  const { labelKey, classes } = config[status];
+
   return (
-    <span
-      className={`inline-flex items-center border px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest ${config.classes}`}
-    >
+    <span className={`badge text-[10px] font-semibold ${classes}`}>
       {status === 'running' && (
-        <span className="mr-1.5 h-1.5 w-1.5 bg-neon-cyan animate-ping" />
+        <span className="h-1.5 w-1.5 rounded-full bg-status-running animate-pulse" />
       )}
-      {config.label}
+      {t(labelKey as any)}
     </span>
   );
 }

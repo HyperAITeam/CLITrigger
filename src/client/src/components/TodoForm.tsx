@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '../i18n';
 
 interface TodoFormProps {
   onSave: (title: string, description: string) => void;
@@ -15,6 +16,7 @@ export default function TodoForm({
 }: TodoFormProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
+  const { t } = useI18n();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,44 +25,40 @@ export default function TodoForm({
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-street-800 border-2 border-neon-green/30 p-5"
-      style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))' }}
-    >
+    <form onSubmit={handleSubmit} className="card p-5 border-accent-gold/30">
       <div className="mb-3">
         <input
           type="text"
-          placeholder="Task title..."
+          placeholder={t('todoForm.titlePlaceholder')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="street-input"
+          className="input-field"
           autoFocus
         />
       </div>
       <div className="mb-4">
         <textarea
-          placeholder="Description (optional)..."
+          placeholder={t('todoForm.descPlaceholder')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="street-input resize-none"
+          className="input-field resize-none"
         />
       </div>
       <div className="flex gap-3 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="font-mono text-xs text-street-400 hover:text-white px-4 py-2 transition-colors uppercase tracking-wider"
+          className="btn-ghost text-sm"
         >
-          Cancel
+          {t('todoForm.cancel')}
         </button>
         <button
           type="submit"
           disabled={!title.trim()}
-          className="street-btn bg-neon-green px-5 py-2 text-[10px] text-street-900 hover:bg-neon-green/80 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="btn-primary text-sm"
         >
-          SAVE
+          {t('todoForm.save')}
         </button>
       </div>
     </form>

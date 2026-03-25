@@ -7,20 +7,20 @@ import * as todosApi from '../api/todos';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
+import { useI18n } from '../i18n';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
-  sendMessage: (event: object) => void;
 }
 
-export default function ProjectDetail({ onEvent, connected, sendMessage }: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
+  const { t, toggleLang } = useI18n();
 
   useEffect(() => {
     if (!id) return;
@@ -43,16 +43,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
               : t
           )
         );
-        // Track interactive mode todos
-        if (event.status === 'running' && event.mode === 'interactive') {
-          setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
-        } else if (event.status !== 'running') {
-          setInteractiveTodos((prev) => {
-            const next = new Set(prev);
-            next.delete(event.todoId!);
-            return next;
-          });
-        }
       }
     });
   }, [onEvent]);
@@ -63,17 +53,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
-    const m = mode || 'headless';
-    await todosApi.startTodo(todoId, m);
+  const handleStartTodo = useCallback(async (todoId: string) => {
+    await todosApi.startTodo(todoId);
     setTodos((prev) =>
       prev.map((t) =>
         t.id === todoId ? { ...t, status: 'running' as const, updated_at: new Date().toISOString() } : t
       )
     );
-    if (m === 'interactive') {
-      setInteractiveTodos((prev) => new Set(prev).add(todoId));
-    }
   }, []);
 
   const handleStopTodo = useCallback(async (todoId: string) => {
@@ -94,10 +80,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     const updated = await todosApi.updateTodo(todoId, { title, description });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
-
-  const handleSendInput = useCallback((todoId: string, input: string) => {
-    sendMessage({ type: 'todo:stdin', todoId, input });
-  }, [sendMessage]);
 
   const handleMergeTodo = useCallback(async (todoId: string) => {
     await todosApi.mergeTodo(todoId);
@@ -134,9 +116,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="text-center py-20 font-mono text-neon-green animate-flicker">
-          LOADING<span className="animate-pulse">_</span>
+      <div className="mx-auto max-w-4xl px-6 py-8">
+        <div className="text-center py-20 text-warm-500 animate-fade-in">
+          {t('detail.loading')}
         </div>
       </div>
     );
@@ -144,14 +126,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   if (notFound || !project) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="street-card p-16 text-center">
-          <p className="text-neon-pink font-mono text-lg">// ERROR: PROJECT NOT FOUND</p>
+      <div className="mx-auto max-w-4xl px-6 py-8">
+        <div className="card p-16 text-center animate-fade-in">
+          <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
             to="/"
-            className="mt-6 inline-block font-mono text-sm text-neon-green hover:underline"
+            className="mt-4 inline-block text-sm text-accent-gold hover:text-accent-goldDark transition-colors"
           >
-            &lt;-- BACK TO PROJECTS
+            {t('detail.backToProjects')}
           </Link>
         </div>
       </div>
@@ -159,31 +141,34 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-6 py-8">
       {/* Navigation */}
       <div className="flex items-center gap-3 mb-6">
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 font-mono text-xs text-street-400 hover:text-neon-green transition-colors tracking-wider uppercase"
+          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent-gold transition-colors"
         >
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-          PROJECTS
+          {t('detail.back')}
         </Link>
 
-        <span className="text-street-600 font-mono">/</span>
-        <span className="font-mono text-xs text-street-300 truncate">{project.name}</span>
+        <span className="text-warm-300">/</span>
+        <span className="text-sm text-warm-700 truncate font-medium">{project.name}</span>
 
-        {connected && (
-          <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-xs text-neon-green">
-            <span className="h-1.5 w-1.5 bg-neon-green animate-pulse" />
-            LIVE
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {connected && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-status-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
+              {t('detail.live')}
+            </span>
+          )}
+          <button onClick={toggleLang} className="lang-toggle">
+            {t('lang.toggle')}
+          </button>
+        </div>
       </div>
-
-      <div className="h-px bg-gradient-to-r from-neon-green/50 via-street-600 to-transparent mb-6" />
 
       <ProjectHeader
         project={project}
@@ -204,8 +189,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
         onEditTodo={handleEditTodo}
         onMergeTodo={handleMergeTodo}
         onEvent={onEvent}
-        onSendInput={handleSendInput}
-        interactiveTodos={interactiveTodos}
       />
     </div>
   );
