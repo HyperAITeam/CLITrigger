@@ -1,10 +1,13 @@
 import { spawn, execFile, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 export class TunnelManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private url: string | null = null;
   private status: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
+  private cloudflaredPath: string = 'cloudflared';
 
   /**
    * Start a quick (unnamed) cloudflared tunnel.
@@ -27,7 +30,7 @@ export class TunnelManager extends EventEmitter {
     this.url = null;
 
     return new Promise<string>((resolve, reject) => {
-      const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], {
+      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
       });
@@ -113,7 +116,7 @@ export class TunnelManager extends EventEmitter {
     this.url = null;
 
     return new Promise<string>((resolve, reject) => {
-      const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`, 'run', tunnelName], {
+      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`, 'run', tunnelName], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
       });
@@ -232,14 +235,69 @@ export class TunnelManager extends EventEmitter {
   }
 
   /**
+   * Resolve the full path to cloudflared, checking PATH first,
+   * then common Windows installation locations (winget, Program Files).
+   */
+  private resolveCloudflaredPath(): string | null {
+    // 1) Try PATH first (works if cloudflared is globally accessible)
+    //    execFileSync would throw, so we just return the bare name and let the caller test it.
+    //    We'll verify in isCloudflaredInstalled.
+
+    if (process.platform === 'win32') {
+      const home = process.env.USERPROFILE || process.env.HOME || '';
+      const candidates = [
+        // winget package location
+        join(home, 'AppData', 'Local', 'Microsoft', 'WinGet', 'Packages',
+          'Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe', 'cloudflared.exe'),
+        // winget links
+        join(home, 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'cloudflared.exe'),
+        // common manual install locations
+        join('C:', 'Program Files', 'cloudflared', 'cloudflared.exe'),
+        join('C:', 'Program Files (x86)', 'cloudflared', 'cloudflared.exe'),
+      ];
+
+      for (const candidate of candidates) {
+        if (existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Check if cloudflared is installed by running 'cloudflared --version'.
+   * Falls back to known installation paths on Windows if not found in PATH.
    */
   async isCloudflaredInstalled(): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
+    // First try the current cloudflaredPath (default: 'cloudflared' = from PATH)
+    const inPath = await new Promise<boolean>((resolve) => {
       execFile('cloudflared', ['--version'], { shell: true }, (error) => {
         resolve(!error);
       });
     });
+
+    if (inPath) {
+      this.cloudflaredPath = 'cloudflared';
+      return true;
+    }
+
+    // Fallback: try known installation paths
+    const resolved = this.resolveCloudflaredPath();
+    if (resolved) {
+      const works = await new Promise<boolean>((resolve) => {
+        execFile(resolved, ['--version'], (error) => {
+          resolve(!error);
+        });
+      });
+      if (works) {
+        this.cloudflaredPath = resolved;
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 
