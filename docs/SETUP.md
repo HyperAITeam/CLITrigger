@@ -69,7 +69,24 @@ LOG_RETENTION_DAYS=30        # 로그 보관 일수
 
 ## 3단계: 실행
 
-### 개발 모드 (로컬에서 사용)
+### 방법 A: 원클릭 실행 (Windows)
+
+`scripts/` 폴더의 bat 파일을 더블클릭하면 터미널 명령어 입력 없이 바로 실행할 수 있습니다.
+
+| 파일 | 기능 |
+|------|------|
+| `scripts/install.bat` | 서버+클라이언트 의존성 한번에 설치 |
+| `scripts/dev.bat` | 개발 모드 실행 (서버+클라이언트 동시) |
+| `scripts/build.bat` | 프로젝트 전체 빌드 |
+| `scripts/start.bat` | 프로덕션 서버 실행 |
+| `scripts/start-tunnel.bat` | 터널 모드로 프로덕션 실행 |
+| `scripts/build-and-start.bat` | 빌드 후 바로 프로덕션 실행 |
+
+> 처음 설치할 때: `install.bat` → `dev.bat` 순서로 더블클릭하면 끝!
+
+### 방법 B: 터미널에서 직접 실행
+
+#### 개발 모드 (로컬에서 사용)
 
 ```bash
 npm run dev
@@ -81,7 +98,7 @@ npm run dev
 
 브라우저에서 `http://localhost:5173` 접속 → 비밀번호 입력 → 사용 시작.
 
-### 프로덕션 모드
+#### 프로덕션 모드
 
 ```bash
 # 빌드
@@ -93,7 +110,7 @@ npm run start
 
 빌드 후에는 `http://localhost:3000` 하나로 프론트엔드+백엔드 모두 서빙.
 
-### 외부 접속 모드 (Cloudflare Tunnel)
+#### 외부 접속 모드 (Cloudflare Tunnel)
 
 ```bash
 # .env에서 TUNNEL_ENABLED=true 설정 후
