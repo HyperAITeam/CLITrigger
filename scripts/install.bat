@@ -6,10 +6,10 @@ echo   CLITrigger - Install Dependencies
 echo ========================================
 echo.
 echo [1/2] Installing server dependencies...
-npm install
+call npm install
 echo.
 echo [2/2] Installing client dependencies...
-cd src\client && npm install && cd ..\..
+cd src\client && call npm install && cd ..\..
 echo.
 echo All dependencies installed!
 pause

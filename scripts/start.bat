@@ -6,5 +6,5 @@ echo   CLITrigger - Production Mode
 echo   http://localhost:3000
 echo ========================================
 echo.
-npm run start
+call npm run start
 pause

@@ -7,5 +7,5 @@ echo   Local: http://localhost:3000
 echo   Tunnel URL will appear below
 echo ========================================
 echo.
-npm run start:tunnel
+call npm run start:tunnel
 pause

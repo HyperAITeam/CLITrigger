@@ -7,5 +7,5 @@ echo   Server: http://localhost:3000
 echo   Client: http://localhost:5173
 echo ========================================
 echo.
-npm run dev
+call npm run dev
 pause

@@ -5,7 +5,7 @@ echo ========================================
 echo   CLITrigger - Build
 echo ========================================
 echo.
-npm run build
+call npm run build
 echo.
 echo Build complete!
 pause
