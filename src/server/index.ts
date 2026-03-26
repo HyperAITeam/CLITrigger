@@ -32,6 +32,9 @@ app.use(cors({
     // Allow requests with no origin (same-origin, curl, etc.)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
+    // Allow Cloudflare Tunnel origins (*.trycloudflare.com)
+    } else if (origin && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
+      callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
