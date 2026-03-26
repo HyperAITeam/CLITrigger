@@ -48,7 +48,10 @@ export class ClaudeManager {
     return new Promise((resolve, reject) => {
       let ptyProcess: pty.IPty;
       try {
-        ptyProcess = pty.spawn(command, args, {
+        // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd)
+        const ptyCommand = process.platform === 'win32' ? 'cmd.exe' : command;
+        const ptyArgs = process.platform === 'win32' ? ['/c', command, ...args] : args;
+        ptyProcess = pty.spawn(ptyCommand, ptyArgs, {
           name: 'xterm-256color',
           cols: 200,
           rows: 50,
