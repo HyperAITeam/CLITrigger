@@ -15,6 +15,8 @@ export interface WsEvent {
   total?: number;
   commitHash?: string;
   mode?: string;
+  worktree_path?: string | null;
+  branch_name?: string | null;
 }
 
 type EventCallback = (event: WsEvent) => void;

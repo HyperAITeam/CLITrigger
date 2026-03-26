@@ -177,8 +177,8 @@ export class Orchestrator {
     });
     queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`);
 
-    // Broadcast status change with mode
-    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode });
+    // Broadcast status change with mode and worktree info
+    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName });
     this.broadcastProjectStatus(projectId);
 
     // Handle process exit asynchronously

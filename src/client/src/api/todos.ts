@@ -23,11 +23,11 @@ export function deleteTodo(id: string): Promise<void> {
   return del(`/api/todos/${id}`);
 }
 
-export function startTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<void> {
+export function startTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<Todo> {
   return post(`/api/todos/${id}/start`, { mode });
 }
 
-export function stopTodo(id: string): Promise<void> {
+export function stopTodo(id: string): Promise<Todo> {
   return post(`/api/todos/${id}/stop`);
 }
 
