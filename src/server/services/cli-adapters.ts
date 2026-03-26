@@ -43,6 +43,8 @@ export interface CliAdapter {
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
   formatStdinPrompt(prompt: string): string;
+  /** Whether this CLI requires a TTY (pseudo-terminal) to run */
+  requiresTty?: boolean;
 }
 
 const claudeAdapter: CliAdapter = {
@@ -92,6 +94,7 @@ const geminiAdapter: CliAdapter = {
 const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
+  requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
     const args = ['--full-auto'];
     if (model) args.push('--model', model);
@@ -99,8 +102,7 @@ const codexAdapter: CliAdapter = {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
-      // Codex takes prompt as a single positional arg — must quote for shell: true
-      args.push(`"${prompt.replace(/"/g, '\\"')}"`);
+      args.push(prompt);
     }
     return args;
   },
