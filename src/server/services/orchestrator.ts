@@ -133,6 +133,12 @@ export class Orchestrator {
       return;
     }
 
+    // Save worktree info to DB immediately so cleanup button is available on failure
+    queries.updateTodo(todoId, {
+      branch_name: branchName,
+      worktree_path: worktreePath,
+    });
+
     const prompt = `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
 
     // Get project-level Claude CLI options
@@ -157,8 +163,9 @@ export class Orchestrator {
       // Clean up worktree on failure
       try {
         await worktreeManager.removeWorktree(projectPath, worktreePath);
+        queries.updateTodo(todoId, { worktree_path: null, branch_name: null });
       } catch {
-        // Ignore cleanup errors
+        // Cleanup failed — worktree info stays in DB so user can manually clean up via UI
       }
       return;
     }
@@ -166,8 +173,6 @@ export class Orchestrator {
     // Update todo with running state
     queries.updateTodoStatus(todoId, 'running');
     queries.updateTodo(todoId, {
-      branch_name: branchName,
-      worktree_path: worktreePath,
       process_pid: pid,
     });
     queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`);
