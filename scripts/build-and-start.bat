@@ -6,7 +6,7 @@ echo   CLITrigger - Build and Start
 echo ========================================
 echo.
 echo Building...
-npm run build
+call npm run build
 if %errorlevel% neq 0 (
     echo.
     echo Build failed!
@@ -17,5 +17,5 @@ echo.
 echo Build complete! Starting server...
 echo http://localhost:3000
 echo.
-npm run start
+call npm run start
 pause
