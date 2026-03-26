@@ -17,6 +17,17 @@ export function initWebSocket(server: Server): void {
       return;
     }
 
+    // Validate Origin header to prevent cross-origin WebSocket hijacking
+    const origin = req.headers.origin;
+    const allowedOrigins = process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+      : ['http://localhost:5173', 'http://localhost:3000'];
+    if (origin && !allowedOrigins.includes(origin)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
     // Use the session middleware to parse the session cookie
     // We create a minimal mock response to satisfy express-session
     const res = Object.create(null);

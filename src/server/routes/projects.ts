@@ -1,8 +1,45 @@
 import { Router, Request, Response } from 'express';
+import nodePath from 'path';
+import fs from 'fs';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
+
+/**
+ * Validate project path: must be absolute, exist, be a directory,
+ * and not contain path traversal sequences.
+ */
+function validateProjectPath(inputPath: string): { valid: boolean; error?: string; resolved?: string } {
+  if (!inputPath || typeof inputPath !== 'string') {
+    return { valid: false, error: 'Path is required' };
+  }
+
+  // Resolve to absolute path
+  const resolved = nodePath.resolve(inputPath);
+
+  // Check for path traversal attempts
+  if (inputPath.includes('..')) {
+    return { valid: false, error: 'Path traversal (..) is not allowed' };
+  }
+
+  // Must be an absolute path
+  if (!nodePath.isAbsolute(inputPath)) {
+    return { valid: false, error: 'Path must be absolute' };
+  }
+
+  // Must exist and be a directory
+  try {
+    const stat = fs.statSync(resolved);
+    if (!stat.isDirectory()) {
+      return { valid: false, error: 'Path must be a directory' };
+    }
+  } catch {
+    return { valid: false, error: 'Path does not exist or is not accessible' };
+  }
+
+  return { valid: true, resolved };
+}
 
 // POST /api/projects - create project
 router.post('/', async (req: Request, res: Response) => {
@@ -12,8 +49,16 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'name and path are required' });
       return;
     }
-    const isGitRepo = await worktreeManager.isGitRepository(path);
-    const project = createProject(name, path, default_branch, isGitRepo ? 1 : 0);
+
+    const pathCheck = validateProjectPath(path);
+    if (!pathCheck.valid) {
+      res.status(400).json({ error: pathCheck.error });
+      return;
+    }
+
+    const safePath = pathCheck.resolved!;
+    const isGitRepo = await worktreeManager.isGitRepository(safePath);
+    const project = createProject(name, safePath, default_branch, isGitRepo ? 1 : 0);
     res.status(201).json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

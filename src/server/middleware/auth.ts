@@ -1,16 +1,24 @@
+import crypto from 'crypto';
 import session from 'express-session';
 import type { RequestHandler, Express } from 'express';
 
 // Session-based password authentication middleware
-// Reads AUTH_PASSWORD from process.env
+// Uses SESSION_SECRET (or falls back to a random secret per process)
+
+const sessionSecret = process.env.SESSION_SECRET
+  || process.env.AUTH_PASSWORD
+  || crypto.randomBytes(32).toString('hex');
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 export const sessionMiddleware: RequestHandler = session({
-  secret: process.env.AUTH_PASSWORD || 'default-secret-change-me',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false,  // Set to true in production with HTTPS
+    secure: isProduction,
+    sameSite: 'strict',
     maxAge: 24 * 60 * 60 * 1000,  // 24 hours
   },
 });
