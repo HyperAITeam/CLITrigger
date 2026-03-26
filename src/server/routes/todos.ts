@@ -67,6 +67,15 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
 // DELETE /api/todos/:id - delete todo
 router.delete('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
   try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+    if (todo.status === 'running') {
+      res.status(400).json({ error: 'Cannot delete a running todo. Stop it first.' });
+      return;
+    }
     const deleted = deleteTodo(req.params.id);
     if (!deleted) {
       res.status(404).json({ error: 'Todo not found' });
