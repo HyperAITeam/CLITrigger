@@ -23,6 +23,9 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy (needed for Cloudflare Tunnel / X-Forwarded-For)
+app.set('trust proxy', 1);
+
 // Middleware
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
