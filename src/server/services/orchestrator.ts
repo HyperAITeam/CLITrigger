@@ -125,6 +125,9 @@ export class Orchestrator {
     const project = queries.getProjectById(projectId);
     if (!project) return;
 
+    // Mark as running BEFORE any async work to prevent deletion during setup
+    queries.updateTodoStatus(todoId, 'running');
+
     const isGitRepo = !!project.is_git_repo;
     let worktreePath: string | null = null;
     let branchName: string | null = null;
@@ -182,8 +185,7 @@ export class Orchestrator {
       return;
     }
 
-    // Update todo with running state
-    queries.updateTodoStatus(todoId, 'running');
+    // Update todo with process info (status already set to 'running' above)
     queries.updateTodo(todoId, { process_pid: pid });
 
     const logMsg = isGitRepo
