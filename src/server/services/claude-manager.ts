@@ -37,11 +37,11 @@ export class ClaudeManager {
       }
 
       try {
-        // shell: false — pass args array directly, no escaping needed
+        // shell: true required on Windows where 'claude' is a .cmd shim
         child = spawn('claude', args, {
           cwd: worktreePath,
           stdio: [needsStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-          shell: false,
+          shell: true,
           windowsHide: true,
         });
       } catch (err) {
