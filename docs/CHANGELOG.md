@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-03-26 — CI/CD 파이프라인 구축
+
+### 배경
+
+프로젝트에 자동화된 품질 검증 체계가 없어, PR 머지 시 타입 오류나 테스트 실패가 감지되지 않을 수 있었다. GitHub Actions 기반 CI/CD를 도입하여 코드 품질 게이트를 자동화한다.
+
+### 구현 내용
+
+#### CI 워크플로우 (`ci.yml`)
+- **트리거**: `main` 브랜치 push 및 PR
+- **병렬 파이프라인**: typecheck → test-server → test-client (병렬) → build (게이트)
+- **동시성 제어**: 같은 브랜치의 중복 실행 자동 취소
+- **아티팩트**: 빌드 결과물 7일간 보관
+
+#### Release 워크플로우 (`release.yml`)
+- **트리거**: `v*` 태그 push
+- **산출물**: typecheck → test → build → tar.gz 패키징 → GitHub Release 자동 생성
+- release notes 자동 생성 포함
+
+#### npm 스크립트 추가
+- `typecheck` — 서버 + 클라이언트 TypeScript 타입 체크 (`--noEmit`)
+- `typecheck:server` / `typecheck:client` — 개별 타입 체크
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `.github/workflows/ci.yml` | CI 워크플로우 |
+| `.github/workflows/release.yml` | Release 워크플로우 |
+| `docs/CICD.md` | CI/CD 가이드 문서 |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `package.json` | `typecheck`, `typecheck:server`, `typecheck:client` 스크립트 추가 |
+| `docs/SETUP.md` | CI/CD 관련 참조 추가 |
+| `docs/CHANGELOG.md` | 이 항목 추가 |
+
+---
+
 ## 2026-03-26 — gstack 스킬 통합
 
 ### 배경

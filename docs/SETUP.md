@@ -249,6 +249,24 @@ C:\Users\me\projects\
 
 ---
 
+## CI/CD
+
+이 프로젝트는 GitHub Actions 기반 CI/CD 파이프라인을 사용합니다.
+
+- **PR/push → main**: 타입 체크 + 테스트 + 빌드 자동 실행
+- **`v*` 태그 push**: 빌드 + GitHub Release 자동 생성
+
+로컬에서 CI와 동일한 검증:
+```bash
+npm run typecheck   # 타입 체크
+npm test            # 전체 테스트
+npm run build       # 빌드
+```
+
+자세한 내용은 [CICD.md](./CICD.md)를 참조하세요.
+
+---
+
 ## 문제 해결
 
 ### "claude: command not found"

@@ -16,7 +16,10 @@
     "test:server": "vitest run --config vitest.config.ts",
     "test:client": "cd src/client && npx vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "test:coverage": "vitest run --config vitest.config.ts --coverage && cd src/client && npx vitest run --config vitest.config.ts --coverage"
+    "test:coverage": "vitest run --config vitest.config.ts --coverage && cd src/client && npx vitest run --config vitest.config.ts --coverage",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && cd src/client && npx tsc --noEmit",
+    "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
+    "typecheck:client": "cd src/client && npx tsc --noEmit"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
