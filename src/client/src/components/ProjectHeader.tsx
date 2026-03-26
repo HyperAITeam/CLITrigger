@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import { useI18n } from '../i18n';
+import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -20,10 +21,18 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
   const [showSettings, setShowSettings] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
+  const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
   const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
+
+  const handleCliToolChange = (newTool: CliTool) => {
+    setCliTool(newTool);
+    setClaudeModel(''); // Reset model when tool changes
+  };
+
+  const toolConfig = getToolConfig(cliTool);
 
   const handleCheckGit = useCallback(async () => {
     setCheckingGit(true);
@@ -39,6 +48,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     try {
       const updated = await projectsApi.updateProject(project.id, {
         max_concurrent: maxConcurrent,
+        cli_tool: cliTool,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
       });
@@ -72,6 +82,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             )}
             <span className="badge bg-accent-gold/10 text-accent-goldDark">
               {t('header.workers')}: {project.max_concurrent ?? 3}
+            </span>
+            <span className="badge bg-status-merged/10 text-status-merged">
+              {getToolConfig((project.cli_tool as CliTool) || 'claude').label}
             </span>
             {project.claude_model && (
               <span className="badge bg-status-merged/10 text-status-merged">
@@ -124,7 +137,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             {t('header.config')}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div>
               <label className="block text-xs font-medium text-warm-500 mb-2">
                 {t('header.maxWorkers')}
@@ -141,17 +154,31 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
             <div>
               <label className="block text-xs font-medium text-warm-500 mb-2">
-                {t('header.claudeModel')}
+                {t('header.cliTool')}
+              </label>
+              <select
+                value={cliTool}
+                onChange={(e) => handleCliToolChange(e.target.value as CliTool)}
+                className="input-field"
+              >
+                {CLI_TOOLS.map((tool) => (
+                  <option key={tool.value} value={tool.value}>{tool.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-warm-500 mb-2">
+                {t('header.aiModel')}
               </label>
               <select
                 value={claudeModel}
                 onChange={(e) => setClaudeModel(e.target.value)}
                 className="input-field"
               >
-                <option value="">Default</option>
-                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+                {toolConfig.models.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
               </select>
             </div>
 

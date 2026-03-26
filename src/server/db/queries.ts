@@ -12,6 +12,7 @@ export interface Project {
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
+  cli_tool: string;
   created_at: string;
   updated_at: string;
 }
@@ -37,7 +38,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -49,6 +50,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.max_concurrent !== undefined) { fields.push('max_concurrent = ?'); values.push(updates.max_concurrent); }
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }
+  if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
 
   if (fields.length === 0) return getProjectById(id);
 

@@ -13,7 +13,7 @@ export function createProject(data: { name: string; path: string }): Promise<Pro
   return post('/api/projects', data);
 }
 
-export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options'>>): Promise<Project> {
+export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool'>>): Promise<Project> {
   return put(`/api/projects/${id}`, data);
 }
 
