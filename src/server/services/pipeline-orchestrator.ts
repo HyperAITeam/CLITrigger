@@ -1,5 +1,6 @@
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager } from './claude-manager.js';
+import { getAdapter, type CliTool } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
@@ -196,12 +197,14 @@ export class PipelineOrchestrator {
 
     const claudeModel = project.claude_model || undefined;
     const claudeOptions = project.claude_options || undefined;
+    const cliTool = (project.cli_tool as CliTool) || 'claude';
+    const adapter = getAdapter(cliTool);
 
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions);
+      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -244,7 +247,7 @@ export class PipelineOrchestrator {
       const message = err instanceof Error ? err.message : String(err);
       queries.updatePipelinePhase(phase.id, { status: 'failed', completed_at: new Date().toISOString() });
       queries.updatePipelineStatus(pipelineId, 'failed');
-      queries.createPipelineLog(pipelineId, phaseType, 'error', `Failed to start Claude CLI: ${message}`);
+      queries.createPipelineLog(pipelineId, phaseType, 'error', `Failed to start ${adapter.displayName}: ${message}`);
       broadcaster.broadcast({ type: 'pipeline:phase-changed', pipelineId, phaseType, status: 'failed' });
       broadcaster.broadcast({ type: 'pipeline:status-changed', pipelineId, status: 'failed', currentPhase: phaseType });
     }

@@ -60,8 +60,8 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options } = req.body;
-    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options });
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool } = req.body;
+    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool });
     res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

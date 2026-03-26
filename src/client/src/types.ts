@@ -7,6 +7,7 @@ export interface Project {
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
+  cli_tool: string;
   created_at: string;
   updated_at: string;
 }

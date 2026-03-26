@@ -1,17 +1,18 @@
 import { spawn, ChildProcess } from 'child_process';
+import { getAdapter, type CliTool, type CliMode } from './cli-adapters.js';
 
-export type ClaudeMode = 'headless' | 'interactive' | 'streaming';
+export type ClaudeMode = CliMode;
 
 export class ClaudeManager {
   private processes: Map<number, ChildProcess> = new Map();
   private stdinStreams: Map<number, NodeJS.WritableStream> = new Map();
 
   /**
-   * Start Claude CLI in a worktree directory.
-   * Spawns without shell to avoid escaping issues on Windows.
-   * mode: 'headless' uses -p flag, 'interactive' pipes stdin for user input.
+   * Start a CLI tool in a worktree directory.
+   * Spawns with shell to handle Windows .cmd shims.
+   * mode: 'headless' uses args-based prompt, 'interactive' pipes stdin for user input.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: ClaudeMode = 'headless'): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude'): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -20,25 +21,13 @@ export class ClaudeManager {
   }> {
     return new Promise((resolve, reject) => {
       let child: ChildProcess;
+      const adapter = getAdapter(tool);
 
-      const args = ['--dangerously-skip-permissions'];
-      if (model) {
-        args.push('--model', model);
-      }
-      if (extraOptions) {
-        const extraArgs = extraOptions.split(/\s+/).filter(Boolean);
-        args.push(...extraArgs);
-      }
-
-      const needsStdin = mode === 'interactive' || mode === 'streaming';
-
-      if (!needsStdin) {
-        args.push('-p', prompt);
-      }
+      const args = adapter.buildArgs({ mode, prompt, model, extraOptions });
+      const needsStdin = adapter.needsStdin(mode);
 
       try {
-        // shell: true required on Windows where 'claude' is a .cmd shim
-        child = spawn('claude', args, {
+        child = spawn(adapter.command, args, {
           cwd: worktreePath,
           stdio: [needsStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
           shell: true,
@@ -46,20 +35,20 @@ export class ClaudeManager {
         });
       } catch (err) {
         reject(new Error(
-          `Failed to spawn Claude CLI. Is it installed and on PATH? ${err instanceof Error ? err.message : String(err)}`
+          `Failed to spawn ${adapter.displayName}. Is it installed and on PATH? ${err instanceof Error ? err.message : String(err)}`
         ));
         return;
       }
 
       child.on('error', (err) => {
         reject(new Error(
-          `Failed to start Claude CLI. Is it installed and on PATH? ${err.message}`
+          `Failed to start ${adapter.displayName}. Is it installed and on PATH? ${err.message}`
         ));
       });
 
       const pid = child.pid;
       if (pid === undefined) {
-        reject(new Error('Failed to get PID for Claude CLI process'));
+        reject(new Error(`Failed to get PID for ${adapter.displayName} process`));
         return;
       }
 
@@ -67,12 +56,12 @@ export class ClaudeManager {
 
       // For non-headless modes, send prompt via stdin
       if (needsStdin && child.stdin) {
-        child.stdin.write(prompt + '\n');
+        child.stdin.write(adapter.formatStdinPrompt(prompt));
         if (mode === 'interactive') {
           // Keep stdin open for user input
           this.stdinStreams.set(pid, child.stdin);
         } else {
-          // Streaming mode: close stdin so Claude works autonomously
+          // Streaming mode: close stdin so CLI works autonomously
           child.stdin.end();
         }
       }
@@ -98,7 +87,7 @@ export class ClaudeManager {
   }
 
   /**
-   * Write data to the stdin of an interactive Claude process.
+   * Write data to the stdin of an interactive process.
    */
   writeToStdin(pid: number, data: string): boolean {
     const stdin = this.stdinStreams.get(pid);
@@ -108,7 +97,7 @@ export class ClaudeManager {
   }
 
   /**
-   * Stop a Claude CLI process. Sends SIGTERM first, then SIGKILL after 5 seconds.
+   * Stop a CLI process. Sends SIGTERM first, then SIGKILL after 5 seconds.
    */
   async stopClaude(pid: number): Promise<void> {
     const child = this.processes.get(pid);

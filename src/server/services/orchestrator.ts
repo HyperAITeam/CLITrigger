@@ -1,5 +1,6 @@
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
+import { getAdapter, type CliTool } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
@@ -153,12 +154,14 @@ export class Orchestrator {
 
     const claudeModel = project.claude_model || undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
+    const cliTool = (project.cli_tool as CliTool) || 'claude';
+    const adapter = getAdapter(cliTool);
 
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode);
+      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -167,7 +170,7 @@ export class Orchestrator {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       queries.updateTodoStatus(todoId, 'failed');
-      queries.createTaskLog(todoId, 'error', `Failed to start Claude CLI: ${message}`);
+      queries.createTaskLog(todoId, 'error', `Failed to start ${adapter.displayName}: ${message}`);
       if (isGitRepo && worktreePath) {
         try {
           await worktreeManager.removeWorktree(projectPath, worktreePath);
@@ -184,8 +187,8 @@ export class Orchestrator {
     queries.updateTodo(todoId, { process_pid: pid });
 
     const logMsg = isGitRepo
-      ? `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`
-      : `Started Claude CLI (PID: ${pid}) in project directory [${mode}]`;
+      ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [${mode}]`
+      : `Started ${adapter.displayName} (PID: ${pid}) in project directory [${mode}]`;
     queries.createTaskLog(todoId, 'output', logMsg);
 
     // Broadcast status change with mode and worktree info
@@ -200,10 +203,10 @@ export class Orchestrator {
         const newStatus = exitCode === 0 ? 'completed' : 'failed';
         if (exitCode === 0) {
           queries.updateTodoStatus(todoId, 'completed');
-          queries.createTaskLog(todoId, 'output', 'Claude CLI completed successfully.');
+          queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
         } else {
           queries.updateTodoStatus(todoId, 'failed');
-          queries.createTaskLog(todoId, 'error', `Claude CLI exited with code ${exitCode}.`);
+          queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
         }
         queries.updateTodo(todoId, { process_pid: 0 });
 
