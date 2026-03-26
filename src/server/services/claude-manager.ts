@@ -29,7 +29,7 @@ export class ClaudeManager {
       try {
         child = spawn(adapter.command, args, {
           cwd: worktreePath,
-          stdio: [needsStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+          stdio: ['pipe', 'pipe', 'pipe'],
           shell: true,
           windowsHide: true,
         });
@@ -54,7 +54,7 @@ export class ClaudeManager {
 
       this.processes.set(pid, child);
 
-      // For non-headless modes, send prompt via stdin
+      // Handle stdin based on mode
       if (needsStdin && child.stdin) {
         child.stdin.write(adapter.formatStdinPrompt(prompt));
         if (mode === 'interactive') {
@@ -64,6 +64,9 @@ export class ClaudeManager {
           // Streaming mode: close stdin so CLI works autonomously
           child.stdin.end();
         }
+      } else if (child.stdin) {
+        // Headless mode: close stdin immediately (some CLIs like Codex need a pipe, not 'ignore')
+        child.stdin.end();
       }
 
       const exitPromise = new Promise<number>((resolveExit) => {
