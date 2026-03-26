@@ -99,7 +99,8 @@ const codexAdapter: CliAdapter = {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
-      args.push(prompt);
+      // Codex takes prompt as a single positional arg — must quote for shell: true
+      args.push(`"${prompt.replace(/"/g, '\\"')}"`);
     }
     return args;
   },
