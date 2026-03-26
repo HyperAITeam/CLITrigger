@@ -31,6 +31,8 @@ export interface Todo {
   priority: number;
   branch_name: string | null;
   worktree_path: string | null;
+  cli_tool: string | null;
+  cli_model: string | null;
   created_at: string;
   updated_at: string;
 }

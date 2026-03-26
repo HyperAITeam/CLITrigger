@@ -66,9 +66,9 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     });
   }, [onEvent]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string) => {
     if (!id) return;
-    const newTodo = await todosApi.createTodo(id, { title, description });
+    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel });
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
@@ -91,8 +91,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string) => {
-    const updated = await todosApi.updateTodo(todoId, { title, description });
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string) => {
+    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 
@@ -257,6 +257,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       {activeTab === 'tasks' ? (
         <TodoList
           todos={todos}
+          projectCliTool={project.cli_tool}
+          projectCliModel={project.claude_model ?? undefined}
           onAddTodo={handleAddTodo}
           onStartTodo={handleStartTodo}
           onStopTodo={handleStopTodo}

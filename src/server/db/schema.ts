@@ -82,6 +82,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'cli_tool', definition: "TEXT DEFAULT 'claude'" },
     { table: 'projects', column: 'gstack_enabled', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'gstack_skills', definition: 'TEXT' },
+    { table: 'todos', column: 'cli_tool', definition: 'TEXT' },
+    { table: 'todos', column: 'cli_model', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

@@ -14,13 +14,13 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    const { title, description, priority } = req.body;
+    const { title, description, priority, cli_tool, cli_model } = req.body;
     if (!title) {
       res.status(400).json({ error: 'title is required' });
       return;
     }
 
-    const todo = createTodo(projectId, title, description, priority);
+    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model);
     res.status(201).json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -55,8 +55,8 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, priority } = req.body;
-    const todo = updateTodo(req.params.id, { title, description, priority });
+    const { title, description, priority, cli_tool, cli_model } = req.body;
+    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model });
     res.json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

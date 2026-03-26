@@ -156,8 +156,10 @@ export class Orchestrator {
       queries.createTaskLog(todoId, 'output', 'Project is not a git repository. Running directly without worktree isolation.');
     }
 
+    // Determine CLI tool: task-level overrides project-level
+    const cliTool = (todo.cli_tool as CliTool) || (project.cli_tool as CliTool) || 'claude';
+
     // Inject gstack skills if enabled (Claude CLI only)
-    const cliTool = (project.cli_tool as CliTool) || 'claude';
     if (cliTool === 'claude' && project.gstack_enabled && project.gstack_skills) {
       const skillIds = parseSkillConfig(project.gstack_skills);
       if (skillIds.length > 0) {
@@ -171,7 +173,8 @@ export class Orchestrator {
       }
     }
 
-    const claudeModel = project.claude_model || undefined;
+    // Determine model: task-level overrides project-level
+    const claudeModel = todo.cli_model || project.claude_model || undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
     const adapter = getAdapter(cliTool);
 

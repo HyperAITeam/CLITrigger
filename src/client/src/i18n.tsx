@@ -96,6 +96,8 @@ const translations = {
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
     'todoForm.descPlaceholder': 'Description (optional)...',
+    'todoForm.cliTool': 'CLI Tool',
+    'todoForm.aiModel': 'AI Model',
     'todoForm.cancel': 'Cancel',
     'todoForm.save': 'Save',
 
@@ -216,6 +218,8 @@ const translations = {
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',
     'todoForm.descPlaceholder': '\uC124\uBA85 (\uC120\uD0DD\uC0AC\uD56D)...',
+    'todoForm.cliTool': 'CLI \uB3C4\uAD6C',
+    'todoForm.aiModel': 'AI \uBAA8\uB378',
     'todoForm.cancel': '\uCDE8\uC18C',
     'todoForm.save': '\uC800\uC7A5',
 

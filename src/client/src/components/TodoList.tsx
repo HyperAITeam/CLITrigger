@@ -7,11 +7,13 @@ import { useI18n } from '../i18n';
 
 interface TodoListProps {
   todos: Todo[];
-  onAddTodo: (title: string, description: string) => Promise<void>;
+  projectCliTool?: string;
+  projectCliModel?: string;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -21,6 +23,8 @@ interface TodoListProps {
 
 export default function TodoList({
   todos,
+  projectCliTool,
+  projectCliModel,
   onAddTodo,
   onStartTodo,
   onStopTodo,
@@ -59,8 +63,10 @@ export default function TodoList({
       {showForm && (
         <div className="mb-5 animate-slide-up">
           <TodoForm
-            onSave={async (title, description) => {
-              await onAddTodo(title, description);
+            projectCliTool={projectCliTool}
+            projectCliModel={projectCliModel}
+            onSave={async (title, description, cliTool, cliModel) => {
+              await onAddTodo(title, description, cliTool, cliModel);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

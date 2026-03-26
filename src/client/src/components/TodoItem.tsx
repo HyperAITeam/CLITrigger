@@ -6,13 +6,14 @@ import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
 import { useI18n } from '../i18n';
+import { getToolConfig, type CliTool } from '../cli-tools';
 
 interface TodoItemProps {
   todo: Todo;
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -124,8 +125,10 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
       <TodoForm
         initialTitle={todo.title}
         initialDescription={todo.description ?? undefined}
-        onSave={async (title, description) => {
-          await onEdit(todo.id, title, description);
+        initialCliTool={todo.cli_tool ?? undefined}
+        initialCliModel={todo.cli_model ?? undefined}
+        onSave={async (title, description, cliTool, cliModel) => {
+          await onEdit(todo.id, title, description, cliTool, cliModel);
           setEditing(false);
         }}
         onCancel={() => setEditing(false)}
@@ -165,6 +168,14 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
 
         {/* Title */}
         <span className="flex-1 text-sm text-warm-800 font-medium truncate">{todo.title}</span>
+
+        {/* CLI Tool Badge */}
+        {todo.cli_tool && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
+            {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
+            {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
+          </span>
+        )}
 
         <StatusBadge status={todo.status} />
 
