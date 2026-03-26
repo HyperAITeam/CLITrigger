@@ -42,11 +42,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     return onEvent((event) => {
       if (event.type === 'todo:status-changed' && event.todoId && event.status) {
         setTodos((prev) =>
-          prev.map((t) =>
-            t.id === event.todoId
-              ? { ...t, status: event.status as Todo['status'], updated_at: new Date().toISOString() }
-              : t
-          )
+          prev.map((t) => {
+            if (t.id !== event.todoId) return t;
+            const updates: Partial<Todo> = {
+              status: event.status as Todo['status'],
+              updated_at: new Date().toISOString(),
+            };
+            if (event.worktree_path !== undefined) updates.worktree_path = event.worktree_path ?? null;
+            if (event.branch_name !== undefined) updates.branch_name = event.branch_name ?? null;
+            return { ...t, ...updates };
+          })
         );
       }
       if (event.type === 'pipeline:status-changed' && event.pipelineId) {
@@ -67,21 +72,17 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string) => {
-    await todosApi.startTodo(todoId);
+  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
+    const updated = await todosApi.startTodo(todoId, mode);
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === todoId ? { ...t, status: 'running' as const, updated_at: new Date().toISOString() } : t
-      )
+      prev.map((t) => (t.id === todoId ? updated : t))
     );
   }, []);
 
   const handleStopTodo = useCallback(async (todoId: string) => {
-    await todosApi.stopTodo(todoId);
+    const updated = await todosApi.stopTodo(todoId);
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === todoId ? { ...t, status: 'stopped' as const, updated_at: new Date().toISOString() } : t
-      )
+      prev.map((t) => (t.id === todoId ? updated : t))
     );
   }, []);
 
