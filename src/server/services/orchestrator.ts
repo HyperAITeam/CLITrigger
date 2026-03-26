@@ -218,16 +218,21 @@ export class Orchestrator {
       // Only update if still in running state (not manually stopped)
       if (currentTodo && currentTodo.status === 'running') {
         const newStatus = exitCode === 0 ? 'completed' : 'failed';
-        if (exitCode === 0) {
-          queries.updateTodoStatus(todoId, 'completed');
-          queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
-        } else {
-          queries.updateTodoStatus(todoId, 'failed');
-          queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
+        try {
+          if (exitCode === 0) {
+            queries.updateTodoStatus(todoId, 'completed');
+            queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
+          } else {
+            queries.updateTodoStatus(todoId, 'failed');
+            queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
+          }
+          queries.updateTodo(todoId, { process_pid: 0 });
+        } catch {
+          // Ensure status is updated even if logging fails
+          try { queries.updateTodoStatus(todoId, newStatus); } catch { /* ignore */ }
         }
-        queries.updateTodo(todoId, { process_pid: 0 });
 
-        // Broadcast status change on exit
+        // Always broadcast status change on exit
         broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: newStatus });
         this.broadcastProjectStatus(projectId);
       }
@@ -236,6 +241,14 @@ export class Orchestrator {
       this.startNextPending(projectId).catch(() => {
         // Ignore errors when starting next todo
       });
+    }).catch(() => {
+      // Fallback: ensure status is updated if exitPromise handler fails
+      try {
+        queries.updateTodoStatus(todoId, 'failed');
+        queries.updateTodo(todoId, { process_pid: 0 });
+      } catch { /* ignore */ }
+      broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+      this.broadcastProjectStatus(projectId);
     });
   }
 
