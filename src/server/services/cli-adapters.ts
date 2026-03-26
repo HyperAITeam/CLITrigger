@@ -1,6 +1,37 @@
 export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'streaming';
 
+// Allowed CLI option patterns (flags that are safe to pass through)
+const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
+
+// Dangerous shell characters that could enable injection
+const DANGEROUS_CHARS = /[;&|`$(){}[\]<>!#~'"\\]/;
+
+/**
+ * Validate and sanitize extra CLI options from user input.
+ * Only allows simple flags like --flag or --flag=value.
+ */
+export function sanitizeExtraOptions(extraOptions: string): string[] {
+  if (!extraOptions || typeof extraOptions !== 'string') return [];
+
+  const parts = extraOptions.split(/\s+/).filter(Boolean);
+  const sanitized: string[] = [];
+
+  for (const part of parts) {
+    if (DANGEROUS_CHARS.test(part)) {
+      console.warn(`Rejected dangerous CLI option: ${part}`);
+      continue;
+    }
+    if (!ALLOWED_OPTION_PATTERN.test(part)) {
+      console.warn(`Rejected invalid CLI option format: ${part}`);
+      continue;
+    }
+    sanitized.push(part);
+  }
+
+  return sanitized;
+}
+
 export interface CliAdapter {
   /** Executable command name */
   command: string;
@@ -21,7 +52,7 @@ const claudeAdapter: CliAdapter = {
     const args = ['--dangerously-skip-permissions'];
     if (model) args.push('--model', model);
     if (extraOptions) {
-      args.push(...extraOptions.split(/\s+/).filter(Boolean));
+      args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
       args.push('-p', prompt);
@@ -43,7 +74,7 @@ const geminiAdapter: CliAdapter = {
     const args = ['--sandbox=permissive'];
     if (model) args.push('--model', model);
     if (extraOptions) {
-      args.push(...extraOptions.split(/\s+/).filter(Boolean));
+      args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
       args.push('-p', prompt);
@@ -65,7 +96,7 @@ const codexAdapter: CliAdapter = {
     const args = ['--full-auto'];
     if (model) args.push('--model', model);
     if (extraOptions) {
-      args.push(...extraOptions.split(/\s+/).filter(Boolean));
+      args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
       args.push(prompt);
