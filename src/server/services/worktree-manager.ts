@@ -10,19 +10,16 @@ export class WorktreeManager {
   sanitizeBranchName(title: string): string {
     const slug = title
       .toLowerCase()
-      .replace(/[가-힣ㄱ-ㅎㅏ-ㅣ]+/g, (match) => {
-        // Transliterate Korean to a simple hash-like representation
-        return Array.from(match)
-          .map((ch) => ch.charCodeAt(0).toString(36))
-          .join('');
-      })
-      .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric except spaces and hyphens
+      .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric (Korean, etc.) except spaces and hyphens
       .replace(/\s+/g, '-')          // spaces to hyphens
       .replace(/-+/g, '-')           // collapse multiple hyphens
       .replace(/^-|-$/g, '')         // trim leading/trailing hyphens
-      .slice(0, 50);                 // limit length
+      .slice(0, 40);                 // limit length
 
-    const safeName = slug || `task-${Date.now()}`;
+    // If slug is too short (e.g. Korean-only title), use a short random ID
+    const safeName = slug.length >= 3
+      ? slug
+      : `task-${Math.random().toString(36).substring(2, 8)}`;
     return `feature/${safeName}`;
   }
 
@@ -47,7 +44,7 @@ export class WorktreeManager {
     const git = simpleGit(projectPath);
 
     // Compute worktree directory
-    const worktreeBase = path.resolve(projectPath, '..', 'worktrees');
+    const worktreeBase = path.resolve(projectPath, '.worktrees');
     // Use the part after "feature/" for the directory name, or the whole branch name
     const dirName = branchName.replace(/\//g, '-');
     const worktreePath = path.resolve(worktreeBase, dirName);
