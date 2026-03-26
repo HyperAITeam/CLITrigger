@@ -13,6 +13,7 @@ interface TodoListProps {
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
+  onCleanupTodo: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -26,6 +27,7 @@ export default function TodoList({
   onDeleteTodo,
   onEditTodo,
   onMergeTodo,
+  onCleanupTodo,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -82,6 +84,7 @@ export default function TodoList({
                 onDelete={onDeleteTodo}
                 onEdit={onEditTodo}
                 onMerge={onMergeTodo}
+                onCleanup={onCleanupTodo}
                 onEvent={onEvent}
                 isInteractive={interactiveTodos.has(todo.id)}
                 onSendInput={onSendInput}

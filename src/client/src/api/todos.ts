@@ -42,3 +42,7 @@ export function getTodoDiff(id: string): Promise<DiffResult> {
 export function mergeTodo(id: string): Promise<{ success: boolean; result?: unknown }> {
   return post(`/api/todos/${id}/merge`);
 }
+
+export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
+  return post(`/api/todos/${id}/cleanup`);
+}

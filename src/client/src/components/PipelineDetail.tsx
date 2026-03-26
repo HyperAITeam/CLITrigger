@@ -43,6 +43,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
   const [diffData, setDiffData] = useState<DiffResult | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load pipeline data
@@ -197,6 +198,20 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
     }
   }, [pipelineId]);
 
+  const handleCleanup = useCallback(async () => {
+    if (!pipelineId) return;
+    setCleaning(true);
+    try {
+      await pipelinesApi.cleanupPipeline(pipelineId);
+      const data = await pipelinesApi.getPipeline(pipelineId);
+      setPipeline(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cleanup failed');
+    } finally {
+      setCleaning(false);
+    }
+  }, [pipelineId]);
+
   const handleViewDiff = useCallback(async () => {
     if (!pipelineId) return;
     if (showDiff) { setShowDiff(false); return; }
@@ -244,6 +259,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
   const canSkip = pipeline.status === 'running' || pipeline.status === 'paused';
   const canRetry = pipeline.status === 'failed';
   const canViewDiff = pipeline.status === 'completed' || pipeline.status === 'failed' || pipeline.status === 'merged';
+  const canCleanup = pipeline.status !== 'running' && pipeline.status !== 'pending' && (pipeline.worktree_path || pipeline.branch_name);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -350,6 +366,11 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
         {canMerge && (
           <button onClick={handleMerge} disabled={merging} className="street-btn px-4 py-2 text-xs font-mono bg-neon-purple/10 text-neon-purple border border-neon-purple/50 hover:bg-neon-purple/20 disabled:opacity-30">
             {merging ? 'MERGING...' : 'MERGE'}
+          </button>
+        )}
+        {canCleanup && (
+          <button onClick={handleCleanup} disabled={cleaning} className="street-btn px-4 py-2 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-500/50 hover:bg-orange-500/20 disabled:opacity-30">
+            {cleaning ? 'CLEANING...' : 'CLEANUP WORKTREE'}
           </button>
         )}
       </div>

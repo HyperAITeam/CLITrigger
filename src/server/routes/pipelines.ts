@@ -3,6 +3,7 @@ import simpleGit from 'simple-git';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
 import { pipelineOrchestrator } from '../services/pipeline-orchestrator.js';
+import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
@@ -236,6 +237,17 @@ router.post('/pipelines/:id/merge', async (req: Request<{ id: string }>, res: Re
     try {
       const mergeResult = await git.merge([pipeline.branch_name]);
       queries.updatePipelineStatus(pipeline.id, 'merged');
+
+      // Auto-cleanup worktree and branch after successful merge
+      if (pipeline.worktree_path) {
+        try {
+          await worktreeManager.cleanupWorktree(project.path, pipeline.worktree_path, pipeline.branch_name);
+          queries.updatePipeline(pipeline.id, { worktree_path: null, branch_name: null });
+        } catch {
+          // Non-fatal: merge succeeded even if cleanup fails
+        }
+      }
+
       res.json({ success: true, result: mergeResult });
     } catch (mergeErr: unknown) {
       try {
@@ -290,6 +302,48 @@ router.get('/pipelines/:id/diff', async (req: Request<{ id: string }>, res: Resp
     }
 
     res.json({ diff, stats: { files_changed, insertions, deletions } });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/pipelines/:id/cleanup - remove worktree and branch for a pipeline
+router.post('/pipelines/:id/cleanup', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const pipeline = queries.getPipelineById(req.params.id);
+    if (!pipeline) {
+      res.status(404).json({ error: 'Pipeline not found' });
+      return;
+    }
+
+    if (pipeline.status === 'running') {
+      res.status(400).json({ error: 'Cannot cleanup a running pipeline. Stop it first.' });
+      return;
+    }
+
+    const project = queries.getProjectById(pipeline.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const result = { worktreeRemoved: false, branchDeleted: false };
+
+    if (pipeline.worktree_path || pipeline.branch_name) {
+      const cleanup = await worktreeManager.cleanupWorktree(
+        project.path,
+        pipeline.worktree_path || '',
+        pipeline.branch_name || ''
+      );
+      result.worktreeRemoved = cleanup.worktreeRemoved;
+      result.branchDeleted = cleanup.branchDeleted;
+
+      // Clear worktree info from DB
+      queries.updatePipeline(pipeline.id, { worktree_path: null, branch_name: null });
+    }
+
+    res.json({ success: true, ...result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

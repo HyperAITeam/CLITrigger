@@ -14,12 +14,13 @@ interface TodoItemProps {
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
+  onCleanup: (id: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onEvent, isInteractive, onSendInput }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onEvent, isInteractive, onSendInput }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -30,12 +31,15 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const [diffError, setDiffError] = useState<string | null>(null);
   const [merging, setMerging] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanError, setCleanError] = useState<string | null>(null);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
+  const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name);
 
   useEffect(() => {
     if (expanded && !logsLoaded) {
@@ -100,6 +104,18 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
       setMergeError(err instanceof Error ? err.message : 'Merge failed');
     } finally {
       setMerging(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    setCleaning(true);
+    setCleanError(null);
+    try {
+      await onCleanup(todo.id);
+    } catch (err) {
+      setCleanError(err instanceof Error ? err.message : 'Cleanup failed');
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -220,6 +236,18 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
               </svg>
             </button>
           )}
+          {canCleanup && (
+            <button
+              onClick={handleCleanup}
+              disabled={cleaning}
+              className="p-1.5 text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10 rounded-lg transition-colors disabled:opacity-30"
+              title={t('todo.cleanup')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => setEditing(true)}
             className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
@@ -272,6 +300,12 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           {mergeError && (
             <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
               {t('todo.mergeFailed')}: {mergeError}
+            </div>
+          )}
+
+          {cleanError && (
+            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
+              {t('todo.cleanupFailed')}: {cleanError}
             </div>
           )}
 

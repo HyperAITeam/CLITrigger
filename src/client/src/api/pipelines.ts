@@ -52,3 +52,7 @@ export function mergePipeline(id: string): Promise<{ success: boolean; result?: 
 export function getPipelineDiff(id: string): Promise<DiffResult> {
   return get(`/api/pipelines/${id}/diff`);
 }
+
+export function cleanupPipeline(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
+  return post(`/api/pipelines/${id}/cleanup`);
+}

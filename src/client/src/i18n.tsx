@@ -81,6 +81,8 @@ const translations = {
     'todo.merge': 'Merge',
     'todo.edit': 'Edit',
     'todo.delete': 'Delete',
+    'todo.cleanup': 'Clean up worktree',
+    'todo.cleanupFailed': 'Cleanup failed',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -190,6 +192,8 @@ const translations = {
     'todo.merge': '\uBCD1\uD569',
     'todo.edit': '\uD3B8\uC9D1',
     'todo.delete': '\uC0AD\uC81C',
+    'todo.cleanup': '\uC6CC\uD06C\uD2B8\uB9AC \uC0AD\uC81C',
+    'todo.cleanupFailed': '\uC815\uB9AC \uC2E4\uD328',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',

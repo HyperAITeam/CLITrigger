@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import simpleGit from 'simple-git';
-import { getTodosByProjectId, getTodoById, updateTodoStatus } from '../db/queries.js';
+import { getTodosByProjectId, getTodoById, updateTodoStatus, updateTodo } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { orchestrator } from '../services/orchestrator.js';
+import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
@@ -125,6 +126,17 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
     try {
       const mergeResult = await git.merge([todo.branch_name]);
       updateTodoStatus(todo.id, 'merged');
+
+      // Auto-cleanup worktree and branch after successful merge
+      if (todo.worktree_path) {
+        try {
+          await worktreeManager.cleanupWorktree(project.path, todo.worktree_path, todo.branch_name);
+          updateTodo(todo.id, { worktree_path: null, branch_name: null });
+        } catch {
+          // Non-fatal: merge succeeded even if cleanup fails
+        }
+      }
+
       res.json({ success: true, result: mergeResult });
     } catch (mergeErr: unknown) {
       // Merge conflict - abort the merge and report
@@ -136,6 +148,48 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
       const message = mergeErr instanceof Error ? mergeErr.message : 'Merge failed';
       res.status(409).json({ error: 'Merge conflict', details: message });
     }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/todos/:id/cleanup - remove worktree and branch for a todo
+router.post('/todos/:id/cleanup', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    if (todo.status === 'running') {
+      res.status(400).json({ error: 'Cannot cleanup a running todo. Stop it first.' });
+      return;
+    }
+
+    const project = getProjectById(todo.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const result = { worktreeRemoved: false, branchDeleted: false };
+
+    if (todo.worktree_path || todo.branch_name) {
+      const cleanup = await worktreeManager.cleanupWorktree(
+        project.path,
+        todo.worktree_path || '',
+        todo.branch_name || ''
+      );
+      result.worktreeRemoved = cleanup.worktreeRemoved;
+      result.branchDeleted = cleanup.branchDeleted;
+
+      // Clear worktree info from DB
+      updateTodo(todo.id, { worktree_path: null, branch_name: null });
+    }
+
+    res.json({ success: true, ...result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
