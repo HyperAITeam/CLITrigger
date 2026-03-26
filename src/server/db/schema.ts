@@ -80,6 +80,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'claude_options', definition: 'TEXT' },
     { table: 'projects', column: 'is_git_repo', definition: 'INTEGER DEFAULT 1' },
     { table: 'projects', column: 'cli_tool', definition: "TEXT DEFAULT 'claude'" },
+    { table: 'projects', column: 'gstack_enabled', definition: 'INTEGER DEFAULT 0' },
+    { table: 'projects', column: 'gstack_skills', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

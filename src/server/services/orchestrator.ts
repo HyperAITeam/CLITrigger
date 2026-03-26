@@ -2,6 +2,7 @@ import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
+import { injectSkills, parseSkillConfig } from './skill-injector.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
@@ -155,9 +156,23 @@ export class Orchestrator {
       queries.createTaskLog(todoId, 'output', 'Project is not a git repository. Running directly without worktree isolation.');
     }
 
+    // Inject gstack skills if enabled (Claude CLI only)
+    const cliTool = (project.cli_tool as CliTool) || 'claude';
+    if (cliTool === 'claude' && project.gstack_enabled && project.gstack_skills) {
+      const skillIds = parseSkillConfig(project.gstack_skills);
+      if (skillIds.length > 0) {
+        try {
+          await injectSkills(workDir, skillIds);
+          queries.createTaskLog(todoId, 'output', `Injected gstack skills: ${skillIds.join(', ')}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          queries.createTaskLog(todoId, 'error', `Failed to inject gstack skills: ${msg}`);
+        }
+      }
+    }
+
     const claudeModel = project.claude_model || undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
-    const cliTool = (project.cli_tool as CliTool) || 'claude';
     const adapter = getAdapter(cliTool);
 
     let pid: number;

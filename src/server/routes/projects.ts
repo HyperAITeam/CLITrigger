@@ -3,6 +3,7 @@ import nodePath from 'path';
 import fs from 'fs';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { getAvailableSkills } from '../services/skill-injector.js';
 
 const router = Router();
 
@@ -105,8 +106,8 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool } = req.body;
-    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool });
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills } = req.body;
+    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills });
     res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -147,3 +148,11 @@ router.post('/:id/check-git', async (req: Request<{ id: string }>, res: Response
 });
 
 export default router;
+
+// Separate router for gstack endpoints (mounted at /api/gstack)
+export const gstackRouter = Router();
+
+// GET /api/gstack/skills - list available gstack skills
+gstackRouter.get('/skills', (_req: Request, res: Response) => {
+  res.json(getAvailableSkills());
+});

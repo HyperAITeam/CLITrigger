@@ -180,6 +180,46 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - **동시 실행 수**: 한번에 몇 개의 Claude를 돌릴지 (1~10, 기본 3)
 - **Claude 모델**: 사용할 모델 선택
 - **추가 CLI 옵션**: Claude CLI에 전달할 추가 플래그
+- **gstack 스킬**: AI 스킬 주입 설정 (아래 참조)
+
+### 7. gstack 스킬 (선택)
+
+[gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
+
+#### 활성화 방법
+
+1. 프로젝트 설정(톱니바퀴) 클릭
+2. **gstack Skills** 섹션에서 토글 ON
+3. 원하는 스킬 체크
+4. 저장
+
+> gstack 스킬은 **Claude CLI에서만** 사용 가능합니다. Gemini/Codex CLI에서는 비활성화됩니다.
+
+#### 제공 스킬
+
+| 스킬 | 설명 | 용도 |
+|------|------|------|
+| **Review** | 코드 리뷰 & 자동 수정 | 머지 전 품질 검증 |
+| **QA** | 브라우저 기반 QA 테스트 | 자동 버그 발견 + 수정 |
+| **QA Report** | QA 리포트만 (수정 없음) | 비파괴 테스트 검증 |
+| **Security Audit** | OWASP/STRIDE 보안 감사 | 보안 취약점 스캔 |
+| **Investigate** | 체계적 근본 원인 분석 | 디버깅 |
+| **Benchmark** | Core Web Vitals 성능 측정 | 성능 회귀 감지 |
+| **Careful Mode** | 위험 명령어 경고 | 안전 가드레일 |
+
+#### 동작 방식
+
+TODO 실행 시 다음 순서로 동작:
+1. git worktree 생성
+2. **선택된 gstack 스킬 파일을 worktree의 `.claude/skills/`에 복사**
+3. Claude CLI spawn (스킬을 자동 인식)
+4. 작업 수행
+
+기존 프로젝트의 `.claude/skills/`가 있어도 충돌하지 않습니다 (gstack 스킬은 `gstack-*` 접두사 디렉토리에 격리).
+
+#### 라이선스
+
+gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세한 내용은 프로젝트 루트의 `THIRD_PARTY_LICENSES.md`를 참조하세요.
 
 ---
 
@@ -262,6 +302,7 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/todos/:id/logs | 로그 조회 |
 | GET | /api/todos/:id/diff | Diff 조회 |
 | GET | /api/projects/:id/status | 프로젝트 상태 |
+| GET | /api/gstack/skills | gstack 스킬 목록 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |
 | POST | /api/tunnel/stop | 터널 중지 |

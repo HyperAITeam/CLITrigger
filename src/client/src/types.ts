@@ -8,8 +8,18 @@ export interface Project {
   claude_model: string | null;
   claude_options: string | null;
   cli_tool: string;
+  gstack_enabled: number;
+  gstack_skills: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface GstackSkill {
+  id: string;
+  name: string;
+  description: string;
+  descriptionKo: string;
+  category: string;
 }
 
 export interface Todo {

@@ -52,6 +52,10 @@ const translations = {
     'header.noGit': 'No Git',
     'header.noGitHint': 'This project is not a git repository. Tasks will run directly without worktree isolation. Run "git init" in the project path, then re-check.',
     'header.recheckGit': 'Re-check Git Status',
+    'header.gstackTitle': 'gstack Skills',
+    'header.gstackEnabled': 'Enable gstack skill injection',
+    'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
+    'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
 
     // Project Form
     'form.newProject': 'New Project',
@@ -168,6 +172,10 @@ const translations = {
     'header.noGit': 'Git \uC5C6\uC74C',
     'header.noGitHint': '\uC774 \uD504\uB85C\uC81D\uD2B8\uB294 Git \uC800\uC7A5\uC18C\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC791\uC5C5\uC740 \uC6CC\uD06C\uD2B8\uB9AC \uACA9\uB9AC \uC5C6\uC774 \uC9C1\uC811 \uC2E4\uD589\uB429\uB2C8\uB2E4. \uD504\uB85C\uC81D\uD2B8 \uACBD\uB85C\uC5D0\uC11C "git init" \uC2E4\uD589 \uD6C4 \uC7AC\uD655\uC778\uD558\uC138\uC694.',
     'header.recheckGit': 'Git \uC0C1\uD0DC \uC7AC\uD655\uC778',
+    'header.gstackTitle': 'gstack \uC2A4\uD0AC',
+    'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
+    'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
+    'header.gstackClaudeOnly': 'gstack \uC2A4\uD0AC\uC740 Claude CLI\uC5D0\uC11C\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4.',
 
     // Project Form
     'form.newProject': '\uC0C8 \uD504\uB85C\uC81D\uD2B8',

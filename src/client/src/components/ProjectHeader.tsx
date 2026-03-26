@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
-import type { Project, Todo } from '../types';
+import { useState, useCallback, useEffect } from 'react';
+import type { Project, Todo, GstackSkill } from '../types';
 import * as projectsApi from '../api/projects';
+import * as gstackApi from '../api/gstack';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 
@@ -17,7 +18,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     (t) => t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
   );
   const hasRunning = todos.some((t) => t.status === 'running');
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
@@ -26,6 +27,19 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
+
+  // gstack state
+  const [gstackEnabled, setGstackEnabled] = useState(!!project.gstack_enabled);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => {
+    try {
+      return project.gstack_skills ? JSON.parse(project.gstack_skills) : [];
+    } catch { return []; }
+  });
+  const [availableSkills, setAvailableSkills] = useState<GstackSkill[]>([]);
+
+  useEffect(() => {
+    gstackApi.getAvailableSkills().then(setAvailableSkills).catch(() => {});
+  }, []);
 
   const handleCliToolChange = (newTool: CliTool) => {
     setCliTool(newTool);
@@ -43,6 +57,12 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     finally { setCheckingGit(false); }
   }, [project.id, onProjectUpdate]);
 
+  const handleToggleSkill = (skillId: string) => {
+    setSelectedSkills((prev) =>
+      prev.includes(skillId) ? prev.filter((s) => s !== skillId) : [...prev, skillId]
+    );
+  };
+
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
@@ -51,6 +71,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         cli_tool: cliTool,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
+        gstack_enabled: gstackEnabled ? 1 : 0,
+        gstack_skills: selectedSkills.length > 0 ? JSON.stringify(selectedSkills) : null,
       });
       onProjectUpdate(updated);
       setShowSettings(false);
@@ -60,6 +82,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
       setSaving(false);
     }
   };
+
+  const isClaudeCli = cliTool === 'claude';
 
   return (
     <div className="mb-8">
@@ -91,6 +115,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 {t('header.model')}: {project.claude_model}
               </span>
             )}
+            {project.gstack_enabled ? (
+              <span className="badge bg-status-success/10 text-status-success">gstack</span>
+            ) : null}
           </div>
         </div>
 
@@ -194,6 +221,57 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 className="input-field"
               />
             </div>
+          </div>
+
+          {/* gstack Skills Section */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-warm-700">
+                {t('header.gstackTitle')}
+              </h4>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={gstackEnabled}
+                  onChange={(e) => setGstackEnabled(e.target.checked)}
+                  disabled={!isClaudeCli}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-status-success peer-disabled:opacity-50" />
+              </label>
+            </div>
+
+            {!isClaudeCli && (
+              <p className="text-xs text-warm-400 mb-3">{t('header.gstackClaudeOnly')}</p>
+            )}
+
+            {isClaudeCli && gstackEnabled && availableSkills.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                {availableSkills.map((skill) => (
+                  <label
+                    key={skill.id}
+                    className="flex items-start gap-2 p-2 rounded-lg hover:bg-warm-50 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSkills.includes(skill.id)}
+                      onChange={() => handleToggleSkill(skill.id)}
+                      className="mt-0.5 rounded border-warm-300 text-status-success focus:ring-status-success"
+                    />
+                    <div className="min-w-0">
+                      <span className="text-xs font-medium text-warm-700">{skill.name}</span>
+                      <p className="text-xs text-warm-400 truncate">
+                        {lang === 'ko' ? skill.descriptionKo : skill.description}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-warm-300">
+              {t('header.gstackCredit')}
+            </p>
           </div>
 
           {!project.is_git_repo && (

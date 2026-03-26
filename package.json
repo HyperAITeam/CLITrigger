@@ -8,7 +8,7 @@
     "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "cd src/client && npx vite",
     "build": "npm run build:client && npm run build:server",
-    "build:server": "tsc -p tsconfig.server.json",
+    "build:server": "tsc -p tsconfig.server.json && cp -r src/server/resources dist/server/resources",
     "build:client": "cd src/client && npx vite build",
     "start": "node dist/server/index.js",
     "start:tunnel": "node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\"",

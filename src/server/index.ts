@@ -9,7 +9,7 @@ import { getDatabase } from './db/connection.js';
 import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
-import projectsRouter from './routes/projects.js';
+import projectsRouter, { gstackRouter } from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
@@ -85,6 +85,7 @@ app.use('/api/auth', authRouter);
 
 // --- Routes ---
 app.use('/api/projects', projectsRouter);
+app.use('/api/gstack', gstackRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
