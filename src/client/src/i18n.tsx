@@ -25,6 +25,7 @@ const translations = {
     'projects.active': 'active',
     'projects.done': 'done',
     'projects.delete': 'Delete project',
+    'projects.noGit': 'No Git',
 
     // Project Detail
     'detail.back': 'Projects',
@@ -47,6 +48,9 @@ const translations = {
     'header.cancel': 'Cancel',
     'header.save': 'Save',
     'header.saving': 'Saving...',
+    'header.noGit': 'No Git',
+    'header.noGitHint': 'This project is not a git repository. Tasks will run directly without worktree isolation. Run "git init" in the project path, then re-check.',
+    'header.recheckGit': 'Re-check Git Status',
 
     // Project Form
     'form.newProject': 'New Project',
@@ -136,6 +140,7 @@ const translations = {
     'projects.active': '\uC2E4\uD589 \uC911',
     'projects.done': '\uC644\uB8CC',
     'projects.delete': '\uD504\uB85C\uC81D\uD2B8 \uC0AD\uC81C',
+    'projects.noGit': 'Git \uC5C6\uC74C',
 
     // Project Detail
     'detail.back': '\uD504\uB85C\uC81D\uD2B8',
@@ -158,6 +163,9 @@ const translations = {
     'header.cancel': '\uCDE8\uC18C',
     'header.save': '\uC800\uC7A5',
     'header.saving': '\uC800\uC7A5 \uC911...',
+    'header.noGit': 'Git \uC5C6\uC74C',
+    'header.noGitHint': '\uC774 \uD504\uB85C\uC81D\uD2B8\uB294 Git \uC800\uC7A5\uC18C\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC791\uC5C5\uC740 \uC6CC\uD06C\uD2B8\uB9AC \uACA9\uB9AC \uC5C6\uC774 \uC9C1\uC811 \uC2E4\uD589\uB429\uB2C8\uB2E4. \uD504\uB85C\uC81D\uD2B8 \uACBD\uB85C\uC5D0\uC11C "git init" \uC2E4\uD589 \uD6C4 \uC7AC\uD655\uC778\uD558\uC138\uC694.',
+    'header.recheckGit': 'Git \uC0C1\uD0DC \uC7AC\uD655\uC778',
 
     // Project Form
     'form.newProject': '\uC0C8 \uD504\uB85C\uC81D\uD2B8',

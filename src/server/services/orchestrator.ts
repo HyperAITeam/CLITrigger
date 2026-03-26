@@ -121,36 +121,44 @@ export class Orchestrator {
     const todo = queries.getTodoById(todoId);
     if (!todo) return;
 
-    const branchName = worktreeManager.sanitizeBranchName(todo.title);
+    const project = queries.getProjectById(projectId);
+    if (!project) return;
 
-    let worktreePath: string;
-    try {
-      worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      queries.updateTodoStatus(todoId, 'failed');
-      queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
-      return;
+    const isGitRepo = !!project.is_git_repo;
+    let worktreePath: string | null = null;
+    let branchName: string | null = null;
+    let workDir: string;
+    let prompt: string;
+
+    if (isGitRepo) {
+      branchName = worktreeManager.sanitizeBranchName(todo.title);
+      try {
+        worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        queries.updateTodoStatus(todoId, 'failed');
+        queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
+        return;
+      }
+      workDir = worktreePath;
+      prompt = `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
+
+      // Save worktree info to DB immediately so cleanup button is available on failure
+      queries.updateTodo(todoId, { branch_name: branchName, worktree_path: worktreePath });
+    } else {
+      workDir = projectPath;
+      prompt = `Your task is:\n\n${todo.description || todo.title}\n\nComplete the task in the current directory.`;
+      queries.createTaskLog(todoId, 'output', 'Project is not a git repository. Running directly without worktree isolation.');
     }
 
-    // Save worktree info to DB immediately so cleanup button is available on failure
-    queries.updateTodo(todoId, {
-      branch_name: branchName,
-      worktree_path: worktreePath,
-    });
-
-    const prompt = `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
-
-    // Get project-level Claude CLI options
-    const project = queries.getProjectById(projectId);
-    const claudeModel = project?.claude_model || undefined;
-    const claudeOptions = project?.claude_options ? project.claude_options : undefined;
+    const claudeModel = project.claude_model || undefined;
+    const claudeOptions = project.claude_options ? project.claude_options : undefined;
 
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(worktreePath, prompt, claudeModel, claudeOptions, mode);
+      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -160,22 +168,25 @@ export class Orchestrator {
       const message = err instanceof Error ? err.message : String(err);
       queries.updateTodoStatus(todoId, 'failed');
       queries.createTaskLog(todoId, 'error', `Failed to start Claude CLI: ${message}`);
-      // Clean up worktree on failure
-      try {
-        await worktreeManager.removeWorktree(projectPath, worktreePath);
-        queries.updateTodo(todoId, { worktree_path: null, branch_name: null });
-      } catch {
-        // Cleanup failed — worktree info stays in DB so user can manually clean up via UI
+      if (isGitRepo && worktreePath) {
+        try {
+          await worktreeManager.removeWorktree(projectPath, worktreePath);
+          queries.updateTodo(todoId, { worktree_path: null, branch_name: null });
+        } catch {
+          // Cleanup failed — worktree info stays in DB so user can manually clean up via UI
+        }
       }
       return;
     }
 
     // Update todo with running state
     queries.updateTodoStatus(todoId, 'running');
-    queries.updateTodo(todoId, {
-      process_pid: pid,
-    });
-    queries.createTaskLog(todoId, 'output', `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`);
+    queries.updateTodo(todoId, { process_pid: pid });
+
+    const logMsg = isGitRepo
+      ? `Started Claude CLI (PID: ${pid}) on branch ${branchName} [${mode}]`
+      : `Started Claude CLI (PID: ${pid}) in project directory [${mode}]`;
+    queries.createTaskLog(todoId, 'output', logMsg);
 
     // Broadcast status change with mode and worktree info
     broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName });

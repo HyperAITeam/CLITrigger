@@ -32,3 +32,7 @@ export function stopProject(id: string): Promise<void> {
 export function getProjectStatus(id: string): Promise<{ running: number; completed: number; total: number }> {
   return get(`/api/projects/${id}/status`);
 }
+
+export function checkGitStatus(id: string): Promise<Project> {
+  return post(`/api/projects/${id}/check-git`);
+}

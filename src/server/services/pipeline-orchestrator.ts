@@ -46,18 +46,24 @@ export class PipelineOrchestrator {
     let branchName = pipeline.branch_name;
 
     if (!worktreePath) {
-      branchName = worktreeManager.sanitizeBranchName(`pipeline-${pipeline.title}`);
-      try {
-        worktreePath = await worktreeManager.createWorktree(project.path, branchName);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        queries.updatePipelineStatus(pipelineId, 'failed');
-        queries.createPipelineLog(pipelineId, 'planning', 'error', `Failed to create worktree: ${message}`);
-        broadcaster.broadcast({ type: 'pipeline:status-changed', pipelineId, status: 'failed', currentPhase: null });
-        return;
+      if (project.is_git_repo) {
+        branchName = worktreeManager.sanitizeBranchName(`pipeline-${pipeline.title}`);
+        try {
+          worktreePath = await worktreeManager.createWorktree(project.path, branchName);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.updatePipelineStatus(pipelineId, 'failed');
+          queries.createPipelineLog(pipelineId, 'planning', 'error', `Failed to create worktree: ${message}`);
+          broadcaster.broadcast({ type: 'pipeline:status-changed', pipelineId, status: 'failed', currentPhase: null });
+          return;
+        }
+        queries.updatePipeline(pipelineId, { branch_name: branchName, worktree_path: worktreePath });
+      } else {
+        // Non-git project: run directly in project path
+        worktreePath = project.path;
+        queries.updatePipeline(pipelineId, { worktree_path: worktreePath });
+        queries.createPipelineLog(pipelineId, 'planning', 'info', 'Project is not a git repository. Running directly without worktree isolation.');
       }
-
-      queries.updatePipeline(pipelineId, { branch_name: branchName, worktree_path: worktreePath });
 
       // Create all 5 phase records
       for (let i = 0; i < PHASE_ORDER.length; i++) {

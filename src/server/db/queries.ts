@@ -8,6 +8,7 @@ export interface Project {
   name: string;
   path: string;
   default_branch: string;
+  is_git_repo: number;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
@@ -15,14 +16,14 @@ export interface Project {
   updated_at: string;
 }
 
-export function createProject(name: string, projectPath: string, defaultBranch = 'main'): Project {
+export function createProject(name: string, projectPath: string, defaultBranch = 'main', isGitRepo = 1): Project {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO projects (id, name, path, default_branch, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(id, name, projectPath, defaultBranch, now, now);
+    `INSERT INTO projects (id, name, path, default_branch, is_git_repo, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, projectPath, defaultBranch, isGitRepo, now, now);
   return getProjectById(id)!;
 }
 
@@ -36,7 +37,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -44,6 +45,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
   if (updates.path !== undefined) { fields.push('path = ?'); values.push(updates.path); }
   if (updates.default_branch !== undefined) { fields.push('default_branch = ?'); values.push(updates.default_branch); }
+  if (updates.is_git_repo !== undefined) { fields.push('is_git_repo = ?'); values.push(updates.is_git_repo); }
   if (updates.max_concurrent !== undefined) { fields.push('max_concurrent = ?'); values.push(updates.max_concurrent); }
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }

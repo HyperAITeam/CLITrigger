@@ -27,6 +27,18 @@ export class WorktreeManager {
   }
 
   /**
+   * Check if a directory is inside a git repository.
+   */
+  async isGitRepository(dirPath: string): Promise<boolean> {
+    try {
+      const git = simpleGit(dirPath);
+      return await git.checkIsRepo();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Create a worktree for a todo item.
    * Worktree path: <projectPath>/../worktrees/<branchName>
    * Returns the absolute worktree path.

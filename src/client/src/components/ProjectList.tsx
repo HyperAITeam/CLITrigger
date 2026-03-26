@@ -150,6 +150,13 @@ export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
                   {project.name}
                 </h3>
                 <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
+                <div className="mt-1.5">
+                  {project.is_git_repo ? (
+                    <span className="badge bg-status-success/10 text-status-success text-[10px]">Git</span>
+                  ) : (
+                    <span className="badge bg-status-warning/10 text-status-warning text-[10px]">{t('projects.noGit')}</span>
+                  )}
+                </div>
 
                 {/* Stats */}
                 <div className="mt-4 flex items-center gap-3 text-xs">

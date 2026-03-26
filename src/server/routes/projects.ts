@@ -1,17 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject } from '../db/queries.js';
+import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
 // POST /api/projects - create project
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, path, default_branch } = req.body;
     if (!name || !path) {
       res.status(400).json({ error: 'name and path are required' });
       return;
     }
-    const project = createProject(name, path, default_branch);
+    const isGitRepo = await worktreeManager.isGitRepository(path);
+    const project = createProject(name, path, default_branch, isGitRepo ? 1 : 0);
     res.status(201).json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -76,6 +78,23 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
     res.status(204).send();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/projects/:id/check-git - re-check if project path is a git repo
+router.post('/:id/check-git', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const existing = getProjectById(req.params.id);
+    if (!existing) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const isGitRepo = await worktreeManager.isGitRepository(existing.path);
+    const project = updateProject(req.params.id, { is_git_repo: isGitRepo ? 1 : 0 });
+    res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

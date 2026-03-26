@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   path: string;
   default_branch: string;
+  is_git_repo: number;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;

@@ -7,6 +7,7 @@ export function initDatabase(db: Database.Database): void {
       name TEXT NOT NULL,
       path TEXT NOT NULL UNIQUE,
       default_branch TEXT DEFAULT 'main',
+      is_git_repo INTEGER DEFAULT 1,
       max_concurrent INTEGER DEFAULT 3,
       claude_model TEXT,
       claude_options TEXT,
@@ -77,6 +78,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'max_concurrent', definition: 'INTEGER DEFAULT 3' },
     { table: 'projects', column: 'claude_model', definition: 'TEXT' },
     { table: 'projects', column: 'claude_options', definition: 'TEXT' },
+    { table: 'projects', column: 'is_git_repo', definition: 'INTEGER DEFAULT 1' },
   ];
 
   for (const { table, column, definition } of migrations) {

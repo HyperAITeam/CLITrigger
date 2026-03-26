@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import { useI18n } from '../i18n';
@@ -23,6 +23,16 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [saving, setSaving] = useState(false);
+  const [checkingGit, setCheckingGit] = useState(false);
+
+  const handleCheckGit = useCallback(async () => {
+    setCheckingGit(true);
+    try {
+      const updated = await projectsApi.checkGitStatus(project.id);
+      onProjectUpdate(updated);
+    } catch { /* ignore */ }
+    finally { setCheckingGit(false); }
+  }, [project.id, onProjectUpdate]);
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -50,9 +60,16 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           </h1>
           <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="badge bg-status-running/10 text-status-running">
-              {t('header.branch')}: {project.default_branch}
-            </span>
+            {project.is_git_repo ? (
+              <>
+                <span className="badge bg-status-success/10 text-status-success">Git</span>
+                <span className="badge bg-status-running/10 text-status-running">
+                  {t('header.branch')}: {project.default_branch}
+                </span>
+              </>
+            ) : (
+              <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
+            )}
             <span className="badge bg-accent-gold/10 text-accent-goldDark">
               {t('header.workers')}: {project.max_concurrent ?? 3}
             </span>
@@ -151,6 +168,19 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               />
             </div>
           </div>
+
+          {!project.is_git_repo && (
+            <div className="mt-5 p-3 bg-status-warning/5 border border-status-warning/20 rounded-xl">
+              <p className="text-xs text-warm-600 mb-2">{t('header.noGitHint')}</p>
+              <button
+                onClick={handleCheckGit}
+                disabled={checkingGit}
+                className="btn-ghost text-xs"
+              >
+                {checkingGit ? '...' : t('header.recheckGit')}
+              </button>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 mt-6">
             <button
