@@ -127,6 +127,13 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
+  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
+    const updated = await todosApi.retryTodo(todoId, mode);
+    setTodos((prev) =>
+      prev.map((t) => (t.id === todoId ? updated : t))
+    );
+  }, []);
+
   // Pipeline handlers
   const handleAddPipeline = useCallback(async (title: string, description: string) => {
     if (!id) return;
@@ -317,6 +324,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onEditTodo={handleEditTodo}
           onMergeTodo={handleMergeTodo}
           onCleanupTodo={handleCleanupTodo}
+          onRetryTodo={handleRetryTodo}
           onEvent={onEvent}
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}

@@ -16,12 +16,13 @@ interface TodoItemProps {
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onEvent, isInteractive, onSendInput }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onEvent, isInteractive, onSendInput }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -34,12 +35,15 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [cleaning, setCleaning] = useState(false);
   const [cleanError, setCleanError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
+  const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name);
 
   useEffect(() => {
@@ -117,6 +121,22 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
       setCleanError(err instanceof Error ? err.message : 'Cleanup failed');
     } finally {
       setCleaning(false);
+    }
+  };
+
+  const handleRetry = async (mode: 'headless' | 'interactive' | 'streaming' = 'headless') => {
+    setRetrying(true);
+    setRetryError(null);
+    setLogs([]);
+    setLogsLoaded(false);
+    setDiffData(null);
+    setShowDiff(false);
+    try {
+      await onRetry(todo.id, mode);
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : 'Retry failed');
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -259,6 +279,18 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
               </svg>
             </button>
           )}
+          {canRetry && (
+            <button
+              onClick={() => handleRetry('headless')}
+              disabled={retrying}
+              className="p-1.5 text-cyan-500/60 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-lg transition-colors disabled:opacity-30"
+              title={t('todo.retry')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h4.586M20 20v-5h-4.586M4.929 9A8 8 0 0119.071 9M19.071 15A8 8 0 014.929 15" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => setEditing(true)}
             className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
@@ -317,6 +349,12 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           {cleanError && (
             <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
               {t('todo.cleanupFailed')}: {cleanError}
+            </div>
+          )}
+
+          {retryError && (
+            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
+              {t('todo.retryFailed')}: {retryError}
             </div>
           )}
 
