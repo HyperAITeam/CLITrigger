@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import simpleGit from 'simple-git';
-import { getTodosByProjectId, getTodoById, updateTodoStatus, updateTodo } from '../db/queries.js';
+import { getTodosByProjectId, getTodoById, updateTodoStatus, updateTodo, deleteTaskLogsByTodoId } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { orchestrator } from '../services/orchestrator.js';
 import { worktreeManager } from '../services/worktree-manager.js';
@@ -190,6 +190,65 @@ router.post('/todos/:id/cleanup', async (req: Request<{ id: string }>, res: Resp
     }
 
     res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/todos/:id/retry - cleanup and restart a todo from scratch
+router.post('/todos/:id/retry', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    if (todo.status === 'running') {
+      res.status(400).json({ error: 'Cannot retry a running todo. Stop it first.' });
+      return;
+    }
+
+    if (todo.status === 'pending') {
+      res.status(400).json({ error: 'Todo has not been run yet. Use start instead.' });
+      return;
+    }
+
+    const project = getProjectById(todo.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    // 1. Cleanup worktree and branch if they exist
+    if (todo.worktree_path || todo.branch_name) {
+      try {
+        await worktreeManager.cleanupWorktree(
+          project.path,
+          todo.worktree_path || '',
+          todo.branch_name || ''
+        );
+      } catch {
+        // Non-fatal: continue with retry even if cleanup fails
+      }
+    }
+
+    // 2. Clear previous logs
+    deleteTaskLogsByTodoId(todo.id);
+
+    // 3. Reset todo state
+    updateTodoStatus(todo.id, 'pending');
+    updateTodo(todo.id, { worktree_path: null, branch_name: null, process_pid: 0 });
+
+    // 4. Determine mode and start fresh
+    const validModes = ['headless', 'interactive', 'streaming'] as const;
+    const mode = validModes.includes(req.body.mode) ? req.body.mode : 'headless';
+    await orchestrator.startTodo(todo.id, mode);
+
+    // Re-fetch to return current state
+    const updated = getTodoById(todo.id);
+    res.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

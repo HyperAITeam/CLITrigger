@@ -92,6 +92,8 @@ const translations = {
     'todo.delete': 'Delete',
     'todo.cleanup': 'Clean up worktree',
     'todo.cleanupFailed': 'Cleanup failed',
+    'todo.retry': 'Retry from scratch: Cleans up previous worktree, clears logs, and re-runs the task from the beginning.',
+    'todo.retryFailed': 'Retry failed',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -244,6 +246,8 @@ const translations = {
     'todo.delete': '\uC0AD\uC81C',
     'todo.cleanup': '\uC6CC\uD06C\uD2B8\uB9AC \uC0AD\uC81C',
     'todo.cleanupFailed': '\uC815\uB9AC \uC2E4\uD328',
+    'todo.retry': '처음부터 다시: 이전 워크트리를 정리하고, 로그를 삭제한 후 작업을 처음부터 다시 실행합니다.',
+    'todo.retryFailed': '재시도 실패',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',

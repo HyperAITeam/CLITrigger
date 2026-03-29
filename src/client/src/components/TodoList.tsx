@@ -16,6 +16,7 @@ interface TodoListProps {
   onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
+  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -32,6 +33,7 @@ export default function TodoList({
   onEditTodo,
   onMergeTodo,
   onCleanupTodo,
+  onRetryTodo,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -91,6 +93,7 @@ export default function TodoList({
                 onEdit={onEditTodo}
                 onMerge={onMergeTodo}
                 onCleanup={onCleanupTodo}
+                onRetry={onRetryTodo}
                 onEvent={onEvent}
                 isInteractive={interactiveTodos.has(todo.id)}
                 onSendInput={onSendInput}

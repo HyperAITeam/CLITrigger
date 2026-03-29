@@ -46,3 +46,7 @@ export function mergeTodo(id: string): Promise<{ success: boolean; result?: unkn
 export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
   return post(`/api/todos/${id}/cleanup`);
 }
+
+export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<Todo> {
+  return post(`/api/todos/${id}/retry`, { mode });
+}
