@@ -81,6 +81,8 @@ LOG_RETENTION_DAYS=30        # 로그 보관 일수
 | `scripts/start.bat` | 프로덕션 서버 실행 |
 | `scripts/start-tunnel.bat` | 터널 모드로 프로덕션 실행 |
 | `scripts/build-and-start.bat` | 빌드 후 바로 프로덕션 실행 |
+| `scripts/test.bat` | 전체 테스트 실행 |
+| `scripts/typecheck.bat` | TypeScript 타입 체크 |
 
 > 처음 설치할 때: `install.bat` → `dev.bat` 순서로 더블클릭하면 끝!
 
@@ -182,7 +184,42 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - **추가 CLI 옵션**: Claude CLI에 전달할 추가 플래그
 - **gstack 스킬**: AI 스킬 주입 설정 (아래 참조)
 
-### 7. gstack 스킬 (선택)
+### 7. 스케줄 (Cron 반복 실행)
+
+프로젝트별로 cron 스케줄을 설정하면, 정해진 시간에 자동으로 TODO가 생성되어 실행됩니다.
+
+#### 설정 방법
+
+1. 프로젝트 상세 페이지에서 **스케줄** 탭 진입
+2. **"Add Schedule"** 클릭
+3. 제목, 설명, cron 표현식 입력
+4. 필요 시 **Skip if running** 옵션 활성화 (이전 실행이 진행 중이면 건너뜀)
+5. 저장 → 자동으로 활성화
+
+#### cron 표현식 예시
+
+| 표현식 | 의미 |
+|--------|------|
+| `0 9 * * *` | 매일 오전 9시 |
+| `0 */2 * * *` | 2시간마다 |
+| `30 18 * * 1-5` | 평일 오후 6시 30분 |
+| `0 0 * * 0` | 매주 일요일 자정 |
+
+#### 관리 기능
+
+- **활성화/비활성화**: 토글로 ON/OFF (cron 등록/해제)
+- **수동 트리거**: 스케줄 시간과 무관하게 즉시 실행
+- **실행 이력**: 최근 실행 결과 (triggered/skipped/failed) 조회
+- **삭제**: 스케줄 삭제 시 cron 자동 해제
+
+### 8. TODO별 CLI 도구 & 모델 선택
+
+프로젝트 기본 설정 외에, 개별 TODO마다 다른 CLI 도구와 모델을 지정할 수 있습니다.
+
+- TODO 추가/수정 시 **CLI Tool** (Claude / Gemini / Codex)과 **Model** 선택 가능
+- 미지정 시 프로젝트 기본값 사용
+
+### 9. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -332,6 +369,15 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/todos/:id/logs | 로그 조회 |
 | GET | /api/todos/:id/diff | Diff 조회 |
 | GET | /api/projects/:id/status | 프로젝트 상태 |
+| POST | /api/projects/:id/schedules | 스케줄 생성 |
+| GET | /api/projects/:id/schedules | 스케줄 목록 |
+| GET | /api/schedules/:id | 스케줄 상세 |
+| PUT | /api/schedules/:id | 스케줄 수정 |
+| DELETE | /api/schedules/:id | 스케줄 삭제 |
+| POST | /api/schedules/:id/activate | 스케줄 활성화 |
+| POST | /api/schedules/:id/pause | 스케줄 비활성화 |
+| GET | /api/schedules/:id/runs | 스케줄 실행 이력 |
+| POST | /api/schedules/:id/trigger | 스케줄 수동 트리거 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |

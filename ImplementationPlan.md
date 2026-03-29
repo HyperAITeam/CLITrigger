@@ -444,27 +444,79 @@ class TunnelManager {
 
 #### 9-1. 작업 내용
 
-1. 작업 완료된 worktree의 diff 요약 보기
-2. 완료된 TODO의 변경사항을 메인 브랜치로 merge하는 버튼
+1. ✅ 작업 완료된 worktree의 diff 요약 보기
+2. ✅ 완료된 TODO의 변경사항을 메인 브랜치로 merge하는 버튼
 3. TODO 템플릿 기능 (자주 쓰는 작업 패턴 저장)
-4. 동시 실행 수 설정 UI
-5. Claude CLI에 전달할 추가 옵션 설정 (모델 선택, 컨텍스트 파일 지정 등)
+4. ✅ 동시 실행 수 설정 UI
+5. ✅ Claude CLI에 전달할 추가 옵션 설정 (모델 선택, 컨텍스트 파일 지정 등)
+
+---
+
+### Phase 10: Cron 스케줄 기반 자동 실행 (✅ 구현 완료)
+
+#### 10-1. 작업 내용
+
+1. ✅ `node-cron` 기반 스케줄러 서비스 (`scheduler.ts`)
+2. ✅ 스케줄 REST API 9개 엔드포인트 (`schedules.ts`)
+3. ✅ `schedules` + `schedule_runs` DB 테이블
+4. ✅ 중복 실행 방지 (`skip_if_running`)
+5. ✅ 수동 트리거 + 활성화/비활성화
+6. ✅ 프론트엔드 스케줄 관리 UI (ScheduleForm, ScheduleItem, ScheduleList)
+7. ✅ WebSocket 이벤트 3개 (run-triggered, run-skipped, status-changed)
+8. ✅ i18n 번역 키 30개 (한/영)
+
+---
+
+### Phase 11: TODO별 CLI 도구 & 모델 선택 (✅ 구현 완료)
+
+#### 11-1. 작업 내용
+
+1. ✅ TODO에 `cli_tool`, `cli_model` 필드 추가
+2. ✅ 프로젝트 기본값 상속 + TODO 레벨 오버라이드
+3. ✅ 프론트엔드 CLI/모델 선택 드롭다운
+
+---
+
+### Phase 12: gstack 스킬 통합 (✅ 구현 완료)
+
+#### 12-1. 작업 내용
+
+1. ✅ gstack 7개 스킬 번들링 (review, qa, qa-only, cso, investigate, benchmark, careful)
+2. ✅ 스킬 주입 서비스 (`skill-injector.ts`)
+3. ✅ 프로젝트별 스킬 ON/OFF + 개별 선택 UI
+4. ✅ Claude CLI 전용 (Gemini/Codex 미지원)
+5. ✅ MIT 라이선스 고지
+
+---
+
+### Phase 13: CI/CD 파이프라인 (✅ 구현 완료)
+
+#### 13-1. 작업 내용
+
+1. ✅ GitHub Actions CI 워크플로우 (typecheck → test → build)
+2. ✅ Release 워크플로우 (v* 태그 → GitHub Release)
+3. ✅ Claude Issue Worker (이슈 `claude-fix` 라벨 → Self-hosted Runner → PR 자동 생성)
+4. ✅ typecheck npm 스크립트
 
 ---
 
 ## 구현 순서 요약
 
-| 순서 | Phase | 예상 난이도 | 의존성 |
-|------|-------|-----------|--------|
-| 1 | Phase 1: 프로젝트 초기 설정 | ★☆☆ | 없음 |
-| 2 | Phase 2: DB 설계 및 구현 | ★☆☆ | Phase 1 |
-| 3 | Phase 3: Backend API | ★★☆ | Phase 2 |
-| 4 | Phase 4: 핵심 엔진 (Worktree + Claude CLI) | ★★★ | Phase 3 |
-| 5 | Phase 5: WebSocket | ★★☆ | Phase 4 |
-| 6 | Phase 6: Frontend | ★★☆ | Phase 3, 5 |
-| 7 | Phase 7: Cloudflare Tunnel + 인증 | ★★☆ | Phase 6 |
-| 8 | Phase 8: 통합 테스트 및 안정화 | ★★☆ | Phase 7 |
-| 9 | Phase 9: 편의 기능 | ★★☆ | Phase 8 |
+| 순서 | Phase | 예상 난이도 | 상태 |
+|------|-------|-----------|------|
+| 1 | Phase 1: 프로젝트 초기 설정 | ★☆☆ | ✅ 완료 |
+| 2 | Phase 2: DB 설계 및 구현 | ★☆☆ | ✅ 완료 |
+| 3 | Phase 3: Backend API | ★★☆ | ✅ 완료 |
+| 4 | Phase 4: 핵심 엔진 (Worktree + Claude CLI) | ★★★ | ✅ 완료 |
+| 5 | Phase 5: WebSocket | ★★☆ | ✅ 완료 |
+| 6 | Phase 6: Frontend | ★★☆ | ✅ 완료 |
+| 7 | Phase 7: Cloudflare Tunnel + 인증 | ★★☆ | ✅ 완료 |
+| 8 | Phase 8: 통합 테스트 및 안정화 | ★★☆ | ✅ 완료 |
+| 9 | Phase 9: 편의 기능 | ★★☆ | 🔧 부분 완료 |
+| 10 | Phase 10: Cron 스케줄 | ★★☆ | ✅ 완료 |
+| 11 | Phase 11: TODO별 CLI/모델 선택 | ★☆☆ | ✅ 완료 |
+| 12 | Phase 12: gstack 스킬 통합 | ★★☆ | ✅ 완료 |
+| 13 | Phase 13: CI/CD 파이프라인 | ★★☆ | ✅ 완료 |
 
 ---
 

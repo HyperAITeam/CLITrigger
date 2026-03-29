@@ -1,5 +1,93 @@
 # Changelog
 
+## 2026-03-29 — Cron 스케줄 기반 자동 실행
+
+### 배경
+
+TODO를 수동으로 Start하는 것 외에, 정해진 시간에 자동으로 반복 실행하는 스케줄링 기능이 필요했다. cron 표현식을 사용하여 프로젝트별 반복 작업을 설정할 수 있도록 구현한다.
+
+### 구현 내용
+
+#### Scheduler 서비스 (`scheduler.ts`)
+- **cron 기반 반복 실행**: `node-cron` 라이브러리로 cron 표현식에 따라 TODO 자동 생성 + 실행
+- **중복 실행 방지**: `skip_if_running` 옵션으로 이전 실행이 진행 중이면 건너뜀
+- **수동 트리거**: 스케줄 외에 즉시 실행 가능
+- **활성화/비활성화**: 스케줄별 ON/OFF 토글
+- **실행 이력**: `schedule_runs` 테이블에 실행 기록 저장
+
+#### REST API 엔드포인트 (9개)
+- `POST /api/projects/:id/schedules` — 스케줄 생성 (cron 표현식 검증)
+- `GET /api/projects/:id/schedules` — 프로젝트 스케줄 목록
+- `GET /api/schedules/:id` — 스케줄 상세
+- `PUT /api/schedules/:id` — 스케줄 수정
+- `DELETE /api/schedules/:id` — 스케줄 삭제
+- `POST /api/schedules/:id/activate` — 활성화
+- `POST /api/schedules/:id/pause` — 비활성화
+- `GET /api/schedules/:id/runs` — 실행 이력 조회
+- `POST /api/schedules/:id/trigger` — 수동 트리거
+
+#### 프론트엔드 UI
+- `ScheduleForm.tsx` — 스케줄 생성/수정 폼 (cron 표현식 입력 + 검증)
+- `ScheduleItem.tsx` — 스케줄 항목 (상태, 다음 실행 시각, 실행 이력)
+- `ScheduleList.tsx` — 스케줄 목록
+
+#### DB 변경
+- `schedules` 테이블: id, project_id, title, cron_expression, is_active, skip_if_running, last_run_at 등
+- `schedule_runs` 테이블: id, schedule_id, todo_id, status (triggered/skipped/failed)
+- `todos` 테이블: `schedule_id` 컬럼 추가 (스케줄에서 생성된 TODO 추적)
+
+#### WebSocket 이벤트 (3개)
+- `schedule:run-triggered` — 스케줄 실행 시작
+- `schedule:run-skipped` — 중복 실행 건너뜀
+- `schedule:status-changed` — 스케줄 상태 변경 (활성화/비활성화)
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `src/server/services/scheduler.ts` | Scheduler 서비스 (cron 등록/해제/실행) |
+| `src/server/routes/schedules.ts` | 스케줄 REST API 라우트 (9개 엔드포인트) |
+| `src/client/src/api/schedules.ts` | 프론트엔드 스케줄 API 클라이언트 |
+| `src/client/src/components/ScheduleForm.tsx` | 스케줄 생성/수정 폼 |
+| `src/client/src/components/ScheduleItem.tsx` | 스케줄 항목 UI |
+| `src/client/src/components/ScheduleList.tsx` | 스케줄 목록 UI |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `package.json` | `node-cron`, `@types/node-cron` 의존성 추가 |
+| `src/server/db/schema.ts` | `schedules`, `schedule_runs` 테이블 + `todos.schedule_id` 컬럼 추가 |
+| `src/server/db/queries.ts` | 스케줄 CRUD 쿼리 함수 추가 |
+| `src/server/index.ts` | `schedulesRouter` 마운트 + Scheduler 초기화 |
+| `src/client/src/i18n.tsx` | 스케줄 관련 번역 키 30개 추가 (한/영) |
+
+---
+
+## 2026-03-29 — TODO별 CLI 도구 & 모델 선택
+
+### 배경
+
+프로젝트 단위로만 CLI 도구(Claude/Gemini/Codex)와 모델을 설정할 수 있었으나, 개별 TODO마다 다른 CLI/모델을 사용하고 싶은 요구가 있었다.
+
+### 구현 내용
+
+- TODO 생성/수정 시 `cli_tool`과 `cli_model` 필드 추가
+- 프로젝트 기본값을 상속하되, TODO 레벨에서 오버라이드 가능
+- UI에서 TODO별 CLI 도구 및 모델 선택 드롭다운 제공
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `todos` 테이블에 `cli_tool`, `cli_model` 컬럼 추가 |
+| `src/server/db/queries.ts` | TODO CRUD에 cli_tool, cli_model 필드 반영 |
+| `src/server/services/orchestrator.ts` | TODO 실행 시 개별 cli_tool/cli_model 우선 적용 |
+| `src/client/src/components/TodoForm.tsx` | CLI 도구/모델 선택 UI 추가 |
+| `src/client/src/types.ts` | Todo 타입에 cli_tool, cli_model 필드 추가 |
+
+---
+
 ## 2026-03-29 — Claude Issue Worker (Self-hosted Runner)
 
 ### 배경

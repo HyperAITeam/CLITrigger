@@ -15,17 +15,21 @@ TODO 리스트를 작성하면, 각 항목마다 독립적인 git worktree에서
 ## 주요 기능
 
 - **TODO 기반 자동 코딩** — TODO 항목마다 Claude CLI가 독립 브랜치에서 병렬 작업
+- **Cron 스케줄 실행** — cron 표현식으로 TODO 반복 자동 생성 + 실행, 중복 실행 방지
+- **멀티 CLI 지원** — Claude / Gemini / Codex CLI 선택, 프로젝트 및 TODO별 모델 지정
+- **gstack 스킬 주입** — 코드 리뷰, QA, 보안 감사 등 AI 스킬을 worktree에 자동 주입
 - **실시간 모니터링** — WebSocket으로 작업 로그, 상태 변화를 실시간 확인
 - **Start / Stop 제어** — 전체 또는 개별 TODO 실행/중지
 - **Diff 확인 & Merge** — 완료된 작업의 변경사항 확인 후 main에 머지
 - **외부 접속** — Cloudflare Tunnel로 어디서든 폰/노트북으로 제어
 - **비밀번호 인증** — 외부 노출 시 무단 접근 방지
+- **CI/CD** — GitHub Actions 자동 빌드/테스트 + 이슈 `claude-fix` 라벨로 PR 자동 생성
 
 ## 기술 스택
 
 **Backend:** Node.js, Express, TypeScript, SQLite, WebSocket
 **Frontend:** React, Vite, Tailwind CSS
-**핵심:** simple-git (worktree 관리), child_process (Claude CLI 실행)
+**핵심:** simple-git (worktree 관리), node-cron (스케줄링), node-pty (TTY 지원)
 **외부 접속:** Cloudflare Tunnel (선택)
 
 ## 빠른 시작
@@ -59,6 +63,8 @@ npm run dev
 | `scripts/start.bat` | 프로덕션 서버 실행 |
 | `scripts/start-tunnel.bat` | 터널 모드 실행 |
 | `scripts/build-and-start.bat` | 빌드 후 바로 실행 |
+| `scripts/test.bat` | 전체 테스트 실행 |
+| `scripts/typecheck.bat` | 타입 체크 |
 
 ## 외부에서 접속하기 (Cloudflare Tunnel)
 
@@ -76,7 +82,10 @@ npm run start:tunnel
 
 ## 문서
 
-상세 설치/사용 가이드: [docs/SETUP.md](docs/SETUP.md)
+- 설치/사용 가이드: [docs/SETUP.md](docs/SETUP.md)
+- CI/CD 가이드: [docs/CICD.md](docs/CICD.md)
+- 테스트 가이드: [docs/TESTING.md](docs/TESTING.md)
+- 변경 이력: [docs/CHANGELOG.md](docs/CHANGELOG.md)
 
 ## 라이선스
 
