@@ -45,7 +45,7 @@ describe('WorktreeManager', () => {
 
     it('should fallback to task-timestamp for empty-resulting slugs', () => {
       const result = manager.sanitizeBranchName('!!!');
-      expect(result).toMatch(/^feature\/task-\d+$/);
+      expect(result).toMatch(/^feature\/task-[a-z0-9]+$/);
     });
 
     it('should handle mixed Korean and English', () => {
