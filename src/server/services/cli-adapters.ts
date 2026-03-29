@@ -57,7 +57,8 @@ const claudeAdapter: CliAdapter = {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
     if (mode === 'headless') {
-      args.push('-p', prompt);
+      // Must quote prompt for shell: true — otherwise words after the first become positional args
+      args.push('-p', `"${prompt.replace(/"/g, '\\"')}"`);
     }
     return args;
   },
