@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import CronBuilder from './CronBuilder';
 
 interface ScheduleFormProps {
   onSave: (title: string, description: string, cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning?: boolean) => void;
@@ -75,16 +76,7 @@ export default function ScheduleForm({
         <label className="block text-xs font-medium text-warm-500 mb-1.5">
           {t('schedule.cronExpression')}
         </label>
-        <input
-          type="text"
-          placeholder="*/30 * * * *"
-          value={cronExpression}
-          onChange={(e) => setCronExpression(e.target.value)}
-          className="input-field font-mono"
-        />
-        <p className="text-[10px] text-warm-400 mt-1">
-          {t('schedule.cronHint')}
-        </p>
+        <CronBuilder value={cronExpression} onChange={setCronExpression} />
       </div>
 
       {/* CLI Tool & Model */}
