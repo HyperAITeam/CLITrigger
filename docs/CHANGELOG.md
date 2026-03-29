@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-03-29 — Claude Issue Worker (Self-hosted Runner)
+
+### 배경
+
+로컬 PC 없이 GitHub 이슈만으로 코드 작업을 자동화하려는 요구가 있었다. Anthropic API 종량제 대신 Claude Max 구독을 활용하기 위해 Self-hosted Runner 기반으로 구현한다.
+
+### 구현 내용
+
+#### Claude Issue Worker 워크플로우 (`claude-issue.yml`)
+- **트리거**: 이슈에 `claude-fix` 라벨 추가 시
+- **실행 환경**: Self-hosted Runner (Claude Max 구독 인증된 로컬 PC)
+- **동작**: Claude Code CLI가 이슈 내용을 읽고 코드 구현 → `claude/issue-{N}` 브랜치에 커밋 → PR 자동 생성
+- **실패 처리**: 변경사항이 없으면 이슈에 코멘트로 알림
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `.github/workflows/claude-issue.yml` | Claude Issue Worker 워크플로우 |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `docs/CICD.md` | Claude Issue Worker 섹션 추가 (동작 흐름, Runner 등록 가이드, 트러블슈팅) |
+| `docs/SETUP.md` | CI/CD 섹션에 Issue 자동 처리 안내 추가 |
+| `docs/CHANGELOG.md` | 이 항목 추가 |
+
+---
+
 ## 2026-03-26 — CI/CD 파이프라인 구축
 
 ### 배경

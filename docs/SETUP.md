@@ -255,6 +255,7 @@ C:\Users\me\projects\
 
 - **PR/push → main**: 타입 체크 + 테스트 + 빌드 자동 실행
 - **`v*` 태그 push**: 빌드 + GitHub Release 자동 생성
+- **이슈 `claude-fix` 라벨**: Claude Code가 이슈 구현 → PR 자동 생성 (Self-hosted Runner)
 
 로컬에서 CI와 동일한 검증:
 ```bash
@@ -264,6 +265,17 @@ npm run build       # 빌드
 ```
 
 자세한 내용은 [CICD.md](./CICD.md)를 참조하세요.
+
+### GitHub Issue 자동 처리 (Claude Code)
+
+GitHub 이슈에 `claude-fix` 라벨을 붙이면, Self-hosted Runner에서 Claude Code CLI가 이슈를 읽고 코드를 구현하여 PR을 자동 생성합니다.
+
+**필요 조건:**
+- Self-hosted Runner 등록 (PC에 GitHub Actions Runner 설치)
+- Claude Code CLI 설치 + Max 구독 인증 완료
+- GitHub CLI (`gh`) 인증 완료
+
+설정 방법은 [CICD.md](./CICD.md)의 "Claude Issue Worker 워크플로우" 섹션을 참조하세요.
 
 ---
 
