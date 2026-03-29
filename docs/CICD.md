@@ -10,6 +10,7 @@ CLITrigger는 **GitHub Actions** 기반 CI/CD 파이프라인을 사용합니다
 | **Release** (`release.yml`) | `v*` 태그 push | 빌드 + GitHub Release 생성 |
 | **Claude Issue Worker** (`claude-issue.yml`) | 이슈에 `claude-fix` 라벨 | Claude Code가 이슈 구현 → PR 생성 |
 | **Claude PR Review** (`claude-pr-review.yml`) | PR 생성/업데이트 | Claude Code가 자동 코드 리뷰 → 코멘트 생성 |
+| **Claude Comment Command** (`claude-comment.yml`) | 이슈/PR 코멘트에 `@claude` | 코멘트로 Claude Code에 작업 지시 → 변경사항 push |
 
 ---
 
@@ -118,6 +119,7 @@ npm start
 | `feature/*` | 기능 개발 | PR 생성 시 |
 | `fix/*` | 버그 수정 | PR 생성 시 |
 | `claude/issue-*` | Claude가 자동 생성 | Issue Worker → PR |
+| `claude/comment-*` | Claude 코멘트 명령으로 생성 | Comment Command → PR |
 | `*` (모든 PR 브랜치) | PR 생성 시 | PR Review → 리뷰 코멘트 |
 | `v*` 태그 | 릴리스 | Release 워크플로우 |
 
@@ -297,6 +299,54 @@ if: github.event.pull_request.draft == false
 ```yaml
 if: github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'claude-review')
 ```
+
+---
+
+## Claude Comment Command 워크플로우
+
+### 개요
+
+이슈 또는 PR의 코멘트에 `@claude`를 멘션하면, **Self-hosted Runner** 위에서 Claude Code CLI가 요청된 작업을 수행합니다.
+
+- **이슈 코멘트**: 새 브랜치 생성 → 작업 수행 → PR 생성
+- **PR 코멘트**: 해당 PR 브랜치에서 작업 수행 → 변경사항 push
+
+### 동작 흐름
+
+```
+이슈/PR 코멘트: "@claude 이거 리팩토링해줘"
+       │
+       ├─► 👀 리액션 추가 (처리 중 표시)
+       │
+       ▼
+Self-hosted Runner (로컬 PC)
+       │
+       ├─► checkout + npm ci
+       ├─► 코멘트에서 @claude 이후 명령어 추출
+       ├─► claude --print --dangerously-skip-permissions (명령어 기반 작업)
+       └─► 이슈: 새 브랜치 push + PR 생성
+           PR: 해당 브랜치에 변경사항 push
+```
+
+### 사용법
+
+코멘트에 `@claude` 뒤에 원하는 작업을 작성합니다:
+
+| 예시 코멘트 | 설명 |
+|------------|------|
+| `@claude 이 함수를 리팩토링해줘` | 리팩토링 요청 |
+| `@claude Add error handling for edge cases` | 에러 처리 추가 |
+| `@claude src/server/index.ts의 라우터 구조를 개선해줘` | 특정 파일 수정 요청 |
+| `@claude 이 PR의 리뷰 코멘트를 반영해줘` | PR에서 리뷰 반영 요청 |
+
+### 필터링 조건
+
+- 봇 코멘트(`github-actions[bot]`)는 무시 (무한 루프 방지)
+- `@claude`가 코멘트에 포함되어야 트리거
+
+### 사전 요구사항
+
+Claude Issue Worker와 동일한 Self-hosted Runner 환경이 필요합니다 (위 섹션 참조).
 
 ---
 
