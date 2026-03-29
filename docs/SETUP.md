@@ -293,6 +293,7 @@ C:\Users\me\projects\
 - **PR/push → main**: 타입 체크 + 테스트 + 빌드 자동 실행
 - **`v*` 태그 push**: 빌드 + GitHub Release 자동 생성
 - **이슈 `claude-fix` 라벨**: Claude Code가 이슈 구현 → PR 자동 생성 (Self-hosted Runner)
+- **PR 생성/업데이트**: Claude Code가 자동 코드 리뷰 → 리뷰 코멘트 생성 (Self-hosted Runner)
 
 로컬에서 CI와 동일한 검증:
 ```bash
@@ -313,6 +314,28 @@ GitHub 이슈에 `claude-fix` 라벨을 붙이면, Self-hosted Runner에서 Clau
 - GitHub CLI (`gh`) 인증 완료
 
 설정 방법은 [CICD.md](./CICD.md)의 "Claude Issue Worker 워크플로우" 섹션을 참조하세요.
+
+### PR 자동 코드 리뷰 (Claude Code)
+
+PR이 생성되거나 업데이트되면 Claude Code가 자동으로 diff를 분석하여 코드 리뷰 코멘트를 생성합니다.
+
+**동작 방식:**
+- `pull_request` 이벤트 (`opened`, `synchronize`, `ready_for_review`) 시 트리거
+- Draft PR은 자동으로 건너뜀
+- Diff가 10,000줄 초과 시 리뷰 스킵 (토큰 절약)
+- PR 업데이트(`synchronize`) 시 이전 리뷰 코멘트를 삭제 후 새로 생성
+
+**리뷰 범위:**
+- 버그 및 로직 오류
+- 보안 취약점 (injection, XSS, secrets 노출)
+- 성능 이슈 (N+1 쿼리, 불필요한 리렌더링)
+- 타입 안전성
+- 동시성 문제
+
+**필요 조건:**
+- Self-hosted Runner 등록 (GitHub Issue 자동 처리와 동일)
+- Claude Code CLI 설치 + Max 구독 인증 완료
+- GitHub CLI (`gh`) 인증 완료
 
 ---
 

@@ -1,0 +1,133 @@
+name: Claude Code - PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  claude-review:
+    if: github.event.pull_request.draft == false
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd src/client && npm ci
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          DIFF=$(gh pr diff "$PR_NUMBER")
+          DIFF_LINES=$(echo "$DIFF" | wc -l)
+
+          echo "lines=$DIFF_LINES" >> "$GITHUB_OUTPUT"
+
+          if [ "$DIFF_LINES" -gt 10000 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "PR diff is too large ($DIFF_LINES lines) — skipping review"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "$DIFF" > /tmp/pr-diff.txt
+          fi
+
+      - name: Delete previous review comment
+        if: steps.diff.outputs.skip != 'true'
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          # Find and delete previous bot review comments
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | startswith("## Claude Code Review")) | .id' \
+          | while read -r comment_id; do
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}" || true
+          done
+
+      - name: Run Claude Code review
+        if: steps.diff.outputs.skip != 'true'
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
+          DIFF=$(cat /tmp/pr-diff.txt)
+
+          REVIEW=$(claude --print --dangerously-skip-permissions <<PROMPT
+          You are a code reviewer for CLITrigger — a Node.js monorepo (server + React client) that orchestrates CLI AI tools (Claude, Gemini, Codex).
+
+          ## Project structure
+          - Server: src/server/ (Express + better-sqlite3 + WebSocket)
+          - Client: src/client/ (React + Vite + TypeScript)
+          - Tests: vitest for both server and client
+          - Key services: orchestrator, scheduler, claude-manager, tunnel-manager
+
+          ## PR information
+          - **PR #${PR_NUMBER}**: ${PR_TITLE}
+          - **Branch**: ${HEAD_BRANCH} → ${BASE_BRANCH}
+          - **Description**: ${{ github.event.pull_request.body }}
+
+          ## Diff
+          \`\`\`diff
+          ${DIFF}
+          \`\`\`
+
+          ## Your task
+          Review this pull request diff. Focus on:
+          1. **Bugs & logic errors**: incorrect conditions, off-by-one, null/undefined risks
+          2. **Security**: injection, XSS, secrets exposure, unsafe input handling
+          3. **Performance**: N+1 queries, unnecessary re-renders, missing indexes
+          4. **Type safety**: incorrect types, missing null checks, unsafe casts
+          5. **Concurrency**: race conditions, missing locks, shared state issues
+
+          ## Output format
+          Respond in markdown with this structure:
+
+          ### Summary
+          One-paragraph overview of what this PR does and your overall assessment.
+
+          ### Issues Found
+          For each issue:
+          - **[severity]** \`file:line\` — description of the problem and suggested fix
+
+          Severity levels: 🔴 Critical, 🟡 Warning, 🔵 Suggestion
+
+          If the PR looks good with no significant issues, say so briefly. Do NOT invent problems.
+          Keep the review concise and actionable. Only flag real issues, not style preferences.
+          PROMPT
+          )
+
+          # Post review as PR comment
+          gh pr comment "$PR_NUMBER" --body "$(cat <<EOF
+          ## Claude Code Review
+
+          ${REVIEW}
+
+          ---
+          *Automated review by Claude Code (self-hosted runner)*
+          EOF)"
+
+      - name: Skip notice
+        if: steps.diff.outputs.skip == 'true'
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          DIFF_LINES="${{ steps.diff.outputs.lines }}"
+          gh pr comment "$PR_NUMBER" --body "## Claude Code Review
+
+          ⏭️ Review skipped — diff is too large (${DIFF_LINES} lines, limit: 10,000).
+
+          ---
+          *Automated review by Claude Code (self-hosted runner)*"
