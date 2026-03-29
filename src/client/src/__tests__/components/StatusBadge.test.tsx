@@ -1,47 +1,56 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import StatusBadge from '../../components/StatusBadge';
+import { I18nProvider } from '../../i18n';
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<I18nProvider>{ui}</I18nProvider>);
+}
+
+beforeEach(() => {
+  localStorage.setItem('clitrigger-lang', 'en');
+});
 
 describe('StatusBadge', () => {
-  it('should render IDLE for pending status', () => {
-    render(<StatusBadge status="pending" />);
-    expect(screen.getByText('IDLE')).toBeInTheDocument();
+  it('should render Idle for pending status', () => {
+    renderWithProviders(<StatusBadge status="pending" />);
+    expect(screen.getByText('Idle')).toBeInTheDocument();
   });
 
-  it('should render LIVE for running status', () => {
-    render(<StatusBadge status="running" />);
-    expect(screen.getByText('LIVE')).toBeInTheDocument();
+  it('should render Running for running status', () => {
+    renderWithProviders(<StatusBadge status="running" />);
+    expect(screen.getByText('Running')).toBeInTheDocument();
   });
 
-  it('should render DONE for completed status', () => {
-    render(<StatusBadge status="completed" />);
-    expect(screen.getByText('DONE')).toBeInTheDocument();
+  it('should render Done for completed status', () => {
+    renderWithProviders(<StatusBadge status="completed" />);
+    expect(screen.getByText('Done')).toBeInTheDocument();
   });
 
-  it('should render FAIL for failed status', () => {
-    render(<StatusBadge status="failed" />);
-    expect(screen.getByText('FAIL')).toBeInTheDocument();
+  it('should render Failed for failed status', () => {
+    renderWithProviders(<StatusBadge status="failed" />);
+    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
-  it('should render STOP for stopped status', () => {
-    render(<StatusBadge status="stopped" />);
-    expect(screen.getByText('STOP')).toBeInTheDocument();
+  it('should render Stopped for stopped status', () => {
+    renderWithProviders(<StatusBadge status="stopped" />);
+    expect(screen.getByText('Stopped')).toBeInTheDocument();
   });
 
-  it('should render MRGD for merged status', () => {
-    render(<StatusBadge status="merged" />);
-    expect(screen.getByText('MRGD')).toBeInTheDocument();
+  it('should render Merged for merged status', () => {
+    renderWithProviders(<StatusBadge status="merged" />);
+    expect(screen.getByText('Merged')).toBeInTheDocument();
   });
 
-  it('should show ping animation for running status', () => {
-    const { container } = render(<StatusBadge status="running" />);
-    const pingElement = container.querySelector('.animate-ping');
-    expect(pingElement).toBeInTheDocument();
+  it('should show pulse animation for running status', () => {
+    const { container } = renderWithProviders(<StatusBadge status="running" />);
+    const pulseElement = container.querySelector('.animate-pulse');
+    expect(pulseElement).toBeInTheDocument();
   });
 
-  it('should not show ping animation for non-running status', () => {
-    const { container } = render(<StatusBadge status="completed" />);
-    const pingElement = container.querySelector('.animate-ping');
-    expect(pingElement).not.toBeInTheDocument();
+  it('should not show pulse animation for non-running status', () => {
+    const { container } = renderWithProviders(<StatusBadge status="completed" />);
+    const pulseElement = container.querySelector('.animate-pulse');
+    expect(pulseElement).not.toBeInTheDocument();
   });
 });
