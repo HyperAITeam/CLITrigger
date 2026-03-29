@@ -120,6 +120,13 @@ const translations = {
     'progress.stop': 'Stopped',
     'progress.merged': 'Merged',
 
+    // Result Summary
+    'result.duration': 'Duration',
+    'result.commits': 'commits',
+    'result.filesChanged': 'files changed',
+    'result.commitHistory': 'Commit History',
+    'result.changedFiles': 'Changed Files',
+
     // Log
     'log.awaiting': 'Awaiting output...',
     'log.noChanges': 'No changes detected.',
@@ -273,6 +280,13 @@ const translations = {
     'progress.fail': '\uC2E4\uD328',
     'progress.stop': '\uC911\uC9C0',
     'progress.merged': '\uBCD1\uD569\uB428',
+
+    // Result Summary
+    'result.duration': '소요 시간',
+    'result.commits': '커밋',
+    'result.filesChanged': '파일 변경',
+    'result.commitHistory': '커밋 이력',
+    'result.changedFiles': '변경된 파일',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',

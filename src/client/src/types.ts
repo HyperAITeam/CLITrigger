@@ -110,6 +110,29 @@ export interface ScheduleRun {
   completed_at: string | null;
 }
 
+export interface ChangedFile {
+  status: string;
+  file: string;
+  renamedFrom?: string;
+}
+
+export interface CommitInfo {
+  hash: string;
+  message: string;
+  date: string;
+}
+
+export interface TaskResult {
+  duration_seconds: number | null;
+  commits: CommitInfo[];
+  changed_files: ChangedFile[];
+  diff_stats: {
+    files_changed: number;
+    insertions: number;
+    deletions: number;
+  };
+}
+
 export interface TaskLog {
   id: string;
   todo_id: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Todo, TaskLog, DiffResult } from '../types';
+import type { Todo, TaskLog, DiffResult, TaskResult } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
 import StatusBadge from './StatusBadge';
@@ -37,6 +37,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const [cleanError, setCleanError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [resultData, setResultData] = useState<TaskResult | null>(null);
+  const [resultLoaded, setResultLoaded] = useState(false);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
@@ -45,6 +47,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const canMerge = todo.status === 'completed';
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name);
+
+  const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
 
   useEffect(() => {
     if (expanded && !logsLoaded) {
@@ -56,6 +60,17 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
         .catch(() => { /* ignore */ });
     }
   }, [expanded, logsLoaded, todo.id]);
+
+  useEffect(() => {
+    if (expanded && hasResult && !resultLoaded) {
+      todosApi.getTodoResult(todo.id)
+        .then((data) => {
+          setResultData(data);
+          setResultLoaded(true);
+        })
+        .catch(() => { setResultLoaded(true); });
+    }
+  }, [expanded, hasResult, resultLoaded, todo.id]);
 
   useEffect(() => {
     return onEvent((event) => {
@@ -131,6 +146,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     setLogsLoaded(false);
     setDiffData(null);
     setShowDiff(false);
+    setResultData(null);
+    setResultLoaded(false);
     try {
       await onRetry(todo.id, mode);
     } catch (err) {
@@ -138,6 +155,24 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     } finally {
       setRetrying(false);
     }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
+  };
+
+  const fileStatusLabel: Record<string, { label: string; color: string }> = {
+    A: { label: 'Added', color: 'text-green-500' },
+    M: { label: 'Modified', color: 'text-amber-500' },
+    D: { label: 'Deleted', color: 'text-red-500' },
+    R: { label: 'Renamed', color: 'text-blue-500' },
+    C: { label: 'Copied', color: 'text-purple-500' },
   };
 
   if (editing) {
@@ -335,6 +370,80 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
                 <span className="badge bg-warm-200 text-warm-600 font-mono">
                   {t('todo.path')}: {todo.worktree_path}
                 </span>
+              )}
+            </div>
+          )}
+
+          {/* Result Summary */}
+          {hasResult && resultData && (
+            <div className="space-y-4">
+              {/* Stats bar */}
+              <div className="flex flex-wrap gap-3">
+                {resultData.duration_seconds !== null && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-warm-100 text-warm-700">
+                    <svg className="h-3.5 w-3.5 text-warm-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-xs font-medium">{t('result.duration')}</span>
+                    <span className="text-xs font-mono">{formatDuration(resultData.duration_seconds)}</span>
+                  </div>
+                )}
+                {resultData.commits.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-status-success/10 text-status-success">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-xs font-medium">{resultData.commits.length} {t('result.commits')}</span>
+                  </div>
+                )}
+                {resultData.diff_stats.files_changed > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-info/10 text-status-info">
+                    <span className="text-xs font-medium">{resultData.diff_stats.files_changed} {t('result.filesChanged')}</span>
+                    <span className="text-xs text-status-success font-mono">+{resultData.diff_stats.insertions}</span>
+                    <span className="text-xs text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Commits list */}
+              {resultData.commits.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
+                    {t('result.commitHistory')}
+                  </h4>
+                  <div className="space-y-1">
+                    {resultData.commits.map((c, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs py-1 px-2 rounded hover:bg-warm-100 transition-colors">
+                        <span className="font-mono text-status-info flex-shrink-0">{c.hash.slice(0, 7) || '-------'}</span>
+                        <span className="text-warm-700 flex-1">{c.message}</span>
+                        <span className="text-warm-400 flex-shrink-0">{new Date(c.date).toLocaleTimeString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Changed files list */}
+              {resultData.changed_files.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
+                    {t('result.changedFiles')}
+                  </h4>
+                  <div className="space-y-0.5">
+                    {resultData.changed_files.map((f, i) => {
+                      const info = fileStatusLabel[f.status] || { label: f.status, color: 'text-warm-500' };
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-warm-100 transition-colors">
+                          <span className={`font-mono font-bold w-4 text-center flex-shrink-0 ${info.color}`}>{f.status}</span>
+                          <span className="font-mono text-warm-700 flex-1 truncate" title={f.file}>{f.file}</span>
+                          {f.renamedFrom && (
+                            <span className="text-warm-400 truncate" title={f.renamedFrom}>&larr; {f.renamedFrom}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           )}
