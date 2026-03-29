@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Project, Todo, Pipeline, Schedule } from '../types';
+import type { Project, Todo, Pipeline, Schedule, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
@@ -133,6 +133,27 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       prev.map((t) => (t.id === todoId ? updated : t))
     );
   }, []);
+
+  const handleFixTodo = useCallback(async (failedTodo: Todo, errorLogs: TaskLog[]) => {
+    if (!id) return;
+    const errorSummary = errorLogs.map(l => l.message).join('\n');
+    const fixDescription = `The previous task "${failedTodo.title}" failed with the following errors:\n\n---\n${errorSummary}\n---\n\nPlease analyze the failure above and fix the issue. The original task description was:\n${failedTodo.description || '(no description)'}`;
+    const fixTitle = `[Fix] ${failedTodo.title}`;
+    const newTodo = await todosApi.createTodo(id, {
+      title: fixTitle.slice(0, 200),
+      description: fixDescription,
+      cli_tool: failedTodo.cli_tool ?? undefined,
+      cli_model: failedTodo.cli_model ?? undefined,
+    });
+    setTodos((prev) => [...prev, newTodo]);
+    // Auto-start the fix task
+    try {
+      const started = await todosApi.startTodo(newTodo.id, 'headless');
+      setTodos((prev) => prev.map((t) => (t.id === newTodo.id ? started : t)));
+    } catch {
+      // Task created but not started - user can start manually
+    }
+  }, [id]);
 
   // Pipeline handlers
   const handleAddPipeline = useCallback(async (title: string, description: string) => {
@@ -325,6 +346,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onMergeTodo={handleMergeTodo}
           onCleanupTodo={handleCleanupTodo}
           onRetryTodo={handleRetryTodo}
+          onFixTodo={handleFixTodo}
           onEvent={onEvent}
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}

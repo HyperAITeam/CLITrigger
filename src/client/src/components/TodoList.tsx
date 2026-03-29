@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Todo } from '../types';
+import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
@@ -17,6 +17,7 @@ interface TodoListProps {
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -34,6 +35,7 @@ export default function TodoList({
   onMergeTodo,
   onCleanupTodo,
   onRetryTodo,
+  onFixTodo,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -94,6 +96,7 @@ export default function TodoList({
                 onMerge={onMergeTodo}
                 onCleanup={onCleanupTodo}
                 onRetry={onRetryTodo}
+                onFix={onFixTodo}
                 onEvent={onEvent}
                 isInteractive={interactiveTodos.has(todo.id)}
                 onSendInput={onSendInput}

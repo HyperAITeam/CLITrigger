@@ -120,6 +120,12 @@ const translations = {
     'progress.stop': 'Stopped',
     'progress.merged': 'Merged',
 
+    // Failure
+    'failure.title': 'Failure Reason',
+    'failure.exitCode': 'Exit code',
+    'failure.fix': 'Fix This: Creates a new task that analyzes the failure and attempts to fix the issue.',
+    'failure.fixPrefix': '[Fix] ',
+
     // Result Summary
     'result.duration': 'Duration',
     'result.commits': 'commits',
@@ -280,6 +286,12 @@ const translations = {
     'progress.fail': '\uC2E4\uD328',
     'progress.stop': '\uC911\uC9C0',
     'progress.merged': '\uBCD1\uD569\uB428',
+
+    // Failure
+    'failure.title': '실패 원인',
+    'failure.exitCode': '종료 코드',
+    'failure.fix': '수정하기: 실패 원인을 분석하고 문제를 수정하는 새 작업을 생성합니다.',
+    'failure.fixPrefix': '[수정] ',
 
     // Result Summary
     'result.duration': '소요 시간',

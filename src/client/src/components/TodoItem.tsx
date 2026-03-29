@@ -17,12 +17,13 @@ interface TodoItemProps {
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onEvent, isInteractive, onSendInput }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onEvent, isInteractive, onSendInput }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -373,6 +374,59 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
               )}
             </div>
           )}
+
+          {/* Failure Reason Panel */}
+          {todo.status === 'failed' && logs.length > 0 && (() => {
+            const errorLogs = logs.filter(l => l.log_type === 'error');
+            if (errorLogs.length === 0) return null;
+            // Extract exit code from error messages
+            const exitCodeMatch = errorLogs.find(l => /exited with code (\d+)/.test(l.message));
+            const exitCode = exitCodeMatch ? exitCodeMatch.message.match(/exited with code (\d+)/)?.[1] : null;
+            return (
+              <div className="rounded-xl border border-status-error/30 bg-status-error/5 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-status-error/10 border-b border-status-error/20">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-status-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <h4 className="text-xs font-semibold text-status-error uppercase tracking-wider">
+                      {t('failure.title')}
+                    </h4>
+                    {exitCode && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
+                        {t('failure.exitCode')}: {exitCode}
+                      </span>
+                    )}
+                  </div>
+                  {onFix && (
+                    <button
+                      onClick={() => onFix(todo, errorLogs)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border border-amber-500/30 transition-colors"
+                      title={t('failure.fix')}
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {t('failure.fix')}
+                    </button>
+                  )}
+                </div>
+                <div className="px-4 py-3 space-y-1.5 max-h-48 overflow-y-auto">
+                  {errorLogs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-2 text-xs">
+                      <span className="text-warm-500 font-mono flex-shrink-0">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                      <span className="text-status-error font-mono whitespace-pre-wrap break-all">
+                        {log.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Result Summary */}
           {hasResult && resultData && (
