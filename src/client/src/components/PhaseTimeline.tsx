@@ -1,4 +1,5 @@
 import type { PipelinePhase } from '../types';
+import { useI18n } from '../i18n';
 
 interface PhaseTimelineProps {
   phases: PipelinePhase[];
@@ -7,12 +8,12 @@ interface PhaseTimelineProps {
   onSelectPhase: (phaseType: string) => void;
 }
 
-const PHASE_LABELS: Record<string, string> = {
-  planning: '계획',
-  implementation: '구현',
-  review: '리뷰',
-  feedback_impl: '피드백',
-  documentation: '문서화',
+const PHASE_LABEL_KEYS: Record<string, string> = {
+  planning: 'pipeline.planning',
+  implementation: 'pipeline.implementation',
+  review: 'pipeline.review',
+  feedback_impl: 'pipeline.feedback',
+  documentation: 'pipeline.documentation',
 };
 
 const PHASE_ICONS: Record<string, string> = {
@@ -25,33 +26,35 @@ const PHASE_ICONS: Record<string, string> = {
 
 const statusStyles: Record<string, { node: string; label: string; line: string }> = {
   pending: {
-    node: 'bg-street-700 border-street-500 text-street-400',
-    label: 'text-street-500',
-    line: 'bg-street-600',
+    node: 'bg-warm-100 border-warm-300 text-warm-400',
+    label: 'text-warm-400',
+    line: 'bg-warm-200',
   },
   running: {
-    node: 'bg-neon-cyan/20 border-neon-cyan text-neon-cyan animate-pulse',
-    label: 'text-neon-cyan',
-    line: 'bg-neon-cyan/30',
+    node: 'bg-status-running/10 border-status-running text-status-running animate-pulse',
+    label: 'text-status-running font-semibold',
+    line: 'bg-status-running/30',
   },
   completed: {
-    node: 'bg-neon-green/20 border-neon-green text-neon-green',
-    label: 'text-neon-green',
-    line: 'bg-neon-green/50',
+    node: 'bg-status-success/10 border-status-success text-status-success',
+    label: 'text-status-success',
+    line: 'bg-status-success/40',
   },
   failed: {
-    node: 'bg-neon-pink/20 border-neon-pink text-neon-pink',
-    label: 'text-neon-pink',
-    line: 'bg-neon-pink/30',
+    node: 'bg-status-error/10 border-status-error text-status-error',
+    label: 'text-status-error',
+    line: 'bg-status-error/30',
   },
   skipped: {
-    node: 'bg-neon-yellow/10 border-neon-yellow/50 text-neon-yellow/50',
-    label: 'text-neon-yellow/50',
-    line: 'bg-neon-yellow/20',
+    node: 'bg-warm-100 border-warm-300/50 text-warm-300',
+    label: 'text-warm-300',
+    line: 'bg-warm-200/50',
   },
 };
 
 export default function PhaseTimeline({ phases, selectedPhase, onSelectPhase }: PhaseTimelineProps) {
+  const { t } = useI18n();
+
   return (
     <div className="flex items-center justify-between gap-1 py-4 px-2 overflow-x-auto">
       {phases.map((phase, index) => {
@@ -63,14 +66,14 @@ export default function PhaseTimeline({ phases, selectedPhase, onSelectPhase }: 
             {/* Phase node */}
             <button
               onClick={() => onSelectPhase(phase.phase_type)}
-              className={`flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer`}
+              className="flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer"
             >
               <div
                 className={`
-                  w-10 h-10 flex items-center justify-center border-2 font-mono text-sm font-bold
+                  w-10 h-10 rounded-xl flex items-center justify-center border-2 text-sm font-bold
                   transition-all duration-200
                   ${style.node}
-                  ${isSelected ? 'ring-2 ring-offset-2 ring-offset-street-900 ring-neon-cyan scale-110' : 'hover:scale-105'}
+                  ${isSelected ? 'ring-2 ring-offset-2 ring-offset-white ring-accent-gold scale-110' : 'hover:scale-105'}
                 `}
               >
                 {phase.status === 'completed' ? (
@@ -89,14 +92,14 @@ export default function PhaseTimeline({ phases, selectedPhase, onSelectPhase }: 
                   PHASE_ICONS[phase.phase_type]
                 )}
               </div>
-              <span className={`text-[9px] font-mono font-bold tracking-wider whitespace-nowrap ${style.label}`}>
-                {PHASE_LABELS[phase.phase_type] || phase.phase_type}
+              <span className={`text-[9px] font-semibold tracking-wider whitespace-nowrap uppercase ${style.label}`}>
+                {t(PHASE_LABEL_KEYS[phase.phase_type] as any) || phase.phase_type}
               </span>
             </button>
 
             {/* Connecting line */}
             {index < phases.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-1 ${style.line} min-w-[12px]`} />
+              <div className={`flex-1 h-0.5 mx-1 rounded-full ${style.line} min-w-[12px]`} />
             )}
           </div>
         );
