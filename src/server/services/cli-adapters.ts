@@ -56,14 +56,11 @@ const claudeAdapter: CliAdapter = {
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
-    if (mode === 'headless') {
-      // Must quote prompt for shell: true — otherwise words after the first become positional args
-      args.push('-p', `"${prompt.replace(/"/g, '\\"')}"`);
-    }
+    // Headless: prompt is delivered via stdin pipe (avoids shell escaping issues with newlines)
     return args;
   },
-  needsStdin(mode) {
-    return mode === 'interactive' || mode === 'streaming';
+  needsStdin(_mode) {
+    return true;
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';
@@ -79,14 +76,11 @@ const geminiAdapter: CliAdapter = {
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
-    if (mode === 'headless') {
-      // Must quote prompt for shell: true — otherwise words after the first become positional args
-      args.push('-p', `"${prompt.replace(/"/g, '\\"')}"`);
-    }
+    // Headless: prompt is delivered via stdin pipe (avoids shell escaping issues with newlines)
     return args;
   },
-  needsStdin(mode) {
-    return mode === 'interactive' || mode === 'streaming';
+  needsStdin(_mode) {
+    return true;
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';
