@@ -18,6 +18,8 @@ import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import pipelinesRouter from './routes/pipelines.js';
+import schedulesRouter from './routes/schedules.js';
+import { scheduler } from './services/scheduler.js';
 
 const app = express();
 const server = createServer(app);
@@ -93,7 +95,11 @@ app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
 app.use('/api', pipelinesRouter);
+app.use('/api', schedulesRouter);
 app.use('/api/tunnel', tunnelRouter);
+
+// --- Scheduler ---
+scheduler.initialize();
 
 // --- WebSocket ---
 initWebSocket(server);
@@ -130,7 +136,8 @@ app.get('/api/health', (_req, res) => {
 
 // Cleanup on process exit: kill all Claude CLI processes
 function cleanup() {
-  console.log('Shutting down: killing all Claude CLI processes and tunnel...');
+  console.log('Shutting down: killing all Claude CLI processes, scheduler, and tunnel...');
+  scheduler.stopAll();
   Promise.all([
     claudeManager.killAll(),
     tunnelManager.stopTunnel(),

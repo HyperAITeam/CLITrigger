@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Project, Todo, Pipeline } from '../types';
+import type { Project, Todo, Pipeline, Schedule } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
 import * as pipelinesApi from '../api/pipelines';
+import * as schedulesApi from '../api/schedules';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
 import PipelineList from './PipelineList';
+import ScheduleList from './ScheduleList';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -21,18 +23,20 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines'>('tasks');
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules'>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id)])
-      .then(([proj, todoList, pipelineList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id)])
+      .then(([proj, todoList, pipelineList, scheduleList]) => {
         setProject(proj);
         setTodos(todoList);
         setPipelines(pipelineList);
+        setSchedules(scheduleList);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -60,6 +64,15 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             p.id === event.pipelineId
               ? { ...p, status: event.status as Pipeline['status'], current_phase: event.currentPhase ?? null, updated_at: new Date().toISOString() }
               : p
+          )
+        );
+      }
+      if (event.type === 'schedule:status-changed' && event.scheduleId) {
+        setSchedules((prev) =>
+          prev.map((s) =>
+            s.id === event.scheduleId
+              ? { ...s, is_active: event.isActive ? 1 : 0, updated_at: new Date().toISOString() }
+              : s
           )
         );
       }
@@ -138,6 +151,34 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const handleDeletePipeline = useCallback(async (pipelineId: string) => {
     await pipelinesApi.deletePipeline(pipelineId);
     setPipelines((prev) => prev.filter((p) => p.id !== pipelineId));
+  }, []);
+
+  // Schedule handlers
+  const handleAddSchedule = useCallback(async (title: string, description: string, cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning?: boolean) => {
+    if (!id) return;
+    const newSchedule = await schedulesApi.createSchedule(id, { title, description, cron_expression: cronExpression, cli_tool: cliTool, cli_model: cliModel, skip_if_running: skipIfRunning });
+    setSchedules((prev) => [newSchedule, ...prev]);
+  }, [id]);
+
+  const handleToggleSchedule = useCallback(async (scheduleId: string, activate: boolean) => {
+    const updated = activate
+      ? await schedulesApi.activateSchedule(scheduleId)
+      : await schedulesApi.pauseSchedule(scheduleId);
+    setSchedules((prev) => prev.map((s) => (s.id === scheduleId ? updated : s)));
+  }, []);
+
+  const handleDeleteSchedule = useCallback(async (scheduleId: string) => {
+    await schedulesApi.deleteSchedule(scheduleId);
+    setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
+  }, []);
+
+  const handleEditSchedule = useCallback(async (scheduleId: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean }) => {
+    const updated = await schedulesApi.updateSchedule(scheduleId, updates);
+    setSchedules((prev) => prev.map((s) => (s.id === scheduleId ? updated : s)));
+  }, []);
+
+  const handleTriggerSchedule = useCallback(async (scheduleId: string) => {
+    await schedulesApi.triggerSchedule(scheduleId);
   }, []);
 
   const handleStartAll = useCallback(async () => {
@@ -252,9 +293,19 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         >
           PIPELINES ({pipelines.length})
         </button>
+        <button
+          onClick={() => setActiveTab('schedules')}
+          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+            activeTab === 'schedules'
+              ? 'text-amber-400 border-amber-400'
+              : 'text-street-500 border-transparent hover:text-street-300'
+          }`}
+        >
+          SCHEDULES ({schedules.length})
+        </button>
       </div>
 
-      {activeTab === 'tasks' ? (
+      {activeTab === 'tasks' && (
         <TodoList
           todos={todos}
           projectCliTool={project.cli_tool}
@@ -270,13 +321,26 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}
         />
-      ) : (
+      )}
+      {activeTab === 'pipelines' && (
         <PipelineList
           pipelines={pipelines}
           onAddPipeline={handleAddPipeline}
           onStartPipeline={handleStartPipeline}
           onStopPipeline={handleStopPipeline}
           onDeletePipeline={handleDeletePipeline}
+        />
+      )}
+      {activeTab === 'schedules' && (
+        <ScheduleList
+          schedules={schedules}
+          projectCliTool={project.cli_tool}
+          projectCliModel={project.claude_model ?? undefined}
+          onAddSchedule={handleAddSchedule}
+          onToggleSchedule={handleToggleSchedule}
+          onDeleteSchedule={handleDeleteSchedule}
+          onEditSchedule={handleEditSchedule}
+          onTriggerSchedule={handleTriggerSchedule}
         />
       )}
     </div>

@@ -71,6 +71,32 @@ export function initDatabase(db: Database.Database): void {
       message TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS schedules (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      cron_expression TEXT NOT NULL,
+      cli_tool TEXT,
+      cli_model TEXT,
+      is_active INTEGER DEFAULT 1,
+      skip_if_running INTEGER DEFAULT 1,
+      last_run_at DATETIME,
+      next_run_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS schedule_runs (
+      id TEXT PRIMARY KEY,
+      schedule_id TEXT NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      todo_id TEXT REFERENCES todos(id) ON DELETE SET NULL,
+      status TEXT DEFAULT 'triggered',
+      skipped_reason TEXT,
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -84,6 +110,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'gstack_skills', definition: 'TEXT' },
     { table: 'todos', column: 'cli_tool', definition: 'TEXT' },
     { table: 'todos', column: 'cli_model', definition: 'TEXT' },
+    { table: 'todos', column: 'schedule_id', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

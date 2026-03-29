@@ -17,6 +17,10 @@ export interface WsEvent {
   mode?: string;
   worktree_path?: string | null;
   branch_name?: string | null;
+  scheduleId?: string;
+  runId?: string;
+  isActive?: boolean;
+  reason?: string;
 }
 
 type EventCallback = (event: WsEvent) => void;

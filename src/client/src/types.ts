@@ -84,6 +84,32 @@ export interface PipelineWithPhases extends Pipeline {
   phases: PipelinePhase[];
 }
 
+export interface Schedule {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  cron_expression: string;
+  cli_tool: string | null;
+  cli_model: string | null;
+  is_active: number;
+  skip_if_running: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleRun {
+  id: string;
+  schedule_id: string;
+  todo_id: string | null;
+  status: 'triggered' | 'skipped' | 'completed' | 'failed';
+  skipped_reason: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
 export interface TaskLog {
   id: string;
   todo_id: string;

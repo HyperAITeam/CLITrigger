@@ -86,18 +86,19 @@ export interface Todo {
   process_pid: number | null;
   cli_tool: string | null;
   cli_model: string | null;
+  schedule_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string): Todo {
+export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string): Todo {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, now, now);
+    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, now, now);
   return getTodoById(id)!;
 }
 
@@ -329,6 +330,140 @@ export function getPipelineLogs(pipelineId: string, phaseType?: string): Pipelin
     return db.prepare('SELECT * FROM pipeline_logs WHERE pipeline_id = ? AND phase_type = ? ORDER BY created_at ASC').all(pipelineId, phaseType) as PipelineLog[];
   }
   return db.prepare('SELECT * FROM pipeline_logs WHERE pipeline_id = ? ORDER BY created_at ASC').all(pipelineId) as PipelineLog[];
+}
+
+// ── Schedules ──
+
+export interface Schedule {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  cron_expression: string;
+  cli_tool: string | null;
+  cli_model: string | null;
+  is_active: number;
+  skip_if_running: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createSchedule(
+  projectId: string, title: string, description: string | undefined,
+  cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning = 1
+): Schedule {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO schedules (id, project_id, title, description, cron_expression, cli_tool, cli_model, skip_if_running, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, cronExpression, cliTool ?? null, cliModel ?? null, skipIfRunning, now, now);
+  return getScheduleById(id)!;
+}
+
+export function getSchedulesByProjectId(projectId: string): Schedule[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM schedules WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Schedule[];
+}
+
+export function getScheduleById(id: string): Schedule | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM schedules WHERE id = ?').get(id) as Schedule | undefined;
+}
+
+export function getActiveSchedules(): Schedule[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM schedules WHERE is_active = 1').all() as Schedule[];
+}
+
+export function updateSchedule(id: string, updates: Partial<Pick<Schedule, 'title' | 'description' | 'cron_expression' | 'cli_tool' | 'cli_model' | 'skip_if_running'>>): Schedule | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.cron_expression !== undefined) { fields.push('cron_expression = ?'); values.push(updates.cron_expression); }
+  if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
+  if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
+  if (updates.skip_if_running !== undefined) { fields.push('skip_if_running = ?'); values.push(updates.skip_if_running); }
+
+  if (fields.length === 0) return getScheduleById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE schedules SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getScheduleById(id);
+}
+
+export function updateScheduleStatus(id: string, isActive: number): Schedule | undefined {
+  const db = getDatabase();
+  db.prepare('UPDATE schedules SET is_active = ?, updated_at = ? WHERE id = ?').run(isActive, new Date().toISOString(), id);
+  return getScheduleById(id);
+}
+
+export function updateScheduleLastRun(id: string, lastRunAt: string): void {
+  const db = getDatabase();
+  db.prepare('UPDATE schedules SET last_run_at = ?, updated_at = ? WHERE id = ?').run(lastRunAt, new Date().toISOString(), id);
+}
+
+export function deleteSchedule(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM schedules WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+export function getTodosByScheduleId(scheduleId: string): Todo[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM todos WHERE schedule_id = ? ORDER BY created_at DESC').all(scheduleId) as Todo[];
+}
+
+// ── Schedule Runs ──
+
+export interface ScheduleRun {
+  id: string;
+  schedule_id: string;
+  todo_id: string | null;
+  status: string;
+  skipped_reason: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export function createScheduleRun(scheduleId: string, todoId: string | null, status: string, skippedReason?: string): ScheduleRun {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO schedule_runs (id, schedule_id, todo_id, status, skipped_reason, started_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, scheduleId, todoId, status, skippedReason ?? null, now);
+  return db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun;
+}
+
+export function updateScheduleRun(id: string, updates: Partial<Pick<ScheduleRun, 'status' | 'completed_at'>>): ScheduleRun | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+  if (updates.completed_at !== undefined) { fields.push('completed_at = ?'); values.push(updates.completed_at); }
+
+  if (fields.length === 0) return undefined;
+
+  values.push(id);
+  db.prepare(`UPDATE schedule_runs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun | undefined;
+}
+
+export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): ScheduleRun[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM schedule_runs WHERE schedule_id = ? ORDER BY started_at DESC LIMIT ?').all(scheduleId, limit) as ScheduleRun[];
 }
 
 // ── Cleanup ──
