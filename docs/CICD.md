@@ -8,6 +8,7 @@ CLITrigger는 **GitHub Actions** 기반 CI/CD 파이프라인을 사용합니다
 |-----------|--------|------|
 | **CI** (`ci.yml`) | `main` push / PR | 타입 체크, 테스트, 빌드 검증 |
 | **Release** (`release.yml`) | `v*` 태그 push | 빌드 + GitHub Release 생성 |
+| **Claude Issue Worker** (`claude-issue.yml`) | 이슈에 `claude-fix` 라벨 | Claude Code가 이슈 구현 → PR 생성 |
 
 ---
 
@@ -115,6 +116,7 @@ npm start
 | `main` | 안정 브랜치 (프로덕션 준비 상태) | push 시 |
 | `feature/*` | 기능 개발 | PR 생성 시 |
 | `fix/*` | 버그 수정 | PR 생성 시 |
+| `claude/issue-*` | Claude가 자동 생성 | Issue Worker → PR |
 | `v*` 태그 | 릴리스 | Release 워크플로우 |
 
 ### 권장 워크플로우
@@ -126,6 +128,105 @@ npm start
 4. CI 통과 + 코드 리뷰 → 머지
 5. 릴리스 시점에 v{version} 태그 push
 ```
+
+---
+
+## Claude Issue Worker 워크플로우
+
+### 개요
+
+GitHub 이슈에 `claude-fix` 라벨을 붙이면, **Self-hosted Runner** 위에서 Claude Code CLI가 이슈 내용을 읽고 코드를 구현하여 PR을 자동 생성합니다.
+
+Claude Max 구독의 Claude Code CLI를 사용하므로 별도 API 비용이 발생하지 않습니다.
+
+### 동작 흐름
+
+```
+이슈에 claude-fix 라벨
+       │
+       ▼
+Self-hosted Runner (로컬 PC)
+       │
+       ├─► checkout + npm ci
+       ├─► claude --print --dangerously-skip-permissions (이슈 내용 기반 코드 작성)
+       └─► 변경사항이 있으면 → 브랜치 push + PR 생성
+                              없으면 → 이슈에 코멘트
+```
+
+### 사전 요구사항
+
+Self-hosted Runner PC에 다음이 설치 및 설정되어 있어야 합니다:
+
+| 항목 | 설명 |
+|------|------|
+| Node.js 20+ | `node --version` |
+| Claude Code CLI | `npm install -g @anthropic-ai/claude-code` |
+| Claude 인증 | Claude Max 계정으로 로그인 완료 |
+| GitHub CLI | `gh auth login` 완료 |
+| Git | `git --version` |
+
+### Self-hosted Runner 등록
+
+#### 1. GitHub에서 Runner 토큰 발급
+
+GitHub 저장소 → **Settings** → **Actions** → **Runners** → **New self-hosted runner**
+
+#### 2. Runner 설치 (Windows PowerShell)
+
+```powershell
+# 폴더 생성
+mkdir C:\actions-runner && cd C:\actions-runner
+
+# 다운로드 & 압축 해제
+Invoke-WebRequest -Uri https://github.com/actions/runner/releases/download/v2.322.0/actions-runner-win-x64-2.322.0.zip -OutFile runner.zip
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory("$PWD\runner.zip", "$PWD")
+
+# 등록
+.\config.cmd --url https://github.com/OSgoodYZ/CLITrigger --token <GitHub에서_복사한_토큰>
+
+# Windows 서비스로 설치 (PC 부팅 시 자동 시작)
+.\svc.cmd install
+.\svc.cmd start
+```
+
+#### 3. Runner 설치 (macOS / Linux)
+
+```bash
+mkdir ~/actions-runner && cd ~/actions-runner
+# GitHub 페이지에 표시되는 curl 명령어로 다운로드 & 압축 해제
+./config.sh --url https://github.com/OSgoodYZ/CLITrigger --token <토큰>
+./svc.sh install
+./svc.sh start
+```
+
+### 사용법
+
+1. GitHub 이슈 작성 (제목 + 상세 설명)
+2. `claude-fix` 라벨 붙이기
+3. Actions 탭에서 실행 상태 확인
+4. 완료 시 자동으로 PR 생성 (이슈에 `Closes #N` 링크 포함)
+
+### 라벨 변경
+
+`claude-fix` 대신 다른 라벨을 사용하려면 `claude-issue.yml`의 다음 줄을 수정:
+
+```yaml
+if: github.event.label.name == 'claude-fix'   # ← 원하는 라벨명으로 변경
+```
+
+### 트러블슈팅
+
+#### Runner가 offline으로 표시됨
+- PC가 켜져 있고, runner 서비스가 실행 중인지 확인
+- Windows: `Get-Service actions.runner.*` / Linux: `sudo ./svc.sh status`
+
+#### Claude CLI 인증 만료
+- Runner PC에서 `claude` 명령을 직접 실행하여 재인증
+
+#### 변경사항 없이 종료됨
+- 이슈 설명이 너무 모호하면 Claude가 코드를 생성하지 못할 수 있음
+- 이슈에 구체적인 요구사항, 파일 경로, 예시 등을 포함
 
 ---
 
