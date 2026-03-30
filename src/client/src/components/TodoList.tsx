@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
+import type { PendingImage } from './TodoForm';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
 import { useI18n } from '../i18n';
@@ -9,7 +10,7 @@ interface TodoListProps {
   todos: Todo[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[]) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
@@ -69,8 +70,8 @@ export default function TodoList({
           <TodoForm
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
-            onSave={async (title, description, cliTool, cliModel) => {
-              await onAddTodo(title, description, cliTool, cliModel);
+            onSave={async (title, description, cliTool, cliModel, images) => {
+              await onAddTodo(title, description, cliTool, cliModel, images);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

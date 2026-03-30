@@ -13,6 +13,7 @@ import projectsRouter, { gstackRouter } from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
+import imagesRouter from './routes/images.js';
 import { claudeManager } from './services/claude-manager.js';
 import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
@@ -55,7 +56,7 @@ app.use(cors({
 app.use(helmet({
   contentSecurityPolicy: false,  // Disable CSP for SPA compatibility
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Initialize database
 getDatabase();
@@ -100,6 +101,7 @@ app.use('/api/gstack', gstackRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
+app.use('/api', imagesRouter);
 app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
 app.use('/api/tunnel', tunnelRouter);

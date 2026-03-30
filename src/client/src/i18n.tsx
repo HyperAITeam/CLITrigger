@@ -73,6 +73,7 @@ const translations = {
     // Todo Item
     'todo.description': 'Description',
     'todo.noDescription': 'No description provided.',
+    'todo.attachedImages': 'Attached Images',
     'todo.branch': 'Branch',
     'todo.path': 'Path',
     'todo.mergeFailed': 'Merge failed',
@@ -100,6 +101,9 @@ const translations = {
     'todoForm.descPlaceholder': 'Description (optional)...',
     'todoForm.cliTool': 'CLI Tool',
     'todoForm.aiModel': 'AI Model',
+    'todoForm.addImage': 'Add Image',
+    'todoForm.pasteHint': 'Ctrl+V to paste image',
+    'todoForm.images': 'Images',
     'todoForm.cancel': 'Cancel',
     'todoForm.save': 'Save',
 
@@ -313,6 +317,7 @@ const translations = {
     // Todo Item
     'todo.description': '\uC124\uBA85',
     'todo.noDescription': '\uC124\uBA85\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+    'todo.attachedImages': '\uCCA8\uBD80 \uC774\uBBF8\uC9C0',
     'todo.branch': '\uBE0C\uB79C\uCE58',
     'todo.path': '\uACBD\uB85C',
     'todo.mergeFailed': '\uBCD1\uD569 \uC2E4\uD328',
@@ -340,6 +345,9 @@ const translations = {
     'todoForm.descPlaceholder': '\uC124\uBA85 (\uC120\uD0DD\uC0AC\uD56D)...',
     'todoForm.cliTool': 'CLI \uB3C4\uAD6C',
     'todoForm.aiModel': 'AI \uBAA8\uB378',
+    'todoForm.addImage': '\uC774\uBBF8\uC9C0 \uCD94\uAC00',
+    'todoForm.pasteHint': 'Ctrl+V\uB85C \uC774\uBBF8\uC9C0 \uBD99\uC5EC\uB123\uAE30',
+    'todoForm.images': '\uC774\uBBF8\uC9C0',
     'todoForm.cancel': '\uCDE8\uC18C',
     'todoForm.save': '\uC800\uC7A5',
 

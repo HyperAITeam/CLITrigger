@@ -111,6 +111,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'cli_tool', definition: 'TEXT' },
     { table: 'todos', column: 'cli_model', definition: 'TEXT' },
     { table: 'todos', column: 'schedule_id', definition: 'TEXT' },
+    { table: 'todos', column: 'images', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {
