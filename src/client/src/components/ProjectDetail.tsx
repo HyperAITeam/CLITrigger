@@ -79,9 +79,13 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     });
   }, [onEvent]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>) => {
     if (!id) return;
     const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel });
+    if (images && images.length > 0) {
+      const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
+      newTodo.images = JSON.stringify(result.images);
+    }
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 

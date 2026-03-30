@@ -1,9 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import type { ImageMeta } from '../types';
+import { getTodoImageUrl } from '../api/todos';
+
+export interface PendingImage {
+  id: string;
+  name: string;
+  data: string; // base64 data URL
+  preview: string;
+}
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[]) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
@@ -11,7 +20,12 @@ interface TodoFormProps {
   initialCliModel?: string;
   projectCliTool?: string;
   projectCliModel?: string;
+  existingImages?: ImageMeta[];
+  todoId?: string;
+  onDeleteImage?: (imageId: string) => void;
 }
+
+let imageCounter = 0;
 
 export default function TodoForm({
   onSave,
@@ -22,11 +36,18 @@ export default function TodoForm({
   initialCliModel,
   projectCliTool = 'claude',
   projectCliModel = '',
+  existingImages = [],
+  todoId,
+  onDeleteImage,
 }: TodoFormProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [cliTool, setCliTool] = useState<CliTool>((initialCliTool as CliTool) || (projectCliTool as CliTool) || 'claude');
   const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
 
   const toolConfig = getToolConfig(cliTool);
@@ -36,11 +57,77 @@ export default function TodoForm({
     setCliModel('');
   };
 
+  const addImagesFromFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    for (const file of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = reader.result as string;
+        const id = `pending-${++imageCounter}`;
+        setPendingImages(prev => [...prev, {
+          id,
+          name: file.name,
+          data,
+          preview: data,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItems: DataTransferItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        imageItems.push(items[i]);
+      }
+    }
+
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+    const files: File[] = [];
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+    addImagesFromFiles(files);
+  }, [addImagesFromFiles]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.files) {
+      addImagesFromFiles(e.dataTransfer.files);
+    }
+  }, [addImagesFromFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const removePendingImage = (id: string) => {
+    setPendingImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  const removeExistingImage = (imageId: string) => {
+    if (onDeleteImage) {
+      onDeleteImage(imageId);
+    }
+    setExistingImgs(prev => prev.filter(img => img.id !== imageId));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined);
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined);
   };
+
+  const totalImages = existingImgs.length + pendingImages.length;
 
   return (
     <form onSubmit={handleSubmit} className="card p-5 border-accent-gold/30">
@@ -56,13 +143,101 @@ export default function TodoForm({
       </div>
       <div className="mb-4">
         <textarea
+          ref={textareaRef}
           placeholder={t('todoForm.descPlaceholder')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          onPaste={handlePaste}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
           rows={3}
           className="input-field resize-none"
         />
+        <div className="flex items-center gap-2 mt-1.5">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {t('todoForm.addImage')}
+          </button>
+          <span className="text-[10px] text-warm-300">
+            {t('todoForm.pasteHint')}
+          </span>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) addImagesFromFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
       </div>
+
+      {/* Image previews */}
+      {totalImages > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider">
+              {t('todoForm.images')}
+            </h4>
+            <span className="text-[10px] text-warm-400">({totalImages})</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {/* Existing images (already uploaded) */}
+            {existingImgs.map(img => (
+              <div key={img.id} className="relative group">
+                <img
+                  src={todoId ? getTodoImageUrl(todoId, img.id) : ''}
+                  alt={img.originalName}
+                  className="h-20 w-20 object-cover rounded-lg border border-warm-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeExistingImage(img.id)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
+                  <span className="text-[8px] text-white truncate block">{img.originalName}</span>
+                </div>
+              </div>
+            ))}
+            {/* Pending images (not yet uploaded) */}
+            {pendingImages.map(img => (
+              <div key={img.id} className="relative group">
+                <img
+                  src={img.preview}
+                  alt={img.name}
+                  className="h-20 w-20 object-cover rounded-lg border border-accent-gold/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePendingImage(img.id)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
+                  <span className="text-[8px] text-white truncate block">{img.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* CLI Tool & Model Selection */}
       <div className="mb-4 grid grid-cols-2 gap-3">

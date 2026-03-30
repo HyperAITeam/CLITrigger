@@ -87,6 +87,7 @@ export interface Todo {
   cli_tool: string | null;
   cli_model: string | null;
   schedule_id: string | null;
+  images: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -112,7 +113,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -125,6 +126,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
   if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
   if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
+  if (updates.images !== undefined) { fields.push('images = ?'); values.push(updates.images); }
 
   if (fields.length === 0) return getTodoById(id);
 
