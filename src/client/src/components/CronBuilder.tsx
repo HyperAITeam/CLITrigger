@@ -146,12 +146,14 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
     { value: 'custom', labelKey: 'cron.custom' },
   ];
 
+  const compactSelect = "bg-warm-50 border border-warm-300 rounded-lg px-2 py-1.5 text-sm text-warm-800 font-mono text-center transition-all duration-200 focus:border-accent-gold focus:outline-none focus:ring-2 focus:ring-accent-gold/20";
+
   const timeSelect = (hour: number, minute: number, onHourChange: (h: number) => void, onMinuteChange: (m: number) => void) => (
     <div className="flex items-center gap-1.5">
       <select
         value={hour}
         onChange={(e) => onHourChange(parseInt(e.target.value))}
-        className="input-field text-sm w-16 text-center font-mono"
+        className={`${compactSelect} w-16`}
       >
         {Array.from({ length: 24 }, (_, i) => (
           <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
@@ -161,7 +163,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
       <select
         value={minute}
         onChange={(e) => onMinuteChange(parseInt(e.target.value))}
-        className="input-field text-sm w-16 text-center font-mono"
+        className={`${compactSelect} w-16`}
       >
         {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
           <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
@@ -200,7 +202,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
             <select
               value={state.everyMinutes}
               onChange={(e) => update({ everyMinutes: parseInt(e.target.value) })}
-              className="input-field text-sm w-20 text-center font-mono"
+              className={`${compactSelect} w-20`}
             >
               {[5, 10, 15, 20, 30].map(v => (
                 <option key={v} value={v}>{v}</option>
@@ -216,7 +218,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
             <select
               value={state.hourlyMinute}
               onChange={(e) => update({ hourlyMinute: parseInt(e.target.value) })}
-              className="input-field text-sm w-16 text-center font-mono"
+              className={`${compactSelect} w-16`}
             >
               {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
                 <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
@@ -272,7 +274,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
             <select
               value={state.monthlyDay}
               onChange={(e) => update({ monthlyDay: parseInt(e.target.value) })}
-              className="input-field text-sm w-16 text-center font-mono"
+              className={`${compactSelect} w-16`}
             >
               {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                 <option key={d} value={d}>{d}</option>
@@ -294,7 +296,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
               placeholder="*/30 * * * *"
               value={customValue}
               onChange={(e) => setCustomValue(e.target.value)}
-              className="input-field font-mono"
+              className="bg-warm-50 border border-warm-300 rounded-lg px-3 py-1.5 w-full text-sm text-warm-800 font-mono transition-all duration-200 focus:border-accent-gold focus:outline-none focus:ring-2 focus:ring-accent-gold/20"
             />
             <p className="text-[10px] text-warm-400 mt-1">
               {t('schedule.cronHint')}
