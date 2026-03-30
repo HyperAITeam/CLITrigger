@@ -29,16 +29,22 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // Middleware
+const isDev = process.env.NODE_ENV !== 'production';
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (same-origin, curl, etc.)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
+      callback(null, true);
+    // Development mode: allow all origins
+    } else if (isDev) {
+      callback(null, true);
+    } else if (allowedOrigins.includes(origin)) {
       callback(null, true);
     // Allow Cloudflare Tunnel origins (*.trycloudflare.com)
-    } else if (origin && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
+    } else if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

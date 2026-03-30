@@ -355,6 +355,15 @@ npm install -g @anthropic-ai/claude-code
 2. `.env`에서 `TUNNEL_ENABLED=true` 확인
 3. 방화벽이 outbound HTTPS를 차단하고 있지 않은지 확인
 
+### CORS 오류 ("Not allowed by CORS")
+개발 모드(`npm run dev`)에서는 모든 origin이 자동 허용되므로 이 오류가 발생하지 않습니다.
+프로덕션 모드에서 이 오류가 발생하면 `.env`의 `CORS_ORIGIN`에 접속 주소를 추가하세요:
+```env
+CORS_ORIGIN=https://my-domain.com,https://other-domain.com
+```
+
+> **⚠ 보안 경고**: 개발 모드의 CORS 전체 허용은 로컬 개발 전용입니다. 프로덕션 환경에서는 반드시 `NODE_ENV=production`으로 실행하고, `CORS_ORIGIN`에 허용할 도메인만 명시하세요. 그렇지 않으면 외부에서 API에 무단 접근할 수 있습니다.
+
 ### 포트 충돌
 `.env`에서 `PORT=3001` 등으로 변경.
 
