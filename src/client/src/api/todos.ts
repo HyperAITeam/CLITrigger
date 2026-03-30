@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { Todo, TaskLog, DiffResult, TaskResult } from '../types';
+import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 
 export function getTodos(projectId: string): Promise<Todo[]> {
   return get(`/api/projects/${projectId}/todos`);
@@ -53,4 +53,16 @@ export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRem
 
 export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<Todo> {
   return post(`/api/todos/${id}/retry`, { mode });
+}
+
+export function uploadTodoImages(id: string, images: Array<{ name: string; data: string }>): Promise<{ images: ImageMeta[] }> {
+  return post(`/api/todos/${id}/images`, { images });
+}
+
+export function deleteTodoImage(todoId: string, imageId: string): Promise<void> {
+  return del(`/api/todos/${todoId}/images/${imageId}`);
+}
+
+export function getTodoImageUrl(todoId: string, imageId: string): string {
+  return `/api/todos/${todoId}/images/${imageId}`;
 }

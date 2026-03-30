@@ -1,8 +1,11 @@
+import fs from 'fs';
+import path from 'path';
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { injectSkills, parseSkillConfig } from './skill-injector.js';
+import { getTodoImagePaths } from '../routes/images.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
@@ -154,6 +157,28 @@ export class Orchestrator {
       workDir = projectPath;
       prompt = `Your task is:\n\n${todo.description || todo.title}\n\nComplete the task in the current directory.`;
       queries.createTaskLog(todoId, 'output', 'Project is not a git repository. Running directly without worktree isolation.');
+    }
+
+    // Copy attached images to worktree and append references to prompt
+    const imagePaths = getTodoImagePaths(todoId);
+    if (imagePaths.length > 0) {
+      const imagesDir = path.join(workDir, '.task-images');
+      try {
+        if (!fs.existsSync(imagesDir)) {
+          fs.mkdirSync(imagesDir, { recursive: true });
+        }
+        const copiedFiles: string[] = [];
+        for (const { filename, filePath } of imagePaths) {
+          const dest = path.join(imagesDir, filename);
+          fs.copyFileSync(filePath, dest);
+          copiedFiles.push(`.task-images/${filename}`);
+        }
+        prompt += `\n\nReference images are attached at the following paths (relative to working directory):\n${copiedFiles.map(f => `- ${f}`).join('\n')}`;
+        queries.createTaskLog(todoId, 'output', `Copied ${copiedFiles.length} image(s) to worktree.`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        queries.createTaskLog(todoId, 'error', `Failed to copy images: ${msg}`);
+      }
     }
 
     // Determine CLI tool: task-level overrides project-level
