@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Todo, TaskLog, DiffResult, TaskResult } from '../types';
+import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
 import StatusBadge from './StatusBadge';
@@ -176,6 +176,8 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
     C: { label: 'Copied', color: 'text-purple-500' },
   };
 
+  const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
+
   if (editing) {
     return (
       <TodoForm
@@ -183,8 +185,16 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
         initialDescription={todo.description ?? undefined}
         initialCliTool={todo.cli_tool ?? undefined}
         initialCliModel={todo.cli_model ?? undefined}
-        onSave={async (title, description, cliTool, cliModel) => {
+        existingImages={existingImages}
+        todoId={todo.id}
+        onDeleteImage={async (imageId) => {
+          await todosApi.deleteTodoImage(todo.id, imageId);
+        }}
+        onSave={async (title, description, cliTool, cliModel, newImages) => {
           await onEdit(todo.id, title, description, cliTool, cliModel);
+          if (newImages && newImages.length > 0) {
+            await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
+          }
           setEditing(false);
         }}
         onCancel={() => setEditing(false)}
@@ -224,6 +234,16 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
 
         {/* Title */}
         <span className="flex-1 text-sm text-warm-800 font-medium truncate">{todo.title}</span>
+
+        {/* Image count badge */}
+        {existingImages.length > 0 && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono text-warm-400 bg-warm-100 flex-shrink-0">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {existingImages.length}
+          </span>
+        )}
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
@@ -360,6 +380,32 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
               {todo.description || t('todo.noDescription')}
             </p>
           </div>
+
+          {/* Attached Images */}
+          {existingImages.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
+                {t('todo.attachedImages')} ({existingImages.length})
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {existingImages.map(img => (
+                  <a
+                    key={img.id}
+                    href={todosApi.getTodoImageUrl(todo.id, img.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={todosApi.getTodoImageUrl(todo.id, img.id)}
+                      alt={img.originalName}
+                      className="h-24 w-24 object-cover rounded-lg border border-warm-200 hover:border-accent-gold transition-colors cursor-pointer"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Branch info */}
           {todo.branch_name && (

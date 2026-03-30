@@ -22,6 +22,13 @@ export interface GstackSkill {
   category: string;
 }
 
+export interface ImageMeta {
+  id: string;
+  filename: string;
+  originalName: string;
+  size: number;
+}
+
 export interface Todo {
   id: string;
   project_id: string;
@@ -33,6 +40,7 @@ export interface Todo {
   worktree_path: string | null;
   cli_tool: string | null;
   cli_model: string | null;
+  images: string | null;
   created_at: string;
   updated_at: string;
 }
