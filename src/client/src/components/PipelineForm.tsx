@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '../i18n';
 
 interface PipelineFormProps {
   onSave: (title: string, description: string) => Promise<void>;
@@ -9,6 +10,7 @@ export default function PipelineForm({ onSave, onCancel }: PipelineFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const { t } = useI18n();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,49 +26,46 @@ export default function PipelineForm({ onSave, onCancel }: PipelineFormProps) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-street-800 border-2 border-neon-cyan/30 p-4 space-y-3 animate-slide-up"
-    >
+    <form onSubmit={handleSubmit} className="card p-5 space-y-4 border-l-4 border-l-accent-gold">
       <div>
-        <label className="block text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-1">
-          FEATURE TITLE
+        <label className="block text-xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+          {t('pipeline.featureTitle')}
         </label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Add user authentication"
-          className="street-input w-full"
+          placeholder={t('pipeline.featureTitleHint')}
+          className="input-field"
           autoFocus
         />
       </div>
       <div>
-        <label className="block text-[10px] font-mono font-bold text-street-500 tracking-[0.2em] uppercase mb-1">
-          FEATURE DESCRIPTION
+        <label className="block text-xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+          {t('pipeline.featureDesc')}
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe the feature in detail. This will be used as the prompt for the AI pipeline..."
+          placeholder={t('pipeline.featureDescHint')}
           rows={5}
-          className="street-input w-full resize-none"
+          className="input-field resize-none"
         />
       </div>
       <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="street-btn px-4 py-1.5 text-xs font-mono text-street-400 border border-street-600 hover:text-white"
+          className="btn-secondary text-xs py-2"
         >
-          CANCEL
+          {t('form.cancel')}
         </button>
         <button
           type="submit"
           disabled={!title.trim() || !description.trim() || saving}
-          className="street-btn px-4 py-1.5 text-xs font-mono bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/50 hover:bg-neon-cyan/20 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="btn-primary text-xs py-2"
         >
-          {saving ? 'CREATING...' : 'CREATE PIPELINE'}
+          {saving ? t('pipeline.creating') : t('pipeline.create')}
         </button>
       </div>
     </form>

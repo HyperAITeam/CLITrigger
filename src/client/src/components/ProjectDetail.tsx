@@ -300,36 +300,36 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       <ProgressBar todos={todos} />
 
       {/* Tab toggle */}
-      <div className="flex gap-0 mb-4 border-b-2 border-street-700">
+      <div className="flex gap-0 mb-4 border-b border-warm-200">
         <button
           onClick={() => setActiveTab('tasks')}
-          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
             activeTab === 'tasks'
-              ? 'text-neon-green border-neon-green'
-              : 'text-street-500 border-transparent hover:text-street-300'
+              ? 'text-accent-gold border-accent-gold'
+              : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
-          TASKS ({todos.length})
+          {t('tabs.tasks')} ({todos.length})
         </button>
         <button
           onClick={() => setActiveTab('pipelines')}
-          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
             activeTab === 'pipelines'
-              ? 'text-neon-cyan border-neon-cyan'
-              : 'text-street-500 border-transparent hover:text-street-300'
+              ? 'text-accent-gold border-accent-gold'
+              : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
-          PIPELINES ({pipelines.length})
+          {t('tabs.pipelines')} ({pipelines.length})
         </button>
         <button
           onClick={() => setActiveTab('schedules')}
-          className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase border-b-2 -mb-0.5 transition-colors ${
+          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
             activeTab === 'schedules'
-              ? 'text-amber-400 border-amber-400'
-              : 'text-street-500 border-transparent hover:text-street-300'
+              ? 'text-accent-gold border-accent-gold'
+              : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
-          SCHEDULES ({schedules.length})
+          {t('tabs.schedules')} ({schedules.length})
         </button>
       </div>
 
