@@ -88,7 +88,7 @@ export default function ScheduleForm({
           <select
             value={cliTool}
             onChange={(e) => handleCliToolChange(e.target.value as CliTool)}
-            className="input-field text-sm"
+            className="input-field text-sm !py-2"
           >
             {CLI_TOOLS.map((tool) => (
               <option key={tool.value} value={tool.value}>{tool.label}</option>
@@ -102,7 +102,7 @@ export default function ScheduleForm({
           <select
             value={cliModel}
             onChange={(e) => setCliModel(e.target.value)}
-            className="input-field text-sm"
+            className="input-field text-sm !py-2"
           >
             {toolConfig.models.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
