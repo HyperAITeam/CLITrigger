@@ -219,7 +219,88 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - TODO 추가/수정 시 **CLI Tool** (Claude / Gemini / Codex)과 **Model** 선택 가능
 - 미지정 시 프로젝트 기본값 사용
 
-### 9. gstack 스킬 (선택)
+### 9. 태스크 의존성 & 노드 그래프
+
+태스크 간 실행 순서를 지정하고 시각적으로 관리할 수 있습니다.
+
+#### 의존성 설정
+
+1. TODO 리스트에서 태스크를 **드래그 앤 드롭**하여 의존 관계 연결
+2. 또는 TODO 수정 시 **Depends On** 필드에서 선행 태스크 선택
+3. 선행 태스크가 완료되면 후속 태스크가 자동으로 시작됨
+
+#### 노드 그래프 뷰
+
+- 프로젝트 상세 페이지에서 **Graph** 탭 클릭
+- 태스크 간 의존 관계를 방향 그래프로 시각화
+- 노드 클릭 시 태스크 상세 정보, 로그, diff 확인 가능
+
+#### Worktree 재사용
+
+의존 관계가 있는 태스크는 상위 태스크의 worktree(브랜치)를 상속합니다. 이를 통해 하나의 브랜치에서 연속적인 작업을 수행할 수 있습니다.
+
+### 10. 일회성 스케줄 & 태스크→스케줄 변환
+
+#### 일회성 스케줄
+
+cron 반복 외에 특정 날짜/시간에 1회만 실행하는 스케줄을 설정할 수 있습니다.
+
+1. 스케줄 추가 시 **One-time** 타입 선택
+2. 실행할 날짜와 시간 지정
+3. 저장 → 지정된 시간에 자동 실행
+
+#### 태스크→스케줄 변환
+
+완료된 TODO를 반복 또는 일회성 스케줄로 변환할 수 있습니다.
+
+1. 완료된 TODO의 **스케줄로 변환** 버튼 클릭
+2. cron 또는 일회성 타입 선택
+3. 저장 → 동일한 프롬프트로 자동 실행
+
+### 11. Jira Cloud 연동 (선택)
+
+Jira Cloud와 연동하여 이슈를 TODO로 가져오거나, CLITrigger에서 Jira 이슈를 관리할 수 있습니다.
+
+#### 설정 방법
+
+1. 프로젝트 설정(톱니바퀴) 클릭
+2. **Jira Integration** 섹션에서 토글 ON
+3. 다음 정보 입력:
+   - **Base URL**: Jira Cloud 인스턴스 URL (예: `https://yourteam.atlassian.net`)
+   - **Email**: Jira 계정 이메일
+   - **API Token**: [Atlassian API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)에서 생성
+   - **Project Key**: Jira 프로젝트 키 (예: `PROJ`)
+4. **Test Connection**으로 연결 확인 후 저장
+
+#### 사용 기능
+
+- **이슈 목록**: 프로젝트의 Jira 이슈 조회 및 필터링
+- **이슈 상세**: 이슈 설명, 상태, 코멘트 확인
+- **이슈 임포트**: Jira 이슈를 TODO로 변환 (이슈 설명이 프롬프트로 사용)
+- **상태 전이**: CLITrigger에서 Jira 이슈 상태 변경 (예: To Do → In Progress)
+- **코멘트**: Jira 이슈에 코멘트 추가
+- **이슈 생성**: CLITrigger에서 Jira 이슈 직접 생성
+
+### 12. 토큰 사용량 추적
+
+Claude CLI 실행 시 토큰 사용량을 자동으로 추적하여 표시합니다.
+
+- **태스크별 토큰**: 각 TODO에 input/output/cache 토큰 사용량 표시
+- **프로젝트 합계**: 프로젝트 헤더에 전체 토큰 소비량 요약
+- **사용량 레벨**: Low / Moderate / High 단계 표시
+- Claude CLI의 구조화된 JSON 출력에서 자동 파싱 (별도 설정 불필요)
+
+### 13. 태스크 실행 옵션
+
+#### Max Turns
+
+TODO에 최대 에이전틱 턴 수를 설정하여 Claude가 과도하게 작업하는 것을 방지할 수 있습니다.
+
+1. TODO 추가/수정 시 **Max Turns** 필드에 숫자 입력 (예: 10)
+2. Claude CLI에 `--max-turns` 플래그로 전달됨
+3. 미설정 시 제한 없음
+
+### 14. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -411,6 +492,15 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/schedules/:id/runs | 스케줄 실행 이력 |
 | POST | /api/schedules/:id/trigger | 스케줄 수동 트리거 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
+| GET | /api/jira/:projectId/test | Jira 연결 테스트 |
+| GET | /api/jira/:projectId/issues | Jira 이슈 목록 |
+| GET | /api/jira/:projectId/issue/:issueKey | Jira 이슈 상세 |
+| GET | /api/jira/:projectId/issue/:issueKey/transitions | Jira 상태 전이 목록 |
+| POST | /api/jira/:projectId/issue/:issueKey/transition | Jira 상태 전이 실행 |
+| POST | /api/jira/:projectId/issue/:issueKey/comment | Jira 코멘트 추가 |
+| POST | /api/jira/:projectId/issues | Jira 이슈 생성 |
+| POST | /api/jira/:projectId/import/:issueKey | Jira 이슈 → TODO 임포트 |
+| GET | /api/jira/:projectId/statuses | Jira 프로젝트 상태 목록 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |
 | POST | /api/tunnel/stop | 터널 중지 |

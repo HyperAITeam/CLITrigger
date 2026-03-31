@@ -42,15 +42,15 @@ npm run typecheck              # server + client
 ### Server
 
 - **Entry**: `src/server/index.ts` — Express app, middleware, route mounting, graceful shutdown.
-- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 8 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`.
-- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, jira, tunnel.
+- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 8 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`. Dynamic columns include `depends_on`, `max_turns`, `token_usage` (todos), `jira_*` fields (projects), `run_at` (schedules).
+- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, jira (Jira Cloud proxy), tunnel.
 - **Services**: `src/server/services/` — Core business logic:
-  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, and auto-chaining of next tasks.
+  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains (depends_on), worktree setup/reuse, CLI invocation, max_turns enforcement, and auto-chaining of next tasks (autoChain flag).
   - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex, child_process for Claude/Gemini). Windows cmd.exe wrapper for .cmd shims.
   - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format).
-  - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes.
+  - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage (input/output/cache tokens) and commit hashes from both stdout and stderr.
   - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max).
-  - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`.
+  - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`. Supports task-to-schedule conversion.
   - `pipeline-orchestrator.ts` — Multi-phase sequential/parallel pipeline execution.
   - `skill-injector.ts` — Injects gstack skill files into `.claude/skills/` in worktrees (Claude CLI only).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
@@ -64,12 +64,12 @@ npm run typecheck              # server + client
 - **API layer**: `src/client/src/api/` — Fetch wrapper with 401 → auto-logout handling.
 - **Hooks**: `useAuth` (session state), `useWebSocket` (auto-reconnect with exponential backoff).
 - **i18n**: `src/client/src/i18n.tsx` — Context-based Korean/English translations. All UI strings go through `t(key)`.
-- **Components**: 24 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization.
+- **Components**: 24 components in `src/client/src/components/`. Task graph (`TaskGraph`, `TaskNode`, `TaskNodeDetail`) uses `@xyflow/react` + `dagre` for dependency visualization. `JiraPanel` for Jira Cloud integration.
 
 ### Key Patterns
 
 - **CLI Adapter Pattern**: All CLI tool differences are isolated in `cli-adapters.ts`. Adding a new CLI means implementing the `CliAdapter` interface.
-- **Worktree Isolation**: Each task gets its own git worktree in `.worktrees/`. Child tasks can inherit parent worktrees.
+- **Worktree Isolation**: Each task gets its own git worktree in `.worktrees/`. Dependent tasks (via `depends_on`) inherit parent worktrees for branch continuity.
 - **Graceful Shutdown**: Server handles SIGTERM/SIGINT — kills running CLI processes, stops scheduler, closes tunnel.
 - **DB Migrations**: Schema changes add columns with `ALTER TABLE ... ADD COLUMN` guarded by try/catch, so the app works with both old and new DB files.
 - **Failure Tolerance**: On startup, stale "running" todos are reset to "failed". gstack skill injection failures are logged but don't block CLI execution.

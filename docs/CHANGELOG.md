@@ -1,5 +1,172 @@
 # Changelog
 
+## 2026-03-31 — 태스크 의존성 & 노드 그래프, 토큰 사용량 추적, Jira 연동 외 다수
+
+### 배경
+
+태스크 간 실행 순서 제어, CLI 토큰 사용량 모니터링, 외부 이슈 트래커 연동 등 자동화 품질을 높이기 위한 기능들을 추가했다.
+
+---
+
+### 1. 태스크 의존성 & 노드 그래프 뷰
+
+#### 구현 내용
+
+- **의존성 체인**: TODO에 `depends_on` 필드 추가. 선행 태스크가 완료되어야 다음 태스크 실행 가능
+- **Worktree 재사용**: 의존 관계의 하위 태스크가 상위 태스크의 worktree를 상속하여 동일 브랜치에서 연속 작업
+- **드래그 앤 드롭 연결**: TODO 리스트에서 드래그로 의존 관계 설정/해제
+- **인터랙티브 노드 그래프**: `@xyflow/react` + `dagre` 기반 태스크 의존성 시각화. 노드 클릭 시 상세 정보 표시
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `src/client/src/components/TaskGraph.tsx` | 노드 그래프 레이아웃 (dagre 자동 배치) |
+| `src/client/src/components/TaskNode.tsx` | 그래프 내 태스크 노드 컴포넌트 |
+| `src/client/src/components/TaskNodeDetail.tsx` | 노드 클릭 시 상세 패널 |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `todos` 테이블에 `depends_on` 컬럼 추가 |
+| `src/server/db/queries.ts` | TODO CRUD에 depends_on 필드 반영 |
+| `src/server/services/orchestrator.ts` | 의존 태스크 완료 시 다음 태스크 자동 시작, worktree 상속 |
+| `src/server/routes/todos.ts` | depends_on 필드 처리 |
+| `src/client/src/components/TodoList.tsx` | 드래그 앤 드롭 의존 관계 설정 UI |
+| `src/client/src/components/TodoItem.tsx` | 의존 관계 표시 및 드래그 핸들 |
+| `src/client/src/components/ProjectDetail.tsx` | 그래프 뷰 탭 추가 |
+| `src/client/src/types.ts` | Todo에 depends_on 필드, 그래프 관련 타입 추가 |
+| `src/client/src/i18n.tsx` | 의존성/그래프 관련 번역 키 추가 |
+| `src/client/package.json` | `@xyflow/react`, `dagre`, `@types/dagre` 의존성 추가 |
+
+---
+
+### 2. 토큰 사용량 추적
+
+#### 구현 내용
+
+- **Claude CLI JSON 파싱**: Claude CLI의 구조화된 JSON 출력(stdout + stderr)에서 토큰 사용량 추출
+- **토큰 저장**: `todos.token_usage` 컬럼(JSON 텍스트)에 input/output/cache_read/cache_creation 토큰 저장
+- **프로젝트 요약**: 프로젝트 내 전체 태스크의 토큰 합계 표시
+- **사용량 레벨**: 토큰 소비량에 따른 단계별 표시 (Low / Moderate / High)
+- **UI**: 라벨 → 값 순서, 점 구분자, 사용량 링크를 CLI 도구 설정 패널로 이동
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `todos` 테이블에 `token_usage` 컬럼 추가 |
+| `src/server/services/log-streamer.ts` | JSON lines 파싱 + stdout/stderr 모두에서 토큰 추출 |
+| `src/server/routes/logs.ts` | 토큰 사용량 API 응답 포함 |
+| `src/client/src/components/ProjectHeader.tsx` | 프로젝트 토큰 합계 표시, 사용량 링크 |
+| `src/client/src/components/TodoItem.tsx` | 개별 태스크 토큰 표시 |
+| `src/client/src/i18n.tsx` | 토큰 관련 번역 키 추가 |
+
+---
+
+### 3. Jira Cloud 연동
+
+#### 구현 내용
+
+- **프로젝트 플러그인**: 프로젝트별 Jira Cloud 설정 (Base URL, Email, API Token, Project Key)
+- **이슈 관리**: 이슈 목록 조회, 상세 보기, 상태 전이, 코멘트 추가
+- **이슈 생성**: CLITrigger에서 Jira 이슈 직접 생성
+- **이슈 임포트**: Jira 이슈를 TODO로 변환하여 가져오기
+- **연결 테스트**: 설정 저장 전 Jira API 연결 확인
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `src/server/routes/jira.ts` | Jira REST API 프록시 라우트 (9개 엔드포인트) |
+| `src/client/src/api/jira.ts` | 프론트엔드 Jira API 클라이언트 |
+| `src/client/src/components/JiraPanel.tsx` | Jira 이슈 목록/상세/임포트 UI |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `projects` 테이블에 `jira_enabled`, `jira_base_url`, `jira_email`, `jira_api_token`, `jira_project_key` 컬럼 추가 |
+| `src/server/db/queries.ts` | Project 인터페이스에 Jira 필드 추가 |
+| `src/server/index.ts` | `jiraRouter`를 `/api/jira` 에 마운트 |
+| `src/server/routes/projects.ts` | PUT 업데이트에 Jira 필드 처리 |
+| `src/client/src/components/ProjectHeader.tsx` | 설정 패널에 Jira 연동 토글 및 설정 폼 추가 |
+| `src/client/src/components/ProjectDetail.tsx` | Jira 패널 탭 추가 |
+| `src/client/src/types.ts` | Project에 Jira 필드 + JiraIssue 인터페이스 추가 |
+| `src/client/src/i18n.tsx` | 한/영 Jira 관련 번역 키 86개 추가 |
+
+#### Jira API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/jira/:projectId/test | 연결 테스트 |
+| GET | /api/jira/:projectId/issues | 이슈 목록 |
+| GET | /api/jira/:projectId/issue/:issueKey | 이슈 상세 |
+| GET | /api/jira/:projectId/issue/:issueKey/transitions | 상태 전이 목록 |
+| POST | /api/jira/:projectId/issue/:issueKey/transition | 상태 전이 실행 |
+| POST | /api/jira/:projectId/issue/:issueKey/comment | 코멘트 추가 |
+| POST | /api/jira/:projectId/issues | 이슈 생성 |
+| POST | /api/jira/:projectId/import/:issueKey | 이슈 → TODO 임포트 |
+| GET | /api/jira/:projectId/statuses | 프로젝트 상태 목록 |
+
+---
+
+### 4. 일회성 스케줄 & 태스크→스케줄 변환
+
+#### 구현 내용
+
+- **일회성 스케줄**: cron 반복 외에 특정 날짜/시간에 1회만 실행하는 스케줄 타입 추가
+- **run_at 필드**: `schedules` 테이블에 `run_at` 컬럼 추가 (DATETIME)
+- **태스크→스케줄 변환**: 완료된 TODO를 반복 또는 일회성 스케줄로 변환하는 UI 제공
+- **스케줄 폼 개선**: cron/일회성 타입 선택, 날짜/시간 입력 지원
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `schedules` 테이블에 `run_at` 컬럼 추가 |
+| `src/server/db/queries.ts` | 스케줄 CRUD에 run_at 필드 반영 |
+| `src/server/routes/schedules.ts` | 일회성 스케줄 생성/수정 로직 추가 |
+| `src/server/services/scheduler.ts` | 일회성 스케줄 타이머 등록/실행/해제 |
+| `src/client/src/components/ScheduleForm.tsx` | cron/일회성 타입 전환 UI |
+| `src/client/src/components/ScheduleItem.tsx` | 일회성 스케줄 표시 |
+| `src/client/src/components/TodoItem.tsx` | 태스크→스케줄 변환 버튼 |
+| `src/client/src/i18n.tsx` | 일회성 스케줄 관련 번역 키 추가 |
+
+---
+
+### 5. 태스크 실행 옵션 추가
+
+#### 구현 내용
+
+- **max_turns**: TODO에 최대 에이전틱 턴 수 설정. Claude CLI `--max-turns` 플래그로 전달
+- **태스크 완료 접미사**: stdin 프롬프트에 작업 범위 제한 안내문 자동 추가 (과도한 작업 방지)
+- **autoChain 제어**: 태스크 완료 시 다음 대기 태스크를 자동으로 시작할지 여부를 명시적으로 제어
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `todos` 테이블에 `max_turns` 컬럼 추가 |
+| `src/server/services/orchestrator.ts` | autoChain 플래그 + max_turns 전달 |
+| `src/server/services/cli-adapters.ts` | `--max-turns` 플래그 생성 |
+| `src/server/services/claude-manager.ts` | max_turns 파라미터 전달 |
+| `src/client/src/components/TodoForm.tsx` | max_turns 입력 필드 추가 |
+| `src/client/src/i18n.tsx` | max_turns 관련 번역 키 추가 |
+
+---
+
+### 6. 기타 수정
+
+- **Codex headless 모드 수정**: `codex exec` 서브커맨드 사용으로 "Do you trust this directory?" 프롬프트 회피
+- **Log streamer 개선**: stdout뿐 아니라 stderr에서도 JSON lines 파싱
+- **gstack 스킬 정리**: `.claude/skills/`에 배치했던 gstack 스킬 파일을 토큰 사용량 이슈로 제거 (서버 리소스의 worktree 주입 기능은 유지)
+- **remove-worktree 스킬**: worktree 안전 정리를 위한 Claude 스킬 추가 (`.claude/skills/remove-worktree/SKILL.md`)
+- **CLAUDE.md 추가**: 프로젝트 개요, 아키텍처, 명령어 가이드 등 Claude Code용 지침 문서 작성
+
+---
+
 ## 2026-03-29 — Cron 스케줄 기반 자동 실행
 
 ### 배경
