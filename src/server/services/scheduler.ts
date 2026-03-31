@@ -5,6 +5,7 @@ import { broadcaster } from '../websocket/broadcaster.js';
 
 export class Scheduler {
   private jobs: Map<string, ScheduledTask> = new Map();
+  private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   /**
    * Initialize all active schedules on server startup.
@@ -12,7 +13,11 @@ export class Scheduler {
   initialize(): void {
     const activeSchedules = queries.getActiveSchedules();
     for (const schedule of activeSchedules) {
-      this.registerJob(schedule);
+      if (schedule.schedule_type === 'once') {
+        this.registerOnceJob(schedule);
+      } else {
+        this.registerJob(schedule);
+      }
     }
     if (activeSchedules.length > 0) {
       console.log(`Scheduler initialized: ${activeSchedules.length} active schedule(s)`);
@@ -41,13 +46,52 @@ export class Scheduler {
   }
 
   /**
-   * Unregister a cron job.
+   * Register a one-time scheduled job using setTimeout.
+   */
+  registerOnceJob(schedule: queries.Schedule): void {
+    this.unregisterJob(schedule.id);
+
+    if (!schedule.run_at) {
+      console.error(`One-time schedule "${schedule.title}" has no run_at time`);
+      return;
+    }
+
+    const runAtMs = new Date(schedule.run_at).getTime();
+    const delay = runAtMs - Date.now();
+
+    if (delay <= 0) {
+      // run_at is in the past — execute immediately
+      console.log(`One-time schedule "${schedule.title}" run_at is in the past, executing now`);
+      this.executeSchedule(schedule.id).catch((err) => {
+        console.error(`One-time schedule "${schedule.title}" execution error:`, err);
+      });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      this.timers.delete(schedule.id);
+      this.executeSchedule(schedule.id).catch((err) => {
+        console.error(`One-time schedule "${schedule.title}" execution error:`, err);
+      });
+    }, delay);
+
+    this.timers.set(schedule.id, timer);
+    console.log(`One-time schedule "${schedule.title}" registered, fires in ${Math.round(delay / 1000)}s`);
+  }
+
+  /**
+   * Unregister a cron job or timer.
    */
   unregisterJob(scheduleId: string): void {
     const job = this.jobs.get(scheduleId);
     if (job) {
       job.stop();
       this.jobs.delete(scheduleId);
+    }
+    const timer = this.timers.get(scheduleId);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(scheduleId);
     }
   }
 
@@ -104,6 +148,13 @@ export class Scheduler {
       todoId: todo.id,
     });
 
+    // Auto-deactivate one-time schedules after execution
+    if (schedule.schedule_type === 'once') {
+      queries.updateScheduleStatus(schedule.id, 0);
+      this.unregisterJob(schedule.id);
+      broadcaster.broadcast({ type: 'schedule:status-changed', scheduleId: schedule.id, isActive: false });
+    }
+
     // Start the todo
     try {
       await orchestrator.startTodo(todo.id);
@@ -140,7 +191,11 @@ export class Scheduler {
   activateSchedule(scheduleId: string): queries.Schedule | undefined {
     const schedule = queries.updateScheduleStatus(scheduleId, 1);
     if (schedule) {
-      this.registerJob(schedule);
+      if (schedule.schedule_type === 'once') {
+        this.registerOnceJob(schedule);
+      } else {
+        this.registerJob(schedule);
+      }
       broadcaster.broadcast({ type: 'schedule:status-changed', scheduleId, isActive: true });
     }
     return schedule;
@@ -166,6 +221,10 @@ export class Scheduler {
       job.stop();
     }
     this.jobs.clear();
+    for (const [, timer] of this.timers) {
+      clearTimeout(timer);
+    }
+    this.timers.clear();
   }
 }
 

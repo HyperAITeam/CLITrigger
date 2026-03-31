@@ -8,7 +8,7 @@ interface ScheduleItemProps {
   schedule: Schedule;
   onToggle: (id: string, activate: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean }) => Promise<void>;
+  onEdit: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
   onTrigger: (id: string) => Promise<void>;
 }
 
@@ -19,6 +19,8 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
   const [runsLoaded, setRunsLoaded] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const { t } = useI18n();
+
+  const isOnce = schedule.schedule_type === 'once';
 
   const loadRuns = async () => {
     if (!runsLoaded) {
@@ -54,12 +56,23 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
       <ScheduleForm
         initialTitle={schedule.title}
         initialDescription={schedule.description ?? ''}
-        initialCronExpression={schedule.cron_expression}
+        initialCronExpression={isOnce ? '' : schedule.cron_expression}
         initialCliTool={schedule.cli_tool ?? undefined}
         initialCliModel={schedule.cli_model ?? undefined}
         initialSkipIfRunning={!!schedule.skip_if_running}
-        onSave={async (title, description, cronExpression, cliTool, cliModel, skipIfRunning) => {
-          await onEdit(schedule.id, { title, description, cron_expression: cronExpression, cli_tool: cliTool, cli_model: cliModel, skip_if_running: skipIfRunning });
+        initialScheduleType={schedule.schedule_type}
+        initialRunAt={schedule.run_at ?? undefined}
+        onSave={async (data) => {
+          await onEdit(schedule.id, {
+            title: data.title,
+            description: data.description,
+            cron_expression: data.cronExpression || undefined,
+            cli_tool: data.cliTool,
+            cli_model: data.cliModel,
+            skip_if_running: data.skipIfRunning,
+            schedule_type: data.scheduleType,
+            run_at: data.runAt,
+          });
           setEditing(false);
         }}
         onCancel={() => setEditing(false)}
@@ -83,6 +96,12 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
     failed: t('schedule.runFailed'),
   };
 
+  // Format run_at for display
+  const formatRunAt = (runAtStr: string | null) => {
+    if (!runAtStr) return '';
+    return new Date(runAtStr).toLocaleString();
+  };
+
   return (
     <div className={`card border-l-4 ${borderColor} overflow-hidden`}>
       {/* Header */}
@@ -104,9 +123,27 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
         {/* Title */}
         <span className="flex-1 text-sm text-warm-800 font-medium truncate">{schedule.title}</span>
 
-        {/* Cron expression badge */}
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/10 text-amber-600 flex-shrink-0">
-          {schedule.cron_expression}
+        {/* Schedule type & timing badge */}
+        {isOnce ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-blue-500/10 text-blue-600 flex-shrink-0">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {formatRunAt(schedule.run_at)}
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/10 text-amber-600 flex-shrink-0">
+            {schedule.cron_expression}
+          </span>
+        )}
+
+        {/* Once / Recurring badge */}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+          isOnce
+            ? 'bg-blue-500/10 text-blue-600'
+            : 'bg-amber-500/10 text-amber-600'
+        }`}>
+          {isOnce ? t('schedule.once') : t('schedule.recurring')}
         </span>
 
         {/* Active/Paused badge */}
@@ -191,10 +228,16 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
 
           {/* Info badges */}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="badge bg-amber-500/10 text-amber-600 font-mono">
-              {schedule.cron_expression}
-            </span>
-            {schedule.skip_if_running ? (
+            {isOnce ? (
+              <span className="badge bg-blue-500/10 text-blue-600 font-mono">
+                {t('schedule.runAtLabel')}: {formatRunAt(schedule.run_at)}
+              </span>
+            ) : (
+              <span className="badge bg-amber-500/10 text-amber-600 font-mono">
+                {schedule.cron_expression}
+              </span>
+            )}
+            {!isOnce && schedule.skip_if_running ? (
               <span className="badge bg-status-info/10 text-status-info">
                 {t('schedule.skipIfRunning')}
               </span>
