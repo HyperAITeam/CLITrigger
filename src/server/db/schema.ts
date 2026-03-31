@@ -113,6 +113,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'schedule_id', definition: 'TEXT' },
     { table: 'todos', column: 'images', definition: 'TEXT' },
     { table: 'todos', column: 'depends_on', definition: 'TEXT' },
+    { table: 'todos', column: 'max_turns', definition: 'INTEGER' },
     { table: 'schedules', column: 'schedule_type', definition: "TEXT DEFAULT 'recurring'" },
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
   ];

@@ -79,9 +79,9 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     });
   }, [onEvent]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number) => {
     if (!id) return;
-    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn });
+    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn, max_turns: maxTurns ?? null });
     if (images && images.length > 0) {
       const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
       newTodo.images = JSON.stringify(result.images);
@@ -108,8 +108,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string) => {
-    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn ?? null });
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => {
+    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn ?? null, max_turns: maxTurns ?? null });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 

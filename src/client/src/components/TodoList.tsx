@@ -10,11 +10,11 @@ interface TodoListProps {
   todos: Todo[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
@@ -73,8 +73,8 @@ export default function TodoList({
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, cliModel, images, dependsOn) => {
-              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn);
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

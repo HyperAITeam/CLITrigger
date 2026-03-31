@@ -14,7 +14,7 @@ interface TodoItemProps {
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
@@ -216,14 +216,15 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         initialCliTool={todo.cli_tool ?? undefined}
         initialCliModel={todo.cli_model ?? undefined}
         initialDependsOn={todo.depends_on ?? undefined}
+        initialMaxTurns={todo.max_turns ?? undefined}
         existingImages={existingImages}
         todoId={todo.id}
         availableTodos={allTodos.filter(t => t.id !== todo.id)}
         onDeleteImage={async (imageId) => {
           await todosApi.deleteTodoImage(todo.id, imageId);
         }}
-        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn) => {
-          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn);
+        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns) => {
+          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns);
           if (newImages && newImages.length > 0) {
             await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
           }

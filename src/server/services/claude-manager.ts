@@ -19,7 +19,7 @@ export class ClaudeManager {
    * Uses node-pty for tools that require a TTY (e.g. Codex),
    * falls back to child_process.spawn for others.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude'): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -27,7 +27,7 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     const adapter = getAdapter(tool);
-    const args = adapter.buildArgs({ mode, prompt, model, extraOptions });
+    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns });
 
     if (adapter.requiresTty) {
       return this.startWithPty(adapter.command, args, worktreePath, adapter.displayName);
