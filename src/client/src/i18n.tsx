@@ -175,9 +175,6 @@ const translations = {
     'result.cacheTokens': 'cache',
     'result.turns': 'turns',
     'result.contextUsed': 'ctx',
-    'result.projectTokens': 'Project Token Usage',
-    'result.totalTokens': 'Total',
-    'result.tasksTracked': 'tasks',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -492,9 +489,6 @@ const translations = {
     'result.cacheTokens': '캐시',
     'result.turns': '턴',
     'result.contextUsed': '사용',
-    'result.projectTokens': '프로젝트 토큰 사용량',
-    'result.totalTokens': '합계',
-    'result.tasksTracked': '태스크',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
