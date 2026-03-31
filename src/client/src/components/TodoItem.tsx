@@ -684,10 +684,6 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                 {resultData.token_usage && (() => {
                   const tu = resultData.token_usage;
                   const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
-                  const totalTokens = totalInput + (tu.output_tokens ?? 0);
-                  const ctxPct = tu.context_window && tu.context_window > 0
-                    ? Math.round((totalTokens / tu.context_window) * 100)
-                    : null;
 
                   return (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
@@ -702,11 +698,6 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                       )}
                       {tu.num_turns != null && tu.num_turns > 1 && (
                         <span className="text-xs font-mono">{tu.num_turns} {t('result.turns')}</span>
-                      )}
-                      {ctxPct !== null && (
-                        <span className={`text-xs font-mono font-semibold ${ctxPct >= 80 ? 'text-status-error' : ctxPct >= 50 ? 'text-amber-600' : 'text-purple-500'}`}>
-                          {ctxPct}% {t('result.contextUsed')}
-                        </span>
                       )}
                     </div>
                   );

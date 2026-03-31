@@ -55,6 +55,7 @@ const translations = {
     'header.gstackTitle': 'gstack Skills',
     'header.gstackEnabled': 'Enable gstack skill injection',
     'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
+    'header.usageLimit': 'Usage',
     'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
 
     // Jira Header
@@ -369,6 +370,7 @@ const translations = {
     'header.gstackTitle': 'gstack \uC2A4\uD0AC',
     'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
     'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
+    'header.usageLimit': '사용량',
     'header.gstackClaudeOnly': 'gstack \uC2A4\uD0AC\uC740 Claude CLI\uC5D0\uC11C\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4.',
 
     // Jira Header
