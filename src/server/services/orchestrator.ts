@@ -62,7 +62,7 @@ export class Orchestrator {
     const todosToStart = startable.slice(0, slotsAvailable);
 
     for (const todo of todosToStart) {
-      await this.startSingleTodo(todo.id, project.path, projectId);
+      await this.startSingleTodo(todo.id, project.path, projectId, 'headless', true);
     }
   }
 
@@ -125,7 +125,7 @@ export class Orchestrator {
   /**
    * Internal: start a single todo with all the setup.
    */
-  private async startSingleTodo(todoId: string, projectPath: string, projectId: string, mode: ClaudeMode = 'headless'): Promise<void> {
+  private async startSingleTodo(todoId: string, projectPath: string, projectId: string, mode: ClaudeMode = 'headless', autoChain: boolean = false): Promise<void> {
     const todo = queries.getTodoById(todoId);
     if (!todo) return;
 
@@ -286,10 +286,12 @@ export class Orchestrator {
         this.broadcastProjectStatus(projectId);
       }
 
-      // Try to start the next pending todo for this project
-      this.startNextPending(projectId).catch(() => {
-        // Ignore errors when starting next todo
-      });
+      // Try to start the next pending todo for this project (only when auto-chaining)
+      if (autoChain) {
+        this.startNextPending(projectId).catch(() => {
+          // Ignore errors when starting next todo
+        });
+      }
     }).catch(() => {
       // Fallback: ensure status is updated if exitPromise handler fails
       try {
@@ -325,7 +327,7 @@ export class Orchestrator {
     if (running.length < maxConcurrent && startable.length > 0) {
       const project = queries.getProjectById(projectId);
       if (project) {
-        await this.startSingleTodo(startable[0].id, project.path, projectId);
+        await this.startSingleTodo(startable[0].id, project.path, projectId, 'headless', true);
       }
     }
   }
