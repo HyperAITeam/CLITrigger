@@ -74,6 +74,37 @@ describe('Database Queries', () => {
       expect(same!.name).toBe('Test');
     });
 
+    it('should sync non-running todos and schedules that still match previous project CLI defaults', () => {
+      const project = queries.createProject('Test', '/tmp/test-sync');
+      queries.updateProject(project.id, { cli_tool: 'claude', claude_model: 'claude-opus-4-6' });
+
+      const pendingTodo = queries.createTodo(project.id, 'Pending task', undefined, 0, 'claude', 'claude-opus-4-6');
+      const runningTodo = queries.createTodo(project.id, 'Running task', undefined, 0, 'claude', 'claude-opus-4-6');
+      const customTodo = queries.createTodo(project.id, 'Custom task', undefined, 0, 'codex', 'o3');
+      queries.updateTodoStatus(runningTodo.id, 'running');
+
+      const schedule = queries.createSchedule(project.id, 'Nightly', undefined, '0 0 * * *', 'claude', 'claude-opus-4-6');
+      const customSchedule = queries.createSchedule(project.id, 'Custom', undefined, '0 1 * * *', 'codex', 'o3');
+
+      const result = queries.syncProjectCliDefaults(
+        project.id,
+        'claude',
+        'claude-opus-4-6',
+        'gemini',
+        'gemini-2.5-pro'
+      );
+
+      expect(result.updatedTodos).toBe(1);
+      expect(result.updatedSchedules).toBe(1);
+
+      expect(queries.getTodoById(pendingTodo.id)?.cli_tool).toBe('gemini');
+      expect(queries.getTodoById(pendingTodo.id)?.cli_model).toBe('gemini-2.5-pro');
+      expect(queries.getTodoById(runningTodo.id)?.cli_tool).toBe('claude');
+      expect(queries.getTodoById(customTodo.id)?.cli_tool).toBe('codex');
+      expect(queries.getScheduleById(schedule.id)?.cli_tool).toBe('gemini');
+      expect(queries.getScheduleById(customSchedule.id)?.cli_tool).toBe('codex');
+    });
+
     it('should delete a project', () => {
       const project = queries.createProject('Test', '/tmp/test');
       const deleted = queries.deleteProject(project.id);
