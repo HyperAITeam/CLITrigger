@@ -20,6 +20,7 @@ import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
+import jiraRouter from './routes/jira.js';
 import { scheduler } from './services/scheduler.js';
 
 const app = express();
@@ -104,6 +105,7 @@ app.use('/api', logsRouter);
 app.use('/api', imagesRouter);
 app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
+app.use('/api/jira', jiraRouter);
 app.use('/api/tunnel', tunnelRouter);
 
 // --- Scheduler ---
