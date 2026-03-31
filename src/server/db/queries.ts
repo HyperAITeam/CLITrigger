@@ -76,6 +76,39 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   return getProjectById(id);
 }
 
+export function syncProjectCliDefaults(
+  projectId: string,
+  previousTool: string | null,
+  previousModel: string | null,
+  nextTool: string | null,
+  nextModel: string | null
+): { updatedTodos: number; updatedSchedules: number } {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  const todoResult = db.prepare(
+    `UPDATE todos
+     SET cli_tool = ?, cli_model = ?, updated_at = ?
+     WHERE project_id = ?
+       AND status != 'running'
+       AND ((cli_tool = ?) OR (cli_tool IS NULL AND ? IS NULL))
+       AND ((cli_model = ?) OR (cli_model IS NULL AND ? IS NULL))`
+  ).run(nextTool, nextModel, now, projectId, previousTool, previousTool, previousModel, previousModel);
+
+  const scheduleResult = db.prepare(
+    `UPDATE schedules
+     SET cli_tool = ?, cli_model = ?, updated_at = ?
+     WHERE project_id = ?
+       AND ((cli_tool = ?) OR (cli_tool IS NULL AND ? IS NULL))
+       AND ((cli_model = ?) OR (cli_model IS NULL AND ? IS NULL))`
+  ).run(nextTool, nextModel, now, projectId, previousTool, previousTool, previousModel, previousModel);
+
+  return {
+    updatedTodos: todoResult.changes,
+    updatedSchedules: scheduleResult.changes,
+  };
+}
+
 export function deleteProject(id: string): boolean {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM projects WHERE id = ?').run(id);

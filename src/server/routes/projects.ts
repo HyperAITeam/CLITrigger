@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import nodePath from 'path';
 import fs from 'fs';
-import { createProject, getAllProjects, getProjectById, updateProject, deleteProject } from '../db/queries.js';
+import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { getAvailableSkills } from '../services/skill-injector.js';
 
@@ -108,6 +108,21 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
 
     const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key } = req.body;
     const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key });
+
+    const cliChanged =
+      (cli_tool !== undefined && cli_tool !== existing.cli_tool) ||
+      (claude_model !== undefined && claude_model !== existing.claude_model);
+
+    if (project && cliChanged) {
+      syncProjectCliDefaults(
+        req.params.id,
+        existing.cli_tool ?? null,
+        existing.claude_model ?? null,
+        project.cli_tool ?? null,
+        project.claude_model ?? null
+      );
+    }
+
     res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
