@@ -681,26 +681,36 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     <span className="text-xs text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
                   </div>
                 )}
-                {resultData.token_usage && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
-                    <svg className="h-3.5 w-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    <span className="text-xs font-medium">{t('result.tokenUsage')}</span>
-                    {resultData.token_usage.input_tokens !== null && (
-                      <span className="text-xs font-mono">{formatTokenCount(resultData.token_usage.input_tokens)} {t('result.inputTokens')}</span>
-                    )}
-                    {resultData.token_usage.output_tokens !== null && (
-                      <span className="text-xs font-mono">{formatTokenCount(resultData.token_usage.output_tokens)} {t('result.outputTokens')}</span>
-                    )}
-                    {resultData.token_usage.cache_read_input_tokens != null && resultData.token_usage.cache_read_input_tokens > 0 && (
-                      <span className="text-xs font-mono text-purple-400">{formatTokenCount(resultData.token_usage.cache_read_input_tokens)} {t('result.cacheTokens')}</span>
-                    )}
-                    {resultData.token_usage.num_turns != null && resultData.token_usage.num_turns > 1 && (
-                      <span className="text-xs font-mono">{resultData.token_usage.num_turns} {t('result.turns')}</span>
-                    )}
-                  </div>
-                )}
+                {resultData.token_usage && (() => {
+                  const tu = resultData.token_usage;
+                  const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
+                  const totalTokens = totalInput + (tu.output_tokens ?? 0);
+                  const ctxPct = tu.context_window && tu.context_window > 0
+                    ? Math.round((totalTokens / tu.context_window) * 100)
+                    : null;
+
+                  return (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
+                      <svg className="h-3.5 w-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      {totalInput > 0 && (
+                        <span className="text-xs font-mono">{formatTokenCount(totalInput)} {t('result.inputTokens')}</span>
+                      )}
+                      {tu.output_tokens !== null && (
+                        <span className="text-xs font-mono">{formatTokenCount(tu.output_tokens)} {t('result.outputTokens')}</span>
+                      )}
+                      {tu.num_turns != null && tu.num_turns > 1 && (
+                        <span className="text-xs font-mono">{tu.num_turns} {t('result.turns')}</span>
+                      )}
+                      {ctxPct !== null && (
+                        <span className={`text-xs font-mono font-semibold ${ctxPct >= 80 ? 'text-status-error' : ctxPct >= 50 ? 'text-amber-600' : 'text-purple-500'}`}>
+                          {ctxPct}% {t('result.contextUsed')}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Commits list */}

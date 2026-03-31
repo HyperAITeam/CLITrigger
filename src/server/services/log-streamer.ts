@@ -9,6 +9,7 @@ export interface TokenUsage {
   total_cost: number | null;
   duration_ms: number | null;
   num_turns: number | null;
+  context_window: number | null;
 }
 
 export class LogStreamer {
@@ -141,6 +142,7 @@ export class LogStreamer {
       input_tokens: null, output_tokens: null,
       cache_read_input_tokens: null, cache_creation_input_tokens: null,
       total_cost: null, duration_ms: null, num_turns: null,
+      context_window: null,
     });
 
     stdout.setEncoding('utf8' as BufferEncoding);
@@ -246,6 +248,15 @@ export class LogStreamer {
             usage.total_cost = typeof event.total_cost_usd === 'number' ? event.total_cost_usd : null;
             usage.duration_ms = typeof event.duration_ms === 'number' ? event.duration_ms : null;
             usage.num_turns = typeof event.num_turns === 'number' ? event.num_turns : null;
+
+            // Extract contextWindow from modelUsage (first model entry)
+            const modelUsage = event.modelUsage as Record<string, Record<string, unknown>> | undefined;
+            if (modelUsage) {
+              const firstModel = Object.values(modelUsage)[0];
+              if (firstModel && typeof firstModel.contextWindow === 'number') {
+                usage.context_window = firstModel.contextWindow;
+              }
+            }
           }
           break;
         }

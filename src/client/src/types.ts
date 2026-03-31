@@ -147,6 +147,7 @@ export interface TokenUsage {
   total_cost: number | null;
   duration_ms: number | null;
   num_turns: number | null;
+  context_window: number | null;
 }
 
 export interface TaskResult {

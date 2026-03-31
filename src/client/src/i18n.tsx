@@ -174,6 +174,7 @@ const translations = {
     'result.totalCost': 'Cost',
     'result.cacheTokens': 'cache',
     'result.turns': 'turns',
+    'result.contextUsed': 'ctx',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -487,6 +488,7 @@ const translations = {
     'result.totalCost': '비용',
     'result.cacheTokens': '캐시',
     'result.turns': '턴',
+    'result.contextUsed': '사용',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
