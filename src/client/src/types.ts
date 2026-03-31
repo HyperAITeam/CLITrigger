@@ -142,7 +142,11 @@ export interface CommitInfo {
 export interface TokenUsage {
   input_tokens: number | null;
   output_tokens: number | null;
+  cache_read_input_tokens: number | null;
+  cache_creation_input_tokens: number | null;
   total_cost: number | null;
+  duration_ms: number | null;
+  num_turns: number | null;
 }
 
 export interface TaskResult {

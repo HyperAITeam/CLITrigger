@@ -172,6 +172,8 @@ const translations = {
     'result.inputTokens': 'input',
     'result.outputTokens': 'output',
     'result.totalCost': 'Cost',
+    'result.cacheTokens': 'cache',
+    'result.turns': 'turns',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -483,6 +485,8 @@ const translations = {
     'result.inputTokens': '입력',
     'result.outputTokens': '출력',
     'result.totalCost': '비용',
+    'result.cacheTokens': '캐시',
+    'result.turns': '턴',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',

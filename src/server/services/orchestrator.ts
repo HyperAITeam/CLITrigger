@@ -233,8 +233,12 @@ export class Orchestrator {
       pid = result.pid;
       exitPromise = result.exitPromise;
 
-      // Start streaming logs to DB
-      logStreamer.streamToDb(todoId, result.stdout, result.stderr);
+      // Start streaming logs to DB (Claude uses structured JSON, others use plain text)
+      if (cliTool === 'claude') {
+        logStreamer.streamJsonToDb(todoId, result.stdout, result.stderr);
+      } else {
+        logStreamer.streamToDb(todoId, result.stdout, result.stderr);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       queries.updateTodoStatus(todoId, 'failed');

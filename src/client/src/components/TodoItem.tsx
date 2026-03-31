@@ -693,6 +693,12 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     {resultData.token_usage.output_tokens !== null && (
                       <span className="text-xs font-mono">{formatTokenCount(resultData.token_usage.output_tokens)} {t('result.outputTokens')}</span>
                     )}
+                    {resultData.token_usage.cache_read_input_tokens != null && resultData.token_usage.cache_read_input_tokens > 0 && (
+                      <span className="text-xs font-mono text-purple-400">{formatTokenCount(resultData.token_usage.cache_read_input_tokens)} {t('result.cacheTokens')}</span>
+                    )}
+                    {resultData.token_usage.num_turns != null && resultData.token_usage.num_turns > 1 && (
+                      <span className="text-xs font-mono">{resultData.token_usage.num_turns} {t('result.turns')}</span>
+                    )}
                     {resultData.token_usage.total_cost !== null && (
                       <span className="text-xs font-mono font-semibold">${resultData.token_usage.total_cost.toFixed(4)}</span>
                     )}
