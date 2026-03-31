@@ -138,6 +138,14 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
+  const handleScheduleTodo = useCallback(async (todoId: string, runAt: string) => {
+    const schedule = await schedulesApi.scheduleFromTodo(todoId, runAt);
+    // Remove the todo from the list (it was deleted server-side)
+    setTodos((prev) => prev.filter((t) => t.id !== todoId));
+    // Add the new schedule
+    setSchedules((prev) => [schedule, ...prev]);
+  }, []);
+
   const handleFixTodo = useCallback(async (failedTodo: Todo, errorLogs: TaskLog[]) => {
     if (!id) return;
     const errorSummary = errorLogs.map(l => l.message).join('\n');
@@ -186,9 +194,27 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }, []);
 
   // Schedule handlers
-  const handleAddSchedule = useCallback(async (title: string, description: string, cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning?: boolean) => {
+  const handleAddSchedule = useCallback(async (data: {
+    title: string;
+    description: string;
+    cronExpression: string;
+    cliTool?: string;
+    cliModel?: string;
+    skipIfRunning?: boolean;
+    scheduleType: 'recurring' | 'once';
+    runAt?: string;
+  }) => {
     if (!id) return;
-    const newSchedule = await schedulesApi.createSchedule(id, { title, description, cron_expression: cronExpression, cli_tool: cliTool, cli_model: cliModel, skip_if_running: skipIfRunning });
+    const newSchedule = await schedulesApi.createSchedule(id, {
+      title: data.title,
+      description: data.description,
+      cron_expression: data.cronExpression || undefined,
+      cli_tool: data.cliTool,
+      cli_model: data.cliModel,
+      skip_if_running: data.skipIfRunning,
+      schedule_type: data.scheduleType,
+      run_at: data.runAt,
+    });
     setSchedules((prev) => [newSchedule, ...prev]);
   }, [id]);
 
@@ -351,6 +377,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onCleanupTodo={handleCleanupTodo}
           onRetryTodo={handleRetryTodo}
           onFixTodo={handleFixTodo}
+          onScheduleTodo={handleScheduleTodo}
           onEvent={onEvent}
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}

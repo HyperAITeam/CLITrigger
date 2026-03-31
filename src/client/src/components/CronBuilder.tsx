@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useI18n } from '../i18n';
+import { useI18n, type TranslationKey } from '../i18n';
 
 type CronMode = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
 
@@ -8,7 +8,7 @@ interface CronBuilderProps {
   onChange: (value: string) => void;
 }
 
-const WEEKDAYS = [
+const WEEKDAYS: { value: number; labelKey: TranslationKey }[] = [
   { value: 1, labelKey: 'cron.mon' },
   { value: 2, labelKey: 'cron.tue' },
   { value: 3, labelKey: 'cron.wed' },
@@ -16,7 +16,7 @@ const WEEKDAYS = [
   { value: 5, labelKey: 'cron.fri' },
   { value: 6, labelKey: 'cron.sat' },
   { value: 0, labelKey: 'cron.sun' },
-] as const;
+];
 
 function parseCronToState(cron: string): {
   mode: CronMode;
@@ -137,7 +137,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
     });
   };
 
-  const modes: { value: CronMode; labelKey: string }[] = [
+  const modes: { value: CronMode; labelKey: TranslationKey }[] = [
     { value: 'minutes', labelKey: 'cron.everyMinutes' },
     { value: 'hourly', labelKey: 'cron.hourly' },
     { value: 'daily', labelKey: 'cron.daily' },

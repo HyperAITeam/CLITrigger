@@ -8,10 +8,19 @@ interface ScheduleListProps {
   schedules: Schedule[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddSchedule: (title: string, description: string, cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning?: boolean) => Promise<void>;
+  onAddSchedule: (data: {
+    title: string;
+    description: string;
+    cronExpression: string;
+    cliTool?: string;
+    cliModel?: string;
+    skipIfRunning?: boolean;
+    scheduleType: 'recurring' | 'once';
+    runAt?: string;
+  }) => Promise<void>;
   onToggleSchedule: (id: string, activate: boolean) => Promise<void>;
   onDeleteSchedule: (id: string) => Promise<void>;
-  onEditSchedule: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean }) => Promise<void>;
+  onEditSchedule: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
   onTriggerSchedule: (id: string) => Promise<void>;
 }
 
@@ -52,8 +61,8 @@ export default function ScheduleList({
           <ScheduleForm
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
-            onSave={async (title, description, cronExpression, cliTool, cliModel, skipIfRunning) => {
-              await onAddSchedule(title, description, cronExpression, cliTool, cliModel, skipIfRunning);
+            onSave={async (data) => {
+              await onAddSchedule(data);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

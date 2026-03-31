@@ -19,6 +19,7 @@ interface TodoListProps {
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
+  onScheduleTodo?: (todoId: string, runAt: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -37,6 +38,7 @@ export default function TodoList({
   onCleanupTodo,
   onRetryTodo,
   onFixTodo,
+  onScheduleTodo,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -100,6 +102,7 @@ export default function TodoList({
                 onCleanup={onCleanupTodo}
                 onRetry={onRetryTodo}
                 onFix={onFixTodo}
+                onSchedule={onScheduleTodo}
                 onEvent={onEvent}
                 isInteractive={interactiveTodos.has(todo.id)}
                 onSendInput={onSendInput}

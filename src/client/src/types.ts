@@ -105,6 +105,8 @@ export interface Schedule {
   skip_if_running: number;
   last_run_at: string | null;
   next_run_at: string | null;
+  schedule_type: 'recurring' | 'once';
+  run_at: string | null;
   created_at: string;
   updated_at: string;
 }
