@@ -21,9 +21,7 @@ export const CLI_TOOLS: CliToolConfig[] = [
     value: 'gemini',
     label: 'Gemini CLI',
     models: [
-      { value: '', label: 'Default' },
-      { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+      { value: '', label: 'Default (Gemini 2.5 Pro)' },
     ],
   },
   {
@@ -31,8 +29,11 @@ export const CLI_TOOLS: CliToolConfig[] = [
     label: 'Codex CLI',
     models: [
       { value: '', label: 'Default' },
-      { value: 'o4-mini', label: 'o4-mini' },
+      { value: 'gpt-4.1', label: 'GPT-4.1' },
+      { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+      { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
       { value: 'o3', label: 'o3' },
+      { value: 'o4-mini', label: 'o4-mini' },
     ],
   },
 ];
