@@ -139,6 +139,12 @@ export interface CommitInfo {
   date: string;
 }
 
+export interface TokenUsage {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_cost: number | null;
+}
+
 export interface TaskResult {
   duration_seconds: number | null;
   commits: CommitInfo[];
@@ -148,6 +154,7 @@ export interface TaskResult {
     insertions: number;
     deletions: number;
   };
+  token_usage: TokenUsage | null;
 }
 
 export interface TaskLog {

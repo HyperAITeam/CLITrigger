@@ -16,6 +16,12 @@ interface CommitInfo {
   date: string;
 }
 
+interface TokenUsage {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_cost: number | null;
+}
+
 interface TaskResult {
   duration_seconds: number | null;
   commits: CommitInfo[];
@@ -25,6 +31,7 @@ interface TaskResult {
     insertions: number;
     deletions: number;
   };
+  token_usage: TokenUsage | null;
 }
 
 const router = Router();
@@ -158,7 +165,15 @@ router.get('/todos/:id/result', async (req: Request<{ id: string }>, res: Respon
       }
     }
 
-    const result: TaskResult = { duration_seconds, commits, changed_files, diff_stats };
+    // Parse token usage from stored JSON
+    let token_usage: TokenUsage | null = null;
+    if (todo.token_usage) {
+      try {
+        token_usage = JSON.parse(todo.token_usage);
+      } catch { /* ignore parse errors */ }
+    }
+
+    const result: TaskResult = { duration_seconds, commits, changed_files, diff_stats, token_usage };
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

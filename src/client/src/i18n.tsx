@@ -168,6 +168,10 @@ const translations = {
     'result.filesChanged': 'files changed',
     'result.commitHistory': 'Commit History',
     'result.changedFiles': 'Changed Files',
+    'result.tokenUsage': 'Token Usage',
+    'result.inputTokens': 'input',
+    'result.outputTokens': 'output',
+    'result.totalCost': 'Cost',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -475,6 +479,10 @@ const translations = {
     'result.filesChanged': '파일 변경',
     'result.commitHistory': '커밋 이력',
     'result.changedFiles': '변경된 파일',
+    'result.tokenUsage': '토큰 사용량',
+    'result.inputTokens': '입력',
+    'result.outputTokens': '출력',
+    'result.totalCost': '비용',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',

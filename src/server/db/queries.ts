@@ -100,6 +100,7 @@ export interface Todo {
   images: string | null;
   depends_on: string | null;
   max_turns: number | null;
+  token_usage: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -125,7 +126,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -141,6 +142,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.images !== undefined) { fields.push('images = ?'); values.push(updates.images); }
   if (updates.depends_on !== undefined) { fields.push('depends_on = ?'); values.push(updates.depends_on); }
   if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
+  if (updates.token_usage !== undefined) { fields.push('token_usage = ?'); values.push(updates.token_usage); }
 
   if (fields.length === 0) return getTodoById(id);
 

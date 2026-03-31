@@ -276,7 +276,13 @@ export class Orchestrator {
             queries.updateTodoStatus(todoId, 'failed');
             queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
           }
-          queries.updateTodo(todoId, { process_pid: 0 });
+
+          // Save token usage if available
+          const tokenUsage = logStreamer.getTokenUsage(todoId);
+          queries.updateTodo(todoId, {
+            process_pid: 0,
+            ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+          });
         } catch {
           // Ensure status is updated even if logging fails
           try { queries.updateTodoStatus(todoId, newStatus); } catch { /* ignore */ }
