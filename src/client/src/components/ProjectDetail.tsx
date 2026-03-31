@@ -147,6 +147,11 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setSchedules((prev) => [schedule, ...prev]);
   }, []);
 
+  const handleUpdateDependency = useCallback(async (todoId: string, dependsOnId: string | null) => {
+    const updated = await todosApi.updateTodo(todoId, { depends_on: dependsOnId });
+    setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
+  }, []);
+
   const handleFixTodo = useCallback(async (failedTodo: Todo, errorLogs: TaskLog[]) => {
     if (!id) return;
     const errorSummary = errorLogs.map(l => l.message).join('\n');
@@ -391,6 +396,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onRetryTodo={handleRetryTodo}
           onFixTodo={handleFixTodo}
           onScheduleTodo={handleScheduleTodo}
+          onUpdateDependency={handleUpdateDependency}
           onEvent={onEvent}
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}

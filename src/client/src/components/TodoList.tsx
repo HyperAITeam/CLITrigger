@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
@@ -20,9 +20,23 @@ interface TodoListProps {
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onScheduleTodo?: (todoId: string, runAt: string) => Promise<void>;
+  onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
+}
+
+function wouldCreateCycle(todos: Todo[], sourceId: string, targetId: string): boolean {
+  let current: string | null = targetId;
+  const visited = new Set<string>();
+  while (current) {
+    if (current === sourceId) return true;
+    if (visited.has(current)) return false;
+    visited.add(current);
+    const todo = todos.find(t => t.id === current);
+    current = todo?.depends_on ?? null;
+  }
+  return false;
 }
 
 export default function TodoList({
@@ -39,14 +53,55 @@ export default function TodoList({
   onRetryTodo,
   onFixTodo,
   onScheduleTodo,
+  onUpdateDependency,
   onEvent,
   onSendInput,
   interactiveTodos,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
   const { t } = useI18n();
 
   const sortedTodos = [...todos].sort((a, b) => a.priority - b.priority);
+
+  const handleDragStart = useCallback((todoId: string) => {
+    setDragSourceId(todoId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null);
+    setDragOverTargetId(null);
+  }, []);
+
+  const handleDragOverTarget = useCallback((targetId: string) => {
+    setDragOverTargetId(targetId);
+  }, []);
+
+  const handleDragLeaveTarget = useCallback((targetId: string) => {
+    setDragOverTargetId(prev => prev === targetId ? null : prev);
+  }, []);
+
+  const handleDrop = useCallback(async (targetId: string) => {
+    if (!dragSourceId || !onUpdateDependency) return;
+    if (dragSourceId === targetId) return;
+    if (wouldCreateCycle(todos, dragSourceId, targetId)) return;
+
+    await onUpdateDependency(dragSourceId, targetId);
+    setDragSourceId(null);
+    setDragOverTargetId(null);
+  }, [dragSourceId, todos, onUpdateDependency]);
+
+  const handleRemoveDependency = useCallback(async (todoId: string) => {
+    if (!onUpdateDependency) return;
+    await onUpdateDependency(todoId, null);
+  }, [onUpdateDependency]);
+
+  const isValidDropTarget = useCallback((targetId: string): boolean => {
+    if (!dragSourceId) return false;
+    if (dragSourceId === targetId) return false;
+    return !wouldCreateCycle(todos, dragSourceId, targetId);
+  }, [dragSourceId, todos]);
 
   return (
     <div>
@@ -106,6 +161,16 @@ export default function TodoList({
                 onEvent={onEvent}
                 isInteractive={interactiveTodos.has(todo.id)}
                 onSendInput={onSendInput}
+                isDragSource={dragSourceId === todo.id}
+                isDragging={dragSourceId !== null}
+                isDragOver={dragOverTargetId === todo.id}
+                isValidDropTarget={isValidDropTarget(todo.id)}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOverTarget={handleDragOverTarget}
+                onDragLeaveTarget={handleDragLeaveTarget}
+                onDropTarget={handleDrop}
+                onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
               />
             </div>
           ))

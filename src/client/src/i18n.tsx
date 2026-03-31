@@ -134,6 +134,11 @@ const translations = {
     'todoForm.cancel': 'Cancel',
     'todoForm.save': 'Save',
 
+    // Drag & Drop Dependency
+    'dnd.dropHint': 'Run after this task',
+    'dnd.removeDep': 'Remove dependency',
+    'dnd.cyclicWarning': 'Cannot link: circular dependency',
+
     // Status
     'status.pending': 'Idle',
     'status.running': 'Running',
@@ -435,6 +440,11 @@ const translations = {
     'todoForm.dependsOnHint': '\uc120\ud589 \uc791\uc5c5\uc774 \uc644\ub8cc\ub418\uba74 \uac19\uc740 \uc6cc\ud06c\ud2b8\ub9ac\uc5d0\uc11c \uc2e4\ud589\ub429\ub2c8\ub2e4.',
     'todoForm.cancel': '\uCDE8\uC18C',
     'todoForm.save': '\uC800\uC7A5',
+
+    // Drag & Drop Dependency
+    'dnd.dropHint': '\uc774 \uc791\uc5c5 \uc774\ud6c4\uc5d0 \uc2e4\ud589',
+    'dnd.removeDep': '\uc758\uc874\uc131 \uc81c\uac70',
+    'dnd.cyclicWarning': '\uc21c\ud658 \uc758\uc874\uc131\uc73c\ub85c \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4',
 
     // Status
     'status.pending': '\uB300\uAE30',
