@@ -15,6 +15,11 @@ export interface Project {
   cli_tool: string;
   gstack_enabled: number;
   gstack_skills: string | null;
+  jira_enabled: number;
+  jira_base_url: string | null;
+  jira_email: string | null;
+  jira_api_token: string | null;
+  jira_project_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -40,7 +45,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -55,6 +60,11 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
   if (updates.gstack_enabled !== undefined) { fields.push('gstack_enabled = ?'); values.push(updates.gstack_enabled); }
   if (updates.gstack_skills !== undefined) { fields.push('gstack_skills = ?'); values.push(updates.gstack_skills); }
+  if (updates.jira_enabled !== undefined) { fields.push('jira_enabled = ?'); values.push(updates.jira_enabled); }
+  if (updates.jira_base_url !== undefined) { fields.push('jira_base_url = ?'); values.push(updates.jira_base_url); }
+  if (updates.jira_email !== undefined) { fields.push('jira_email = ?'); values.push(updates.jira_email); }
+  if (updates.jira_api_token !== undefined) { fields.push('jira_api_token = ?'); values.push(updates.jira_api_token); }
+  if (updates.jira_project_key !== undefined) { fields.push('jira_project_key = ?'); values.push(updates.jira_project_key); }
 
   if (fields.length === 0) return getProjectById(id);
 

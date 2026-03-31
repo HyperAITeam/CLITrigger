@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { Project, Todo, GstackSkill } from '../types';
 import * as projectsApi from '../api/projects';
 import * as gstackApi from '../api/gstack';
+import * as jiraApi from '../api/jira';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 
@@ -27,6 +28,15 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
+
+  // Jira state
+  const [jiraEnabled, setJiraEnabled] = useState(!!project.jira_enabled);
+  const [jiraBaseUrl, setJiraBaseUrl] = useState(project.jira_base_url ?? '');
+  const [jiraEmail, setJiraEmail] = useState(project.jira_email ?? '');
+  const [jiraApiToken, setJiraApiToken] = useState(project.jira_api_token ?? '');
+  const [jiraProjectKey, setJiraProjectKey] = useState(project.jira_project_key ?? '');
+  const [jiraTesting, setJiraTesting] = useState(false);
+  const [jiraTestResult, setJiraTestResult] = useState<'ok' | 'fail' | null>(null);
 
   // gstack state
   const [gstackEnabled, setGstackEnabled] = useState(!!project.gstack_enabled);
@@ -63,6 +73,26 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     );
   };
 
+  const handleTestJira = async () => {
+    setJiraTesting(true);
+    setJiraTestResult(null);
+    try {
+      await projectsApi.updateProject(project.id, {
+        jira_enabled: 1,
+        jira_base_url: jiraBaseUrl || null,
+        jira_email: jiraEmail || null,
+        jira_api_token: jiraApiToken || null,
+        jira_project_key: jiraProjectKey || null,
+      });
+      const result = await jiraApi.testConnection(project.id);
+      setJiraTestResult(result.ok ? 'ok' : 'fail');
+    } catch {
+      setJiraTestResult('fail');
+    } finally {
+      setJiraTesting(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
@@ -73,6 +103,11 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         claude_options: claudeOptions || null,
         gstack_enabled: gstackEnabled ? 1 : 0,
         gstack_skills: selectedSkills.length > 0 ? JSON.stringify(selectedSkills) : null,
+        jira_enabled: jiraEnabled ? 1 : 0,
+        jira_base_url: jiraBaseUrl || null,
+        jira_email: jiraEmail || null,
+        jira_api_token: jiraApiToken || null,
+        jira_project_key: jiraProjectKey || null,
       });
       onProjectUpdate(updated);
       setShowSettings(false);
@@ -117,6 +152,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             )}
             {project.gstack_enabled ? (
               <span className="badge bg-status-success/10 text-status-success">gstack</span>
+            ) : null}
+            {project.jira_enabled ? (
+              <span className="badge bg-blue-100 text-blue-700">Jira</span>
             ) : null}
           </div>
         </div>
@@ -272,6 +310,100 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <p className="text-xs text-warm-300">
               {t('header.gstackCredit')}
             </p>
+          </div>
+
+          {/* Jira Integration Section */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-warm-700">
+                {t('header.jiraTitle')}
+              </h4>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={jiraEnabled}
+                  onChange={(e) => setJiraEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
+              </label>
+            </div>
+
+            {jiraEnabled && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.jiraBaseUrl')}
+                    </label>
+                    <input
+                      type="url"
+                      value={jiraBaseUrl}
+                      onChange={(e) => setJiraBaseUrl(e.target.value)}
+                      placeholder={t('header.jiraBaseUrlPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.jiraProjectKey')}
+                    </label>
+                    <input
+                      type="text"
+                      value={jiraProjectKey}
+                      onChange={(e) => setJiraProjectKey(e.target.value.toUpperCase())}
+                      placeholder={t('header.jiraProjectKeyPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.jiraEmail')}
+                    </label>
+                    <input
+                      type="email"
+                      value={jiraEmail}
+                      onChange={(e) => setJiraEmail(e.target.value)}
+                      placeholder={t('header.jiraEmailPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.jiraApiToken')}
+                    </label>
+                    <input
+                      type="password"
+                      value={jiraApiToken}
+                      onChange={(e) => setJiraApiToken(e.target.value)}
+                      placeholder={t('header.jiraApiTokenPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestJira}
+                    disabled={jiraTesting || !jiraBaseUrl || !jiraEmail || !jiraApiToken}
+                    className="btn-ghost text-xs"
+                  >
+                    {jiraTesting ? t('header.jiraTesting') : t('header.jiraTestConnection')}
+                  </button>
+                  {jiraTestResult === 'ok' && (
+                    <span className="text-xs text-status-success font-medium">{t('header.jiraConnected')}</span>
+                  )}
+                  {jiraTestResult === 'fail' && (
+                    <span className="text-xs text-status-error font-medium">{t('header.jiraFailed')}</span>
+                  )}
+                </div>
+
+                <p className="text-xs text-warm-300 mt-2">
+                  {t('header.jiraTokenHint')}
+                </p>
+              </>
+            )}
           </div>
 
           {!project.is_git_repo && (

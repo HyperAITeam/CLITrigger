@@ -106,8 +106,8 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills } = req.body;
-    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills });
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key } = req.body;
+    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key });
     res.json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

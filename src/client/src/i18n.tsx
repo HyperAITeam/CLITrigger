@@ -57,6 +57,22 @@ const translations = {
     'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
     'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
 
+    // Jira Header
+    'header.jiraTitle': 'Jira Integration',
+    'header.jiraBaseUrl': 'Jira URL',
+    'header.jiraBaseUrlPlaceholder': 'https://yoursite.atlassian.net',
+    'header.jiraEmail': 'Email',
+    'header.jiraEmailPlaceholder': 'your@email.com',
+    'header.jiraApiToken': 'API Token',
+    'header.jiraApiTokenPlaceholder': 'Atlassian API token',
+    'header.jiraProjectKey': 'Project Key',
+    'header.jiraProjectKeyPlaceholder': 'e.g. PROJ',
+    'header.jiraTestConnection': 'Test Connection',
+    'header.jiraTesting': 'Testing...',
+    'header.jiraConnected': 'Connected',
+    'header.jiraFailed': 'Connection failed',
+    'header.jiraTokenHint': 'Generate at id.atlassian.com > Security > API tokens',
+
     // Project Form
     'form.newProject': 'New Project',
     'form.projectName': 'Project Name',
@@ -254,10 +270,37 @@ const translations = {
     'pipeline.feedbackFull': 'Feedback',
     'pipeline.documentationFull': 'Documentation',
 
+    // Jira Panel
+    'jira.title': 'Jira Issues',
+    'jira.search': 'Search issues...',
+    'jira.allStatuses': 'All Statuses',
+    'jira.refresh': 'Refresh',
+    'jira.import': 'Import as Task',
+    'jira.importing': 'Importing...',
+    'jira.imported': 'Imported!',
+    'jira.noIssues': 'No issues found',
+    'jira.noIssuesHint': 'Try changing the filter or search query.',
+    'jira.loadMore': 'Load More',
+    'jira.total': 'total',
+    'jira.transition': 'Change Status',
+    'jira.comment': 'Comment',
+    'jira.commentPlaceholder': 'Add a comment...',
+    'jira.commentSend': 'Send',
+    'jira.createIssue': 'Create Issue',
+    'jira.createSummary': 'Summary',
+    'jira.createDesc': 'Description',
+    'jira.createType': 'Issue Type',
+    'jira.creating': 'Creating...',
+    'jira.notConfigured': 'Jira is not configured. Enable it in project settings.',
+    'jira.assignee': 'Assignee',
+    'jira.unassigned': 'Unassigned',
+    'jira.updated': 'Updated',
+
     // Tabs
     'tabs.tasks': 'Tasks',
     'tabs.pipelines': 'Pipelines',
     'tabs.schedules': 'Schedules',
+    'tabs.jira': 'Jira',
 
     // Language
     'lang.toggle': 'KO',
@@ -315,6 +358,22 @@ const translations = {
     'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
     'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
     'header.gstackClaudeOnly': 'gstack \uC2A4\uD0AC\uC740 Claude CLI\uC5D0\uC11C\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4.',
+
+    // Jira Header
+    'header.jiraTitle': 'Jira \uC5F0\uB3D9',
+    'header.jiraBaseUrl': 'Jira URL',
+    'header.jiraBaseUrlPlaceholder': 'https://yoursite.atlassian.net',
+    'header.jiraEmail': '\uC774\uBA54\uC77C',
+    'header.jiraEmailPlaceholder': 'your@email.com',
+    'header.jiraApiToken': 'API \uD1A0\uD070',
+    'header.jiraApiTokenPlaceholder': 'Atlassian API \uD1A0\uD070',
+    'header.jiraProjectKey': '\uD504\uB85C\uC81D\uD2B8 \uD0A4',
+    'header.jiraProjectKeyPlaceholder': '\uC608: PROJ',
+    'header.jiraTestConnection': '\uC5F0\uACB0 \uD14C\uC2A4\uD2B8',
+    'header.jiraTesting': '\uD14C\uC2A4\uD2B8 \uC911...',
+    'header.jiraConnected': '\uC5F0\uACB0 \uC131\uACF5',
+    'header.jiraFailed': '\uC5F0\uACB0 \uC2E4\uD328',
+    'header.jiraTokenHint': 'id.atlassian.com > \uBCF4\uC548 > API \uD1A0\uD070\uC5D0\uC11C \uC0DD\uC131',
 
     // Project Form
     'form.newProject': '\uC0C8 \uD504\uB85C\uC81D\uD2B8',
@@ -513,10 +572,37 @@ const translations = {
     'pipeline.feedbackFull': '피드백 반영 (Feedback)',
     'pipeline.documentationFull': '문서화 (Documentation)',
 
+    // Jira Panel
+    'jira.title': 'Jira 이슈',
+    'jira.search': '이슈 검색...',
+    'jira.allStatuses': '모든 상태',
+    'jira.refresh': '새로고침',
+    'jira.import': '작업으로 가져오기',
+    'jira.importing': '가져오는 중...',
+    'jira.imported': '가져옴!',
+    'jira.noIssues': '이슈가 없습니다',
+    'jira.noIssuesHint': '필터나 검색어를 변경해보세요.',
+    'jira.loadMore': '더 보기',
+    'jira.total': '건',
+    'jira.transition': '상태 변경',
+    'jira.comment': '댓글',
+    'jira.commentPlaceholder': '댓글 입력...',
+    'jira.commentSend': '전송',
+    'jira.createIssue': '이슈 생성',
+    'jira.createSummary': '제목',
+    'jira.createDesc': '설명',
+    'jira.createType': '이슈 유형',
+    'jira.creating': '생성 중...',
+    'jira.notConfigured': 'Jira가 설정되지 않았습니다. 프로젝트 설정에서 활성화하세요.',
+    'jira.assignee': '담당자',
+    'jira.unassigned': '미배정',
+    'jira.updated': '업데이트',
+
     // Tabs
     'tabs.tasks': '작업',
     'tabs.pipelines': '파이프라인',
     'tabs.schedules': '스케줄',
+    'tabs.jira': 'Jira',
 
     // Language
     'lang.toggle': 'EN',

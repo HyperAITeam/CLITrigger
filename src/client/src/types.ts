@@ -10,6 +10,11 @@ export interface Project {
   cli_tool: string;
   gstack_enabled: number;
   gstack_skills: string | null;
+  jira_enabled: number;
+  jira_base_url: string | null;
+  jira_email: string | null;
+  jira_api_token: string | null;
+  jira_project_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -151,4 +156,25 @@ export interface TaskLog {
   log_type: 'info' | 'error' | 'output' | 'commit' | 'input';
   message: string;
   created_at: string;
+}
+
+export interface JiraIssue {
+  key: string;
+  fields: {
+    summary: string;
+    status: { name: string; statusCategory?: { colorName: string } };
+    assignee: { displayName: string; avatarUrls?: Record<string, string> } | null;
+    priority: { name: string; iconUrl?: string } | null;
+    issuetype: { name: string; iconUrl?: string };
+    created: string;
+    updated: string;
+    labels: string[];
+  };
+}
+
+export interface JiraSearchResult {
+  startAt: number;
+  maxResults: number;
+  total: number;
+  issues: JiraIssue[];
 }
