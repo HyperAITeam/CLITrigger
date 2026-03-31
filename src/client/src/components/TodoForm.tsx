@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
-import type { ImageMeta } from '../types';
+import type { ImageMeta, Todo } from '../types';
 import { getTodoImageUrl } from '../api/todos';
 
 export interface PendingImage {
@@ -12,17 +12,19 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[]) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
   initialCliTool?: string;
   initialCliModel?: string;
+  initialDependsOn?: string;
   projectCliTool?: string;
   projectCliModel?: string;
   existingImages?: ImageMeta[];
   todoId?: string;
   onDeleteImage?: (imageId: string) => void;
+  availableTodos?: Todo[];
 }
 
 let imageCounter = 0;
@@ -34,16 +36,19 @@ export default function TodoForm({
   initialDescription = '',
   initialCliTool,
   initialCliModel,
+  initialDependsOn,
   projectCliTool = 'claude',
   projectCliModel = '',
   existingImages = [],
   todoId,
   onDeleteImage,
+  availableTodos = [],
 }: TodoFormProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [cliTool, setCliTool] = useState<CliTool>((initialCliTool as CliTool) || (projectCliTool as CliTool) || 'claude');
   const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
+  const [dependsOn, setDependsOn] = useState(initialDependsOn ?? '');
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,7 +129,7 @@ export default function TodoForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined);
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -270,6 +275,32 @@ export default function TodoForm({
           </select>
         </div>
       </div>
+
+      {/* Dependency Selection */}
+      {availableTodos.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-warm-500 mb-1.5">
+            {t('todoForm.dependsOn')}
+          </label>
+          <select
+            value={dependsOn}
+            onChange={(e) => setDependsOn(e.target.value)}
+            className="input-field text-sm"
+          >
+            <option value="">{t('todoForm.noDependency')}</option>
+            {availableTodos.map((todo) => (
+              <option key={todo.id} value={todo.id}>
+                {todo.title} ({t(`status.${todo.status}` as 'status.pending')})
+              </option>
+            ))}
+          </select>
+          {dependsOn && (
+            <p className="text-[10px] text-warm-400 mt-1">
+              {t('todoForm.dependsOnHint')}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-3 justify-end">
         <button

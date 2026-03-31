@@ -10,11 +10,11 @@ interface TodoListProps {
   todos: Todo[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[]) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
@@ -70,8 +70,9 @@ export default function TodoList({
           <TodoForm
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
-            onSave={async (title, description, cliTool, cliModel, images) => {
-              await onAddTodo(title, description, cliTool, cliModel, images);
+            availableTodos={todos}
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}
@@ -90,6 +91,7 @@ export default function TodoList({
             <div key={todo.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
               <TodoItem
                 todo={todo}
+                allTodos={todos}
                 onStart={onStartTodo}
                 onStop={onStopTodo}
                 onDelete={onDeleteTodo}

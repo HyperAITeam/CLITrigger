@@ -7,14 +7,14 @@ export function getTodos(projectId: string): Promise<Todo[]> {
 
 export function createTodo(
   projectId: string,
-  data: { title: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string }
+  data: { title: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string }
 ): Promise<Todo> {
   return post(`/api/projects/${projectId}/todos`, data);
 }
 
 export function updateTodo(
   id: string,
-  data: { title?: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string }
+  data: { title?: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string | null }
 ): Promise<Todo> {
   return put(`/api/todos/${id}`, data);
 }

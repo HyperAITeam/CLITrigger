@@ -95,6 +95,7 @@ const translations = {
     'todo.cleanupFailed': 'Cleanup failed',
     'todo.retry': 'Retry from scratch: Cleans up previous worktree, clears logs, and re-runs the task from the beginning.',
     'todo.retryFailed': 'Retry failed',
+    'todo.dependsOn': 'Depends on',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -104,6 +105,9 @@ const translations = {
     'todoForm.addImage': 'Add Image',
     'todoForm.pasteHint': 'Ctrl+V to paste image',
     'todoForm.images': 'Images',
+    'todoForm.dependsOn': 'Depends On',
+    'todoForm.noDependency': 'None (independent task)',
+    'todoForm.dependsOnHint': 'This task will wait for the dependency to complete, then run in the same worktree.',
     'todoForm.cancel': 'Cancel',
     'todoForm.save': 'Save',
 
@@ -339,6 +343,7 @@ const translations = {
     'todo.cleanupFailed': '\uC815\uB9AC \uC2E4\uD328',
     'todo.retry': '처음부터 다시: 이전 워크트리를 정리하고, 로그를 삭제한 후 작업을 처음부터 다시 실행합니다.',
     'todo.retryFailed': '재시도 실패',
+    'todo.dependsOn': '\uc120\ud589 \uc791\uc5c5',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',
@@ -348,6 +353,9 @@ const translations = {
     'todoForm.addImage': '\uC774\uBBF8\uC9C0 \uCD94\uAC00',
     'todoForm.pasteHint': 'Ctrl+V\uB85C \uC774\uBBF8\uC9C0 \uBD99\uC5EC\uB123\uAE30',
     'todoForm.images': '\uC774\uBBF8\uC9C0',
+    'todoForm.dependsOn': '\uc120\ud589 \uc791\uc5c5',
+    'todoForm.noDependency': '\uc5c6\uc74c (\ub3c5\ub9bd \uc791\uc5c5)',
+    'todoForm.dependsOnHint': '\uc120\ud589 \uc791\uc5c5\uc774 \uc644\ub8cc\ub418\uba74 \uac19\uc740 \uc6cc\ud06c\ud2b8\ub9ac\uc5d0\uc11c \uc2e4\ud589\ub429\ub2c8\ub2e4.',
     'todoForm.cancel': '\uCDE8\uC18C',
     'todoForm.save': '\uC800\uC7A5',
 

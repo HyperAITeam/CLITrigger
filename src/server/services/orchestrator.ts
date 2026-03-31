@@ -55,8 +55,11 @@ export class Orchestrator {
       throw new Error(`Project already has ${running.length} running tasks (max ${maxConcurrent})`);
     }
 
+    // Filter out tasks whose dependency hasn't completed yet
+    const startable = pending.filter((t) => this.isDependencySatisfied(t, todos));
+
     const slotsAvailable = Math.max(0, maxConcurrent - running.length);
-    const todosToStart = pending.slice(0, slotsAvailable);
+    const todosToStart = startable.slice(0, slotsAvailable);
 
     for (const todo of todosToStart) {
       await this.startSingleTodo(todo.id, project.path, projectId);
@@ -139,17 +142,35 @@ export class Orchestrator {
     let prompt: string;
 
     if (isGitRepo) {
-      branchName = worktreeManager.sanitizeBranchName(todo.title);
-      try {
-        worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        queries.updateTodoStatus(todoId, 'failed');
-        queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
-        return;
+      // Check if this task depends on another and should reuse its worktree
+      let reusingWorktree = false;
+      if (todo.depends_on) {
+        const parentTodo = queries.getTodoById(todo.depends_on);
+        if (parentTodo && parentTodo.worktree_path && parentTodo.branch_name) {
+          // Reuse the parent task's worktree
+          worktreePath = parentTodo.worktree_path;
+          branchName = parentTodo.branch_name;
+          reusingWorktree = true;
+          queries.createTaskLog(todoId, 'output', `Reusing worktree from dependency task: "${parentTodo.title}" (branch: ${branchName})`);
+        }
       }
-      workDir = worktreePath;
-      prompt = `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
+
+      if (!reusingWorktree) {
+        branchName = worktreeManager.sanitizeBranchName(todo.title);
+        try {
+          worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.updateTodoStatus(todoId, 'failed');
+          queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
+          return;
+        }
+      }
+
+      workDir = worktreePath!;
+      prompt = reusingWorktree
+        ? `You are working in a git worktree that contains changes from a previous task. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`
+        : `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
 
       // Save worktree info to DB immediately so cleanup button is available on failure
       queries.updateTodo(todoId, { branch_name: branchName, worktree_path: worktreePath });
@@ -283,16 +304,28 @@ export class Orchestrator {
   /**
    * Start the next pending todo if there are available slots.
    */
+  /**
+   * Check if a task's dependency is satisfied (no depends_on, or depends_on task is completed).
+   */
+  private isDependencySatisfied(todo: queries.Todo, allTodos: queries.Todo[]): boolean {
+    if (!todo.depends_on) return true;
+    const parent = allTodos.find((t) => t.id === todo.depends_on);
+    return !!parent && parent.status === 'completed';
+  }
+
   private async startNextPending(projectId: string): Promise<void> {
     const todos = queries.getTodosByProjectId(projectId);
     const running = todos.filter((t) => t.status === 'running');
     const pending = todos.filter((t) => t.status === 'pending');
     const maxConcurrent = this.getMaxConcurrent(projectId);
 
-    if (running.length < maxConcurrent && pending.length > 0) {
+    // Filter to only tasks whose dependencies are satisfied
+    const startable = pending.filter((t) => this.isDependencySatisfied(t, todos));
+
+    if (running.length < maxConcurrent && startable.length > 0) {
       const project = queries.getProjectById(projectId);
       if (project) {
-        await this.startSingleTodo(pending[0].id, project.path, projectId);
+        await this.startSingleTodo(startable[0].id, project.path, projectId);
       }
     }
   }

@@ -14,13 +14,22 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    const { title, description, priority, cli_tool, cli_model } = req.body;
+    const { title, description, priority, cli_tool, cli_model, depends_on } = req.body;
     if (!title) {
       res.status(400).json({ error: 'title is required' });
       return;
     }
 
-    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model);
+    // Validate depends_on if provided
+    if (depends_on) {
+      const depTodo = getTodoById(depends_on);
+      if (!depTodo || depTodo.project_id !== projectId) {
+        res.status(400).json({ error: 'Invalid depends_on: task not found in this project' });
+        return;
+      }
+    }
+
+    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model, undefined, depends_on);
     res.status(201).json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -55,8 +64,8 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, priority, cli_tool, cli_model } = req.body;
-    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model });
+    const { title, description, priority, cli_tool, cli_model, depends_on } = req.body;
+    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model, depends_on });
     res.json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
