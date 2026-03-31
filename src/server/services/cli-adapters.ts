@@ -2,8 +2,7 @@ export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'streaming';
 
 const SUPPORTED_CLAUDE_MODELS = new Set(['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5']);
-const SUPPORTED_GEMINI_MODELS = new Set(['gemini-2.5-pro', 'gemini-2.5-flash']);
-const SUPPORTED_CODEX_MODELS = new Set(['o4-mini', 'o3']);
+const SUPPORTED_CODEX_MODELS = new Set(['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini']);
 
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
@@ -91,9 +90,8 @@ const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
   buildArgs({ mode, prompt, model, extraOptions }) {
-    const normalizedModel = normalizeModel(model, SUPPORTED_GEMINI_MODELS, 'Gemini');
+    // Gemini CLI does not support --model flag; always uses its default model
     const args = ['--sandbox=permissive'];
-    if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
