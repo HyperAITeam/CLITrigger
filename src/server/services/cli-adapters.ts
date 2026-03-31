@@ -100,13 +100,21 @@ const codexAdapter: CliAdapter = {
   displayName: 'Codex CLI',
   requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
+    if (mode === 'headless') {
+      // Use 'codex exec' subcommand for non-interactive headless execution
+      // This avoids the interactive trust directory prompt
+      const args = ['exec', '--full-auto'];
+      if (model) args.push('--model', model);
+      if (extraOptions) {
+        args.push(...sanitizeExtraOptions(extraOptions));
+      }
+      args.push(prompt);
+      return args;
+    }
     const args = ['--full-auto'];
     if (model) args.push('--model', model);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
-    }
-    if (mode === 'headless') {
-      args.push(prompt);
     }
     return args;
   },
