@@ -354,21 +354,24 @@ export interface Schedule {
   skip_if_running: number;
   last_run_at: string | null;
   next_run_at: string | null;
+  schedule_type: string;
+  run_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function createSchedule(
   projectId: string, title: string, description: string | undefined,
-  cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning = 1
+  cronExpression: string, cliTool?: string, cliModel?: string, skipIfRunning = 1,
+  scheduleType = 'recurring', runAt?: string
 ): Schedule {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO schedules (id, project_id, title, description, cron_expression, cli_tool, cli_model, skip_if_running, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, cronExpression, cliTool ?? null, cliModel ?? null, skipIfRunning, now, now);
+    `INSERT INTO schedules (id, project_id, title, description, cron_expression, cli_tool, cli_model, skip_if_running, schedule_type, run_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, cronExpression, cliTool ?? null, cliModel ?? null, skipIfRunning, scheduleType, runAt ?? null, now, now);
   return getScheduleById(id)!;
 }
 
@@ -387,7 +390,12 @@ export function getActiveSchedules(): Schedule[] {
   return db.prepare('SELECT * FROM schedules WHERE is_active = 1').all() as Schedule[];
 }
 
-export function updateSchedule(id: string, updates: Partial<Pick<Schedule, 'title' | 'description' | 'cron_expression' | 'cli_tool' | 'cli_model' | 'skip_if_running'>>): Schedule | undefined {
+export function getActiveOnceSchedules(): Schedule[] {
+  const db = getDatabase();
+  return db.prepare("SELECT * FROM schedules WHERE is_active = 1 AND schedule_type = 'once'").all() as Schedule[];
+}
+
+export function updateSchedule(id: string, updates: Partial<Pick<Schedule, 'title' | 'description' | 'cron_expression' | 'cli_tool' | 'cli_model' | 'skip_if_running' | 'schedule_type' | 'run_at'>>): Schedule | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -398,6 +406,8 @@ export function updateSchedule(id: string, updates: Partial<Pick<Schedule, 'titl
   if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
   if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
   if (updates.skip_if_running !== undefined) { fields.push('skip_if_running = ?'); values.push(updates.skip_if_running); }
+  if (updates.schedule_type !== undefined) { fields.push('schedule_type = ?'); values.push(updates.schedule_type); }
+  if (updates.run_at !== undefined) { fields.push('run_at = ?'); values.push(updates.run_at); }
 
   if (fields.length === 0) return getScheduleById(id);
 

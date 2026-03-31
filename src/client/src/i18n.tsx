@@ -95,6 +95,10 @@ const translations = {
     'todo.cleanupFailed': 'Cleanup failed',
     'todo.retry': 'Retry from scratch: Cleans up previous worktree, clears logs, and re-runs the task from the beginning.',
     'todo.retryFailed': 'Retry failed',
+    'todo.schedule': 'Schedule: Convert this task into a one-time scheduled run at a specific time.',
+    'todo.scheduleAt': 'Run at',
+    'todo.scheduling': 'Scheduling...',
+    'todo.confirmSchedule': 'Schedule',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -146,6 +150,10 @@ const translations = {
     'schedules.add': 'New Schedule',
     'schedules.empty': 'No schedules yet',
     'schedules.emptyHint': 'Create a schedule to automate recurring tasks.',
+    'schedule.type': 'Schedule Type',
+    'schedule.recurring': 'Recurring',
+    'schedule.once': 'One-time',
+    'schedule.runAtLabel': 'Run at',
     'schedule.cronExpression': 'Frequency',
     'schedule.cronHint': 'e.g. */30 * * * * (every 30min), 0 9 * * * (daily 9am), 0 9 * * 1-5 (weekdays 9am)',
     'cron.everyMinutes': 'Minutes',
@@ -339,6 +347,10 @@ const translations = {
     'todo.cleanupFailed': '\uC815\uB9AC \uC2E4\uD328',
     'todo.retry': '처음부터 다시: 이전 워크트리를 정리하고, 로그를 삭제한 후 작업을 처음부터 다시 실행합니다.',
     'todo.retryFailed': '재시도 실패',
+    'todo.schedule': '예약: 이 작업을 특정 시간에 1회 실행되도록 스케줄로 변환합니다.',
+    'todo.scheduleAt': '실행 시각',
+    'todo.scheduling': '예약 중...',
+    'todo.confirmSchedule': '예약',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',
@@ -390,6 +402,10 @@ const translations = {
     'schedules.add': '새 스케줄',
     'schedules.empty': '스케줄이 없습니다',
     'schedules.emptyHint': '반복 작업을 자동화할 스케줄을 만들어보세요.',
+    'schedule.type': '스케줄 유형',
+    'schedule.recurring': '반복',
+    'schedule.once': '1회',
+    'schedule.runAtLabel': '실행 시각',
     'schedule.cronExpression': '실행 주기',
     'schedule.cronHint': '예: */30 * * * * (30분마다), 0 9 * * * (매일 9시), 0 9 * * 1-5 (평일 9시)',
     'cron.everyMinutes': '분 간격',

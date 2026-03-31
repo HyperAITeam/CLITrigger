@@ -18,12 +18,13 @@ interface TodoItemProps {
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
+  onSchedule?: (todoId: string, runAt: string) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
 }
 
-export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onEvent, isInteractive, onSendInput }: TodoItemProps) {
+export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -40,9 +41,23 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
   const [retryError, setRetryError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<TaskResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [scheduleRunAt, setScheduleRunAt] = useState(() => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0, 0, 0);
+    const y = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const mi = String(now.getMinutes()).padStart(2, '0');
+    return `${y}-${mo}-${d}T${h}:${mi}`;
+  });
+  const [scheduling, setScheduling] = useState(false);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
+  const canSchedule = todo.status === 'pending' && !!onSchedule;
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
@@ -155,6 +170,19 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
       setRetryError(err instanceof Error ? err.message : 'Retry failed');
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!onSchedule || !scheduleRunAt) return;
+    setScheduling(true);
+    try {
+      await onSchedule(todo.id, new Date(scheduleRunAt).toISOString());
+      setShowSchedulePicker(false);
+    } catch {
+      // ignore
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -288,6 +316,17 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
               </button>
             </>
           )}
+          {canSchedule && (
+            <button
+              onClick={() => setShowSchedulePicker(!showSchedulePicker)}
+              className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+              title={t('todo.schedule')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+          )}
           {canStop && (
             <button
               onClick={() => onStop(todo.id)}
@@ -367,6 +406,35 @@ export default function TodoItem({ todo, onStart, onStop, onDelete, onEdit, onMe
           </button>
         </div>
       </div>
+
+      {/* Schedule Picker (inline, below header) */}
+      {showSchedulePicker && (
+        <div className="border-t border-blue-200 px-5 py-3 bg-blue-50/50 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-medium text-blue-600">{t('todo.scheduleAt')}</label>
+            <input
+              type="datetime-local"
+              value={scheduleRunAt}
+              onChange={(e) => setScheduleRunAt(e.target.value)}
+              className="bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+              min={new Date().toISOString().slice(0, 16)}
+            />
+            <button
+              onClick={handleSchedule}
+              disabled={scheduling || !scheduleRunAt}
+              className="btn-primary text-xs py-1.5 !bg-blue-500 hover:!bg-blue-600 disabled:opacity-30"
+            >
+              {scheduling ? t('todo.scheduling') : t('todo.confirmSchedule')}
+            </button>
+            <button
+              onClick={() => setShowSchedulePicker(false)}
+              className="btn-ghost text-xs py-1.5"
+            >
+              {t('scheduleForm.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Expanded content */}
       {expanded && (
