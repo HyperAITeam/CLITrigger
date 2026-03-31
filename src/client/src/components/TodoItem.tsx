@@ -699,9 +699,6 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     {resultData.token_usage.num_turns != null && resultData.token_usage.num_turns > 1 && (
                       <span className="text-xs font-mono">{resultData.token_usage.num_turns} {t('result.turns')}</span>
                     )}
-                    {resultData.token_usage.total_cost !== null && (
-                      <span className="text-xs font-mono font-semibold">${resultData.token_usage.total_cost.toFixed(4)}</span>
-                    )}
                   </div>
                 )}
               </div>
