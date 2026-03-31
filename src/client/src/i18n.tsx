@@ -176,6 +176,10 @@ const translations = {
     'result.cacheTokens': 'cache',
     'result.turns': 'turns',
     'result.contextUsed': 'ctx',
+    'result.levelLight': 'Light',
+    'result.levelModerate': 'Moderate',
+    'result.levelHigh': 'High',
+    'result.levelHeavy': 'Heavy',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -491,6 +495,10 @@ const translations = {
     'result.cacheTokens': '캐시',
     'result.turns': '턴',
     'result.contextUsed': '사용',
+    'result.levelLight': '가벼움',
+    'result.levelModerate': '보통',
+    'result.levelHigh': '많음',
+    'result.levelHeavy': '과다',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
