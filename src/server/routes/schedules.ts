@@ -224,7 +224,7 @@ router.post('/schedules/:id/trigger', async (req: Request<{ id: string }>, res: 
   }
 });
 
-// POST /api/todos/:id/schedule - convert a pending todo into a one-time schedule
+// POST /api/todos/:id/schedule - convert a todo into a one-time schedule
 router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response) => {
   try {
     const todo = queries.getTodoById(req.params.id);
@@ -233,12 +233,12 @@ router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    if (todo.status !== 'pending') {
-      res.status(400).json({ error: 'Only pending tasks can be scheduled' });
+    if (todo.status !== 'pending' && todo.status !== 'failed' && todo.status !== 'stopped') {
+      res.status(400).json({ error: 'Only pending, failed, or stopped tasks can be scheduled' });
       return;
     }
 
-    const { run_at } = req.body;
+    const { run_at, keep_original } = req.body;
     if (!run_at) {
       res.status(400).json({ error: 'run_at is required' });
       return;
@@ -257,13 +257,15 @@ router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response)
       run_at
     );
 
-    // Delete the original todo since the schedule will create a new one when it fires
-    queries.deleteTodo(req.params.id);
+    let originalDeleted = false;
+    if (!keep_original) {
+      originalDeleted = queries.deleteTodo(req.params.id);
+    }
 
     // Register the one-time job
     scheduler.registerOnceJob(schedule);
 
-    res.status(201).json(schedule);
+    res.status(201).json({ schedule, original_deleted: originalDeleted });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

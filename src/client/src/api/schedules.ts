@@ -1,6 +1,11 @@
 import { get, post, put, del } from './client';
 import type { Schedule, ScheduleRun } from '../types';
 
+export interface ScheduleFromTodoResult {
+  schedule: Schedule;
+  original_deleted: boolean;
+}
+
 export function getSchedules(projectId: string): Promise<Schedule[]> {
   return get(`/api/projects/${projectId}/schedules`);
 }
@@ -19,8 +24,8 @@ export function updateSchedule(
   return put(`/api/schedules/${id}`, data);
 }
 
-export function scheduleFromTodo(todoId: string, runAt: string): Promise<Schedule> {
-  return post(`/api/todos/${todoId}/schedule`, { run_at: runAt });
+export function scheduleFromTodo(todoId: string, runAt: string, keepOriginal = false): Promise<ScheduleFromTodoResult> {
+  return post(`/api/todos/${todoId}/schedule`, { run_at: runAt, keep_original: keepOriginal });
 }
 
 export function deleteSchedule(id: string): Promise<void> {

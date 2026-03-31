@@ -139,12 +139,12 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
-  const handleScheduleTodo = useCallback(async (todoId: string, runAt: string) => {
-    const schedule = await schedulesApi.scheduleFromTodo(todoId, runAt);
-    // Remove the todo from the list (it was deleted server-side)
-    setTodos((prev) => prev.filter((t) => t.id !== todoId));
-    // Add the new schedule
-    setSchedules((prev) => [schedule, ...prev]);
+  const handleScheduleTodo = useCallback(async (todoId: string, runAt: string, keepOriginal?: boolean) => {
+    const result = await schedulesApi.scheduleFromTodo(todoId, runAt, keepOriginal);
+    if (result.original_deleted) {
+      setTodos((prev) => prev.filter((t) => t.id !== todoId));
+    }
+    setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
 
   const handleUpdateDependency = useCallback(async (todoId: string, dependsOnId: string | null) => {

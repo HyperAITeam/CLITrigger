@@ -20,7 +20,7 @@ interface TodoListProps {
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
-  onScheduleTodo?: (todoId: string, runAt: string) => Promise<void>;
+  onScheduleTodo?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;

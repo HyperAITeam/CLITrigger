@@ -19,7 +19,7 @@ interface TodoItemProps {
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
-  onSchedule?: (todoId: string, runAt: string) => Promise<void>;
+  onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
@@ -54,6 +54,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const [resultData, setResultData] = useState<TaskResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [keepOriginalOnSchedule, setKeepOriginalOnSchedule] = useState(false);
   const [scheduleRunAt, setScheduleRunAt] = useState(() => {
     const now = new Date();
     now.setHours(now.getHours() + 1);
@@ -69,7 +70,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
-  const canSchedule = todo.status === 'pending' && !!onSchedule;
+  const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
@@ -189,7 +190,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
     if (!onSchedule || !scheduleRunAt) return;
     setScheduling(true);
     try {
-      await onSchedule(todo.id, new Date(scheduleRunAt).toISOString());
+      await onSchedule(todo.id, new Date(scheduleRunAt).toISOString(), keepOriginalOnSchedule);
       setShowSchedulePicker(false);
     } catch {
       // ignore
@@ -511,7 +512,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
       {/* Schedule Picker (inline, below header) */}
       {showSchedulePicker && (
         <div className="border-t border-blue-200 px-5 py-3 bg-blue-50/50 animate-fade-in">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs font-medium text-blue-600">{t('todo.scheduleAt')}</label>
             <input
               type="datetime-local"
@@ -533,6 +534,15 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
             >
               {t('scheduleForm.cancel')}
             </button>
+            <label className="flex items-center gap-2 text-xs text-blue-700">
+              <input
+                type="checkbox"
+                checked={keepOriginalOnSchedule}
+                onChange={(e) => setKeepOriginalOnSchedule(e.target.checked)}
+                className="rounded border-blue-300 text-blue-500 focus:ring-blue-400"
+              />
+              {t('todo.scheduleKeepOriginal')}
+            </label>
           </div>
         </div>
       )}

@@ -117,6 +117,7 @@ const translations = {
     'todo.scheduleAt': 'Run at',
     'todo.scheduling': 'Scheduling...',
     'todo.confirmSchedule': 'Schedule',
+    'todo.scheduleKeepOriginal': 'Keep original task',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -441,6 +442,7 @@ const translations = {
     'todo.scheduleAt': '실행 시각',
     'todo.scheduling': '예약 중...',
     'todo.confirmSchedule': '예약',
+    'todo.scheduleKeepOriginal': '원본 작업 유지',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',
