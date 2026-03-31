@@ -1,6 +1,10 @@
 export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'streaming';
 
+const SUPPORTED_CLAUDE_MODELS = new Set(['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5']);
+const SUPPORTED_GEMINI_MODELS = new Set(['gemini-2.5-pro', 'gemini-2.5-flash']);
+const SUPPORTED_CODEX_MODELS = new Set(['o4-mini', 'o3']);
+
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
 
@@ -32,6 +36,13 @@ export function sanitizeExtraOptions(extraOptions: string): string[] {
   return sanitized;
 }
 
+function normalizeModel(model: string | undefined, supported: Set<string>, toolName: string): string | undefined {
+  if (!model) return undefined;
+  if (supported.has(model)) return model;
+  console.warn(`Unsupported ${toolName} model "${model}" ignored; falling back to ${toolName} default model.`);
+  return undefined;
+}
+
 export interface CliAdapter {
   /** Executable command name */
   command: string;
@@ -58,8 +69,9 @@ const claudeAdapter: CliAdapter = {
   displayName: 'Claude CLI',
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
+    const normalizedModel = normalizeModel(model, SUPPORTED_CLAUDE_MODELS, 'Claude');
     const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json', '--verbose'];
-    if (model) args.push('--model', model);
+    if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
@@ -79,8 +91,9 @@ const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
   buildArgs({ mode, prompt, model, extraOptions }) {
+    const normalizedModel = normalizeModel(model, SUPPORTED_GEMINI_MODELS, 'Gemini');
     const args = ['--sandbox=permissive'];
-    if (model) args.push('--model', model);
+    if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
@@ -100,11 +113,12 @@ const codexAdapter: CliAdapter = {
   displayName: 'Codex CLI',
   requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
+    const normalizedModel = normalizeModel(model, SUPPORTED_CODEX_MODELS, 'Codex');
     if (mode === 'headless') {
       // Use 'codex exec' subcommand for non-interactive headless execution
       // This avoids the interactive trust directory prompt
       const args = ['exec', '--full-auto'];
-      if (model) args.push('--model', model);
+      if (normalizedModel) args.push('--model', normalizedModel);
       if (extraOptions) {
         args.push(...sanitizeExtraOptions(extraOptions));
       }
@@ -112,7 +126,7 @@ const codexAdapter: CliAdapter = {
       return args;
     }
     const args = ['--full-auto'];
-    if (model) args.push('--model', model);
+    if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }

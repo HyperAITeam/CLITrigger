@@ -33,7 +33,6 @@ export const CLI_TOOLS: CliToolConfig[] = [
       { value: '', label: 'Default' },
       { value: 'o4-mini', label: 'o4-mini' },
       { value: 'o3', label: 'o3' },
-      { value: 'gpt-4.1', label: 'GPT-4.1' },
     ],
   },
 ];
