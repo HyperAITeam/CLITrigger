@@ -709,14 +709,17 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       {totalInput > 0 && (
-                        <span className="text-xs font-mono">{formatTokenCount(totalInput)} {t('result.inputTokens')}</span>
+                        <span className="text-xs font-mono">{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>
                       )}
+                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-purple-300">·</span>}
                       {tu.output_tokens !== null && (
-                        <span className="text-xs font-mono">{formatTokenCount(tu.output_tokens)} {t('result.outputTokens')}</span>
+                        <span className="text-xs font-mono">{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>
                       )}
+                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-purple-300">·</span>}
                       {tu.num_turns != null && tu.num_turns > 1 && (
-                        <span className="text-xs font-mono">{tu.num_turns} {t('result.turns')}</span>
+                        <span className="text-xs font-mono">{tu.num_turns}{t('result.turns')}</span>
                       )}
+                      <span className="text-xs text-purple-300">·</span>
                       <span className={`text-xs font-mono ${levelColor}`}>{levelLabel}</span>
                     </div>
                   );
