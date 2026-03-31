@@ -129,8 +129,9 @@ export class LogStreamer {
 
   /**
    * Attach to a Claude CLI process with stream-json output.
-   * All structured JSON output comes via stderr. stdout is typically empty.
-   * Parses JSON events to extract log content and token usage.
+   * JSON lines may come via stdout or stderr depending on environment
+   * (shell: true on Windows can redirect stderr to stdout).
+   * Both streams are parsed as JSON lines.
    */
   streamJsonToDb(todoId: string, stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream): void {
     const commitPattern = /commit\s+[0-9a-f]{7,40}/i;
@@ -145,47 +146,27 @@ export class LogStreamer {
     stdout.setEncoding('utf8' as BufferEncoding);
     stderr.setEncoding('utf8' as BufferEncoding);
 
-    // stdout: typically empty for Claude stream-json, but handle gracefully
-    let stdoutBuffer = '';
-    stdout.on('data', (chunk: string) => {
-      stdoutBuffer += chunk;
-      const lines = stdoutBuffer.split('\n');
-      stdoutBuffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          queries.createTaskLog(todoId, 'output', line.trim());
-          broadcaster.broadcast({ type: 'todo:log', todoId, message: line.trim(), logType: 'output' });
-        } catch { /* ignore */ }
-      }
-    });
-    stdout.on('end', () => {
-      if (stdoutBuffer.trim()) {
-        try {
-          queries.createTaskLog(todoId, 'output', stdoutBuffer.trim());
-          broadcaster.broadcast({ type: 'todo:log', todoId, message: stdoutBuffer.trim(), logType: 'output' });
-        } catch { /* ignore */ }
-      }
-    });
+    // Helper to wire up JSON line parsing on a stream
+    const attachJsonParser = (stream: NodeJS.ReadableStream) => {
+      let buffer = '';
+      stream.on('data', (chunk: string) => {
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          this.processJsonLine(todoId, line.trim(), commitPattern);
+        }
+      });
+      stream.on('end', () => {
+        if (buffer.trim()) {
+          this.processJsonLine(todoId, buffer.trim(), commitPattern);
+        }
+      });
+    };
 
-    // stderr: JSON lines from Claude CLI stream-json
-    let stderrBuffer = '';
-    stderr.on('data', (chunk: string) => {
-      stderrBuffer += chunk;
-      const lines = stderrBuffer.split('\n');
-      stderrBuffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        this.processJsonLine(todoId, line.trim(), commitPattern);
-      }
-    });
-
-    stderr.on('end', () => {
-      if (stderrBuffer.trim()) {
-        this.processJsonLine(todoId, stderrBuffer.trim(), commitPattern);
-      }
-    });
+    attachJsonParser(stdout);
+    attachJsonParser(stderr);
   }
 
   /**
