@@ -42,6 +42,7 @@ export interface Todo {
   cli_model: string | null;
   images: string | null;
   depends_on: string | null;
+  max_turns: number | null;
   created_at: string;
   updated_at: string;
 }

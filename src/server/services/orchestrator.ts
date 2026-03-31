@@ -222,13 +222,14 @@ export class Orchestrator {
     // Determine model: task-level overrides project-level
     const claudeModel = todo.cli_model || project.claude_model || undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
+    const maxTurns = todo.max_turns ?? undefined;
     const adapter = getAdapter(cliTool);
 
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool);
+      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns);
       pid = result.pid;
       exitPromise = result.exitPromise;
 

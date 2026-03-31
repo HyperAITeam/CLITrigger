@@ -89,18 +89,19 @@ export interface Todo {
   schedule_id: string | null;
   images: string | null;
   depends_on: string | null;
+  max_turns: number | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string): Todo {
+export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number): Todo {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, now, now);
+    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, now, now);
   return getTodoById(id)!;
 }
 
@@ -114,7 +115,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -129,6 +130,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
   if (updates.images !== undefined) { fields.push('images = ?'); values.push(updates.images); }
   if (updates.depends_on !== undefined) { fields.push('depends_on = ?'); values.push(updates.depends_on); }
+  if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
 
   if (fields.length === 0) return getTodoById(id);
 

@@ -12,13 +12,14 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
   initialCliTool?: string;
   initialCliModel?: string;
   initialDependsOn?: string;
+  initialMaxTurns?: number;
   projectCliTool?: string;
   projectCliModel?: string;
   existingImages?: ImageMeta[];
@@ -37,6 +38,7 @@ export default function TodoForm({
   initialCliTool,
   initialCliModel,
   initialDependsOn,
+  initialMaxTurns,
   projectCliTool = 'claude',
   projectCliModel = '',
   existingImages = [],
@@ -49,6 +51,7 @@ export default function TodoForm({
   const [cliTool, setCliTool] = useState<CliTool>((initialCliTool as CliTool) || (projectCliTool as CliTool) || 'claude');
   const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
   const [dependsOn, setDependsOn] = useState(initialDependsOn ?? '');
+  const [maxTurns, setMaxTurns] = useState(initialMaxTurns?.toString() ?? '');
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -129,7 +132,8 @@ export default function TodoForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined);
+    const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -275,6 +279,27 @@ export default function TodoForm({
           </select>
         </div>
       </div>
+
+      {/* Max Turns */}
+      {cliTool === 'claude' && (
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-warm-500 mb-1.5">
+            {t('todoForm.maxTurns')}
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="500"
+            placeholder={t('todoForm.maxTurnsPlaceholder')}
+            value={maxTurns}
+            onChange={(e) => setMaxTurns(e.target.value)}
+            className="input-field text-sm w-32"
+          />
+          <p className="text-[10px] text-warm-400 mt-1">
+            {t('todoForm.maxTurnsHint')}
+          </p>
+        </div>
+      )}
 
       {/* Dependency Selection */}
       {availableTodos.length > 0 && (

@@ -38,7 +38,7 @@ export interface CliAdapter {
   /** Display name for logs */
   displayName: string;
   /** Build the args array for spawning */
-  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string }): string[];
+  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number }): string[];
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
@@ -47,12 +47,17 @@ export interface CliAdapter {
   requiresTty?: boolean;
 }
 
+const TASK_COMPLETION_SUFFIX = `
+
+IMPORTANT: Once the task is complete, stop immediately. Do not perform additional refactoring, optimization, testing, or verification beyond what was explicitly requested. Do not review your own changes or add improvements that were not part of the original task.`;
+
 const claudeAdapter: CliAdapter = {
   command: 'claude',
   displayName: 'Claude CLI',
-  buildArgs({ mode, prompt, model, extraOptions }) {
+  buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
     const args = ['--dangerously-skip-permissions'];
     if (model) args.push('--model', model);
+    if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
@@ -63,7 +68,7 @@ const claudeAdapter: CliAdapter = {
     return true;
   },
   formatStdinPrompt(prompt) {
-    return prompt + '\n';
+    return prompt + TASK_COMPLETION_SUFFIX + '\n';
   },
 };
 
