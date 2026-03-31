@@ -684,10 +684,24 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                 {resultData.token_usage && (() => {
                   const tu = resultData.token_usage;
                   const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
-                  const totalTokens = totalInput + (tu.output_tokens ?? 0);
-                  const ctxPct = tu.context_window && tu.context_window > 0
-                    ? Math.round((totalTokens / tu.context_window) * 100)
-                    : null;
+                  const totalAll = totalInput + (tu.output_tokens ?? 0);
+
+                  // Usage level label based on total tokens
+                  let levelLabel: string;
+                  let levelColor: string;
+                  if (totalAll >= 500000) {
+                    levelLabel = t('result.levelHeavy');
+                    levelColor = 'text-status-error font-semibold';
+                  } else if (totalAll >= 200000) {
+                    levelLabel = t('result.levelHigh');
+                    levelColor = 'text-orange-600 font-semibold';
+                  } else if (totalAll >= 50000) {
+                    levelLabel = t('result.levelModerate');
+                    levelColor = 'text-amber-600';
+                  } else {
+                    levelLabel = t('result.levelLight');
+                    levelColor = 'text-purple-500';
+                  }
 
                   return (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
@@ -695,19 +709,18 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       {totalInput > 0 && (
-                        <span className="text-xs font-mono">{formatTokenCount(totalInput)} {t('result.inputTokens')}</span>
+                        <span className="text-xs font-mono">{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>
                       )}
+                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-purple-300">·</span>}
                       {tu.output_tokens !== null && (
-                        <span className="text-xs font-mono">{formatTokenCount(tu.output_tokens)} {t('result.outputTokens')}</span>
+                        <span className="text-xs font-mono">{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>
                       )}
+                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-purple-300">·</span>}
                       {tu.num_turns != null && tu.num_turns > 1 && (
-                        <span className="text-xs font-mono">{tu.num_turns} {t('result.turns')}</span>
+                        <span className="text-xs font-mono">{tu.num_turns}{t('result.turns')}</span>
                       )}
-                      {ctxPct !== null && (
-                        <span className={`text-xs font-mono font-semibold ${ctxPct >= 80 ? 'text-status-error' : ctxPct >= 50 ? 'text-amber-600' : 'text-purple-500'}`}>
-                          {ctxPct}% {t('result.contextUsed')}
-                        </span>
-                      )}
+                      <span className="text-xs text-purple-300">·</span>
+                      <span className={`text-xs font-mono ${levelColor}`}>{levelLabel}</span>
                     </div>
                   );
                 })()}

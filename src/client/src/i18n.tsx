@@ -55,6 +55,7 @@ const translations = {
     'header.gstackTitle': 'gstack Skills',
     'header.gstackEnabled': 'Enable gstack skill injection',
     'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
+    'header.usageLimit': 'Usage',
     'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
 
     // Jira Header
@@ -175,6 +176,10 @@ const translations = {
     'result.cacheTokens': 'cache',
     'result.turns': 'turns',
     'result.contextUsed': 'ctx',
+    'result.levelLight': 'Light',
+    'result.levelModerate': 'Moderate',
+    'result.levelHigh': 'High',
+    'result.levelHeavy': 'Heavy',
 
     // Log
     'log.awaiting': 'Awaiting output...',
@@ -369,6 +374,7 @@ const translations = {
     'header.gstackTitle': 'gstack \uC2A4\uD0AC',
     'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
     'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
+    'header.usageLimit': '사용량',
     'header.gstackClaudeOnly': 'gstack \uC2A4\uD0AC\uC740 Claude CLI\uC5D0\uC11C\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4.',
 
     // Jira Header
@@ -489,6 +495,10 @@ const translations = {
     'result.cacheTokens': '캐시',
     'result.turns': '턴',
     'result.contextUsed': '사용',
+    'result.levelLight': '가벼움',
+    'result.levelModerate': '보통',
+    'result.levelHigh': '많음',
+    'result.levelHeavy': '과다',
 
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
