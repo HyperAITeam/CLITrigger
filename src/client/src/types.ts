@@ -48,6 +48,8 @@ export interface Todo {
   images: string | null;
   depends_on: string | null;
   max_turns: number | null;
+  position_x: number | null;
+  position_y: number | null;
   created_at: string;
   updated_at: string;
 }

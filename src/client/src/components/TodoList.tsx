@@ -4,6 +4,7 @@ import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
+import TaskGraph from './TaskGraph';
 import { useI18n } from '../i18n';
 
 interface TodoListProps {
@@ -21,6 +22,7 @@ interface TodoListProps {
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onScheduleTodo?: (todoId: string, runAt: string) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
+  onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -54,6 +56,7 @@ export default function TodoList({
   onFixTodo,
   onScheduleTodo,
   onUpdateDependency,
+  onUpdatePosition,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -61,7 +64,15 @@ export default function TodoList({
   const [showForm, setShowForm] = useState(false);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>(() => {
+    try { return (localStorage.getItem('todoViewMode') as 'list' | 'graph') || 'list'; } catch { return 'list'; }
+  });
   const { t } = useI18n();
+
+  const handleViewModeChange = useCallback((mode: 'list' | 'graph') => {
+    setViewMode(mode);
+    try { localStorage.setItem('todoViewMode', mode); } catch { /* ignore */ }
+  }, []);
 
   const sortedTodos = [...todos].sort((a, b) => a.priority - b.priority);
 
@@ -103,23 +114,100 @@ export default function TodoList({
     return !wouldCreateCycle(todos, dragSourceId, targetId);
   }, [dragSourceId, todos]);
 
+  if (viewMode === 'graph') {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-sm font-semibold text-warm-600 uppercase tracking-wider">
+            {t('todos.title')}
+          </h2>
+          <div className="flex items-center gap-2">
+            {/* View mode toggle */}
+            <div className="flex items-center bg-warm-100 rounded-lg p-0.5">
+              <button
+                onClick={() => handleViewModeChange('list')}
+                className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
+                title={t('graph.listView')}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <button
+                onClick={() => handleViewModeChange('graph')}
+                className="p-1.5 rounded-md transition-colors bg-white shadow-sm text-accent-gold"
+                title={t('graph.graphView')}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <TaskGraph
+          todos={todos}
+          projectCliTool={projectCliTool}
+          projectCliModel={projectCliModel}
+          onAddTodo={onAddTodo}
+          onStartTodo={onStartTodo}
+          onStopTodo={onStopTodo}
+          onDeleteTodo={onDeleteTodo}
+          onEditTodo={onEditTodo}
+          onMergeTodo={onMergeTodo}
+          onCleanupTodo={onCleanupTodo}
+          onRetryTodo={onRetryTodo}
+          onFixTodo={onFixTodo}
+          onUpdateDependency={onUpdateDependency}
+          onUpdatePosition={onUpdatePosition}
+          onEvent={onEvent}
+          onSendInput={onSendInput}
+          interactiveTodos={interactiveTodos}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-sm font-semibold text-warm-600 uppercase tracking-wider">
           {t('todos.title')}
         </h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary text-xs py-2"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            {t('todos.add')}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-warm-100 rounded-lg p-0.5">
+            <button
+              onClick={() => handleViewModeChange('list')}
+              className="p-1.5 rounded-md transition-colors bg-white shadow-sm text-accent-gold"
+              title={t('graph.listView')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              onClick={() => handleViewModeChange('graph')}
+              className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
+              title={t('graph.graphView')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+              </svg>
+            </button>
+          </div>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn-primary text-xs py-2"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              {t('todos.add')}
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (

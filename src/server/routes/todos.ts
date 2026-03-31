@@ -65,9 +65,9 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns } = req.body;
+    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns, position_x, position_y } = req.body;
     const parsedMaxTurns = max_turns !== undefined ? (max_turns != null ? parseInt(max_turns, 10) || null : null) : undefined;
-    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model, depends_on, ...(parsedMaxTurns !== undefined ? { max_turns: parsedMaxTurns } : {}) });
+    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model, depends_on, position_x, position_y, ...(parsedMaxTurns !== undefined ? { max_turns: parsedMaxTurns } : {}) });
     res.json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

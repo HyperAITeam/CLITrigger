@@ -140,6 +140,11 @@ const translations = {
     'dnd.removeDep': 'Remove dependency',
     'dnd.cyclicWarning': 'Cannot link: circular dependency',
 
+    // Graph view
+    'graph.autoLayout': 'Auto Layout',
+    'graph.listView': 'List View',
+    'graph.graphView': 'Graph View',
+
     // Status
     'status.pending': 'Idle',
     'status.running': 'Running',
@@ -458,6 +463,11 @@ const translations = {
     'dnd.dropHint': '\uc774 \uc791\uc5c5 \uc774\ud6c4\uc5d0 \uc2e4\ud589',
     'dnd.removeDep': '\uc758\uc874\uc131 \uc81c\uac70',
     'dnd.cyclicWarning': '\uc21c\ud658 \uc758\uc874\uc131\uc73c\ub85c \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4',
+
+    // Graph view
+    'graph.autoLayout': '\uc790\ub3d9 \uc815\ub82c',
+    'graph.listView': '\ub9ac\uc2a4\ud2b8 \ubcf4\uae30',
+    'graph.graphView': '\uadf8\ub798\ud504 \ubcf4\uae30',
 
     // Status
     'status.pending': '\uB300\uAE30',

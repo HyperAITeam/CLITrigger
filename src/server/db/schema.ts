@@ -120,6 +120,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'depends_on', definition: 'TEXT' },
     { table: 'todos', column: 'max_turns', definition: 'INTEGER' },
     { table: 'todos', column: 'token_usage', definition: 'TEXT' },
+    { table: 'todos', column: 'position_x', definition: 'REAL' },
+    { table: 'todos', column: 'position_y', definition: 'REAL' },
     { table: 'schedules', column: 'schedule_type', definition: "TEXT DEFAULT 'recurring'" },
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
   ];

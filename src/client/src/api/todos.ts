@@ -14,7 +14,7 @@ export function createTodo(
 
 export function updateTodo(
   id: string,
-  data: { title?: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string | null; max_turns?: number | null }
+  data: { title?: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string | null; max_turns?: number | null; position_x?: number; position_y?: number }
 ): Promise<Todo> {
   return put(`/api/todos/${id}`, data);
 }
