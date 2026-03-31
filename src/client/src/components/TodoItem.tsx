@@ -692,10 +692,10 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                   if (totalAll >= 500000) {
                     levelLabel = t('result.levelHeavy');
                     levelColor = 'text-status-error font-semibold';
-                  } else if (totalAll >= 200000) {
+                  } else if (totalAll >= 300000) {
                     levelLabel = t('result.levelHigh');
                     levelColor = 'text-orange-600 font-semibold';
-                  } else if (totalAll >= 50000) {
+                  } else if (totalAll >= 100000) {
                     levelLabel = t('result.levelModerate');
                     levelColor = 'text-amber-600';
                   } else {
