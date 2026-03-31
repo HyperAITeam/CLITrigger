@@ -36,3 +36,5 @@ export function getProjectStatus(id: string): Promise<{ running: number; complet
 export function checkGitStatus(id: string): Promise<Project> {
   return post(`/api/projects/${id}/check-git`);
 }
+
+
