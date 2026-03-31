@@ -45,6 +45,8 @@ export interface CliAdapter {
   formatStdinPrompt(prompt: string): string;
   /** Whether this CLI requires a TTY (pseudo-terminal) to run */
   requiresTty?: boolean;
+  /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
+  outputFormat?: 'text' | 'stream-json';
 }
 
 const TASK_COMPLETION_SUFFIX = `
@@ -54,14 +56,15 @@ IMPORTANT: Once the task is complete, stop immediately. Do not perform additiona
 const claudeAdapter: CliAdapter = {
   command: 'claude',
   displayName: 'Claude CLI',
+  outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
-    const args = ['--dangerously-skip-permissions'];
+    const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json', '--verbose'];
     if (model) args.push('--model', model);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
-    // Headless: prompt is delivered via stdin pipe (avoids shell escaping issues with newlines)
+    // Prompt is delivered via stdin pipe (avoids shell escaping issues with newlines)
     return args;
   },
   needsStdin(_mode) {
