@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Project, Todo, GstackSkill } from '../types';
 import * as projectsApi from '../api/projects';
+import type { ProjectTokenUsage } from '../api/projects';
 import * as gstackApi from '../api/gstack';
 import * as jiraApi from '../api/jira';
 import { useI18n } from '../i18n';
@@ -47,9 +48,20 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   });
   const [availableSkills, setAvailableSkills] = useState<GstackSkill[]>([]);
 
+  // Token usage state
+  const [tokenUsage, setTokenUsage] = useState<ProjectTokenUsage | null>(null);
+
   useEffect(() => {
     gstackApi.getAvailableSkills().then(setAvailableSkills).catch(() => {});
   }, []);
+
+  // Fetch project token usage when todos change
+  const completedCount = todos.filter(t => t.status === 'completed' || t.status === 'failed').length;
+  useEffect(() => {
+    if (completedCount > 0) {
+      projectsApi.getProjectTokenUsage(project.id).then(setTokenUsage).catch(() => {});
+    }
+  }, [project.id, completedCount]);
 
   const handleCliToolChange = (newTool: CliTool) => {
     setCliTool(newTool);
@@ -157,6 +169,38 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               <span className="badge bg-blue-100 text-blue-700">Jira</span>
             ) : null}
           </div>
+          {tokenUsage && tokenUsage.tasks_with_usage > 0 && (() => {
+            const totalInput = tokenUsage.input_tokens + tokenUsage.cache_read_input_tokens + tokenUsage.cache_creation_input_tokens;
+            const totalAll = totalInput + tokenUsage.output_tokens;
+            const fmt = (n: number) => {
+              if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+              if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+              return String(n);
+            };
+            return (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-600 text-xs font-mono">
+                  <svg className="h-3 w-3 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="font-semibold">{t('result.projectTokens')}</span>
+                  <span>{fmt(totalInput)} {t('result.inputTokens')}</span>
+                  <span className="text-purple-300">|</span>
+                  <span>{fmt(tokenUsage.output_tokens)} {t('result.outputTokens')}</span>
+                  <span className="text-purple-300">|</span>
+                  <span className="font-semibold">{fmt(totalAll)} {t('result.totalTokens')}</span>
+                  {tokenUsage.num_turns > 0 && (
+                    <>
+                      <span className="text-purple-300">|</span>
+                      <span>{tokenUsage.num_turns} {t('result.turns')}</span>
+                    </>
+                  )}
+                  <span className="text-purple-300">|</span>
+                  <span>{tokenUsage.tasks_with_usage} {t('result.tasksTracked')}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="flex gap-2 flex-shrink-0">

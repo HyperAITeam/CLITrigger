@@ -36,3 +36,17 @@ export function getProjectStatus(id: string): Promise<{ running: number; complet
 export function checkGitStatus(id: string): Promise<Project> {
   return post(`/api/projects/${id}/check-git`);
 }
+
+export interface ProjectTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  total_cost: number;
+  num_turns: number;
+  tasks_with_usage: number;
+}
+
+export function getProjectTokenUsage(id: string): Promise<ProjectTokenUsage> {
+  return get(`/api/projects/${id}/token-usage`);
+}
