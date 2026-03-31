@@ -186,47 +186,6 @@ router.get('/todos/:id/result', async (req: Request<{ id: string }>, res: Respon
   }
 });
 
-// GET /api/projects/:id/token-usage - get aggregated token usage for all tasks in a project
-router.get('/projects/:id/token-usage', (req: Request<{ id: string }>, res: Response) => {
-  try {
-    const project = getProjectById(req.params.id);
-    if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-
-    const todos = getTodosByProjectId(req.params.id);
-    const totals = {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-      total_cost: 0,
-      num_turns: 0,
-      tasks_with_usage: 0,
-    };
-
-    for (const todo of todos) {
-      if (!todo.token_usage) continue;
-      try {
-        const tu: TokenUsage = JSON.parse(todo.token_usage);
-        totals.input_tokens += tu.input_tokens ?? 0;
-        totals.output_tokens += tu.output_tokens ?? 0;
-        totals.cache_read_input_tokens += tu.cache_read_input_tokens ?? 0;
-        totals.cache_creation_input_tokens += tu.cache_creation_input_tokens ?? 0;
-        totals.total_cost += tu.total_cost ?? 0;
-        totals.num_turns += tu.num_turns ?? 0;
-        totals.tasks_with_usage++;
-      } catch { /* skip invalid JSON */ }
-    }
-
-    res.json(totals);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    res.status(500).json({ error: message });
-  }
-});
-
 // GET /api/projects/:id/status - get project status summary
 router.get('/projects/:id/status', (req: Request<{ id: string }>, res: Response) => {
   try {
