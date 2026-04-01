@@ -139,6 +139,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'position_x', definition: 'REAL' },
     { table: 'todos', column: 'position_y', definition: 'REAL' },
     { table: 'todos', column: 'merged_from_branch', definition: 'TEXT' },
+    { table: 'projects', column: 'cli_fallback_chain', definition: 'TEXT' },
+    { table: 'todos', column: 'context_switch_count', definition: 'INTEGER DEFAULT 0' },
     { table: 'schedules', column: 'schedule_type', definition: "TEXT DEFAULT 'recurring'" },
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
   ];

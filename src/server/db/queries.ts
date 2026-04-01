@@ -23,6 +23,7 @@ export interface Project {
   notion_enabled: number;
   notion_api_key: string | null;
   notion_database_id: string | null;
+  cli_fallback_chain: string | null;
   default_max_turns: number | null;
   created_at: string;
   updated_at: string;
@@ -49,7 +50,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'default_max_turns'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'cli_fallback_chain' | 'default_max_turns'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -72,6 +73,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.notion_enabled !== undefined) { fields.push('notion_enabled = ?'); values.push(updates.notion_enabled); }
   if (updates.notion_api_key !== undefined) { fields.push('notion_api_key = ?'); values.push(updates.notion_api_key); }
   if (updates.notion_database_id !== undefined) { fields.push('notion_database_id = ?'); values.push(updates.notion_database_id); }
+  if (updates.cli_fallback_chain !== undefined) { fields.push('cli_fallback_chain = ?'); values.push(updates.cli_fallback_chain); }
   if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
 
   if (fields.length === 0) return getProjectById(id);
@@ -143,6 +145,7 @@ export interface Todo {
   max_turns: number | null;
   token_usage: string | null;
   merged_from_branch: string | null;
+  context_switch_count: number;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -170,7 +173,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -190,6 +193,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.position_x !== undefined) { fields.push('position_x = ?'); values.push(updates.position_x); }
   if (updates.position_y !== undefined) { fields.push('position_y = ?'); values.push(updates.position_y); }
   if (updates.merged_from_branch !== undefined) { fields.push('merged_from_branch = ?'); values.push(updates.merged_from_branch); }
+  if (updates.context_switch_count !== undefined) { fields.push('context_switch_count = ?'); values.push(updates.context_switch_count); }
 
   if (fields.length === 0) return getTodoById(id);
 
@@ -598,6 +602,27 @@ export function isModelSupported(cliTool: string, modelValue: string): boolean {
   const db = getDatabase();
   const row = db.prepare('SELECT 1 FROM cli_models WHERE cli_tool = ? AND model_value = ?').get(cliTool, modelValue);
   return !!row;
+}
+
+// ── CLI Fallback ──
+
+export function getNextFallbackCli(projectId: string, currentCliTool: string): { cliTool: string; cliModel: null } | null {
+  const project = getProjectById(projectId);
+  if (!project?.cli_fallback_chain) return null;
+
+  let chain: string[];
+  try {
+    chain = JSON.parse(project.cli_fallback_chain);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(chain) || chain.length === 0) return null;
+
+  const currentIndex = chain.indexOf(currentCliTool);
+  if (currentIndex === -1 || currentIndex >= chain.length - 1) return null;
+
+  return { cliTool: chain[currentIndex + 1], cliModel: null };
 }
 
 // ── Cleanup ──

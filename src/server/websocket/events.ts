@@ -9,4 +9,5 @@ export type WSEvent =
   | { type: 'pipeline:commit'; pipelineId: string; phaseType: string; commitHash: string; message: string }
   | { type: 'schedule:status-changed'; scheduleId: string; isActive: boolean }
   | { type: 'schedule:run-triggered'; scheduleId: string; runId: string; todoId: string }
-  | { type: 'schedule:run-skipped'; scheduleId: string; runId: string; reason: string };
+  | { type: 'schedule:run-skipped'; scheduleId: string; runId: string; reason: string }
+  | { type: 'todo:context-switch'; todoId: string; fromCli: string; toCli: string; switchCount: number };
