@@ -13,11 +13,11 @@ interface TaskNodeDetailProps {
   allTodos: Todo[];
   onClose: () => void;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;

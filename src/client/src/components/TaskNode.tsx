@@ -10,12 +10,12 @@ export interface TaskNodeData {
   todo: Todo;
   allTodos: Todo[];
   selected: boolean;
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSelect: (todoId: string) => void;
 }

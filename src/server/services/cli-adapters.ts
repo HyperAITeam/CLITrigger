@@ -1,7 +1,7 @@
 import { isModelSupported } from '../db/queries.js';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
-export type CliMode = 'headless' | 'interactive' | 'streaming';
+export type CliMode = 'headless' | 'interactive' | 'streaming' | 'verbose';
 
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;

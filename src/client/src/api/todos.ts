@@ -23,7 +23,7 @@ export function deleteTodo(id: string): Promise<void> {
   return del(`/api/todos/${id}`);
 }
 
-export function startTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<Todo> {
+export function startTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' | 'verbose' = 'headless'): Promise<Todo> {
   return post(`/api/todos/${id}/start`, { mode });
 }
 
@@ -51,7 +51,7 @@ export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRem
   return post(`/api/todos/${id}/cleanup`);
 }
 
-export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' = 'headless'): Promise<Todo> {
+export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'streaming' | 'verbose' = 'headless'): Promise<Todo> {
   return post(`/api/todos/${id}/retry`, { mode });
 }
 

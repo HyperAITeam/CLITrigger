@@ -91,7 +91,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
+  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
     const updated = await todosApi.startTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))
@@ -133,7 +133,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
-  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming') => {
+  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
     const updated = await todosApi.retryTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))

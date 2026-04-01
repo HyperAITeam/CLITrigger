@@ -264,7 +264,7 @@ export class Orchestrator {
 
       // Start streaming logs to DB (Claude uses structured JSON, others use plain text)
       if (cliTool === 'claude') {
-        logStreamer.streamJsonToDb(todoId, result.stdout, result.stderr);
+        logStreamer.streamJsonToDb(todoId, result.stdout, result.stderr, mode === 'verbose');
       } else {
         logStreamer.streamToDb(todoId, result.stdout, result.stderr);
       }

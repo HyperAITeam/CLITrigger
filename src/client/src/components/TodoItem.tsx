@@ -11,13 +11,13 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 interface TodoItemProps {
   todo: Todo;
   allTodos?: Todo[];
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -168,7 +168,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
     }
   };
 
-  const handleRetry = async (mode: 'headless' | 'interactive' | 'streaming' = 'headless') => {
+  const handleRetry = async (mode: 'headless' | 'interactive' | 'streaming' | 'verbose' = 'headless') => {
     setRetrying(true);
     setRetryError(null);
     setLogs([]);
@@ -415,6 +415,16 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => onStart(todo.id, 'verbose')}
+                className="p-1.5 text-purple-500/60 hover:text-purple-500 hover:bg-purple-500/10 rounded-lg transition-colors"
+                title={t('todo.startVerbose')}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
               </button>
             </>

@@ -134,7 +134,7 @@ export class LogStreamer {
    * (shell: true on Windows can redirect stderr to stdout).
    * Both streams are parsed as JSON lines.
    */
-  streamJsonToDb(todoId: string, stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream): void {
+  streamJsonToDb(todoId: string, stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream, verbose: boolean = false): void {
     const commitPattern = /commit\s+[0-9a-f]{7,40}/i;
 
     // Initialize token usage accumulator
@@ -157,12 +157,12 @@ export class LogStreamer {
         buffer = lines.pop() || '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          this.processJsonLine(todoId, line.trim(), commitPattern);
+          this.processJsonLine(todoId, line.trim(), commitPattern, verbose);
         }
       });
       stream.on('end', () => {
         if (buffer.trim()) {
-          this.processJsonLine(todoId, buffer.trim(), commitPattern);
+          this.processJsonLine(todoId, buffer.trim(), commitPattern, verbose);
         }
       });
     };
@@ -174,7 +174,7 @@ export class LogStreamer {
   /**
    * Process a single JSON line from Claude CLI stream-json output.
    */
-  private processJsonLine(todoId: string, line: string, commitPattern: RegExp): void {
+  private processJsonLine(todoId: string, line: string, commitPattern: RegExp, verbose: boolean = false): void {
     let event: Record<string, unknown>;
     try {
       event = JSON.parse(line);
@@ -225,7 +225,16 @@ export class LogStreamer {
               } else if (block.type === 'tool_use') {
                 // Log tool usage for visibility
                 const toolName = block.name as string || 'unknown';
-                const logMsg = `[Tool: ${toolName}]`;
+                let logMsg = `[Tool: ${toolName}]`;
+                if (verbose && block.input) {
+                  const inputStr = JSON.stringify(block.input, null, 2);
+                  logMsg += ` input: ${inputStr.length > 2000 ? inputStr.slice(0, 2000) + '...' : inputStr}`;
+                }
+                queries.createTaskLog(todoId, 'output', logMsg);
+                broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
+              } else if (verbose && block.type === 'tool_result') {
+                const content = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+                const logMsg = `[Result] ${content.length > 2000 ? content.slice(0, 2000) + '...' : content}`;
                 queries.createTaskLog(todoId, 'output', logMsg);
                 broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
               }
@@ -261,8 +270,20 @@ export class LogStreamer {
           break;
         }
 
-        // system, rate_limit_event, etc. — skip (noise)
         default:
+          if (verbose) {
+            const eventType = String(event.type || 'unknown');
+            let logMsg: string;
+            if (eventType === 'system') {
+              const msg = typeof event.message === 'string' ? event.message : JSON.stringify(event);
+              logMsg = `[System] ${msg}`;
+            } else {
+              const summary = JSON.stringify(event);
+              logMsg = `[${eventType}] ${summary.length > 2000 ? summary.slice(0, 2000) + '...' : summary}`;
+            }
+            queries.createTaskLog(todoId, 'output', logMsg);
+            broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
+          }
           break;
       }
     } catch {

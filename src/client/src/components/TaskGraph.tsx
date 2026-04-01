@@ -84,13 +84,13 @@ interface TaskGraphProps {
   projectCliTool?: string;
   projectCliModel?: string;
   onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number) => Promise<void>;
-  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
-  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming') => Promise<void>;
+  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
