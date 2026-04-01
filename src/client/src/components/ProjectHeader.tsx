@@ -4,6 +4,7 @@ import * as projectsApi from '../api/projects';
 import * as gstackApi from '../api/gstack';
 import * as jiraApi from '../api/jira';
 import * as notionApi from '../api/notion';
+import * as githubApi from '../api/github';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
@@ -41,6 +42,14 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [jiraProjectKey, setJiraProjectKey] = useState(project.jira_project_key ?? '');
   const [jiraTesting, setJiraTesting] = useState(false);
   const [jiraTestResult, setJiraTestResult] = useState<'ok' | 'fail' | null>(null);
+
+  // GitHub state
+  const [githubEnabled, setGithubEnabled] = useState(!!project.github_enabled);
+  const [githubToken, setGithubToken] = useState(project.github_token ?? '');
+  const [githubOwner, setGithubOwner] = useState(project.github_owner ?? '');
+  const [githubRepo, setGithubRepo] = useState(project.github_repo ?? '');
+  const [githubTesting, setGithubTesting] = useState(false);
+  const [githubTestResult, setGithubTestResult] = useState<'ok' | 'fail' | null>(null);
 
   // Notion state
   const [notionEnabled, setNotionEnabled] = useState(!!project.notion_enabled);
@@ -113,6 +122,25 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     }
   };
 
+  const handleTestGitHub = async () => {
+    setGithubTesting(true);
+    setGithubTestResult(null);
+    try {
+      await projectsApi.updateProject(project.id, {
+        github_enabled: 1,
+        github_token: githubToken || null,
+        github_owner: githubOwner || null,
+        github_repo: githubRepo || null,
+      });
+      const result = await githubApi.testConnection(project.id);
+      setGithubTestResult(result.ok ? 'ok' : 'fail');
+    } catch {
+      setGithubTestResult('fail');
+    } finally {
+      setGithubTesting(false);
+    }
+  };
+
   const handleTestNotion = async () => {
     setNotionTesting(true);
     setNotionTestResult(null);
@@ -150,6 +178,10 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         notion_enabled: notionEnabled ? 1 : 0,
         notion_api_key: notionApiKey || null,
         notion_database_id: notionDatabaseId || null,
+        github_enabled: githubEnabled ? 1 : 0,
+        github_token: githubToken || null,
+        github_owner: githubOwner || null,
+        github_repo: githubRepo || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
       });
       onProjectUpdate(updated);
@@ -582,6 +614,88 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
                 <p className="text-xs text-warm-300 mt-2">
                   {t('header.notionTokenHint')}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* GitHub Integration Section */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-warm-700">
+                {t('header.githubTitle')}
+              </h4>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={githubEnabled}
+                  onChange={(e) => setGithubEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
+              </label>
+            </div>
+
+            {githubEnabled && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.githubToken')}
+                    </label>
+                    <input
+                      type="password"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder={t('header.githubTokenPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.githubOwner')}
+                    </label>
+                    <input
+                      type="text"
+                      value={githubOwner}
+                      onChange={(e) => setGithubOwner(e.target.value)}
+                      placeholder={t('header.githubOwnerPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.githubRepo')}
+                    </label>
+                    <input
+                      type="text"
+                      value={githubRepo}
+                      onChange={(e) => setGithubRepo(e.target.value)}
+                      placeholder={t('header.githubRepoPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestGitHub}
+                    disabled={githubTesting || !githubToken || !githubOwner || !githubRepo}
+                    className="btn-ghost text-xs"
+                  >
+                    {githubTesting ? t('header.githubTesting') : t('header.githubTestConnection')}
+                  </button>
+                  {githubTestResult === 'ok' && (
+                    <span className="text-xs text-status-success font-medium">{t('header.githubConnected')}</span>
+                  )}
+                  {githubTestResult === 'fail' && (
+                    <span className="text-xs text-status-error font-medium">{t('header.githubFailed')}</span>
+                  )}
+                </div>
+
+                <p className="text-xs text-warm-300 mt-2">
+                  {t('header.githubTokenHint')}
                 </p>
               </>
             )}

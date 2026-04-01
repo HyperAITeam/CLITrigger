@@ -22,6 +22,7 @@ import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
 import jiraRouter from './routes/jira.js';
 import notionRouter from './routes/notion.js';
+import githubRouter from './routes/github.js';
 import modelsRouter from './routes/models.js';
 import { scheduler } from './services/scheduler.js';
 
@@ -109,6 +110,7 @@ app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
 app.use('/api/jira', jiraRouter);
 app.use('/api/notion', notionRouter);
+app.use('/api/github', githubRouter);
 app.use('/api/tunnel', tunnelRouter);
 app.use('/api', modelsRouter);
 
