@@ -225,6 +225,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
 
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
+  const childTodo = allTodos.find(t => t.depends_on === todo.id && t.merged_from_branch);
 
   if (editing) {
     return (
@@ -604,6 +605,16 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
               {todo.worktree_path && (
                 <span className="badge bg-warm-200 text-warm-600 font-mono">
                   {t('todo.path')}: {todo.worktree_path}
+                </span>
+              )}
+              {todo.merged_from_branch && (
+                <span className="badge bg-purple-500/10 text-purple-600">
+                  {t('todo.mergedFrom')}: {todo.merged_from_branch}
+                </span>
+              )}
+              {!todo.worktree_path && childTodo && (
+                <span className="badge bg-amber-500/10 text-amber-600">
+                  {t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}
                 </span>
               )}
             </div>

@@ -124,6 +124,16 @@ export class WorktreeManager {
   }
 
   /**
+   * Squash merge a source branch into a target worktree's branch.
+   * This takes all commits from sourceBranch and applies them as a single commit on the target.
+   */
+  async squashMergeBranch(targetWorktreePath: string, sourceBranch: string): Promise<void> {
+    const git = simpleGit(targetWorktreePath);
+    await git.raw(['merge', '--squash', sourceBranch]);
+    await git.commit(`Squash merge from ${sourceBranch}`);
+  }
+
+  /**
    * List all worktrees for a project.
    */
   async listWorktrees(projectPath: string): Promise<Array<{ path: string; branch: string }>> {

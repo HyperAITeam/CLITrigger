@@ -142,38 +142,67 @@ export class Orchestrator {
     let prompt: string;
 
     if (isGitRepo) {
-      // Check if this task depends on another and should reuse its worktree
-      let reusingWorktree = false;
-      if (todo.depends_on) {
-        const parentTodo = queries.getTodoById(todo.depends_on);
-        if (parentTodo && parentTodo.worktree_path && parentTodo.branch_name) {
-          // Reuse the parent task's worktree
-          worktreePath = parentTodo.worktree_path;
-          branchName = parentTodo.branch_name;
-          reusingWorktree = true;
-          queries.createTaskLog(todoId, 'output', `Reusing worktree from dependency task: "${parentTodo.title}" (branch: ${branchName})`);
-        }
+      let inheritedFromBranch: string | null = null;
+
+      // Always create this task's own branch/worktree
+      branchName = worktreeManager.sanitizeBranchName(todo.title);
+      try {
+        worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        queries.updateTodoStatus(todoId, 'failed');
+        queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
+        return;
       }
 
-      if (!reusingWorktree) {
-        branchName = worktreeManager.sanitizeBranchName(todo.title);
-        try {
-          worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          queries.updateTodoStatus(todoId, 'failed');
-          queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
-          return;
+      // If this task depends on a completed parent, squash merge parent's branch into this task's branch
+      if (todo.depends_on) {
+        const parentTodo = queries.getTodoById(todo.depends_on);
+        if (parentTodo && parentTodo.branch_name && parentTodo.status === 'completed') {
+          const parentBranch = parentTodo.branch_name;
+          try {
+            await worktreeManager.squashMergeBranch(worktreePath, parentBranch);
+            inheritedFromBranch = parentBranch;
+            queries.createTaskLog(todoId, 'output', `Squash merged changes from parent task "${parentTodo.title}" (branch: ${parentBranch})`);
+
+            // Clean up parent's worktree and branch
+            if (parentTodo.worktree_path) {
+              try {
+                await worktreeManager.cleanupWorktree(projectPath, parentTodo.worktree_path, parentBranch);
+                queries.updateTodo(parentTodo.id, { worktree_path: null });
+                queries.createTaskLog(parentTodo.id, 'output', `Worktree and branch transferred to child task "${todo.title}" (branch: ${branchName})`);
+                // Broadcast parent update so UI reflects the cleanup
+                broadcaster.broadcast({
+                  type: 'todo:status-changed',
+                  todoId: parentTodo.id,
+                  status: parentTodo.status,
+                  worktree_path: null,
+                  branch_name: parentTodo.branch_name,
+                });
+              } catch (cleanupErr) {
+                const msg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+                queries.createTaskLog(todoId, 'error', `Failed to cleanup parent worktree: ${msg}`);
+              }
+            }
+          } catch (mergeErr) {
+            const msg = mergeErr instanceof Error ? mergeErr.message : String(mergeErr);
+            queries.createTaskLog(todoId, 'error', `Failed to squash merge from parent branch "${parentBranch}": ${msg}`);
+            // Continue anyway - child can still work independently
+          }
         }
       }
 
       workDir = worktreePath!;
-      prompt = reusingWorktree
-        ? `You are working in a git worktree that contains changes from a previous task. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`
+      prompt = inheritedFromBranch
+        ? `You are working in a git worktree that contains squash-merged changes from a previous task. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`
         : `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
 
       // Save worktree info to DB immediately so cleanup button is available on failure
-      queries.updateTodo(todoId, { branch_name: branchName, worktree_path: worktreePath });
+      queries.updateTodo(todoId, {
+        branch_name: branchName,
+        worktree_path: worktreePath,
+        ...(inheritedFromBranch ? { merged_from_branch: inheritedFromBranch } : {}),
+      });
     } else {
       workDir = projectPath;
       prompt = `Your task is:\n\n${todo.description || todo.title}\n\nComplete the task in the current directory.`;

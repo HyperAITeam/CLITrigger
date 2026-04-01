@@ -134,6 +134,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'token_usage', definition: 'TEXT' },
     { table: 'todos', column: 'position_x', definition: 'REAL' },
     { table: 'todos', column: 'position_y', definition: 'REAL' },
+    { table: 'todos', column: 'merged_from_branch', definition: 'TEXT' },
     { table: 'schedules', column: 'schedule_type', definition: "TEXT DEFAULT 'recurring'" },
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
   ];
