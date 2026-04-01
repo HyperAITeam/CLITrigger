@@ -303,7 +303,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
       <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
       {/* Header row */}
       <div
-        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
+        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 sm:py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         {/* Drag Handle */}
@@ -355,7 +355,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
+            className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -378,7 +378,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
+          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
             {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
           </span>
@@ -387,7 +387,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         <StatusBadge status={todo.status} />
 
         {/* Actions */}
-        <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5 ml-1 sm:ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {canStart && (
             <>
               <button
@@ -560,7 +560,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-warm-200 px-5 py-5 space-y-5 animate-fade-in bg-warm-50/50">
+        <div className="border-t border-warm-200 px-3 sm:px-5 py-4 sm:py-5 space-y-4 sm:space-y-5 animate-fade-in bg-warm-50/50">
           {/* Description */}
           <div>
             <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
@@ -838,7 +838,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                   <span className="text-status-error">-{diffData.stats.deletions}</span>
                 </div>
               </div>
-              <pre className="h-80 overflow-auto bg-warm-800 rounded-xl border border-warm-700 p-4 font-mono text-xs leading-relaxed">
+              <pre className="h-60 sm:h-80 overflow-auto bg-warm-800 rounded-xl border border-warm-700 p-3 sm:p-4 font-mono text-xs leading-relaxed">
                 {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
                   let className = 'text-warm-400';
                   if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';

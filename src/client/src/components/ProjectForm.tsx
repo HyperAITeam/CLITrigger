@@ -18,7 +18,7 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
       <div className="w-full max-w-md animate-scale-in">
         <div className="card p-8 shadow-elevated">
           <h2 className="text-lg font-semibold text-warm-800 mb-6">

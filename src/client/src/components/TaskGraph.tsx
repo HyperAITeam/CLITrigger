@@ -299,8 +299,8 @@ export default function TaskGraph({
 
       {/* Floating form */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
+          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <TodoForm
               projectCliTool={projectCliTool}
               projectCliModel={projectCliModel}

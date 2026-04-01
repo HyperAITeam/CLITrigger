@@ -229,7 +229,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="text-center py-20 text-warm-500 animate-fade-in">
           {t('detail.loading')}
         </div>
@@ -239,7 +239,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
 
   if (error && !pipeline) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="card p-16 text-center animate-fade-in">
           <p className="text-status-error font-medium text-lg">{error}</p>
           <Link to={`/projects/${id}`} className="mt-4 inline-block text-sm text-accent-gold hover:text-accent-goldDark transition-colors">
@@ -274,7 +274,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       {/* Navigation */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -410,7 +410,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
               <span className="text-status-error">-{diffData.stats.deletions}</span>
             </div>
           </div>
-          <pre className="h-80 overflow-auto bg-warm-50 border border-warm-200 rounded-xl p-4 font-mono text-xs leading-relaxed">
+          <pre className="h-60 sm:h-80 overflow-auto bg-warm-50 border border-warm-200 rounded-xl p-3 sm:p-4 font-mono text-xs leading-relaxed">
             {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
               let className = 'text-warm-500';
               if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-status-success';
