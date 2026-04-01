@@ -77,18 +77,18 @@ export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-10">
         <div>
-          <h1 className="text-2xl font-semibold text-warm-800">
+          <h1 className="text-xl sm:text-2xl font-semibold text-warm-800">
             {t('projects.title')}
           </h1>
           <p className="text-warm-500 text-sm mt-1">
             {t('projects.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button onClick={toggleLang} className="lang-toggle">
             {t('lang.toggle')}
           </button>
@@ -99,7 +99,7 @@ export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            {t('projects.new')}
+            <span className="hidden sm:inline">{t('projects.new')}</span>
           </button>
           <button
             onClick={onLogout}

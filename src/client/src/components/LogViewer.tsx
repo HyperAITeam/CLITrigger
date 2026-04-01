@@ -47,7 +47,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
     <div className="flex flex-col">
       <div
         ref={containerRef}
-        className="h-64 overflow-y-auto bg-warm-800 rounded-xl border border-warm-700 p-4 font-mono text-xs"
+        className="h-48 sm:h-64 overflow-y-auto overflow-x-auto bg-warm-800 rounded-xl border border-warm-700 p-3 sm:p-4 font-mono text-xs"
       >
         {logs.length === 0 ? (
           <p className="text-warm-500">{t('log.awaiting')}</p>
