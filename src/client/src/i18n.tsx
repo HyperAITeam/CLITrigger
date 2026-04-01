@@ -62,6 +62,11 @@ const translations = {
     'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
     'header.usageLimit': 'Usage',
     'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
+    'header.modelSettings': 'AI Model Settings',
+    'header.modelValue': 'Model ID',
+    'header.modelLabel': 'Display Name',
+    'header.addModel': 'Add',
+    'header.modelSettingsHint': 'Add custom models here. They will appear in model dropdowns across all projects.',
 
     // Jira Header
     'header.jiraTitle': 'Jira Integration',
@@ -462,7 +467,12 @@ const translations = {
     'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
     'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
     'header.usageLimit': '사용량',
-    'header.gstackClaudeOnly': 'gstack \uC2A4\uD0AC\uC740 Claude CLI\uC5D0\uC11C\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4.',
+    'header.gstackClaudeOnly': 'gstack 스킬은 Claude CLI에서만 사용 가능합니다.',
+    'header.modelSettings': 'AI 모델 설정',
+    'header.modelValue': '모델 ID',
+    'header.modelLabel': '표시 이름',
+    'header.addModel': '추가',
+    'header.modelSettingsHint': '커스텀 모델을 추가하세요. 모든 프로젝트의 모델 드롭다운에 표시됩니다.',
 
     // Jira Header
     'header.jiraTitle': 'Jira \uC5F0\uB3D9',
