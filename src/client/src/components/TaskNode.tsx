@@ -50,6 +50,7 @@ function TaskNodeComponent({ data }: NodeProps) {
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
 
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
+  const hasUnsatisfiedDep = !!parentTodo && parentTodo.status !== 'completed';
   const borderColor = borderColorMap[todo.status];
 
   return (
@@ -101,7 +102,7 @@ function TaskNodeComponent({ data }: NodeProps) {
           <button
             onClick={(e) => { e.stopPropagation(); onStart(todo.id, 'headless'); }}
             className="p-1 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded transition-colors"
-            title={t('todo.startHeadless')}
+            title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}
           >
             <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
           </button>
@@ -110,7 +111,7 @@ function TaskNodeComponent({ data }: NodeProps) {
           <button
             onClick={(e) => { e.stopPropagation(); onStart(todo.id, 'streaming'); }}
             className="p-1 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors"
-            title={t('todo.startStreaming')}
+            title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startStreaming')}
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

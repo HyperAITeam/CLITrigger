@@ -81,7 +81,8 @@ export class Orchestrator {
   }
 
   /**
-   * Start a single todo by ID.
+   * Start a single todo by ID. If the todo has unsatisfied dependencies,
+   * automatically starts the topmost ancestor first and auto-chains down.
    */
   async startTodo(todoId: string, mode: ClaudeMode = 'headless'): Promise<void> {
     const todo = queries.getTodoById(todoId);
@@ -99,7 +100,26 @@ export class Orchestrator {
       throw new Error('Project not found');
     }
 
-    await this.startSingleTodo(todoId, project.path, project.id, mode);
+    // Check dependency chain
+    const chain = this.getUnsatisfiedAncestorChain(todoId);
+
+    if (chain.length === 0) {
+      // No unsatisfied dependencies — start directly with autoChain
+      await this.startSingleTodo(todoId, project.path, project.id, mode, true);
+      return;
+    }
+
+    const root = chain[0];
+
+    if (root.status === 'running') {
+      // Root ancestor is already running — auto-chain will cascade on completion
+      queries.createTaskLog(todoId, 'output', `Waiting for parent task "${root.title}" to complete before starting.`);
+      return;
+    }
+
+    // Root ancestor needs starting (pending/failed/stopped)
+    queries.createTaskLog(todoId, 'output', `Starting parent task "${root.title}" first (dependency chain). Will auto-start when ready.`);
+    await this.startSingleTodo(root.id, project.path, project.id, mode, true);
   }
 
   /**
@@ -408,12 +428,10 @@ Complete the task in the current directory.`;
         }
       }
 
-      // Try to start the next pending todo for this project (only when auto-chaining)
-      if (autoChain) {
-        this.startNextPending(projectId).catch(() => {
-          // Ignore errors when starting next todo
-        });
-      }
+      // Always try to start next pending todo (e.g. dependent children waiting for this task)
+      this.startNextPending(projectId).catch(() => {
+        // Ignore errors when starting next todo
+      });
     }).catch(() => {
       // Fallback: ensure status is updated if exitPromise handler fails
       try {
@@ -480,6 +498,33 @@ Complete the task in the current directory.`;
     if (!todo.depends_on) return true;
     const parent = allTodos.find((t) => t.id === todo.depends_on);
     return !!parent && parent.status === 'completed';
+  }
+
+  /**
+   * Walk the depends_on chain upward and return unsatisfied ancestors (root-first order).
+   * Stops at a completed or running ancestor. Detects circular dependencies.
+   */
+  private getUnsatisfiedAncestorChain(todoId: string): queries.Todo[] {
+    const chain: queries.Todo[] = [];
+    const visited = new Set<string>();
+    let currentId: string | null = queries.getTodoById(todoId)?.depends_on ?? null;
+
+    while (currentId) {
+      if (visited.has(currentId)) {
+        throw new Error('Circular dependency detected');
+      }
+      visited.add(currentId);
+
+      const ancestor = queries.getTodoById(currentId);
+      if (!ancestor) break;
+      if (ancestor.status === 'completed') break;
+
+      chain.unshift(ancestor);
+      if (ancestor.status === 'running') break;
+      currentId = ancestor.depends_on;
+    }
+
+    return chain;
   }
 
   private async startNextPending(projectId: string): Promise<void> {
