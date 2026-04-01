@@ -111,13 +111,11 @@ const geminiAdapter: CliAdapter = {
 const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
-  requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
     const normalizedModel = normalizeModel(model, 'codex');
-    // Always use interactive-style invocation with --full-auto.
-    // Prompt is delivered via PTY stdin to avoid Windows cmd.exe shell
-    // interpretation of <, > characters in the prompt (e.g. <user_task> tags).
-    const args = ['--full-auto'];
+    // Use non-interactive execution so task prompts are not consumed by
+    // Codex's interactive shell or one-time setup/update menus.
+    const args = ['exec', '--full-auto'];
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));

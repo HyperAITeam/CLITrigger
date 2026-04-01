@@ -418,7 +418,7 @@ const translations = {
     'login.loading': '\uC778\uC99D \uC911...',
     'login.error': '\uC811\uADFC\uC774 \uAC70\uBD80\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
     'login.footer': '\uBCF4\uC548 \uC811\uC18D',
-    'login.disclaimer': '\uC774 \uC18C\uD504\uD2B8\uC6E8\uC5B4\uB294 \uC5B4\uB5A0\uD55C \uBCF4\uC99D \uC5C6\uC774 "\uD604\uC0C1\uD0DC \uADF8\uB300\uB85C" \uC81C\uACF5\uB429\uB2C8\uB2E4. \uC0AC\uC6A9\uC790\uB294 AI CLI \uC0AC\uC6A9\uC73C\uB85C \uBC1C\uC0DD\uD558\uB294 \uBE44\uC6A9, \uB370\uC774\uD130 \uC190\uC2E4, \uBD80\uC758\uC758 \uCF54\uB4DC \uBCC0\uACBD \uB4F1 \uC774 \uB3C4\uAD6C\uB97C \uD1B5\uD574 \uCDE8\uD55C \uBAA8\uB4E0 \uD589\uC704\uC5D0 \uB300\uD574 \uC804\uC801\uC73C\uB85C \uCC45\uC784\uC744 \uC9D1\uB2C8\uB2E4. \uAC1C\uBC1C\uC790\uB294 \uC774 \uC18C\uD504\uD2B8\uC6E8\uC5B4 \uC0AC\uC6A9\uC73C\uB85C \uC778\uD55C \uC9C1\uC811\u00B7\uAC04\uC811\u00B7\uD30C\uC0DD\uC801 \uC190\uD574\uC5D0 \uB300\uD574 \uC77C\uCCB4 \uCC45\uC784\uC744 \uC9C0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.',
+    'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
     // Project List
     'projects.title': 'CLITrigger',
