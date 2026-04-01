@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -200,6 +200,32 @@ export default function TaskGraph({
     }
   }, [onUpdatePosition]);
 
+  // Reconnect: drag edge endpoint to another node or drop on empty space to remove
+  const edgeReconnectSuccessful = useRef(true);
+
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false;
+  }, []);
+
+  const onReconnect = useCallback((oldEdge: Edge, newConnection: Connection) => {
+    edgeReconnectSuccessful.current = true;
+    if (!onUpdateDependency || !newConnection.source || !newConnection.target) return;
+    // Remove old dependency
+    onUpdateDependency(oldEdge.target, null);
+    // Set new dependency (if not a cycle)
+    if (!wouldCreateCycle(todos, newConnection.source, newConnection.target)) {
+      onUpdateDependency(newConnection.target, newConnection.source);
+    }
+  }, [todos, onUpdateDependency]);
+
+  const onReconnectEnd = useCallback((_event: MouseEvent | TouchEvent, edge: Edge) => {
+    if (!edgeReconnectSuccessful.current && onUpdateDependency) {
+      // Dropped on empty space → remove dependency
+      onUpdateDependency(edge.target, null);
+    }
+    edgeReconnectSuccessful.current = true;
+  }, [onUpdateDependency]);
+
   const handleAutoLayout = useCallback(() => {
     const { nodePositions } = getLayoutedElements(todos);
     setNodes(nds =>
@@ -229,6 +255,9 @@ export default function TaskGraph({
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onEdgesDelete={onEdgesDelete}
+          onReconnectStart={onReconnectStart}
+          onReconnect={onReconnect}
+          onReconnectEnd={onReconnectEnd}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           fitView
