@@ -71,8 +71,23 @@ export class ClaudeManager {
 
       // Create a Readable stream from pty data (PTY merges stdout+stderr)
       const stdoutStream = new Readable({ read() {} });
+      let stdinDelivered = false;
+      let exited = false;
+
       ptyProcess.onData((data) => {
-        stdoutStream.push(stripAnsi(data));
+        const clean = stripAnsi(data);
+        stdoutStream.push(clean);
+
+        // Detect CLI ready state and deliver prompt via stdin.
+        // Codex outputs '›' when ready for input. We also detect common
+        // prompt characters ($, >, %) as fallback for other PTY-based CLIs.
+        // A 10-second fallback timer ensures delivery even if detection fails.
+        if (stdinPrompt && !stdinDelivered && !exited) {
+          if (/[›>$%]\s*$/.test(clean)) {
+            stdinDelivered = true;
+            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+          }
+        }
       });
 
       // Empty stderr (PTY combines both streams)
@@ -87,6 +102,7 @@ export class ClaudeManager {
 
       const exitPromise = new Promise<number>((resolveExit) => {
         ptyProcess.onExit(({ exitCode }) => {
+          exited = true;
           stdoutStream.push(null);
           this.processes.delete(pid);
           this.stdinStreams.delete(pid);
@@ -94,11 +110,14 @@ export class ClaudeManager {
         });
       });
 
-      // Deliver prompt via PTY stdin if needed (avoids shell escaping issues)
+      // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
       if (stdinPrompt) {
         setTimeout(() => {
-          try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
-        }, 1500);
+          if (!stdinDelivered && !exited) {
+            stdinDelivered = true;
+            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+          }
+        }, 10000);
       }
 
       setImmediate(() => {

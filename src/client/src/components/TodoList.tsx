@@ -74,7 +74,50 @@ export default function TodoList({
     try { localStorage.setItem('todoViewMode', mode); } catch { /* ignore */ }
   }, []);
 
-  const sortedTodos = [...todos].sort((a, b) => a.priority - b.priority);
+  // Build hierarchical order: parents first, then their children (indented)
+  const sortedTodos = (() => {
+    const byPriority = [...todos].sort((a, b) => a.priority - b.priority);
+    const childrenMap = new Map<string, Todo[]>(); // parentId -> children
+    const roots: Todo[] = [];
+
+    for (const todo of byPriority) {
+      if (todo.depends_on) {
+        const siblings = childrenMap.get(todo.depends_on) || [];
+        siblings.push(todo);
+        childrenMap.set(todo.depends_on, siblings);
+      } else {
+        roots.push(todo);
+      }
+    }
+
+    // Flatten tree with depth tracking
+    const result: { todo: Todo; depth: number }[] = [];
+    const visited = new Set<string>();
+    const addWithChildren = (todo: Todo, depth: number) => {
+      if (visited.has(todo.id)) return;
+      visited.add(todo.id);
+      result.push({ todo, depth });
+      const children = childrenMap.get(todo.id);
+      if (children) {
+        for (const child of children) {
+          addWithChildren(child, depth + 1);
+        }
+      }
+    };
+
+    for (const root of roots) {
+      addWithChildren(root, 0);
+    }
+
+    // Add any orphaned children (parent not in current list)
+    for (const todo of byPriority) {
+      if (!visited.has(todo.id)) {
+        result.push({ todo, depth: 0 });
+      }
+    }
+
+    return result;
+  })();
 
   const handleDragStart = useCallback((todoId: string) => {
     setDragSourceId(todoId);
@@ -232,8 +275,8 @@ export default function TodoList({
             <p className="text-warm-400 text-sm mt-1">{t('todos.emptyHint')}</p>
           </div>
         ) : (
-          sortedTodos.map((todo, index) => (
-            <div key={todo.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+          sortedTodos.map(({ todo, depth }, index) => (
+            <div key={todo.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
               <TodoItem
                 todo={todo}
                 allTodos={todos}
