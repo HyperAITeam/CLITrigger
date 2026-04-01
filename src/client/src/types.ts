@@ -15,8 +15,25 @@ export interface Project {
   jira_email: string | null;
   jira_api_token: string | null;
   jira_project_key: string | null;
+  notion_enabled: number;
+  notion_api_key: string | null;
+  notion_database_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface NotionPage {
+  id: string;
+  url: string;
+  created_time: string;
+  last_edited_time: string;
+  properties: Record<string, any>;
+}
+
+export interface NotionQueryResult {
+  results: NotionPage[];
+  has_more: boolean;
+  next_cursor: string | null;
 }
 
 export interface GstackSkill {

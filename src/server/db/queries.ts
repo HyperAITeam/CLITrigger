@@ -20,6 +20,9 @@ export interface Project {
   jira_email: string | null;
   jira_api_token: string | null;
   jira_project_key: string | null;
+  notion_enabled: number;
+  notion_api_key: string | null;
+  notion_database_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,7 +48,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -65,6 +68,9 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.jira_email !== undefined) { fields.push('jira_email = ?'); values.push(updates.jira_email); }
   if (updates.jira_api_token !== undefined) { fields.push('jira_api_token = ?'); values.push(updates.jira_api_token); }
   if (updates.jira_project_key !== undefined) { fields.push('jira_project_key = ?'); values.push(updates.jira_project_key); }
+  if (updates.notion_enabled !== undefined) { fields.push('notion_enabled = ?'); values.push(updates.notion_enabled); }
+  if (updates.notion_api_key !== undefined) { fields.push('notion_api_key = ?'); values.push(updates.notion_api_key); }
+  if (updates.notion_database_id !== undefined) { fields.push('notion_database_id = ?'); values.push(updates.notion_database_id); }
 
   if (fields.length === 0) return getProjectById(id);
 

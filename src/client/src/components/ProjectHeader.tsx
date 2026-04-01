@@ -3,6 +3,7 @@ import type { Project, Todo, GstackSkill } from '../types';
 import * as projectsApi from '../api/projects';
 import * as gstackApi from '../api/gstack';
 import * as jiraApi from '../api/jira';
+import * as notionApi from '../api/notion';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
@@ -39,6 +40,13 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [jiraProjectKey, setJiraProjectKey] = useState(project.jira_project_key ?? '');
   const [jiraTesting, setJiraTesting] = useState(false);
   const [jiraTestResult, setJiraTestResult] = useState<'ok' | 'fail' | null>(null);
+
+  // Notion state
+  const [notionEnabled, setNotionEnabled] = useState(!!project.notion_enabled);
+  const [notionApiKey, setNotionApiKey] = useState(project.notion_api_key ?? '');
+  const [notionDatabaseId, setNotionDatabaseId] = useState(project.notion_database_id ?? '');
+  const [notionTesting, setNotionTesting] = useState(false);
+  const [notionTestResult, setNotionTestResult] = useState<'ok' | 'fail' | null>(null);
 
   // gstack state
   const [gstackEnabled, setGstackEnabled] = useState(!!project.gstack_enabled);
@@ -97,6 +105,24 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     }
   };
 
+  const handleTestNotion = async () => {
+    setNotionTesting(true);
+    setNotionTestResult(null);
+    try {
+      await projectsApi.updateProject(project.id, {
+        notion_enabled: 1,
+        notion_api_key: notionApiKey || null,
+        notion_database_id: notionDatabaseId || null,
+      });
+      const result = await notionApi.testConnection(project.id);
+      setNotionTestResult(result.ok ? 'ok' : 'fail');
+    } catch {
+      setNotionTestResult('fail');
+    } finally {
+      setNotionTesting(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
@@ -112,6 +138,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         jira_email: jiraEmail || null,
         jira_api_token: jiraApiToken || null,
         jira_project_key: jiraProjectKey || null,
+        notion_enabled: notionEnabled ? 1 : 0,
+        notion_api_key: notionApiKey || null,
+        notion_database_id: notionDatabaseId || null,
       });
       onProjectUpdate(updated);
       setShowSettings(false);
@@ -418,6 +447,76 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
                 <p className="text-xs text-warm-300 mt-2">
                   {t('header.jiraTokenHint')}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Notion Integration Section */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-warm-700">
+                {t('header.notionTitle')}
+              </h4>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notionEnabled}
+                  onChange={(e) => setNotionEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
+              </label>
+            </div>
+
+            {notionEnabled && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.notionApiKey')}
+                    </label>
+                    <input
+                      type="password"
+                      value={notionApiKey}
+                      onChange={(e) => setNotionApiKey(e.target.value)}
+                      placeholder={t('header.notionApiKeyPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-warm-500 mb-1">
+                      {t('header.notionDatabaseId')}
+                    </label>
+                    <input
+                      type="text"
+                      value={notionDatabaseId}
+                      onChange={(e) => setNotionDatabaseId(e.target.value)}
+                      placeholder={t('header.notionDatabaseIdPlaceholder')}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestNotion}
+                    disabled={notionTesting || !notionApiKey || !notionDatabaseId}
+                    className="btn-ghost text-xs"
+                  >
+                    {notionTesting ? t('header.notionTesting') : t('header.notionTestConnection')}
+                  </button>
+                  {notionTestResult === 'ok' && (
+                    <span className="text-xs text-status-success font-medium">{t('header.notionConnected')}</span>
+                  )}
+                  {notionTestResult === 'fail' && (
+                    <span className="text-xs text-status-error font-medium">{t('header.notionFailed')}</span>
+                  )}
+                </div>
+
+                <p className="text-xs text-warm-300 mt-2">
+                  {t('header.notionTokenHint')}
                 </p>
               </>
             )}

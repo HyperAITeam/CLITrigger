@@ -321,11 +321,41 @@ const translations = {
     'jira.unassigned': 'Unassigned',
     'jira.updated': 'Updated',
 
+    // Notion Panel
+    'notion.title': 'Notion Pages',
+    'notion.search': 'Search pages...',
+    'notion.refresh': 'Refresh',
+    'notion.import': 'Import as Task',
+    'notion.importing': 'Importing...',
+    'notion.imported': 'Imported!',
+    'notion.noPages': 'No pages found',
+    'notion.noPagesHint': 'Try changing the search query.',
+    'notion.loadMore': 'Load More',
+    'notion.createPage': 'Create Page',
+    'notion.pageTitle': 'Title',
+    'notion.creating': 'Creating...',
+    'notion.notConfigured': 'Notion is not configured. Enable it in project settings.',
+    'notion.loadingContent': 'Loading content...',
+    'notion.noContent': 'No content',
+
+    // Notion Settings
+    'header.notionTitle': 'Notion Integration',
+    'header.notionApiKey': 'Integration Token',
+    'header.notionApiKeyPlaceholder': 'ntn_...',
+    'header.notionDatabaseId': 'Database ID',
+    'header.notionDatabaseIdPlaceholder': 'e.g. abc123def456...',
+    'header.notionTestConnection': 'Test Connection',
+    'header.notionTesting': 'Testing...',
+    'header.notionConnected': 'Connected',
+    'header.notionFailed': 'Connection failed',
+    'header.notionTokenHint': 'Create an integration at notion.so/my-integrations and share the database with it',
+
     // Tabs
     'tabs.tasks': 'Tasks',
     'tabs.pipelines': 'Pipelines',
     'tabs.schedules': 'Schedules',
     'tabs.jira': 'Jira',
+    'tabs.notion': 'Notion',
 
     // Language
     'lang.toggle': 'KO',
@@ -648,11 +678,41 @@ const translations = {
     'jira.unassigned': '미배정',
     'jira.updated': '업데이트',
 
+    // Notion Panel
+    'notion.title': 'Notion 페이지',
+    'notion.search': '페이지 검색...',
+    'notion.refresh': '새로고침',
+    'notion.import': '작업으로 가져오기',
+    'notion.importing': '가져오는 중...',
+    'notion.imported': '가져옴!',
+    'notion.noPages': '페이지가 없습니다',
+    'notion.noPagesHint': '검색어를 변경해보세요.',
+    'notion.loadMore': '더 보기',
+    'notion.createPage': '페이지 생성',
+    'notion.pageTitle': '제목',
+    'notion.creating': '생성 중...',
+    'notion.notConfigured': 'Notion이 설정되지 않았습니다. 프로젝트 설정에서 활성화하세요.',
+    'notion.loadingContent': '콘텐츠 로딩 중...',
+    'notion.noContent': '콘텐츠 없음',
+
+    // Notion Settings
+    'header.notionTitle': 'Notion 연동',
+    'header.notionApiKey': '통합 토큰',
+    'header.notionApiKeyPlaceholder': 'ntn_...',
+    'header.notionDatabaseId': '데이터베이스 ID',
+    'header.notionDatabaseIdPlaceholder': '예: abc123def456...',
+    'header.notionTestConnection': '연결 테스트',
+    'header.notionTesting': '테스트 중...',
+    'header.notionConnected': '연결 성공',
+    'header.notionFailed': '연결 실패',
+    'header.notionTokenHint': 'notion.so/my-integrations에서 통합을 생성하고 데이터베이스를 공유하세요',
+
     // Tabs
     'tabs.tasks': '작업',
     'tabs.pipelines': '파이프라인',
     'tabs.schedules': '스케줄',
     'tabs.jira': 'Jira',
+    'tabs.notion': 'Notion',
 
     // Language
     'lang.toggle': 'EN',
