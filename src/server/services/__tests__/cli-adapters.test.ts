@@ -12,7 +12,7 @@ describe('cli-adapters', () => {
     });
 
     expect(adapter.requiresTty).toBeUndefined();
-    expect(args).toEqual(['exec', '--full-auto', '--model', 'o3', '--color=never']);
+    expect(args).toEqual(['exec', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3', '--color=never']);
   });
 
   it('sends Codex prompts over stdin', () => {

@@ -14,6 +14,14 @@ export interface TokenUsage {
 
 const CONTEXT_EXHAUSTION_PATTERN = /context.*(window|limit|length|exceeded)|conversation.*(too long|limit)|token.*(limit|exceeded)|max.*context|context_length_exceeded/i;
 
+/** Pattern to identify genuine error lines from stderr (everything else is treated as normal output) */
+const STDERR_ERROR_PATTERN = /^(fatal|error|Error|ERROR|FATAL)[\s:]|Permission denied|ENOENT|EACCES|exited (?:with )?(?:code |status )?[1-9]|command not found|No such file|segmentation fault/i;
+
+function classifyStderrLine(line: string): 'error' | 'output' {
+  if (STDERR_ERROR_PATTERN.test(line) || CONTEXT_EXHAUSTION_PATTERN.test(line)) return 'error';
+  return 'output';
+}
+
 export class LogStreamer {
   /** Accumulated token usage per task (todoId -> TokenUsage) */
   private tokenUsageMap: Map<string, TokenUsage> = new Map();
@@ -104,13 +112,14 @@ export class LogStreamer {
         if (CONTEXT_EXHAUSTION_PATTERN.test(line)) {
           this.contextExhaustedMap.set(todoId, true);
         }
+        const logType = classifyStderrLine(line.trim());
         try {
-          queries.createTaskLog(todoId, 'error', line.trim());
+          queries.createTaskLog(todoId, logType, line.trim());
           broadcaster.broadcast({
             type: 'todo:log',
             todoId,
             message: line.trim(),
-            logType: 'error',
+            logType,
           });
         } catch {
           // Todo may have been deleted — skip log but don't crash
@@ -123,13 +132,14 @@ export class LogStreamer {
         if (CONTEXT_EXHAUSTION_PATTERN.test(stderrBuffer)) {
           this.contextExhaustedMap.set(todoId, true);
         }
+        const logType = classifyStderrLine(stderrBuffer.trim());
         try {
-          queries.createTaskLog(todoId, 'error', stderrBuffer.trim());
+          queries.createTaskLog(todoId, logType, stderrBuffer.trim());
           broadcaster.broadcast({
             type: 'todo:log',
             todoId,
             message: stderrBuffer.trim(),
-            logType: 'error',
+            logType,
           });
         } catch {
           // Todo may have been deleted — skip log but don't crash

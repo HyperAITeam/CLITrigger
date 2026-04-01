@@ -113,9 +113,10 @@ const codexAdapter: CliAdapter = {
   displayName: 'Codex CLI',
   buildArgs({ mode, prompt, model, extraOptions }) {
     const normalizedModel = normalizeModel(model, 'codex');
-    // Use non-interactive execution so task prompts are not consumed by
-    // Codex's interactive shell or one-time setup/update menus.
-    const args = ['exec', '--full-auto'];
+    // Use --dangerously-bypass-approvals-and-sandbox instead of --full-auto because
+    // --full-auto uses workspace-write sandbox which blocks git operations in worktrees
+    // (git metadata lives outside the worktree working directory at .git/worktrees/).
+    const args = ['exec', '--dangerously-bypass-approvals-and-sandbox'];
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
