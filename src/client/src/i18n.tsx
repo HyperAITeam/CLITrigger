@@ -153,6 +153,7 @@ const translations = {
     // Drag & Drop Dependency
     'dnd.dropHint': 'Run after this task',
     'dnd.removeDep': 'Remove dependency',
+    'dnd.dropToRemoveDep': 'Drop here to remove dependency',
     'dnd.cyclicWarning': 'Cannot link: circular dependency',
 
     // Graph view
@@ -559,6 +560,7 @@ const translations = {
     // Drag & Drop Dependency
     'dnd.dropHint': '\uc774 \uc791\uc5c5 \uc774\ud6c4\uc5d0 \uc2e4\ud589',
     'dnd.removeDep': '\uc758\uc874\uc131 \uc81c\uac70',
+    'dnd.dropToRemoveDep': '\uc5ec\uae30\uc5d0 \ub193\uc73c\uba74 \uc758\uc874\uc131 \uc81c\uac70',
     'dnd.cyclicWarning': '\uc21c\ud658 \uc758\uc874\uc131\uc73c\ub85c \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4',
 
     // Graph view
