@@ -14,6 +14,7 @@ import PipelineList from './PipelineList';
 import ScheduleList from './ScheduleList';
 import JiraPanel from './JiraPanel';
 import NotionPanel from './NotionPanel';
+import GitHubPanel from './GitHubPanel';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -26,7 +27,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [todos, setTodos] = useState<Todo[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules' | 'jira' | 'notion'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules' | 'jira' | 'notion' | 'github'>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
@@ -397,6 +398,18 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             {t('tabs.notion')}
           </button>
         ) : null}
+        {project.github_enabled ? (
+          <button
+            onClick={() => setActiveTab('github')}
+            className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+              activeTab === 'github'
+                ? 'text-accent-gold border-accent-gold'
+                : 'text-warm-400 border-transparent hover:text-warm-600'
+            }`}
+          >
+            {t('tabs.github')}
+          </button>
+        ) : null}
       </div>
 
       {activeTab === 'tasks' && (
@@ -442,6 +455,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       ) : null}
       {activeTab === 'notion' && project.notion_enabled ? (
         <NotionPanel
+          project={project}
+          onImportAsTask={async (title: string, description: string) => {
+            if (!id) return;
+            const newTodo = await todosApi.createTodo(id, { title, description });
+            setTodos((prev) => [...prev, newTodo]);
+          }}
+        />
+      ) : null}
+      {activeTab === 'github' && project.github_enabled ? (
+        <GitHubPanel
           project={project}
           onImportAsTask={async (title: string, description: string) => {
             if (!id) return;

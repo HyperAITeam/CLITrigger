@@ -18,6 +18,10 @@ export interface Project {
   notion_enabled: number;
   notion_api_key: string | null;
   notion_database_id: string | null;
+  github_enabled: number;
+  github_token: string | null;
+  github_owner: string | null;
+  github_repo: string | null;
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
   created_at: string;
