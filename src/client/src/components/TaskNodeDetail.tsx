@@ -59,6 +59,7 @@ export default function TaskNodeDetail({
 
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
+  const hasUnsatisfiedDep = !!parentTodo && parentTodo.status !== 'completed';
   const childTodo = allTodos.find(t => t.depends_on === todo.id && t.merged_from_branch);
 
   // Load logs
@@ -194,10 +195,10 @@ export default function TaskNodeDetail({
         <div className="flex flex-wrap gap-1.5">
           {canStart && (
             <>
-              <button onClick={() => onStart(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-status-success">
+              <button onClick={() => onStart(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-status-success" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}>
                 {t('todo.startHeadless')}
               </button>
-              <button onClick={() => onStart(todo.id, 'streaming')} className="btn-ghost text-xs py-1.5 text-amber-500">
+              <button onClick={() => onStart(todo.id, 'streaming')} className="btn-ghost text-xs py-1.5 text-amber-500" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startStreaming')}>
                 {t('todo.startStreaming')}
               </button>
             </>
