@@ -1,5 +1,88 @@
 # Changelog
 
+## 2026-04-01 — Notion 데이터베이스 연동
+
+### 배경
+
+피쳐 개발 문서나 버그 리포트를 Notion에 한곳에 모아 관리하면서, CLITrigger에서 바로 Import하여 AI 태스크로 자동 실행하고 싶은 요구가 있었다. Notion API를 통해 프로젝트별 데이터베이스를 연결하고, 페이지 브라우징/검색/Import/생성 기능을 제공한다.
+
+### 구현 내용
+
+#### Notion API 연동 서버 라우트 (`notion.ts`)
+- **연결 테스트**: Notion API 키 유효성 + 사용자 정보 확인
+- **페이지 조회**: 데이터베이스 쿼리 (페이지네이션, 검색, 필터링, 정렬)
+- **페이지 상세**: 메타데이터 + 블록 콘텐츠 조회 (최대 100블록)
+- **페이지 수정**: 상태 등 속성 업데이트
+- **페이지 생성**: Notion 데이터베이스에 새 페이지 추가
+- **Import**: 페이지 제목/본문 추출 → CLITrigger 태스크로 변환
+- **스키마 조회**: 데이터베이스 속성 구조 반환
+
+#### 블록 콘텐츠 파싱
+- `extractPageTitle()` — title 속성에서 제목 추출
+- `extractRichText()` — Notion rich text → plain text 변환
+- `extractBlocksText()` — 블록 → 마크다운 변환 (heading, list, code, divider, checkbox 지원)
+
+#### 프론트엔드 UI (`NotionPanel.tsx`, 414줄)
+- **페이지 목록**: 검색, 페이지네이션, 상태별 필터링
+- **페이지 상세**: 블록 콘텐츠 렌더링 (heading, list, code, divider, to-do)
+- **Import 기능**: 페이지를 CLITrigger 태스크로 변환 (제목 + 본문 자동 추출)
+- **페이지 생성**: Notion DB에 새 페이지 추가 폼
+
+#### 프로젝트 설정 UI (`ProjectHeader.tsx`)
+- Notion 활성화/비활성화 토글
+- API Key 입력 (password 필드)
+- Database ID 입력
+- Test Connection 버튼 + 연결 상태 피드백
+- 도움말: "notion.so/my-integrations에서 Integration 생성 후 DB 공유"
+
+#### REST API 엔드포인트 (8개)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/notion/:projectId/test | 연결 테스트 |
+| POST | /api/notion/:projectId/pages | 페이지 목록 (검색/필터/페이지네이션) |
+| GET | /api/notion/:projectId/page/:pageId | 페이지 상세 |
+| GET | /api/notion/:projectId/page/:pageId/blocks | 페이지 블록 콘텐츠 |
+| POST | /api/notion/:projectId/page/:pageId/update | 페이지 속성 수정 |
+| POST | /api/notion/:projectId/create | 페이지 생성 |
+| POST | /api/notion/:projectId/import/:pageId | 태스크로 Import |
+| GET | /api/notion/:projectId/schema | DB 스키마 조회 |
+
+#### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `src/server/routes/notion.ts` | Notion API 프록시 라우트 (8개 엔드포인트) |
+| `src/client/src/api/notion.ts` | 프론트엔드 Notion API 클라이언트 |
+| `src/client/src/components/NotionPanel.tsx` | Notion 브라우저 패널 UI |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/index.ts` | `notionRouter`를 `/api/notion`에 마운트 |
+| `src/server/routes/projects.ts` | PUT 업데이트에 notion 필드 처리 (`notion_enabled`, `notion_api_key`, `notion_database_id`) |
+| `src/server/db/schema.ts` | `notion_enabled`, `notion_api_key`, `notion_database_id` 컬럼 마이그레이션 추가 |
+| `src/server/db/queries.ts` | `Project` 인터페이스 및 `updateProject`에 notion 필드 추가 |
+| `src/client/src/types.ts` | `Project`에 notion 필드 + `NotionPage`, `NotionQueryResult` 인터페이스 추가 |
+| `src/client/src/components/ProjectHeader.tsx` | 설정 패널에 Notion 설정 UI 추가 |
+| `src/client/src/components/ProjectDetail.tsx` | Notion 탭 버튼 + NotionPanel 렌더링 추가 |
+| `src/client/src/i18n.tsx` | 한/영 Notion 관련 번역 키 추가 |
+
+#### 아키텍처 결정
+
+1. **프로젝트별 설정**: Notion API 키와 DB ID를 프로젝트 단위로 저장 (Jira 연동과 동일 패턴)
+2. **서버 프록시**: 클라이언트가 Notion API를 직접 호출하지 않고 서버를 경유 (API 키 노출 방지)
+3. **블록 → 마크다운 변환**: Import 시 Notion 블록을 마크다운으로 변환하여 AI 프롬프트로 활용
+4. **DB 저장**: `notion_enabled` (INTEGER 0/1) + `notion_api_key` (TEXT) + `notion_database_id` (TEXT)
+
+#### 검증
+
+- TypeScript 서버 컴파일: 통과
+- 기존 테스트 53개: 전체 통과
+
+---
+
 ## 2026-03-29 — Cron 스케줄 기반 자동 실행
 
 ### 배경

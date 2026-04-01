@@ -219,7 +219,50 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - TODO 추가/수정 시 **CLI Tool** (Claude / Gemini / Codex)과 **Model** 선택 가능
 - 미지정 시 프로젝트 기본값 사용
 
-### 9. gstack 스킬 (선택)
+### 9. Notion 연동 (선택)
+
+Notion 데이터베이스를 CLITrigger 프로젝트에 연결하면, Notion에 작성한 피쳐 기획서나 버그 리포트를 바로 AI 태스크로 Import할 수 있습니다.
+
+#### 사전 준비
+
+1. [notion.so/my-integrations](https://www.notion.so/my-integrations)에서 **Integration 생성** → API 키 복사
+2. 사용할 Notion **데이터베이스 페이지** → 우상단 `...` → 연결 → 생성한 Integration 선택
+3. 데이터베이스 URL에서 **Database ID** 복사
+   - URL 형식: `https://www.notion.so/{workspace}/{database_id}?v=...`
+   - `?v=` 앞의 32자리 hex 문자열이 Database ID
+
+#### 활성화 방법
+
+1. 프로젝트 설정(톱니바퀴) 클릭
+2. **Notion** 섹션에서 토글 ON
+3. **API Key** 입력 (Integration에서 복사한 키)
+4. **Database ID** 입력
+5. **Test Connection** 클릭하여 연결 확인
+6. 저장
+
+#### 사용법
+
+1. 프로젝트 상세 페이지에서 **Notion** 탭 진입
+2. Notion 데이터베이스의 페이지 목록이 표시됨
+3. **검색**: 페이지 제목으로 검색
+4. **상세 보기**: 페이지 클릭 → 블록 콘텐츠 확인
+5. **Import**: 페이지의 **Import** 버튼 클릭 → 제목과 본문이 자동 추출되어 CLITrigger 태스크로 생성
+6. **생성**: Notion 데이터베이스에 새 페이지 추가도 가능
+
+#### 워크플로우 예시
+
+```
+Notion에 피쳐 기획서 작성
+  → CLITrigger Notion 탭에서 Import
+    → AI(Claude/Gemini)가 기획서 기반으로 자동 구현
+      → 결과 확인 후 Merge
+```
+
+> Notion 페이지의 제목이 태스크 제목이 되고, 블록 콘텐츠가 마크다운으로 변환되어 AI에게 전달되는 설명이 됩니다.
+
+---
+
+### 10. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -410,6 +453,14 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/schedules/:id/pause | 스케줄 비활성화 |
 | GET | /api/schedules/:id/runs | 스케줄 실행 이력 |
 | POST | /api/schedules/:id/trigger | 스케줄 수동 트리거 |
+| GET | /api/notion/:projectId/test | Notion 연결 테스트 |
+| POST | /api/notion/:projectId/pages | Notion 페이지 목록 |
+| GET | /api/notion/:projectId/page/:pageId | Notion 페이지 상세 |
+| GET | /api/notion/:projectId/page/:pageId/blocks | Notion 페이지 블록 |
+| POST | /api/notion/:projectId/page/:pageId/update | Notion 페이지 수정 |
+| POST | /api/notion/:projectId/create | Notion 페이지 생성 |
+| POST | /api/notion/:projectId/import/:pageId | Notion 페이지 Import |
+| GET | /api/notion/:projectId/schema | Notion DB 스키마 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |
