@@ -277,7 +277,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="text-center py-20 text-warm-500 animate-fade-in">
           {t('detail.loading')}
         </div>
@@ -287,7 +287,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   if (notFound || !project) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="card p-16 text-center animate-fade-in">
           <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
@@ -302,7 +302,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       {/* Navigation */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -342,10 +342,10 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       <ProgressBar todos={todos} />
 
       {/* Tab toggle */}
-      <div className="flex gap-0 mb-4 border-b border-warm-200">
+      <div className="flex gap-0 mb-4 border-b border-warm-200 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('tasks')}
-          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'tasks'
               ? 'text-accent-gold border-accent-gold'
               : 'text-warm-400 border-transparent hover:text-warm-600'
@@ -355,7 +355,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         </button>
         <button
           onClick={() => setActiveTab('pipelines')}
-          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'pipelines'
               ? 'text-accent-gold border-accent-gold'
               : 'text-warm-400 border-transparent hover:text-warm-600'
@@ -365,7 +365,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         </button>
         <button
           onClick={() => setActiveTab('schedules')}
-          className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'schedules'
               ? 'text-accent-gold border-accent-gold'
               : 'text-warm-400 border-transparent hover:text-warm-600'
@@ -376,7 +376,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         {project.jira_enabled ? (
           <button
             onClick={() => setActiveTab('jira')}
-            className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === 'jira'
                 ? 'text-accent-gold border-accent-gold'
                 : 'text-warm-400 border-transparent hover:text-warm-600'
@@ -388,7 +388,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         {project.notion_enabled ? (
           <button
             onClick={() => setActiveTab('notion')}
-            className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
+            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === 'notion'
                 ? 'text-accent-gold border-accent-gold'
                 : 'text-warm-400 border-transparent hover:text-warm-600'
