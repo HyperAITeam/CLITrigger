@@ -114,17 +114,9 @@ const codexAdapter: CliAdapter = {
   requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
     const normalizedModel = normalizeModel(model, 'codex');
-    if (mode === 'headless') {
-      // Use 'codex exec' subcommand for non-interactive headless execution
-      // This avoids the interactive trust directory prompt
-      const args = ['exec', '--full-auto'];
-      if (normalizedModel) args.push('--model', normalizedModel);
-      if (extraOptions) {
-        args.push(...sanitizeExtraOptions(extraOptions));
-      }
-      args.push(prompt);
-      return args;
-    }
+    // Always use interactive-style invocation with --full-auto.
+    // Prompt is delivered via PTY stdin to avoid Windows cmd.exe shell
+    // interpretation of <, > characters in the prompt (e.g. <user_task> tags).
     const args = ['--full-auto'];
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
@@ -132,8 +124,8 @@ const codexAdapter: CliAdapter = {
     }
     return args;
   },
-  needsStdin(mode) {
-    return mode === 'interactive' || mode === 'streaming';
+  needsStdin(_mode) {
+    return true;
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';

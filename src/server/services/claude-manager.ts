@@ -30,7 +30,8 @@ export class ClaudeManager {
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns });
 
     if (adapter.requiresTty) {
-      return this.startWithPty(adapter.command, args, worktreePath, adapter.displayName);
+      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
+      return this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt);
     }
     return this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
   }
@@ -38,7 +39,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(command: string, args: string[], cwd: string, displayName: string): Promise<{
+  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -92,6 +93,13 @@ export class ClaudeManager {
           resolveExit(exitCode);
         });
       });
+
+      // Deliver prompt via PTY stdin if needed (avoids shell escaping issues)
+      if (stdinPrompt) {
+        setTimeout(() => {
+          try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+        }, 1500);
+      }
 
       setImmediate(() => {
         resolve({
