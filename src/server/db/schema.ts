@@ -128,6 +128,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'notion_enabled', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'notion_api_key', definition: 'TEXT' },
     { table: 'projects', column: 'notion_database_id', definition: 'TEXT' },
+    { table: 'projects', column: 'default_max_turns', definition: 'INTEGER' },
     { table: 'todos', column: 'cli_tool', definition: 'TEXT' },
     { table: 'todos', column: 'cli_model', definition: 'TEXT' },
     { table: 'todos', column: 'schedule_id', definition: 'TEXT' },

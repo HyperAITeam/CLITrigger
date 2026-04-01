@@ -81,3 +81,21 @@ Config via `.env` (see `.env.example`). Key vars: `AUTH_PASSWORD`, `PORT` (defau
 ## Language
 
 UI and documentation are primarily in Korean. Commit messages use Korean or English. The codebase (variable names, comments in code) is in English.
+
+## Task Execution Guidelines
+
+When working on tasks in this repository (especially via CLITrigger worktrees), follow these efficiency rules:
+
+### Efficiency
+- Use grep/glob to find relevant files FIRST. Do NOT read files one by one to explore the codebase.
+- Only read files you intend to modify or that are directly needed to understand the change.
+- Do NOT launch Agent/Explore subagents for simple, targeted tasks (e.g., CSS changes, config updates, single-file fixes). Use direct grep → read → edit.
+- Make all related edits in a single pass. Do not re-read files you already read.
+- Prefer `replace_all: true` for repetitive changes across a file.
+- Aim for under 15 tool calls for simple tasks, under 30 for complex ones.
+
+### Completion
+- Once the task is complete, commit and stop immediately.
+- Do not perform additional refactoring, optimization, or testing beyond what was explicitly requested.
+- Do not add comments, docstrings, or type annotations to unchanged code.
+- Do not review your own changes unless asked.

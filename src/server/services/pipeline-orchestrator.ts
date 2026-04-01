@@ -198,13 +198,15 @@ export class PipelineOrchestrator {
     const claudeModel = project.claude_model || undefined;
     const claudeOptions = project.claude_options || undefined;
     const cliTool = (project.cli_tool as CliTool) || 'claude';
+    const DEFAULT_MAX_TURNS = 30;
+    const maxTurns = project.default_max_turns ?? DEFAULT_MAX_TURNS;
     const adapter = getAdapter(cliTool);
 
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool);
+      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool, maxTurns);
       pid = result.pid;
       exitPromise = result.exitPromise;
 

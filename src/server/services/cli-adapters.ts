@@ -60,7 +60,10 @@ export interface CliAdapter {
 
 const TASK_COMPLETION_SUFFIX = `
 
-IMPORTANT: Once the task is complete, stop immediately. Do not perform additional refactoring, optimization, testing, or verification beyond what was explicitly requested. Do not review your own changes or add improvements that were not part of the original task.`;
+IMPORTANT: Work efficiently and stop when done.
+- Use grep/glob to find target files. Do NOT read every file or use Explore agents for simple tasks.
+- Only read files you need to modify. Make edits directly without re-reading.
+- Once complete, commit all changes and stop. No additional refactoring, testing, or review.`;
 
 const claudeAdapter: CliAdapter = {
   command: 'claude',
@@ -68,7 +71,8 @@ const claudeAdapter: CliAdapter = {
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
     const normalizedModel = normalizeModel(model, 'claude');
-    const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json', '--verbose'];
+    const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json'];
+    if (mode === 'verbose') args.push('--verbose');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {

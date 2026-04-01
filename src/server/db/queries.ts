@@ -23,6 +23,7 @@ export interface Project {
   notion_enabled: number;
   notion_api_key: string | null;
   notion_database_id: string | null;
+  default_max_turns: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,7 +49,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'default_max_turns'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -71,6 +72,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.notion_enabled !== undefined) { fields.push('notion_enabled = ?'); values.push(updates.notion_enabled); }
   if (updates.notion_api_key !== undefined) { fields.push('notion_api_key = ?'); values.push(updates.notion_api_key); }
   if (updates.notion_database_id !== undefined) { fields.push('notion_database_id = ?'); values.push(updates.notion_database_id); }
+  if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
 
   if (fields.length === 0) return getProjectById(id);
 

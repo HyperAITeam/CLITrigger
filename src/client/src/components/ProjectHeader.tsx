@@ -26,6 +26,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
   const [showSettings, setShowSettings] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
+  const [defaultMaxTurns, setDefaultMaxTurns] = useState(project.default_max_turns ?? 30);
   const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
   const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
@@ -128,6 +129,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     try {
       const updated = await projectsApi.updateProject(project.id, {
         max_concurrent: maxConcurrent,
+        default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
@@ -248,6 +250,21 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 onChange={(e) => setMaxConcurrent(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
                 className="input-field"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-warm-500 mb-2">
+                {t('settings.defaultMaxTurns')}
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={200}
+                value={defaultMaxTurns}
+                onChange={(e) => setDefaultMaxTurns(Math.min(200, Math.max(5, parseInt(e.target.value, 10) || 30)))}
+                className="input-field"
+              />
+              <p className="text-[10px] text-warm-400 mt-1">{t('settings.defaultMaxTurnsHint')}</p>
             </div>
 
             <div>

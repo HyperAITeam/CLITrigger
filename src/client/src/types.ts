@@ -18,6 +18,7 @@ export interface Project {
   notion_enabled: number;
   notion_api_key: string | null;
   notion_database_id: string | null;
+  default_max_turns: number | null;
   created_at: string;
   updated_at: string;
 }

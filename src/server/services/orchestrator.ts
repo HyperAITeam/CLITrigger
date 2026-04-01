@@ -251,7 +251,8 @@ export class Orchestrator {
     // Determine model: task-level overrides project-level
     const claudeModel = todo.cli_model || project.claude_model || undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
-    const maxTurns = todo.max_turns ?? undefined;
+    const DEFAULT_MAX_TURNS = 30;
+    const maxTurns = todo.max_turns ?? project.default_max_turns ?? DEFAULT_MAX_TURNS;
     const adapter = getAdapter(cliTool);
 
     let pid: number;
