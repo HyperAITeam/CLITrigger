@@ -12,9 +12,13 @@ export interface TokenUsage {
   context_window: number | null;
 }
 
+const CONTEXT_EXHAUSTION_PATTERN = /context.*(window|limit|length|exceeded)|conversation.*(too long|limit)|token.*(limit|exceeded)|max.*context|context_length_exceeded/i;
+
 export class LogStreamer {
   /** Accumulated token usage per task (todoId -> TokenUsage) */
   private tokenUsageMap: Map<string, TokenUsage> = new Map();
+  /** Tracks whether context exhaustion was detected for a task */
+  private contextExhaustedMap: Map<string, boolean> = new Map();
 
   /**
    * Attach to a CLI process stdout/stderr and save logs to DB.
@@ -97,6 +101,9 @@ export class LogStreamer {
 
       for (const line of lines) {
         if (!line.trim()) continue;
+        if (CONTEXT_EXHAUSTION_PATTERN.test(line)) {
+          this.contextExhaustedMap.set(todoId, true);
+        }
         try {
           queries.createTaskLog(todoId, 'error', line.trim());
           broadcaster.broadcast({
@@ -113,6 +120,9 @@ export class LogStreamer {
 
     stderr.on('end', () => {
       if (stderrBuffer.trim()) {
+        if (CONTEXT_EXHAUSTION_PATTERN.test(stderrBuffer)) {
+          this.contextExhaustedMap.set(todoId, true);
+        }
         try {
           queries.createTaskLog(todoId, 'error', stderrBuffer.trim());
           broadcaster.broadcast({
@@ -180,6 +190,9 @@ export class LogStreamer {
       event = JSON.parse(line);
     } catch {
       // Not valid JSON — log as raw error (fallback)
+      if (CONTEXT_EXHAUSTION_PATTERN.test(line)) {
+        this.contextExhaustedMap.set(todoId, true);
+      }
       try {
         queries.createTaskLog(todoId, 'error', line);
         broadcaster.broadcast({ type: 'todo:log', todoId, message: line, logType: 'error' });
@@ -243,7 +256,29 @@ export class LogStreamer {
           break;
         }
 
+        case 'error': {
+          // Check for context exhaustion in error events
+          const errorMsg = typeof event.error === 'string' ? event.error
+            : typeof event.message === 'string' ? event.message
+            : JSON.stringify(event);
+          if (CONTEXT_EXHAUSTION_PATTERN.test(errorMsg)) {
+            this.contextExhaustedMap.set(todoId, true);
+          }
+          try {
+            queries.createTaskLog(todoId, 'error', errorMsg);
+            broadcaster.broadcast({ type: 'todo:log', todoId, message: errorMsg, logType: 'error' });
+          } catch { /* ignore */ }
+          break;
+        }
+
         case 'result': {
+          // Check if result indicates an error related to context
+          if (event.is_error) {
+            const resultText = typeof event.result === 'string' ? event.result : '';
+            if (CONTEXT_EXHAUSTION_PATTERN.test(resultText)) {
+              this.contextExhaustedMap.set(todoId, true);
+            }
+          }
           // Extract token usage data
           const usage = this.tokenUsageMap.get(todoId);
           if (usage) {
@@ -292,12 +327,22 @@ export class LogStreamer {
   }
 
   /**
+   * Check if context exhaustion was detected for a task. Consumes the flag.
+   */
+  isContextExhausted(todoId: string): boolean {
+    const exhausted = this.contextExhaustedMap.get(todoId) ?? false;
+    this.contextExhaustedMap.delete(todoId);
+    return exhausted;
+  }
+
+  /**
    * Get accumulated token usage for a task and clean up.
    */
   getTokenUsage(todoId: string): TokenUsage | null {
     const usage = this.tokenUsageMap.get(todoId);
     if (!usage) return null;
     this.tokenUsageMap.delete(todoId);
+    this.contextExhaustedMap.delete(todoId);
     // Return null if nothing was parsed
     if (usage.input_tokens === null && usage.output_tokens === null && usage.total_cost === null) {
       return null;

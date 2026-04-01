@@ -144,19 +144,27 @@ export class Orchestrator {
     if (isGitRepo) {
       let inheritedFromBranch: string | null = null;
 
-      // Always create this task's own branch/worktree
-      branchName = worktreeManager.sanitizeBranchName(todo.title);
-      try {
-        worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        queries.updateTodoStatus(todoId, 'failed');
-        queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
-        return;
+      // Reuse existing worktree if available (context switch restart scenario)
+      if (todo.worktree_path && todo.branch_name && fs.existsSync(todo.worktree_path)) {
+        worktreePath = todo.worktree_path;
+        branchName = todo.branch_name;
+        queries.createTaskLog(todoId, 'output', `Reusing existing worktree on branch ${branchName}`);
+      } else {
+        // Create this task's own branch/worktree
+        branchName = worktreeManager.sanitizeBranchName(todo.title);
+        try {
+          worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.updateTodoStatus(todoId, 'failed');
+          queries.createTaskLog(todoId, 'error', `Failed to create worktree: ${message}`);
+          return;
+        }
       }
 
       // If this task depends on a completed parent, squash merge parent's branch into this task's branch
-      if (todo.depends_on) {
+      // (skip if worktree was reused — merge already happened in a previous run)
+      if (todo.depends_on && !(todo.worktree_path && fs.existsSync(todo.worktree_path))) {
         const parentTodo = queries.getTodoById(todo.depends_on);
         if (parentTodo && parentTodo.branch_name && parentTodo.status === 'completed') {
           const parentBranch = parentTodo.branch_name;
@@ -196,6 +204,11 @@ export class Orchestrator {
       prompt = inheritedFromBranch
         ? `You are working in a git worktree that contains squash-merged changes from a previous task. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`
         : `You are working in a git worktree. Your task is:\n\n${todo.description || todo.title}\n\nAfter completing the task, commit all changes with a descriptive commit message.`;
+
+      // Add context switch note if this is a retry after context exhaustion
+      if (todo.context_switch_count > 0) {
+        prompt += `\n\nNote: A previous attempt at this task ran out of context. The worktree may contain partial work (commits/changes) from the previous attempt. Check existing changes with \`git log\` and \`git diff\` before proceeding.`;
+      }
 
       // Save worktree info to DB immediately so cleanup button is available on failure
       queries.updateTodo(todoId, {
@@ -301,30 +314,68 @@ export class Orchestrator {
       const currentTodo = queries.getTodoById(todoId);
       // Only update if still in running state (not manually stopped)
       if (currentTodo && currentTodo.status === 'running') {
-        const newStatus = exitCode === 0 ? 'completed' : 'failed';
-        try {
-          if (exitCode === 0) {
-            queries.updateTodoStatus(todoId, 'completed');
-            queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
-          } else {
-            queries.updateTodoStatus(todoId, 'failed');
-            queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
+        if (exitCode !== 0) {
+          // Check for context exhaustion before normal failure handling
+          const isContextExhausted = logStreamer.isContextExhausted(todoId);
+          const tokenUsage = logStreamer.getTokenUsage(todoId);
+
+          // Heuristic: also flag if input_tokens > 85% of context_window (Claude only)
+          const heuristicExhausted = cliTool === 'claude'
+            && tokenUsage?.context_window
+            && tokenUsage?.input_tokens
+            && (tokenUsage.input_tokens / tokenUsage.context_window) > 0.85;
+
+          const fallback = queries.getNextFallbackCli(projectId, cliTool);
+          const shouldAutoSwitch = (isContextExhausted || heuristicExhausted) && fallback;
+
+          if (shouldAutoSwitch) {
+            // Save token usage before clearing logs
+            queries.updateTodo(todoId, {
+              process_pid: 0,
+              ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+            });
+            this.restartWithNextCli(todoId, projectId, cliTool, fallback, autoChain).catch(() => {
+              try {
+                queries.updateTodoStatus(todoId, 'failed');
+                queries.createTaskLog(todoId, 'error', 'Context switch restart failed.');
+              } catch { /* ignore */ }
+              broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+              this.broadcastProjectStatus(projectId);
+            });
+            return;
           }
 
-          // Save token usage if available
-          const tokenUsage = logStreamer.getTokenUsage(todoId);
-          queries.updateTodo(todoId, {
-            process_pid: 0,
-            ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
-          });
-        } catch {
-          // Ensure status is updated even if logging fails
-          try { queries.updateTodoStatus(todoId, newStatus); } catch { /* ignore */ }
-        }
+          // Normal failure path
+          try {
+            queries.updateTodoStatus(todoId, 'failed');
+            queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
+            queries.updateTodo(todoId, {
+              process_pid: 0,
+              ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+            });
+          } catch {
+            try { queries.updateTodoStatus(todoId, 'failed'); } catch { /* ignore */ }
+          }
 
-        // Always broadcast status change on exit
-        broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: newStatus });
-        this.broadcastProjectStatus(projectId);
+          broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+          this.broadcastProjectStatus(projectId);
+        } else {
+          // Success path
+          try {
+            queries.updateTodoStatus(todoId, 'completed');
+            queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
+            const tokenUsage = logStreamer.getTokenUsage(todoId);
+            queries.updateTodo(todoId, {
+              process_pid: 0,
+              ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+            });
+          } catch {
+            try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }
+          }
+
+          broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
+          this.broadcastProjectStatus(projectId);
+        }
       }
 
       // Try to start the next pending todo for this project (only when auto-chaining)
@@ -345,8 +396,53 @@ export class Orchestrator {
   }
 
   /**
-   * Start the next pending todo if there are available slots.
+   * Restart a task with the next CLI tool in the fallback chain after context exhaustion.
+   * Preserves the worktree and clears logs before restarting.
    */
+  private async restartWithNextCli(
+    todoId: string,
+    projectId: string,
+    fromCli: string,
+    fallback: { cliTool: string; cliModel: null },
+    autoChain: boolean,
+  ): Promise<void> {
+    const project = queries.getProjectById(projectId);
+    if (!project) return;
+
+    const currentTodo = queries.getTodoById(todoId);
+    if (!currentTodo) return;
+
+    const toCli = fallback.cliTool;
+    const switchCount = (currentTodo.context_switch_count ?? 0) + 1;
+
+    queries.createTaskLog(todoId, 'output',
+      `Context exhaustion detected. Switching from ${fromCli} to ${toCli} (attempt ${switchCount})...`);
+
+    // Clear previous logs
+    queries.deleteTaskLogsByTodoId(todoId);
+
+    // Update todo with new CLI tool and reset model to default
+    queries.updateTodo(todoId, {
+      cli_tool: toCli,
+      cli_model: null as unknown as string,
+      context_switch_count: switchCount,
+      process_pid: 0,
+    });
+    queries.updateTodoStatus(todoId, 'pending');
+
+    // Broadcast the context switch event
+    broadcaster.broadcast({
+      type: 'todo:context-switch',
+      todoId,
+      fromCli,
+      toCli,
+      switchCount,
+    });
+
+    // Restart the task
+    await this.startSingleTodo(todoId, project.path, projectId, 'headless', autoChain);
+  }
+
   /**
    * Check if a task's dependency is satisfied (no depends_on, or depends_on task is completed).
    */

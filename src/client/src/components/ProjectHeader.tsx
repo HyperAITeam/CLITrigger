@@ -49,6 +49,13 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [notionTesting, setNotionTesting] = useState(false);
   const [notionTestResult, setNotionTestResult] = useState<'ok' | 'fail' | null>(null);
 
+  // CLI fallback chain state
+  const [fallbackChain, setFallbackChain] = useState<string[]>(() => {
+    try {
+      return project.cli_fallback_chain ? JSON.parse(project.cli_fallback_chain) : [];
+    } catch { return []; }
+  });
+
   // gstack state
   const [gstackEnabled, setGstackEnabled] = useState(!!project.gstack_enabled);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => {
@@ -143,6 +150,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         notion_enabled: notionEnabled ? 1 : 0,
         notion_api_key: notionApiKey || null,
         notion_database_id: notionDatabaseId || null,
+        cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
       });
       onProjectUpdate(updated);
       setShowSettings(false);
@@ -322,6 +330,46 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 className="input-field"
               />
             </div>
+          </div>
+
+          {/* CLI Fallback Chain */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">
+              {t('header.fallbackChainTitle')}
+            </h4>
+            <p className="text-xs text-warm-400 mb-3">{t('header.fallbackChainHint')}</p>
+            <div className="flex flex-wrap gap-2">
+              {CLI_TOOLS.map((tool) => {
+                const idx = fallbackChain.indexOf(tool.value);
+                const isSelected = idx !== -1;
+                return (
+                  <button
+                    key={tool.value}
+                    type="button"
+                    onClick={() => {
+                      setFallbackChain((prev) =>
+                        isSelected
+                          ? prev.filter((v) => v !== tool.value)
+                          : [...prev, tool.value]
+                      );
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      isSelected
+                        ? 'bg-accent-gold/20 border-accent-gold text-accent-goldDark'
+                        : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                    }`}
+                  >
+                    {isSelected && <span className="mr-1 font-bold">{idx + 1}.</span>}
+                    {tool.label}
+                  </button>
+                );
+              })}
+            </div>
+            {fallbackChain.length > 0 && (
+              <p className="text-xs text-warm-500 mt-2">
+                {fallbackChain.map((v) => CLI_TOOLS.find((t) => t.value === v)?.label ?? v).join(' → ')}
+              </p>
+            )}
           </div>
 
           {/* gstack Skills Section */}

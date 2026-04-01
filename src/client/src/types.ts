@@ -18,6 +18,7 @@ export interface Project {
   notion_enabled: number;
   notion_api_key: string | null;
   notion_database_id: string | null;
+  cli_fallback_chain: string | null;
   default_max_turns: number | null;
   created_at: string;
   updated_at: string;
@@ -67,6 +68,7 @@ export interface Todo {
   depends_on: string | null;
   max_turns: number | null;
   merged_from_branch: string | null;
+  context_switch_count?: number;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
