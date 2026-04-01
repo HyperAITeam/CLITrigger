@@ -262,7 +262,56 @@ Notion에 피쳐 기획서 작성
 
 ---
 
-### 10. gstack 스킬 (선택)
+### 10. GitHub Issues 연동 (선택)
+
+GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태스크로 Import할 수 있습니다.
+
+#### 사전 준비
+
+1. GitHub **Personal Access Token** 생성 (Settings → Developer settings → Personal access tokens)
+   - 권한: `repo` (이슈 읽기/쓰기)
+2. 연동할 레포지토리의 **Owner**와 **Repo 이름** 확인
+
+#### 활성화 방법
+
+1. 프로젝트 설정(톱니바퀴) 클릭
+2. **GitHub** 섹션에서 토글 ON
+3. **Token** 입력 (Personal Access Token)
+4. **Owner** 입력 (예: `OSgoodYZ`)
+5. **Repo** 입력 (예: `CLITrigger`)
+6. **Test Connection** 클릭하여 연결 확인
+7. 저장
+
+#### 사용법
+
+1. 프로젝트 상세 페이지에서 **GitHub** 탭 진입
+2. 이슈 목록 표시 (open/closed 필터, 라벨 필터, 검색)
+3. **상세 보기**: 이슈 클릭 → 본문 + 코멘트 확인
+4. **Import**: 이슈의 **Import** 버튼 클릭 → 제목과 본문이 CLITrigger 태스크로 생성
+5. **이슈 생성**: GitHub 레포에 새 이슈 추가도 가능
+6. **코멘트**: 이슈에 코멘트 작성 가능
+
+### 11. 모델 관리
+
+CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습니다. 프로젝트 설정에서 모델 관리 버튼을 클릭하여:
+
+- 새 모델 추가 (CLI 도구, 모델 ID, 표시명)
+- 기존 모델 삭제
+- 기본 모델 설정
+
+서버 시작 시 기본 모델이 자동 시딩됩니다 (Claude Sonnet/Opus/Haiku, GPT-4.1 계열, Gemini 등).
+
+### 12. Verbose 모드
+
+TODO 실행 시 **Verbose** 옵션을 활성화하면 Claude CLI의 모든 로그를 필터 없이 실시간 스트리밍합니다. 디버깅이나 상세 진행 확인에 유용합니다.
+
+### 13. CLI Fallback Chain
+
+프로젝트 설정에서 **Fallback Chain**을 지정하면, CLI가 컨텍스트 윈도우를 소진했을 때 자동으로 다음 CLI/모델로 재시도합니다. 예: Claude Sonnet → Claude Opus → Gemini 순서로 시도.
+
+---
+
+### 14. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -461,6 +510,17 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/notion/:projectId/create | Notion 페이지 생성 |
 | POST | /api/notion/:projectId/import/:pageId | Notion 페이지 Import |
 | GET | /api/notion/:projectId/schema | Notion DB 스키마 |
+| GET | /api/github/:projectId/test | GitHub 연결 테스트 |
+| GET | /api/github/:projectId/issues | GitHub 이슈 목록 |
+| GET | /api/github/:projectId/issue/:number | GitHub 이슈 상세 |
+| GET | /api/github/:projectId/issue/:number/comments | GitHub 이슈 코멘트 |
+| POST | /api/github/:projectId/issues | GitHub 이슈 생성 |
+| POST | /api/github/:projectId/issue/:number/comment | GitHub 이슈 코멘트 추가 |
+| POST | /api/github/:projectId/import/:number | GitHub 이슈 Import |
+| GET | /api/github/:projectId/labels | GitHub 라벨 목록 |
+| GET | /api/models | CLI 모델 목록 조회 |
+| POST | /api/models | CLI 모델 추가 |
+| DELETE | /api/models/:id | CLI 모델 삭제 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |

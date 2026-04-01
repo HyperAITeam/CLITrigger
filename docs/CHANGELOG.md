@@ -1,5 +1,119 @@
 # Changelog
 
+## 2026-04-01 — GitHub Issues 연동 + 모델 관리 + 실행 안정성 강화
+
+### 배경
+
+외부 플러그인 생태계를 확장하고 (GitHub Issues 연동), CLI 모델을 유연하게 관리하며, 태스크 실행의 안정성과 효율성을 전반적으로 강화하는 대규모 업데이트.
+
+### 주요 기능 추가
+
+#### 1. GitHub Issues 플러그인 연동 (`471e5b2`)
+
+GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고 AI 태스크로 Import하는 기능.
+
+- **8개 API 엔드포인트**: 연결 테스트, 이슈 CRUD, 코멘트, Import, 라벨 조회
+- **프론트엔드 UI** (`GitHubPanel.tsx`): 이슈 브라우징, 검색, 라벨 필터, 상세 보기, Import
+- **프로젝트 설정**: GitHub 토글 + Token/Owner/Repo 입력 + Test Connection
+- **DB**: `github_enabled`, `github_token`, `github_owner`, `github_repo` 컬럼 추가
+
+#### 2. 모델 수동 관리 시스템 (`760fee2`)
+
+CLI 도구별 모델 목록을 DB에서 관리하는 시스템.
+
+- **`cli_models` 테이블**: 새 테이블 추가 (cli_tool, model_value, model_label, sort_order, is_default)
+- **자동 시딩**: 서버 시작 시 기본 모델 목록 자동 생성 (Claude Sonnet/Opus/Haiku, GPT-4.1 계열, Gemini)
+- **REST API**: `GET /api/models`, `POST /api/models`, `DELETE /api/models/:id`
+- **프론트엔드 UI** (`ModelSettings.tsx`): 모델 추가/삭제/기본값 설정
+- **실행 시 모델 변경 핫픽스** (`0f229c6`): 작업 도중 모델이 변경되어도 에러 없이 처리
+
+#### 3. CLI Fallback Chain (`a1992fb`)
+
+컨텍스트 윈도우 소진 시 자동으로 다음 CLI/모델로 재시도하는 폴백 메커니즘.
+
+- **프로젝트 설정**: `cli_fallback_chain` (JSON 배열) 설정 UI
+- **자동 감지**: `log-streamer.ts`에서 컨텍스트 소진 패턴 감지
+- **자동 재시도**: orchestrator가 다음 fallback CLI로 동일 태스크 자동 재실행
+- **컨텍스트 스위치 카운트**: `context_switch_count` 컬럼으로 재시도 횟수 추적
+
+#### 4. Verbose 실행 모드 (`4c7a03c`, `31d79e7`)
+
+Claude CLI의 모든 로그를 필터 없이 스트리밍하는 디버그 모드.
+
+- TODO 실행 시 **Verbose** 토글 추가
+- `--verbose` 플래그로 stream-json 출력 활성화
+- `log-streamer.ts`에서 verbose 모드일 때 모든 이벤트 기록
+
+#### 5. 토큰 사용량 최적화 (`ff6b637`)
+
+- **기본 턴 제한** (`default_max_turns`): 프로젝트별 Claude CLI 최대 턴 수 설정
+- **효율성 지침**: CLAUDE.md에 태스크 실행 가이드라인 추가
+
+#### 6. 프롬프트 인젝션 방어 (`4630c92`)
+
+외부 입력(Notion/GitHub/Jira)에서 프롬프트 인젝션 공격을 방어하는 보안 레이어.
+
+- **`prompt-guard.ts`** 서비스: 구조적 분리, 입력 검증, 위험 패턴 감지
+- **감사 로그**: 의심스러운 입력 감지 시 로그 기록
+- Notion/GitHub/Jira 라우트에 가드 적용
+
+### 실행 엔진 개선
+
+#### 의존성 시스템 강화
+- **자식 태스크 실행 시 부모 의존성 자동 실행** (`1f91eee`): 미완료 부모가 있으면 자동으로 먼저 시작
+- **의존성 기반 자동 체이닝** (`c2fa679`): `startNextPending` → `startDependentChildren`으로 교체하여 정밀 제어
+- **디펜던시 완료 시 스퀴시 머지** (`c6c1d5b`): 의존성 브랜치 완료 시 자동 squash merge + 부모 워크트리 정리
+
+#### 프로세스 관리
+- **tree-kill** (`b78922d`): 프로세스 트리 전체를 안전하게 종료 (단일 PID kill → tree-kill)
+- **컨텍스트 스위치 제한**: 무한 재시도 방지
+- **Worktree 유효성 검증**: 실행 전 worktree 경로 존재 확인
+
+#### Codex CLI 개선
+- `--full-auto` → `--dangerously-bypass-approvals-and-sandbox` (`fd8c254`)
+- Windows cmd.exe 셸 이스케이핑 수정 (`fd80f98`)
+- 프롬프트 전달 안정화 (`6c3576f`)
+
+### UI 개선
+
+- **그래프 뷰 엣지 드래그로 의존성 제거/변경** (`efb18d6`)
+- **리스트 뷰 드래그&드롭으로 의존성 제거** (`8a180e1`)
+- **리스트 뷰 의존성 들여쓰기** (`6c3576f`)
+- **모바일 UI 반응형 개선** (`6533fe5`): 패딩, 탭, 모달, 배지 레이아웃 수정
+- **실패 작업 → 스케줄 변환 UI** (`c8fb658`): 실패한 작업을 스케줄 작업으로 전환하는 UI + 로직
+- **로그인 화면 법적 면책 고지** (`a967f88`)
+
+### 새로 생성된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `src/server/routes/github.ts` | GitHub API 프록시 라우트 (8개 엔드포인트) |
+| `src/server/routes/models.ts` | CLI 모델 관리 REST API |
+| `src/server/services/prompt-guard.ts` | 프롬프트 인젝션 방어 서비스 |
+| `src/server/services/__tests__/prompt-guard.test.ts` | 프롬프트 가드 테스트 |
+| `src/client/src/api/github.ts` | 프론트엔드 GitHub API 클라이언트 |
+| `src/client/src/api/models.ts` | 프론트엔드 모델 API 클라이언트 |
+| `src/client/src/components/GitHubPanel.tsx` | GitHub Issues 브라우저 패널 UI |
+| `src/client/src/components/ModelSettings.tsx` | 모델 관리 설정 UI |
+| `src/client/src/hooks/useModels.ts` | 모델 데이터 훅 |
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/orchestrator.ts` | fallback chain, 의존성 자동 체이닝, squash merge, 컨텍스트 스위치 제한 |
+| `src/server/services/log-streamer.ts` | verbose 모드, 컨텍스트 소진 감지, stderr 분류 |
+| `src/server/services/claude-manager.ts` | tree-kill, Windows cmd.exe 이스케이핑, Codex 프롬프트 안정화 |
+| `src/server/services/cli-adapters.ts` | 모델 변경 핫픽스, verbose 플래그, Codex 플래그 업데이트 |
+| `src/server/services/worktree-manager.ts` | worktree 유효성 검증, squash merge 지원 |
+| `src/server/db/schema.ts` | `cli_models` 테이블, github/fallback/context_switch 컬럼 |
+| `src/client/src/components/ProjectHeader.tsx` | GitHub 설정, fallback chain, max turns, 모델 관리 UI |
+| `src/client/src/components/TodoItem.tsx` | verbose 토글, 스케줄 변환, squash merge 버튼 |
+| `src/client/src/components/TaskGraph.tsx` | 엣지 드래그 의존성 변경 |
+| `src/client/src/components/TodoList.tsx` | 드래그&드롭 의존성 제거, 들여쓰기 |
+
+---
+
 ## 2026-04-01 — Notion 데이터베이스 연동
 
 ### 배경

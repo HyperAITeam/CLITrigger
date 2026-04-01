@@ -42,17 +42,18 @@ npm run typecheck              # server + client
 ### Server
 
 - **Entry**: `src/server/index.ts` — Express app, middleware, route mounting, graceful shutdown.
-- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 8 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`.
-- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, jira, tunnel.
+- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 9 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`, `cli_models`.
+- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, jira, notion, github, models, tunnel.
 - **Services**: `src/server/services/` — Core business logic:
-  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, and auto-chaining of next tasks.
+  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, and CLI fallback on context exhaustion.
   - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex, child_process for Claude/Gemini). Windows cmd.exe wrapper for .cmd shims.
   - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format).
-  - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes.
+  - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes. Detects context exhaustion for CLI fallback chain.
   - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max).
   - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`.
   - `pipeline-orchestrator.ts` — Multi-phase sequential/parallel pipeline execution.
   - `skill-injector.ts` — Injects gstack skill files into `.claude/skills/` in worktrees (Claude CLI only).
+  - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
 - **WebSocket**: `src/server/websocket/` — Real-time log streaming and status broadcasts. Session-authenticated. Supports stdin relay for interactive mode.
 - **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`.
