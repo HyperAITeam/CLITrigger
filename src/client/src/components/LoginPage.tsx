@@ -85,6 +85,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         <div className="mt-6 text-center text-xs text-warm-400">
           {t('login.footer')}
         </div>
+
+        <div className="mt-4 px-2 py-3 bg-warm-200/60 border border-warm-300/50 rounded-xl text-xs text-warm-500 leading-relaxed text-center">
+          {t('login.disclaimer')}
+        </div>
       </div>
     </div>
   );
