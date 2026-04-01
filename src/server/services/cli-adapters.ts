@@ -71,8 +71,7 @@ const claudeAdapter: CliAdapter = {
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
     const normalizedModel = normalizeModel(model, 'claude');
-    const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json'];
-    if (mode === 'verbose') args.push('--verbose');
+    const args = ['--dangerously-skip-permissions', '--print', '--verbose', '--output-format', 'stream-json'];
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
