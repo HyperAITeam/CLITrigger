@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { useModels } from '../hooks/useModels';
 import type { ImageMeta, Todo } from '../types';
 import { getTodoImageUrl } from '../api/todos';
 
@@ -57,6 +58,7 @@ export default function TodoForm({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
+  const { getToolConfig } = useModels();
 
   const toolConfig = getToolConfig(cliTool);
 

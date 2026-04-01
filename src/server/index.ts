@@ -21,6 +21,7 @@ import tunnelRouter from './routes/tunnel.js';
 import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
 import jiraRouter from './routes/jira.js';
+import modelsRouter from './routes/models.js';
 import { scheduler } from './services/scheduler.js';
 
 const app = express();
@@ -107,6 +108,7 @@ app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
 app.use('/api/jira', jiraRouter);
 app.use('/api/tunnel', tunnelRouter);
+app.use('/api', modelsRouter);
 
 // --- Scheduler ---
 scheduler.initialize();

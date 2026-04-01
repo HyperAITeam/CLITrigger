@@ -537,6 +537,59 @@ export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): Sch
   return db.prepare('SELECT * FROM schedule_runs WHERE schedule_id = ? ORDER BY started_at DESC LIMIT ?').all(scheduleId, limit) as ScheduleRun[];
 }
 
+// ── CLI Models ──
+
+export interface CliModel {
+  id: string;
+  cli_tool: string;
+  model_value: string;
+  model_label: string;
+  sort_order: number;
+  is_default: number;
+  created_at: string;
+}
+
+export function getModelsByTool(tool: string): CliModel[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM cli_models WHERE cli_tool = ? ORDER BY sort_order ASC').all(tool) as CliModel[];
+}
+
+export function getAllModels(): Record<string, CliModel[]> {
+  const db = getDatabase();
+  const rows = db.prepare('SELECT * FROM cli_models ORDER BY cli_tool ASC, sort_order ASC').all() as CliModel[];
+  const grouped: Record<string, CliModel[]> = {};
+  for (const row of rows) {
+    if (!grouped[row.cli_tool]) grouped[row.cli_tool] = [];
+    grouped[row.cli_tool].push(row);
+  }
+  return grouped;
+}
+
+export function addModel(cliTool: string, modelValue: string, modelLabel: string): CliModel {
+  const db = getDatabase();
+  const id = uuidv4();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM cli_models WHERE cli_tool = ?').get(cliTool) as { max_order: number | null };
+  const sortOrder = (maxOrder.max_order ?? -1) + 1;
+  db.prepare(
+    `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default) VALUES (?, ?, ?, ?, ?, 0)`
+  ).run(id, cliTool, modelValue, modelLabel, sortOrder);
+  return db.prepare('SELECT * FROM cli_models WHERE id = ?').get(id) as CliModel;
+}
+
+export function removeModel(id: string): boolean {
+  const db = getDatabase();
+  const model = db.prepare('SELECT * FROM cli_models WHERE id = ?').get(id) as CliModel | undefined;
+  if (!model || model.is_default === 1) return false;
+  const result = db.prepare('DELETE FROM cli_models WHERE id = ? AND is_default = 0').run(id);
+  return result.changes > 0;
+}
+
+export function isModelSupported(cliTool: string, modelValue: string): boolean {
+  const db = getDatabase();
+  const row = db.prepare('SELECT 1 FROM cli_models WHERE cli_tool = ? AND model_value = ?').get(cliTool, modelValue);
+  return !!row;
+}
+
 // ── Cleanup ──
 
 export function cleanOldLogs(daysToKeep: number): number {

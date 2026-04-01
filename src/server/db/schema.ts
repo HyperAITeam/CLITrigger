@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
 
 export function initDatabase(db: Database.Database): void {
@@ -97,6 +98,17 @@ export function initDatabase(db: Database.Database): void {
       started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       completed_at DATETIME
     );
+
+    CREATE TABLE IF NOT EXISTS cli_models (
+      id TEXT PRIMARY KEY,
+      cli_tool TEXT NOT NULL,
+      model_value TEXT NOT NULL,
+      model_label TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(cli_tool, model_value)
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -136,4 +148,37 @@ export function initDatabase(db: Database.Database): void {
 
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
+
+  // Seed cli_models if empty
+  const modelCount = db.prepare('SELECT COUNT(*) as count FROM cli_models').get() as { count: number };
+  if (modelCount.count === 0) {
+    seedCliModels(db);
+  }
+}
+
+function seedCliModels(db: Database.Database): void {
+  const seed = db.prepare(
+    `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default) VALUES (?, ?, ?, ?, ?, ?)`
+  );
+
+  const models = [
+    // Claude
+    ['claude', '', 'Default', 0, 1],
+    ['claude', 'claude-sonnet-4-6', 'Claude Sonnet 4.6', 1, 0],
+    ['claude', 'claude-opus-4-6', 'Claude Opus 4.6', 2, 0],
+    ['claude', 'claude-haiku-4-5', 'Claude Haiku 4.5', 3, 0],
+    // Gemini
+    ['gemini', '', 'Default (Gemini 2.5 Pro)', 0, 1],
+    // Codex
+    ['codex', '', 'Default', 0, 1],
+    ['codex', 'gpt-4.1', 'GPT-4.1', 1, 0],
+    ['codex', 'gpt-4.1-mini', 'GPT-4.1 Mini', 2, 0],
+    ['codex', 'gpt-4.1-nano', 'GPT-4.1 Nano', 3, 0],
+    ['codex', 'o3', 'o3', 4, 0],
+    ['codex', 'o4-mini', 'o4-mini', 5, 0],
+  ];
+
+  for (const [tool, value, label, order, isDefault] of models) {
+    seed.run(randomUUID(), tool, value, label, order, isDefault);
+  }
 }

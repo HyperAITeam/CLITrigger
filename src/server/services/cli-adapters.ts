@@ -1,8 +1,7 @@
+import { isModelSupported } from '../db/queries.js';
+
 export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'streaming';
-
-const SUPPORTED_CLAUDE_MODELS = new Set(['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5']);
-const SUPPORTED_CODEX_MODELS = new Set(['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini']);
 
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
@@ -35,10 +34,10 @@ export function sanitizeExtraOptions(extraOptions: string): string[] {
   return sanitized;
 }
 
-function normalizeModel(model: string | undefined, supported: Set<string>, toolName: string): string | undefined {
+function normalizeModel(model: string | undefined, cliTool: CliTool): string | undefined {
   if (!model) return undefined;
-  if (supported.has(model)) return model;
-  console.warn(`Unsupported ${toolName} model "${model}" ignored; falling back to ${toolName} default model.`);
+  if (isModelSupported(cliTool, model)) return model;
+  console.warn(`Unsupported ${cliTool} model "${model}" ignored; falling back to default model.`);
   return undefined;
 }
 
@@ -68,7 +67,7 @@ const claudeAdapter: CliAdapter = {
   displayName: 'Claude CLI',
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
-    const normalizedModel = normalizeModel(model, SUPPORTED_CLAUDE_MODELS, 'Claude');
+    const normalizedModel = normalizeModel(model, 'claude');
     const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'stream-json', '--verbose'];
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
@@ -111,7 +110,7 @@ const codexAdapter: CliAdapter = {
   displayName: 'Codex CLI',
   requiresTty: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
-    const normalizedModel = normalizeModel(model, SUPPORTED_CODEX_MODELS, 'Codex');
+    const normalizedModel = normalizeModel(model, 'codex');
     if (mode === 'headless') {
       // Use 'codex exec' subcommand for non-interactive headless execution
       // This avoids the interactive trust directory prompt

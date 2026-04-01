@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { useModels } from '../hooks/useModels';
 import CronBuilder from './CronBuilder';
 
 type ScheduleType = 'recurring' | 'once';
@@ -75,6 +76,7 @@ export default function ScheduleForm({
   const [scheduleType, setScheduleType] = useState<ScheduleType>(initialScheduleType);
   const [runAt, setRunAt] = useState(initialRunAt ? toLocalDatetimeValue(initialRunAt) : getDefaultRunAt());
   const { t } = useI18n();
+  const { getToolConfig } = useModels();
 
   const toolConfig = getToolConfig(cliTool);
 

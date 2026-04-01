@@ -4,7 +4,9 @@ import * as projectsApi from '../api/projects';
 import * as gstackApi from '../api/gstack';
 import * as jiraApi from '../api/jira';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { useModels } from '../hooks/useModels';
+import ModelSettings from './ModelSettings';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -50,6 +52,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   useEffect(() => {
     gstackApi.getAvailableSkills().then(setAvailableSkills).catch(() => {});
   }, []);
+
+  const { getToolConfig } = useModels();
 
   const handleCliToolChange = (newTool: CliTool) => {
     setCliTool(newTool);
@@ -418,6 +422,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               </>
             )}
           </div>
+
+          {/* Model Management */}
+          <ModelSettings />
 
           {!project.is_git_repo && (
             <div className="mt-5 p-3 bg-status-warning/5 border border-status-warning/20 rounded-xl">

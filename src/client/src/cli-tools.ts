@@ -1,3 +1,5 @@
+import { getModels, type ModelMap, type ModelOption } from './api/models';
+
 export type CliTool = 'claude' | 'gemini' | 'codex';
 
 export interface CliToolConfig {
@@ -6,7 +8,8 @@ export interface CliToolConfig {
   models: { value: string; label: string }[];
 }
 
-export const CLI_TOOLS: CliToolConfig[] = [
+// Static fallback used when server is unreachable
+const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'claude',
     label: 'Claude Code',
@@ -38,6 +41,32 @@ export const CLI_TOOLS: CliToolConfig[] = [
   },
 ];
 
+export const CLI_TOOLS = DEFAULT_CLI_TOOLS;
+
+let cachedModels: ModelMap | null = null;
+let loadPromise: Promise<void> | null = null;
+
+export function loadModels(): Promise<void> {
+  if (loadPromise) return loadPromise;
+  loadPromise = getModels()
+    .then((models) => { cachedModels = models; })
+    .catch(() => { cachedModels = null; });
+  return loadPromise;
+}
+
+export function refreshModels(): Promise<void> {
+  loadPromise = null;
+  cachedModels = null;
+  return loadModels();
+}
+
 export function getToolConfig(tool: CliTool): CliToolConfig {
-  return CLI_TOOLS.find((t) => t.value === tool) ?? CLI_TOOLS[0];
+  const base = DEFAULT_CLI_TOOLS.find((t) => t.value === tool) ?? DEFAULT_CLI_TOOLS[0];
+  if (cachedModels && cachedModels[tool]) {
+    return {
+      ...base,
+      models: cachedModels[tool].map((m: ModelOption) => ({ value: m.value, label: m.label })),
+    };
+  }
+  return base;
 }
