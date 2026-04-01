@@ -10,6 +10,8 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import * as queries from '../db/queries.js';
 
+const MAX_CONTEXT_SWITCHES = 3;
+
 export class Orchestrator {
   /**
    * Get the max concurrent setting for a project.
@@ -166,7 +168,8 @@ export class Orchestrator {
       let inheritedFromBranch: string | null = null;
 
       // Reuse existing worktree if available (context switch restart scenario)
-      if (todo.worktree_path && todo.branch_name && fs.existsSync(todo.worktree_path)) {
+      // Validates that the worktree is a real git checkout, not just an empty directory
+      if (todo.worktree_path && todo.branch_name && await worktreeManager.isValidWorktree(todo.worktree_path)) {
         worktreePath = todo.worktree_path;
         branchName = todo.branch_name;
         queries.createTaskLog(todoId, 'output', `Reusing existing worktree on branch ${branchName}`);
@@ -462,6 +465,16 @@ Complete the task in the current directory.`;
 
     const toCli = fallback.cliTool;
     const switchCount = (currentTodo.context_switch_count ?? 0) + 1;
+
+    if (switchCount > MAX_CONTEXT_SWITCHES) {
+      queries.updateTodoStatus(todoId, 'failed');
+      queries.createTaskLog(todoId, 'error',
+        `Maximum context switches (${MAX_CONTEXT_SWITCHES}) exceeded. Stopping task.`);
+      queries.updateTodo(todoId, { process_pid: 0 });
+      broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+      this.broadcastProjectStatus(projectId);
+      return;
+    }
 
     queries.createTaskLog(todoId, 'output',
       `Context exhaustion detected. Switching from ${fromCli} to ${toCli} (attempt ${switchCount})...`);

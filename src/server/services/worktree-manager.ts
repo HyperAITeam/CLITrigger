@@ -36,6 +36,21 @@ export class WorktreeManager {
   }
 
   /**
+   * Check if a directory is a valid git worktree (has .git file and can run git status).
+   */
+  async isValidWorktree(worktreePath: string): Promise<boolean> {
+    try {
+      const gitPath = path.join(worktreePath, '.git');
+      if (!fs.existsSync(gitPath)) return false;
+      const git = simpleGit(worktreePath);
+      await git.status();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Create a worktree for a todo item.
    * Worktree path: <projectPath>/../worktrees/<branchName>
    * Returns the absolute worktree path.

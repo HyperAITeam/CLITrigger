@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'stream';
 import * as pty from 'node-pty';
+import treeKill from 'tree-kill';
 import { getAdapter, type CliTool, type CliMode } from './cli-adapters.js';
 
 export type ClaudeMode = CliMode;
@@ -223,7 +224,9 @@ export class ClaudeManager {
   }
 
   /**
-   * Stop a CLI process. Sends SIGTERM first, then SIGKILL after 5 seconds.
+   * Stop a CLI process. Uses tree-kill to kill the entire process tree
+   * (necessary on Windows where shell: true wraps CLIs in cmd.exe).
+   * Sends SIGTERM first, escalates to SIGKILL after 5 seconds.
    */
   async stopClaude(pid: number): Promise<void> {
     const proc = this.processes.get(pid);
@@ -238,29 +241,32 @@ export class ClaudeManager {
       this.stdinStreams.delete(pid);
     }
 
+    // Try graceful tree-kill first (kills entire process tree)
+    try { treeKill(pid, 'SIGTERM'); } catch { /* ignore */ }
+
     return new Promise<void>((resolve) => {
-      const killTimer = setTimeout(() => {
-        try {
-          proc.kill('SIGKILL');
-        } catch {
-          // Process may already be dead
+      // Poll for process exit (exit handler in startWithSpawn/startWithPty deletes from map)
+      const checkInterval = setInterval(() => {
+        if (!this.processes.has(pid)) {
+          clearInterval(checkInterval);
+          clearTimeout(killTimer);
+          clearTimeout(deadline);
+          resolve();
         }
+      }, 200);
+
+      // Escalate to SIGKILL after 5 seconds if still alive
+      const killTimer = setTimeout(() => {
+        try { treeKill(pid, 'SIGKILL'); } catch { /* ignore */ }
       }, 5000);
 
-      // For pty processes, kill resolves immediately
-      // For child processes, we wait for exit event
-      try {
-        proc.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-
-      // Give it time to exit, then resolve
-      setTimeout(() => {
+      // Final deadline: force-cleanup and resolve after 7 seconds
+      const deadline = setTimeout(() => {
+        clearInterval(checkInterval);
         clearTimeout(killTimer);
         this.processes.delete(pid);
         resolve();
-      }, 1000);
+      }, 7000);
     });
   }
 
