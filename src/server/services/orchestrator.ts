@@ -431,10 +431,12 @@ Complete the task in the current directory.`;
         }
       }
 
-      // Always try to start next pending todo (e.g. dependent children waiting for this task)
-      this.startNextPending(projectId).catch(() => {
-        // Ignore errors when starting next todo
-      });
+      // Start dependent children that were waiting for this task to complete
+      if (autoChain) {
+        this.startDependentChildren(projectId, todoId).catch(() => {
+          // Ignore errors when starting dependent children
+        });
+      }
     }).catch(() => {
       // Fallback: ensure status is updated if exitPromise handler fails
       try {
@@ -540,19 +542,28 @@ Complete the task in the current directory.`;
     return chain;
   }
 
-  private async startNextPending(projectId: string): Promise<void> {
+  /**
+   * Start pending children that directly depend on a completed parent task.
+   * Only starts tasks whose depends_on matches the given parentTodoId,
+   * preventing unrelated pending tasks from being auto-started.
+   */
+  private async startDependentChildren(projectId: string, parentTodoId: string): Promise<void> {
     const todos = queries.getTodosByProjectId(projectId);
     const running = todos.filter((t) => t.status === 'running');
-    const pending = todos.filter((t) => t.status === 'pending');
     const maxConcurrent = this.getMaxConcurrent(projectId);
 
-    // Filter to only tasks whose dependencies are satisfied
-    const startable = pending.filter((t) => this.isDependencySatisfied(t, todos));
+    // Only start children that depend on the just-completed parent
+    const dependentChildren = todos.filter(
+      (t) => t.status === 'pending' && t.depends_on === parentTodoId
+    );
 
-    if (running.length < maxConcurrent && startable.length > 0) {
-      const project = queries.getProjectById(projectId);
-      if (project) {
-        await this.startSingleTodo(startable[0].id, project.path, projectId, 'headless', true);
+    const slotsAvailable = Math.max(0, maxConcurrent - running.length);
+    const toStart = dependentChildren.slice(0, slotsAvailable);
+
+    const project = queries.getProjectById(projectId);
+    if (project) {
+      for (const child of toStart) {
+        await this.startSingleTodo(child.id, project.path, projectId, 'headless', true);
       }
     }
   }
