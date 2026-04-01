@@ -123,7 +123,9 @@ export class ClaudeManager {
         child = spawn(adapter.command, args, {
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
+          // shell needed on Windows to resolve .cmd shims (claude.cmd, gemini.cmd)
+          // Safe: prompts are delivered via stdin, not as command-line arguments
+          shell: process.platform === 'win32',
           windowsHide: true,
         });
       } catch (err) {

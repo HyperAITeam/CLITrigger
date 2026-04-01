@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createTodo, getTodosByProjectId, getTodoById, updateTodo, deleteTodo } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
+import { validatePromptContent, MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
 
 const router = Router();
 
@@ -18,6 +19,13 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
     if (!title) {
       res.status(400).json({ error: 'title is required' });
       return;
+    }
+
+    // Prompt injection detection (warn only, do not block)
+    const titleCheck = validatePromptContent(title, MAX_TITLE_LENGTH);
+    const descCheck = description ? validatePromptContent(description, MAX_DESCRIPTION_LENGTH) : null;
+    for (const w of [...titleCheck.warnings, ...(descCheck?.warnings || [])]) {
+      console.warn(`[prompt-guard] Todo "${title}": ${w}`);
     }
 
     // Validate depends_on if provided

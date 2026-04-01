@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { getProjectById } from '../db/queries.js';
+import { validatePromptContent, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
 
 const router = Router();
 
@@ -304,7 +305,11 @@ router.post('/:projectId/import/:issueKey', async (req: PidIssueReq, res: Respon
     }
 
     const title = `[${req.params.issueKey}] ${summary}`;
-    res.json({ title, description, issueKey: req.params.issueKey });
+    const validation = validatePromptContent(description, MAX_DESCRIPTION_LENGTH);
+    if (!validation.valid) {
+      console.warn(`[prompt-guard] Jira import ${req.params.issueKey}: ${validation.warnings.join('; ')}`);
+    }
+    res.json({ title, description: validation.sanitized, issueKey: req.params.issueKey, warnings: validation.warnings });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

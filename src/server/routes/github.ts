@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { getProjectById } from '../db/queries.js';
+import { validatePromptContent, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
 
 const router = Router();
 
@@ -242,7 +243,11 @@ router.post('/:projectId/import/:number', async (req: PidNumReq, res: Response) 
     const issue = await resp.json();
     const title = `#${issue.number} ${issue.title}`;
     const description = issue.body || '';
-    res.json({ title, description, number: issue.number });
+    const validation = validatePromptContent(description, MAX_DESCRIPTION_LENGTH);
+    if (!validation.valid) {
+      console.warn(`[prompt-guard] GitHub import #${issue.number}: ${validation.warnings.join('; ')}`);
+    }
+    res.json({ title, description: validation.sanitized, number: issue.number, warnings: validation.warnings });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
