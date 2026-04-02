@@ -92,12 +92,13 @@ const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
   buildArgs({ mode, prompt, model, extraOptions }) {
-    // Gemini CLI does not support --model flag; always uses its default model
-    const args = ['--sandbox=permissive'];
+    // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
+    // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
+    const args = ['--yolo'];
+    if (model) args.push('--model', model);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
-    // Headless: prompt is delivered via stdin pipe (avoids shell escaping issues with newlines)
     return args;
   },
   needsStdin(_mode) {
