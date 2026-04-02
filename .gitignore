@@ -37,3 +37,5 @@ worktrees/
 .worktrees/
 .claude/settings.local.json
 .hecaton/
+plugin-build/
+clitrigger-plugin.zip
