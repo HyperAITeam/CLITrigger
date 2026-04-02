@@ -303,7 +303,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
       <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
       {/* Header row */}
       <div
-        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 sm:py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap sm:gap-3 px-3 sm:px-4 py-3 sm:py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         {/* Drag Handle */}
@@ -337,10 +337,10 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         </button>
 
         {/* Priority */}
-        <span className="text-[10px] font-mono text-warm-400 w-6">#{todo.priority}</span>
+        <span className="text-[10px] font-mono text-warm-400 w-6 flex-shrink-0">#{todo.priority}</span>
 
-        {/* Title */}
-        <span className="flex-1 min-w-[80px] text-sm text-warm-800 font-medium truncate">{todo.title}</span>
+        {/* Title — takes remaining space, forces line break after on mobile */}
+        <span className="flex-1 basis-[calc(100%-100px)] sm:basis-auto min-w-0 text-sm text-warm-800 font-medium truncate order-none">{todo.title}</span>
 
         {/* Image count badge */}
         {existingImages.length > 0 && (
@@ -387,7 +387,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         <StatusBadge status={todo.status} />
 
         {/* Actions */}
-        <div className="flex items-center gap-0.5 ml-1 sm:ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5 ml-auto sm:ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {canStart && (
             <>
               <button
