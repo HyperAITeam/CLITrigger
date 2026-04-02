@@ -43,5 +43,7 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 
 export function initAuth(app: Express): void {
   app.use(sessionMiddleware);
-  app.use('/api', authMiddleware);
+  if (process.env.DISABLE_AUTH !== 'true') {
+    app.use('/api', authMiddleware);
+  }
 }

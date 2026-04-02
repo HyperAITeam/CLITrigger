@@ -19,7 +19,8 @@
     "test:coverage": "vitest run --config vitest.config.ts --coverage && cd src/client && npx vitest run --config vitest.config.ts --coverage",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && cd src/client && npx tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
-    "typecheck:client": "cd src/client && npx tsc --noEmit"
+    "typecheck:client": "cd src/client && npx tsc --noEmit",
+    "build:plugin": "npm run build && npx esbuild dist/server/index.js --bundle --platform=node --format=cjs --outfile=plugin-build/server/server.js --external:better-sqlite3 --external:node-pty"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
@@ -48,6 +49,7 @@
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^4.1.1",
     "concurrently": "^9.1.0",
+    "esbuild": "^0.24.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.1"

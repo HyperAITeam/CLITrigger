@@ -137,13 +137,15 @@ if (process.env.TUNNEL_ENABLED === 'true') {
   });
 }
 
-// Serve frontend static files in production
+// Serve frontend static files in production (skip in headless/plugin mode)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const clientDist = path.resolve(__dirname, '../../src/client/dist');
-app.use(express.static(clientDist));
-app.get(/^\/(?!api|ws).*/, (_req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
-});
+if (process.env.HEADLESS !== 'true') {
+  const clientDist = path.resolve(__dirname, '../../src/client/dist');
+  app.use(express.static(clientDist));
+  app.get(/^\/(?!api|ws).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -166,6 +168,10 @@ function cleanup() {
 
 process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
+
+// Plugin mode: shut down when parent process closes stdin
+process.stdin.on('end', cleanup);
+process.stdin.resume();
 
 server.listen(PORT, () => {
   console.log(`CLITrigger server running on http://localhost:${PORT}`);

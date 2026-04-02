@@ -11,7 +11,7 @@ let db: Database.Database | null = null;
 
 export function getDatabase(): Database.Database {
   if (!db) {
-    const dbPath = path.join(PROJECT_ROOT, 'clitrigger.db');
+    const dbPath = process.env.DB_PATH || path.join(PROJECT_ROOT, 'clitrigger.db');
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     initDatabase(db);

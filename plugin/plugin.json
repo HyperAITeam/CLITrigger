@@ -1,0 +1,6 @@
+{
+  "name": "clitrigger",
+  "entry": "main.js",
+  "version": "0.1.0",
+  "description": "AI task automation with git worktrees"
+}
