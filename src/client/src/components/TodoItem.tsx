@@ -340,7 +340,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         <span className="text-[10px] font-mono text-warm-400 w-6">#{todo.priority}</span>
 
         {/* Title */}
-        <span className="flex-1 text-sm text-warm-800 font-medium truncate">{todo.title}</span>
+        <span className="flex-1 min-w-[80px] text-sm text-warm-800 font-medium truncate">{todo.title}</span>
 
         {/* Image count badge */}
         {existingImages.length > 0 && (
