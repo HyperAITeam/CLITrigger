@@ -1,6 +1,8 @@
 {
-  "name": "clitrigger",
-  "entry": "main.js",
+  "id": "clitrigger",
+  "name": "CLITrigger",
   "version": "0.1.0",
-  "description": "AI task automation with git worktrees"
+  "entry": "main.js",
+  "description": "AI task automation with git worktrees",
+  "apiVersion": { "major": 1, "minor": 0 }
 }
