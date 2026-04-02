@@ -7,25 +7,15 @@
 //   3. Communicates with server via HTTP/WebSocket on localhost
 
 const path = require("path");
-const os = require("os");
-const fs = require("fs");
 const { ServerManager } = require("./lib/server-manager.js");
 const { ApiClient } = require("./lib/api-client.js");
 const { TUI } = require("./lib/tui.js");
-const { exec } = require("child_process");
 
 // hecaton global API (injected by deno_runner)
 const heca = globalThis.hecaton;
 
-// ===== Paths =====
-const pluginDir = __dirname;
-const serverDir = path.join(pluginDir, "server");
-const dataDir = path.join(os.homedir(), ".clitrigger-plugin");
-
-// Ensure data directory exists
-try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
-
-const dbPath = path.join(dataDir, "clitrigger.db");
+// ===== Config =====
+const SERVER_PORT = 3000; // CLITrigger server port (default)
 
 // ===== State =====
 let api = null;
@@ -38,8 +28,7 @@ let inputLabel = "";
 
 // ===== Server Manager =====
 const serverManager = new ServerManager({
-  serverDir,
-  dbPath,
+  port: SERVER_PORT,
   onReady: (port) => {
     api = new ApiClient(serverManager.getBaseUrl());
     heca.set_title({ title: `CLITrigger :${port}` });
@@ -185,7 +174,7 @@ async function openInBrowser() {
   }
   const url = `http://localhost:${port}`;
   // Windows: use start command
-  exec(`start "" "${url}"`, () => {});
+  heca.exec_process({ command: `cmd /c start "" "${url}"`, cwd: "." });
   tui.setStatus(`Opened ${url} in browser`, 2000);
 }
 

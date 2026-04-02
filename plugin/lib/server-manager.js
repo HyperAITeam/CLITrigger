@@ -1,109 +1,53 @@
-// Server lifecycle manager: spawn/kill/restart CLITrigger Node.js server
-const { spawn } = require("child_process");
-const http = require("http");
+// Server manager — connects to an already-running CLITrigger server
+// User must start the server separately (npm run start)
 const path = require("path");
-const net = require("net");
 
-const MAX_RESTARTS = 3;
-const HEALTH_CHECK_INTERVAL = 500;
-const HEALTH_CHECK_TIMEOUT = 15000;
+const HEALTH_CHECK_INTERVAL = 1000;
+const HEALTH_CHECK_TIMEOUT = 10000;
+const DEFAULT_PORT = 3000;
+
+const heca = globalThis.hecaton;
 
 class ServerManager {
   constructor(opts) {
-    this.serverDir = opts.serverDir;
-    this.dbPath = opts.dbPath;
-    this.port = 0;
-    this.proc = null;
-    this.restartCount = 0;
+    this.port = opts.port || DEFAULT_PORT;
     this.onReady = opts.onReady || (() => {});
     this.onError = opts.onError || (() => {});
     this.onExit = opts.onExit || (() => {});
     this.stopping = false;
   }
 
-  async findFreePort() {
-    return new Promise((resolve, reject) => {
-      const srv = net.createServer();
-      srv.listen(0, "127.0.0.1", () => {
-        const port = srv.address().port;
-        srv.close(() => resolve(port));
-      });
-      srv.on("error", reject);
-    });
-  }
-
   async start() {
     this.stopping = false;
-    this.port = await this.findFreePort();
 
-    const serverEntry = path.join(this.serverDir, "server.js");
-    const env = Object.assign({}, process.env, {
-      PORT: String(this.port),
-      DB_PATH: this.dbPath,
-      HEADLESS: "true",
-      DISABLE_AUTH: "true",
-      NODE_ENV: "production",
-    });
-
-    this.proc = spawn("node", [serverEntry], {
-      cwd: this.serverDir,
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    this.proc.stdout.on("data", () => {});
-    this.proc.stderr.on("data", () => {});
-
-    this.proc.on("exit", (code) => {
-      if (this.stopping) return;
-      if (this.restartCount < MAX_RESTARTS) {
-        this.restartCount++;
-        this.start().catch(this.onError);
-      } else {
-        this.onExit(code);
-      }
-    });
-
-    await this.waitForHealth();
-    this.restartCount = 0;
-    this.onReady(this.port);
+    try {
+      await this.waitForHealth();
+      this.onReady(this.port);
+    } catch (err) {
+      this.onError(err);
+    }
   }
 
-  waitForHealth() {
-    return new Promise((resolve, reject) => {
-      const start = Date.now();
-      const check = () => {
-        if (Date.now() - start > HEALTH_CHECK_TIMEOUT) {
-          return reject(new Error("Server health check timeout"));
-        }
-        const req = http.get(
-          `http://127.0.0.1:${this.port}/api/health`,
-          (res) => {
-            if (res.statusCode === 200) return resolve();
-            setTimeout(check, HEALTH_CHECK_INTERVAL);
-          }
-        );
-        req.on("error", () => setTimeout(check, HEALTH_CHECK_INTERVAL));
-        req.setTimeout(2000, () => {
-          req.destroy();
-          setTimeout(check, HEALTH_CHECK_INTERVAL);
+  async waitForHealth() {
+    const start = Date.now();
+    while (Date.now() - start < HEALTH_CHECK_TIMEOUT) {
+      try {
+        const resp = await heca.exec_process({
+          program: "curl",
+          args: ["-s", `http://127.0.0.1:${this.port}/api/health`],
+          timeout: 3000,
         });
-      };
-      check();
-    });
+        if (resp && resp.ok && resp.stdout && resp.stdout.includes("ok")) {
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, HEALTH_CHECK_INTERVAL));
+    }
+    throw new Error("Server not found on port " + this.port + ". Run 'npm run start' in CLITrigger first.");
   }
 
   stop() {
     this.stopping = true;
-    if (this.proc) {
-      this.proc.kill("SIGTERM");
-      // Force kill after 3 seconds
-      const forceTimeout = setTimeout(() => {
-        try { this.proc.kill("SIGKILL"); } catch {}
-      }, 3000);
-      this.proc.on("exit", () => clearTimeout(forceTimeout));
-      this.proc = null;
-    }
   }
 
   getPort() {
