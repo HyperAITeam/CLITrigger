@@ -11,22 +11,31 @@ class ApiClient {
   async request(method, apiPath, body) {
     const url = this.baseUrl + apiPath;
 
-    // All requests via curl (hecaton.http_get blocks localhost)
-    // For POST with body: write JSON to temp file, then curl @file
+    // All requests via curl/powershell through exec_process
     try {
       let resp;
       if (body) {
-        const tmpPath = (process.env.TEMP || process.env.TMP || "C:/Users/user/AppData/Local/Temp") + "/clitrigger_body.json";
-        await heca.fs_write_file({ path: tmpPath.replace(/\\/g, "/"), text: JSON.stringify(body) });
+        // Use PowerShell to POST with JSON body (avoids temp file + escaping issues)
+        const jsonStr = JSON.stringify(body).replace(/'/g, "''");
         resp = await heca.exec_process({
-          program: "curl",
-          args: ["-s", "-X", method, url, "-H", "Content-Type: application/json", "-d", "@" + tmpPath.replace(/\\/g, "/")],
+          program: "powershell",
+          args: ["-NoProfile", "-Command",
+            `(Invoke-WebRequest -Uri '${url}' -Method ${method} -ContentType 'application/json' -Body '${jsonStr}' -UseBasicParsing).Content`
+          ],
+          timeout: 10000,
+        });
+      } else if (method !== "GET") {
+        resp = await heca.exec_process({
+          program: "powershell",
+          args: ["-NoProfile", "-Command",
+            `(Invoke-WebRequest -Uri '${url}' -Method ${method} -ContentType 'application/json' -Body '{}' -UseBasicParsing).Content`
+          ],
           timeout: 10000,
         });
       } else {
         resp = await heca.exec_process({
           program: "curl",
-          args: ["-s", "-X", method, url],
+          args: ["-s", url],
           timeout: 10000,
         });
       }
