@@ -38,6 +38,7 @@ npm run typecheck              # server + client
 
 - **`src/server/`** — Express backend (TypeScript, ESM). Compiled via `tsconfig.server.json` → `dist/server/`.
 - **`src/client/`** — React frontend (Vite + TailwindCSS). Has its own `package.json` with separate `npm install`. Dev server proxies API calls to `:3000`.
+- **`plugin/`** — Hecaton TUI plugin (CommonJS, Deno-compatible). Connects to CLITrigger server as a sidecar client. Built/packaged via `scripts/build-plugin.bat`.
 
 ### Server
 
@@ -56,7 +57,7 @@ npm run typecheck              # server + client
   - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
 - **WebSocket**: `src/server/websocket/` — Real-time log streaming and status broadcasts. Session-authenticated. Supports stdin relay for interactive mode.
-- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`.
+- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`. Disabled entirely when `DISABLE_AUTH=true` (plugin/headless mode).
 
 ### Client
 
@@ -71,13 +72,14 @@ npm run typecheck              # server + client
 
 - **CLI Adapter Pattern**: All CLI tool differences are isolated in `cli-adapters.ts`. Adding a new CLI means implementing the `CliAdapter` interface.
 - **Worktree Isolation**: Each task gets its own git worktree in `.worktrees/`. Child tasks can inherit parent worktrees.
-- **Graceful Shutdown**: Server handles SIGTERM/SIGINT — kills running CLI processes, stops scheduler, closes tunnel.
+- **Graceful Shutdown**: Server handles SIGTERM/SIGINT — kills running CLI processes, stops scheduler, closes tunnel. Also shuts down on stdin EOF (plugin sidecar mode).
+- **Headless Mode**: `HEADLESS=true` skips static file serving (API-only mode for plugin/embedded use). `DISABLE_AUTH=true` removes auth middleware (local-only plugin scenarios).
 - **DB Migrations**: Schema changes add columns with `ALTER TABLE ... ADD COLUMN` guarded by try/catch, so the app works with both old and new DB files.
 - **Failure Tolerance**: On startup, stale "running" todos are reset to "failed". gstack skill injection failures are logged but don't block CLI execution.
 
 ## Environment
 
-Config via `.env` (see `.env.example`). Key vars: `AUTH_PASSWORD`, `PORT` (default 3000), `TUNNEL_ENABLED`, `LOG_RETENTION_DAYS`.
+Config via `.env` (see `.env.example`). Key vars: `AUTH_PASSWORD`, `PORT` (default 3000), `TUNNEL_ENABLED`, `LOG_RETENTION_DAYS`, `HEADLESS` (skip frontend serving), `DISABLE_AUTH` (skip auth middleware).
 
 ## Language
 
