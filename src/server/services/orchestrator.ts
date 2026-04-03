@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
-import { getAdapter, type CliTool } from './cli-adapters.js';
+import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
 import { getExecutionHookPlugins } from '../plugins/registry.js';
@@ -286,6 +286,40 @@ Complete the task in the current directory.`;
 
     // Determine CLI tool: task-level overrides project-level
     const cliTool = (todo.cli_tool as CliTool) || (project.cli_tool as CliTool) || 'claude';
+    const sandboxMode = (project.sandbox_mode as SandboxMode) || 'strict';
+
+    // Sandbox: generate Claude CLI permission settings in worktree
+    if (sandboxMode === 'strict' && cliTool === 'claude' && isGitRepo && workDir !== projectPath) {
+      try {
+        const claudeDir = path.join(workDir, '.claude');
+        const settingsPath = path.join(claudeDir, 'settings.json');
+        if (!fs.existsSync(settingsPath)) {
+          if (!fs.existsSync(claudeDir)) {
+            fs.mkdirSync(claudeDir, { recursive: true });
+          }
+          const settings = {
+            permissions: {
+              defaultMode: 'dontAsk',
+              allow: [
+                'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+                'TodoRead','TodoWrite','WebFetch(*)',
+              ],
+              deny: [],
+            },
+          };
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+          queries.createTaskLog(todoId, 'output', `[sandbox] Created .claude/settings.json with directory-scoped permissions`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        queries.createTaskLog(todoId, 'error', `[sandbox] Failed to create permission settings: ${msg}`);
+      }
+    }
+
+    // Sandbox: add prompt-level path restriction for strict mode
+    if (sandboxMode === 'strict') {
+      prompt += `\n\nIMPORTANT: Your working directory is ${workDir}. Do NOT access, read, write, or modify any files outside this directory, except for git operations that naturally access .git metadata.`;
+    }
 
     // Run execution-hook plugins (e.g. gstack skill injection)
     const hookPlugins = getExecutionHookPlugins();
@@ -328,7 +362,7 @@ Complete the task in the current directory.`;
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns);
+      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns, projectPath, sandboxMode);
       pid = result.pid;
       exitPromise = result.exitPromise;
 

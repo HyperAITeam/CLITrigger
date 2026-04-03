@@ -1,7 +1,9 @@
+import path from 'path';
 import { isModelSupported } from '../db/queries.js';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'streaming' | 'verbose';
+export type SandboxMode = 'strict' | 'permissive';
 
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
@@ -47,7 +49,7 @@ export interface CliAdapter {
   /** Display name for logs */
   displayName: string;
   /** Build the args array for spawning */
-  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number }): string[];
+  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode }): string[];
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
@@ -69,9 +71,16 @@ const claudeAdapter: CliAdapter = {
   command: 'claude',
   displayName: 'Claude CLI',
   outputFormat: 'stream-json',
-  buildArgs({ mode, prompt, model, extraOptions, maxTurns }) {
+  buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode }) {
     const normalizedModel = normalizeModel(model, 'claude');
-    const args = ['--dangerously-skip-permissions', '--print', '--verbose', '--output-format', 'stream-json'];
+    const args: string[] = [];
+    if (sandboxMode === 'strict') {
+      // In strict mode, rely on .claude/settings.json generated in the worktree
+      // (dontAsk mode with directory-scoped permissions). No permission bypass flag needed.
+    } else {
+      args.push('--dangerously-skip-permissions');
+    }
+    args.push('--print', '--verbose', '--output-format', 'stream-json');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
@@ -112,12 +121,20 @@ const geminiAdapter: CliAdapter = {
 const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
-  buildArgs({ mode, prompt, model, extraOptions }) {
+  buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode }) {
     const normalizedModel = normalizeModel(model, 'codex');
-    // Use --dangerously-bypass-approvals-and-sandbox instead of --full-auto because
-    // --full-auto uses workspace-write sandbox which blocks git operations in worktrees
-    // (git metadata lives outside the worktree working directory at .git/worktrees/).
-    const args = ['exec', '--dangerously-bypass-approvals-and-sandbox'];
+    const args: string[] = ['exec'];
+    if (sandboxMode === 'strict') {
+      // Use --full-auto (workspace-write sandbox) with --add-dir to allow git metadata access.
+      // Git worktree metadata lives at <projectPath>/.git/worktrees/, so we whitelist the .git dir.
+      args.push('--full-auto');
+      if (workDir && projectPath && workDir !== projectPath) {
+        const gitDir = path.join(projectPath, '.git');
+        args.push('--add-dir', gitDir);
+      }
+    } else {
+      args.push('--dangerously-bypass-approvals-and-sandbox');
+    }
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));

@@ -1,6 +1,6 @@
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager } from './claude-manager.js';
-import { getAdapter, type CliTool } from './cli-adapters.js';
+import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
@@ -206,7 +206,8 @@ export class PipelineOrchestrator {
     let exitPromise: Promise<number>;
 
     try {
-      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool, maxTurns);
+      const sandboxMode = (project.sandbox_mode as SandboxMode) || 'strict';
+      const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool, maxTurns, project.path, sandboxMode);
       pid = result.pid;
       exitPromise = result.exitPromise;
 

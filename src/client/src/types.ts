@@ -24,6 +24,7 @@ export interface Project {
   github_repo: string | null;
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
+  sandbox_mode: string;
   created_at: string;
   updated_at: string;
 }

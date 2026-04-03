@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'stream';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
-import { getAdapter, type CliTool, type CliMode } from './cli-adapters.js';
+import { getAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 
 export type ClaudeMode = CliMode;
 
@@ -20,7 +20,7 @@ export class ClaudeManager {
    * Uses node-pty for tools that require a TTY (e.g. Codex),
    * falls back to child_process.spawn for others.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -28,7 +28,7 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     const adapter = getAdapter(tool);
-    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns });
+    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode });
 
     if (adapter.requiresTty) {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
