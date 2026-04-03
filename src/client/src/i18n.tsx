@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { getPluginTranslations } from './plugins/registry';
 
 export type Lang = 'en' | 'ko';
 
@@ -872,7 +873,7 @@ export type TranslationKey = keyof typeof translations.en;
 interface I18nContextType {
   lang: Lang;
   toggleLang: () => void;
-  t: (key: TranslationKey) => string;
+  t: (key: string) => string;
 }
 
 const I18nContext = createContext<I18nContextType | null>(null);
@@ -891,11 +892,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const pluginT = useMemo(() => getPluginTranslations(), []);
+
   const t = useCallback(
-    (key: TranslationKey): string => {
-      return translations[lang][key] ?? key;
+    (key: string): string => {
+      return (translations[lang] as Record<string, string>)[key] ?? pluginT[lang][key] ?? key;
     },
-    [lang]
+    [lang, pluginT]
   );
 
   return (
