@@ -7,6 +7,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
   const { t } = useI18n();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   const enabled = config.enabled === '1' || config.enabled === true;
 
@@ -25,7 +26,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
 
   return (
     <div className="p-4 border border-warm-200 rounded-xl">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h4 className="text-sm font-semibold text-warm-700">
           {t('header.jiraTitle')}
         </h4>
@@ -39,9 +40,47 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
           <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-status-success" />
         </label>
       </div>
+      <p className="text-xs text-warm-400 mb-3">{t('header.jiraDesc')}</p>
 
       {enabled && (
         <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setShowGuide(!showGuide)}
+            className="flex items-center gap-1 text-xs text-accent-goldDark hover:text-accent-gold transition-colors"
+          >
+            <span className={`inline-block transition-transform ${showGuide ? 'rotate-90' : ''}`}>&#9654;</span>
+            {t('header.jiraGuideToggle')}
+          </button>
+
+          {showGuide && (
+            <div className="p-3 bg-warm-50 border border-warm-150 rounded-lg text-xs text-warm-600 space-y-2">
+              <div>
+                <p className="font-semibold text-warm-700 mb-1">{t('header.jiraGuidePrep')}</p>
+                <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                  <li>{t('header.jiraGuideStep1')}</li>
+                  <li>{t('header.jiraGuideStep2')}</li>
+                </ol>
+              </div>
+              <div>
+                <p className="font-semibold text-warm-700 mb-1">{t('header.jiraGuideSetup')}</p>
+                <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                  <li>{t('header.jiraGuideSetup1')}</li>
+                  <li>{t('header.jiraGuideSetup2')}</li>
+                  <li>{t('header.jiraGuideSetup3')}</li>
+                </ol>
+              </div>
+              <div>
+                <p className="font-semibold text-warm-700 mb-1">{t('header.jiraGuideUsage')}</p>
+                <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                  <li>{t('header.jiraGuideUsage1')}</li>
+                  <li>{t('header.jiraGuideUsage2')}</li>
+                  <li>{t('header.jiraGuideUsage3')}</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-warm-500 block mb-1">{t('header.jiraBaseUrl')}</label>
