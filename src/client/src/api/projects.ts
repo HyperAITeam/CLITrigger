@@ -94,3 +94,81 @@ export function getGitRefs(id: string, worktreePath?: string): Promise<GitRefsRe
   const qs = worktreePath ? `?worktreePath=${encodeURIComponent(worktreePath)}` : '';
   return get(`/api/projects/${id}/git-refs${qs}`);
 }
+
+// --- Git actions ---
+
+export function gitStage(id: string, files: string[]): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-stage`, { files });
+}
+
+export function gitUnstage(id: string, files: string[]): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-unstage`, { files });
+}
+
+export function gitCommit(id: string, message: string): Promise<{ ok: boolean; commit: string }> {
+  return post(`/api/projects/${id}/git-commit`, { message });
+}
+
+export function gitPull(id: string, remote?: string, branch?: string): Promise<{ ok: boolean; summary: string }> {
+  return post(`/api/projects/${id}/git-pull`, { remote, branch });
+}
+
+export function gitPush(id: string, remote?: string, branch?: string, setUpstream?: boolean): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-push`, { remote, branch, setUpstream });
+}
+
+export function gitFetch(id: string, remote?: string, prune?: boolean): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-fetch`, { remote, prune });
+}
+
+export function gitCreateBranch(id: string, name: string, startPoint?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-branch`, { name, startPoint });
+}
+
+export function gitDeleteBranch(id: string, name: string, force?: boolean): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-branch-delete`, { name, force });
+}
+
+export function gitCheckout(id: string, branch: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-checkout`, { branch });
+}
+
+export function gitMerge(id: string, branch: string): Promise<{ ok: boolean; result: string }> {
+  return post(`/api/projects/${id}/git-merge`, { branch });
+}
+
+export function gitStashPush(id: string, message?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-stash`, { message });
+}
+
+export function gitStashPop(id: string, index?: number): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-stash-pop`, { index });
+}
+
+export interface GitStashEntry {
+  index: number;
+  message: string;
+}
+
+export function gitStashList(id: string): Promise<GitStashEntry[]> {
+  return get(`/api/projects/${id}/git-stash-list`);
+}
+
+export function gitDiscard(id: string, files?: string[], all?: boolean): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-discard`, { files, all });
+}
+
+export function gitCreateTag(id: string, name: string, message?: string, commit?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-tag`, { name, message, commit });
+}
+
+export function gitDeleteTag(id: string, name: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-tag-delete`, { name });
+}
+
+export function gitDiff(id: string, file?: string, staged?: boolean): Promise<{ diff: string }> {
+  const params = new URLSearchParams();
+  if (file) params.set('file', file);
+  if (staged) params.set('staged', 'true');
+  return get(`/api/projects/${id}/git-diff?${params}`);
+}
