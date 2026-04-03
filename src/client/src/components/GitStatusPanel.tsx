@@ -165,8 +165,7 @@ function CommitGraphSvg({ graphNodes, totalRows }: { graphNodes: GraphNode[]; to
           const x1 = conn.fromLane * LANE_WIDTH + LANE_WIDTH / 2 + 4;
           const y1 = row * ROW_HEIGHT + ROW_HEIGHT / 2;
           const x2 = conn.toLane * LANE_WIDTH + LANE_WIDTH / 2 + 4;
-          const y2Row = Math.min(conn.toRow, row + 1);
-          const y2 = y2Row * ROW_HEIGHT + ROW_HEIGHT / 2;
+          const y2 = conn.toRow * ROW_HEIGHT + ROW_HEIGHT / 2;
 
           if (x1 === x2) {
             // Straight line down
