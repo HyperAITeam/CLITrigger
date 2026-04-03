@@ -29,6 +29,7 @@ let inputLabel = "";
 // ===== Server Manager =====
 const serverManager = new ServerManager({
   port: SERVER_PORT,
+  pluginDir: __dirname,
   onReady: (port) => {
     api = new ApiClient(serverManager.getBaseUrl());
     heca.set_title({ title: `CLITrigger :${port}` });
@@ -88,7 +89,7 @@ async function loadProjects() {
   if (!api) return;
   try {
     const projects = await api.getProjects();
-    if (Array.isArray(projects)) {
+    if (Array.isArray(projects) && !inputPromptActive) {
       tui.updateProjects(projects);
     }
   } catch {}
@@ -98,7 +99,7 @@ async function loadTodos(projectId) {
   if (!api) return;
   try {
     const todos = await api.getTodos(projectId);
-    if (Array.isArray(todos)) {
+    if (Array.isArray(todos) && !inputPromptActive) {
       tui.updateTodos(todos);
     }
   } catch {}
@@ -126,8 +127,13 @@ function startInput(label, callback) {
 
 function renderInputPrompt() {
   const CSI = "\x1b[";
+  // Hint line above input
+  process.stdout.write(CSI + (tui.rows - 1) + ";1H");
+  process.stdout.write(CSI + "2K");
+  process.stdout.write("\x1b[90m [Enter] OK  [Esc] Cancel\x1b[0m");
+  // Input line
   process.stdout.write(CSI + (tui.rows) + ";1H");
-  process.stdout.write(CSI + "2K"); // clear line
+  process.stdout.write(CSI + "2K");
   process.stdout.write(
     "\x1b[44m\x1b[37m " + inputLabel + ": " + inputBuffer + "\x1b[K\x1b[0m\x1b[49m"
   );
@@ -135,7 +141,18 @@ function renderInputPrompt() {
 }
 
 function handleInputKey(data) {
-  if (data === "\r" || data === "\n") {
+  // Handle \r\n as single enter (could arrive as one chunk or separate)
+  const str = data.replace(/\r\n/g, "\r");
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (!inputPromptActive) return;
+    handleInputChar(ch);
+  }
+}
+
+function handleInputChar(ch) {
+  if (ch === "\r" || ch === "\n") {
     // Enter — submit
     inputPromptActive = false;
     process.stdout.write("\x1b[?25l"); // hide cursor
@@ -144,7 +161,7 @@ function handleInputKey(data) {
     if (inputCallback) inputCallback(value);
     return;
   }
-  if (data === "\x1b" || data === "\x03") {
+  if (ch === "\x1b" || ch === "\x03") {
     // Escape or Ctrl+C — cancel
     inputPromptActive = false;
     inputBuffer = "";
@@ -152,15 +169,15 @@ function handleInputKey(data) {
     tui.render();
     return;
   }
-  if (data === "\x7f" || data === "\b") {
+  if (ch === "\x7f" || ch === "\b") {
     // Backspace
     inputBuffer = inputBuffer.slice(0, -1);
     renderInputPrompt();
     return;
   }
   // Printable character
-  if (data.length === 1 && data.charCodeAt(0) >= 32) {
-    inputBuffer += data;
+  if (ch.length === 1 && ch.charCodeAt(0) >= 32) {
+    inputBuffer += ch;
     renderInputPrompt();
   }
 }
@@ -244,14 +261,26 @@ async function handleNewProject() {
       tui.render();
       return;
     }
-    try {
-      await api.createProject({ name: name.trim() });
-      tui.setStatus("Project created", 2000);
-      await loadProjects();
-    } catch (err) {
-      tui.setStatus("Error: " + (err.message || err), 3000);
-      tui.render();
-    }
+    const projectName = name.trim();
+    startInput("Repo path", async (repoPath) => {
+      if (!repoPath.trim()) {
+        tui.setStatus("Path is required", 3000);
+        tui.render();
+        return;
+      }
+      try {
+        const result = await api.createProject({ name: projectName, path: repoPath.trim() });
+        if (result && result.error) {
+          tui.setStatus("Error: " + result.error, 4000);
+        } else {
+          tui.setStatus("Project created", 2000);
+        }
+        await loadProjects();
+      } catch (err) {
+        tui.setStatus("Error: " + (err.message || err), 3000);
+        tui.render();
+      }
+    });
   });
 }
 
@@ -276,6 +305,9 @@ async function handleAddTodo() {
 // ===== Keyboard input handler =====
 process.stdin.on("data", (data) => {
   const str = typeof data === "string" ? data : data.toString();
+
+  // Ignore mouse events and CSI sequences that aren't arrow keys
+  if (str.startsWith("\x1b[M") || str.startsWith("\x1b[<")) return;
 
   // Input prompt mode
   if (inputPromptActive) {

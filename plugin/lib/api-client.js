@@ -1,4 +1,4 @@
-// HTTP client for CLITrigger REST API — uses only hecaton.http_get/exec_process
+// HTTP client for CLITrigger REST API — uses curl for all requests
 // No WebSocket (Deno compat issues) — uses polling instead
 
 const heca = globalThis.hecaton;
@@ -11,25 +11,24 @@ class ApiClient {
   async request(method, apiPath, body) {
     const url = this.baseUrl + apiPath;
 
-    // All requests via curl/powershell through exec_process
     try {
       let resp;
       if (body) {
-        // Use PowerShell to POST with JSON body (avoids temp file + escaping issues)
-        const jsonStr = JSON.stringify(body).replace(/'/g, "''");
+        // Use curl with --data-raw to avoid shell escaping issues
+        const jsonStr = JSON.stringify(body);
         resp = await heca.exec_process({
-          program: "powershell",
-          args: ["-NoProfile", "-Command",
-            `(Invoke-WebRequest -Uri '${url}' -Method ${method} -ContentType 'application/json' -Body '${jsonStr}' -UseBasicParsing).Content`
-          ],
+          program: "curl",
+          args: ["-s", "-X", method, url,
+            "-H", "Content-Type: application/json",
+            "--data-raw", jsonStr],
           timeout: 10000,
         });
       } else if (method !== "GET") {
         resp = await heca.exec_process({
-          program: "powershell",
-          args: ["-NoProfile", "-Command",
-            `(Invoke-WebRequest -Uri '${url}' -Method ${method} -ContentType 'application/json' -Body '{}' -UseBasicParsing).Content`
-          ],
+          program: "curl",
+          args: ["-s", "-X", method, url,
+            "-H", "Content-Type: application/json",
+            "--data-raw", "{}"],
           timeout: 10000,
         });
       } else {
