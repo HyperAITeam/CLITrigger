@@ -28,6 +28,7 @@ const logPrefixes: Record<TaskLog['log_type'], string> = {
 export default function LogViewer({ logs, interactive, todoId, onSendInput }: LogViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
+  const [copied, setCopied] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -43,8 +44,29 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
     setInputValue('');
   };
 
+  const handleCopy = async () => {
+    const text = logs
+      .map((log) => {
+        const time = new Date(log.created_at).toLocaleTimeString();
+        return `${time} ${logPrefixes[log.log_type]} ${log.message}`;
+      })
+      .join('\n');
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="flex flex-col">
+      <div className="relative">
+        {logs.length > 0 && (
+          <button
+            onClick={handleCopy}
+            className="absolute top-2 right-2 z-10 px-2 py-1 text-[10px] font-mono rounded-md bg-warm-700 hover:bg-warm-600 text-warm-300 border border-warm-600 transition-colors"
+          >
+            {copied ? t('log.copied') : t('log.copy')}
+          </button>
+        )}
       <div
         ref={containerRef}
         className="h-48 sm:h-64 overflow-y-auto overflow-x-auto bg-warm-800 rounded-xl border border-warm-700 p-3 sm:p-4 font-mono text-xs"
@@ -66,6 +88,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
           })
         )}
         <span className="text-accent-gold animate-pulse">_</span>
+      </div>
       </div>
 
       {interactive && (

@@ -205,6 +205,8 @@ const translations = {
     // Log
     'log.awaiting': 'Awaiting output...',
     'log.noChanges': 'No changes detected.',
+    'log.copy': 'Copy',
+    'log.copied': 'Copied!',
 
     // Schedules
     'schedules.title': 'Schedules',
@@ -612,6 +614,8 @@ const translations = {
     // Log
     'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
     'log.noChanges': '\uBCC0\uACBD\uC0AC\uD56D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+    'log.copy': '\uBCF5\uC0AC',
+    'log.copied': '\uBCF5\uC0AC\uB428!',
 
     // Schedules
     'schedules.title': '스케줄',
