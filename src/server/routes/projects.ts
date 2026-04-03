@@ -278,4 +278,250 @@ router.get('/:id/git-refs', async (req: Request<{ id: string }>, res: Response) 
   }
 });
 
+// --- Git action helpers ---
+
+function getProjectGitPath(req: Request<{ id: string }>, res: Response): string | null {
+  const project = getProjectById(req.params.id);
+  if (!project) { res.status(404).json({ error: 'Project not found' }); return null; }
+  if (!project.is_git_repo) { res.status(400).json({ error: 'Not a git repository' }); return null; }
+  return project.path;
+}
+
+// POST /api/projects/:id/git-stage
+router.post('/:id/git-stage', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { files } = req.body;
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'files array is required' }); return;
+    }
+    await worktreeManager.gitStage(dirPath, files);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-unstage
+router.post('/:id/git-unstage', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { files } = req.body;
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'files array is required' }); return;
+    }
+    await worktreeManager.gitUnstage(dirPath, files);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-commit
+router.post('/:id/git-commit', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      res.status(400).json({ error: 'message is required' }); return;
+    }
+    const commit = await worktreeManager.gitCommit(dirPath, message.trim());
+    res.json({ ok: true, commit });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-pull
+router.post('/:id/git-pull', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { remote, branch } = req.body;
+    const summary = await worktreeManager.gitPull(dirPath, remote, branch);
+    res.json({ ok: true, summary });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-push
+router.post('/:id/git-push', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { remote, branch, setUpstream } = req.body;
+    await worktreeManager.gitPush(dirPath, remote, branch, setUpstream);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-fetch
+router.post('/:id/git-fetch', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { remote, prune } = req.body;
+    await worktreeManager.gitFetch(dirPath, remote, prune);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-branch
+router.post('/:id/git-branch', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { name, startPoint } = req.body;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'name is required' }); return;
+    }
+    await worktreeManager.gitCreateBranch(dirPath, name.trim(), startPoint);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-branch-delete
+router.post('/:id/git-branch-delete', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { name, force } = req.body;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'name is required' }); return;
+    }
+    await worktreeManager.gitDeleteBranch(dirPath, name.trim(), !!force);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-checkout
+router.post('/:id/git-checkout', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { branch } = req.body;
+    if (!branch || typeof branch !== 'string') {
+      res.status(400).json({ error: 'branch is required' }); return;
+    }
+    await worktreeManager.gitCheckout(dirPath, branch.trim());
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-merge
+router.post('/:id/git-merge', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { branch } = req.body;
+    if (!branch || typeof branch !== 'string') {
+      res.status(400).json({ error: 'branch is required' }); return;
+    }
+    const result = await worktreeManager.gitMerge(dirPath, branch.trim());
+    res.json({ ok: true, result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-stash
+router.post('/:id/git-stash', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { message } = req.body;
+    await worktreeManager.gitStashPush(dirPath, message);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-stash-pop
+router.post('/:id/git-stash-pop', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { index } = req.body;
+    await worktreeManager.gitStashPop(dirPath, index ?? 0);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/projects/:id/git-stash-list
+router.get('/:id/git-stash-list', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const stashes = await worktreeManager.gitStashList(dirPath);
+    res.json(stashes);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-discard
+router.post('/:id/git-discard', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { files, all } = req.body;
+    if (all) {
+      await worktreeManager.gitDiscardAll(dirPath);
+    } else if (files && Array.isArray(files) && files.length > 0) {
+      await worktreeManager.gitDiscard(dirPath, files);
+    } else {
+      res.status(400).json({ error: 'files array or all flag is required' }); return;
+    }
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-tag
+router.post('/:id/git-tag', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { name, message, commit } = req.body;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'name is required' }); return;
+    }
+    await worktreeManager.gitCreateTag(dirPath, name.trim(), message, commit);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-tag-delete
+router.post('/:id/git-tag-delete', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { name } = req.body;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'name is required' }); return;
+    }
+    await worktreeManager.gitDeleteTag(dirPath, name.trim());
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/projects/:id/git-diff
+router.get('/:id/git-diff', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const file = req.query.file as string | undefined;
+    const staged = req.query.staged === 'true';
+    const diff = await worktreeManager.gitDiff(dirPath, file, staged);
+    res.json({ diff });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 export default router;

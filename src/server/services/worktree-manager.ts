@@ -258,6 +258,130 @@ export class WorktreeManager {
     return { branches, tags, stashCount };
   }
 
+  // --- Git action methods ---
+
+  async gitStage(dirPath: string, files: string[]): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.add(files);
+  }
+
+  async gitUnstage(dirPath: string, files: string[]): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.reset(files.map(f => ['--', f]).flat());
+  }
+
+  async gitCommit(dirPath: string, message: string): Promise<string> {
+    const git = simpleGit(dirPath);
+    const result = await git.commit(message);
+    return result.commit;
+  }
+
+  async gitPull(dirPath: string, remote = 'origin', branch?: string): Promise<string> {
+    const git = simpleGit(dirPath);
+    const args = [remote];
+    if (branch) args.push(branch);
+    const result = await git.pull(args);
+    return `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions`;
+  }
+
+  async gitPush(dirPath: string, remote = 'origin', branch?: string, setUpstream = false): Promise<string> {
+    const git = simpleGit(dirPath);
+    const args: string[] = [remote];
+    if (branch) args.push(branch);
+    if (setUpstream) {
+      await git.raw(['push', '-u', ...args]);
+    } else {
+      await git.push(args);
+    }
+    return 'ok';
+  }
+
+  async gitFetch(dirPath: string, remote = 'origin', prune = false): Promise<void> {
+    const git = simpleGit(dirPath);
+    const args = ['fetch', remote];
+    if (prune) args.push('--prune');
+    await git.raw(args);
+  }
+
+  async gitCreateBranch(dirPath: string, branchName: string, startPoint?: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    if (startPoint) {
+      await git.checkoutBranch(branchName, startPoint);
+    } else {
+      await git.checkoutLocalBranch(branchName);
+    }
+  }
+
+  async gitDeleteBranch(dirPath: string, branchName: string, force = false): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.branch([force ? '-D' : '-d', branchName]);
+  }
+
+  async gitCheckout(dirPath: string, branchName: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.checkout(branchName);
+  }
+
+  async gitMerge(dirPath: string, sourceBranch: string): Promise<string> {
+    const git = simpleGit(dirPath);
+    const result = await git.merge([sourceBranch]);
+    return result.result ?? 'ok';
+  }
+
+  async gitStashPush(dirPath: string, message?: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    const args = ['stash', 'push'];
+    if (message) args.push('-m', message);
+    await git.raw(args);
+  }
+
+  async gitStashPop(dirPath: string, index = 0): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.raw(['stash', 'pop', `stash@{${index}}`]);
+  }
+
+  async gitStashList(dirPath: string): Promise<Array<{ index: number; message: string }>> {
+    const git = simpleGit(dirPath);
+    const result = await git.stashList();
+    return result.all.map((s, i) => ({ index: i, message: s.message }));
+  }
+
+  async gitDiscard(dirPath: string, files: string[]): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.checkout(['--', ...files]);
+  }
+
+  async gitDiscardAll(dirPath: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.checkout(['.']);
+    await git.clean('f', ['-d']);
+  }
+
+  async gitCreateTag(dirPath: string, tagName: string, message?: string, commit?: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    const args = ['tag'];
+    if (message) {
+      args.push('-a', tagName, '-m', message);
+    } else {
+      args.push(tagName);
+    }
+    if (commit) args.push(commit);
+    await git.raw(args);
+  }
+
+  async gitDeleteTag(dirPath: string, tagName: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.raw(['tag', '-d', tagName]);
+  }
+
+  async gitDiff(dirPath: string, file?: string, staged = false): Promise<string> {
+    const git = simpleGit(dirPath);
+    const args: string[] = [];
+    if (staged) args.push('--cached');
+    if (file) args.push('--', file);
+    return await git.diff(args);
+  }
+
   async getGitStatus(dirPath: string): Promise<{
     branch: string;
     tracking: string | null;
