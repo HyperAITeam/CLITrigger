@@ -12,10 +12,8 @@ import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
 import PipelineList from './PipelineList';
 import ScheduleList from './ScheduleList';
-import JiraPanel from './JiraPanel';
-import NotionPanel from './NotionPanel';
-import GitHubPanel from './GitHubPanel';
 import GitStatusPanel from './GitStatusPanel';
+import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -28,7 +26,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [todos, setTodos] = useState<Todo[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules' | 'jira' | 'notion' | 'github' | 'git'>('tasks');
+  const [activeTab, setActiveTab] = useState<string>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
@@ -375,42 +373,19 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         >
           {t('tabs.schedules')} ({schedules.length})
         </button>
-        {project.jira_enabled ? (
+        {getPluginsWithTabs(project).map((plugin) => (
           <button
-            onClick={() => setActiveTab('jira')}
+            key={plugin.id}
+            onClick={() => setActiveTab(plugin.id)}
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-              activeTab === 'jira'
+              activeTab === plugin.id
                 ? 'text-accent-gold border-accent-gold'
                 : 'text-warm-400 border-transparent hover:text-warm-600'
             }`}
           >
-            {t('tabs.jira')}
+            {t(`tabs.${plugin.id}`) || plugin.displayName}
           </button>
-        ) : null}
-        {project.notion_enabled ? (
-          <button
-            onClick={() => setActiveTab('notion')}
-            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-              activeTab === 'notion'
-                ? 'text-accent-gold border-accent-gold'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
-            }`}
-          >
-            {t('tabs.notion')}
-          </button>
-        ) : null}
-        {project.github_enabled ? (
-          <button
-            onClick={() => setActiveTab('github')}
-            className={`px-5 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 -mb-px transition-colors ${
-              activeTab === 'github'
-                ? 'text-accent-gold border-accent-gold'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
-            }`}
-          >
-            {t('tabs.github')}
-          </button>
-        ) : null}
+        ))}
         {project.is_git_repo ? (
           <button
             onClick={() => setActiveTab('git')}
@@ -456,36 +431,19 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onDeletePipeline={handleDeletePipeline}
         />
       )}
-      {activeTab === 'jira' && project.jira_enabled ? (
-        <JiraPanel
-          project={project}
-          onImportAsTask={async (title: string, description: string) => {
-            if (!id) return;
-            const newTodo = await todosApi.createTodo(id, { title, description });
-            setTodos((prev) => [...prev, newTodo]);
-          }}
-        />
-      ) : null}
-      {activeTab === 'notion' && project.notion_enabled ? (
-        <NotionPanel
-          project={project}
-          onImportAsTask={async (title: string, description: string) => {
-            if (!id) return;
-            const newTodo = await todosApi.createTodo(id, { title, description });
-            setTodos((prev) => [...prev, newTodo]);
-          }}
-        />
-      ) : null}
-      {activeTab === 'github' && project.github_enabled ? (
-        <GitHubPanel
-          project={project}
-          onImportAsTask={async (title: string, description: string) => {
-            if (!id) return;
-            const newTodo = await todosApi.createTodo(id, { title, description });
-            setTodos((prev) => [...prev, newTodo]);
-          }}
-        />
-      ) : null}
+      {getPluginsWithTabs(project).map((plugin) =>
+        activeTab === plugin.id && plugin.PanelComponent ? (
+          <plugin.PanelComponent
+            key={plugin.id}
+            project={project}
+            onImportAsTask={async (title: string, description: string) => {
+              if (!id) return;
+              const newTodo = await todosApi.createTodo(id, { title, description });
+              setTodos((prev) => [...prev, newTodo]);
+            }}
+          />
+        ) : null
+      )}
       {activeTab === 'git' && project.is_git_repo ? (
         <GitStatusPanel project={project} />
       ) : null}

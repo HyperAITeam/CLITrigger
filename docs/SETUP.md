@@ -222,7 +222,36 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - TODO 추가/수정 시 **CLI Tool** (Claude / Gemini / Codex)과 **Model** 선택 가능
 - 미지정 시 프로젝트 기본값 사용
 
-### 9. Notion 연동 (선택)
+### 9. 통합 플러그인 시스템
+
+CLITrigger의 외부 서비스 연동(Notion, GitHub, Jira)과 실행 훅(gstack 스킬)은 **플러그인 아키텍처**로 구현되어 있습니다.
+
+#### 플러그인 구조
+
+- **서버**: `src/server/plugins/{plugin-id}/` — `PluginManifest` + Express 라우터
+- **클라이언트**: `src/client/src/plugins/{plugin-id}/` — `ClientPluginManifest` + 패널/설정 컴포넌트
+- **설정 저장**: `plugin_configs` 테이블 (프로젝트×플러그인×키 단위 key-value)
+
+#### 플러그인 카테고리
+
+| 카테고리 | 설명 | 플러그인 |
+|----------|------|---------|
+| `external-service` | REST 프록시 + 패널 탭 + 설정 UI | Jira, GitHub, Notion |
+| `execution-hook` | 태스크 실행 전 훅 (오케스트레이터) | gstack |
+
+#### 플러그인 설정 API
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/plugins | 등록된 플러그인 목록 |
+| GET | /api/plugins/:pluginId/config/:projectId | 프로젝트별 플러그인 설정 조회 |
+| PUT | /api/plugins/:pluginId/config/:projectId | 프로젝트별 플러그인 설정 저장 |
+
+> 기존 프로젝트의 통합 설정(jira_enabled, github_token 등)은 서버 시작 시 자동으로 `plugin_configs` 테이블로 마이그레이션됩니다. 레거시 컬럼도 호환성을 위해 유지됩니다.
+
+---
+
+### 10. Notion 연동 (선택)
 
 Notion 데이터베이스를 CLITrigger 프로젝트에 연결하면, Notion에 작성한 피쳐 기획서나 버그 리포트를 바로 AI 태스크로 Import할 수 있습니다.
 
@@ -265,7 +294,7 @@ Notion에 피쳐 기획서 작성
 
 ---
 
-### 10. GitHub Issues 연동 (선택)
+### 11. GitHub Issues 연동 (선택)
 
 GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태스크로 Import할 수 있습니다.
 
@@ -294,7 +323,7 @@ GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태
 5. **이슈 생성**: GitHub 레포에 새 이슈 추가도 가능
 6. **코멘트**: 이슈에 코멘트 작성 가능
 
-### 11. 모델 관리
+### 12. 모델 관리
 
 CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습니다. 프로젝트 설정에서 모델 관리 버튼을 클릭하여:
 
@@ -304,17 +333,17 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 
 서버 시작 시 기본 모델이 자동 시딩됩니다 (Claude Sonnet/Opus/Haiku, GPT-4.1 계열, Gemini 등).
 
-### 12. Verbose 모드
+### 13. Verbose 모드
 
 TODO 실행 시 **Verbose** 옵션을 활성화하면 Claude CLI의 모든 로그를 필터 없이 실시간 스트리밍합니다. 디버깅이나 상세 진행 확인에 유용합니다.
 
-### 13. CLI Fallback Chain
+### 14. CLI Fallback Chain
 
 프로젝트 설정에서 **Fallback Chain**을 지정하면, CLI가 컨텍스트 윈도우를 소진했을 때 자동으로 다음 CLI/모델로 재시도합니다. 예: Claude Sonnet → Claude Opus → Gemini 순서로 시도.
 
 ---
 
-### 14. Hecaton 플러그인 (선택)
+### 15. Hecaton 플러그인 (선택)
 
 [Hecaton](https://github.com/nickthecook/hecaton) 터미널 멀티플렉서에서 CLITrigger를 TUI 대시보드로 사용할 수 있습니다. 웹 브라우저 없이 터미널 안에서 프로젝트/태스크 관리와 실시간 로그 확인이 가능합니다.
 
@@ -375,7 +404,7 @@ DISABLE_AUTH=true   # 인증 비활성화 (로컬 전용 환경)
 
 ---
 
-### 15. gstack 스킬 (선택)
+### 16. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -586,6 +615,9 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/models | CLI 모델 추가 |
 | DELETE | /api/models/:id | CLI 모델 삭제 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
+| GET | /api/plugins | 등록된 플러그인 목록 |
+| GET | /api/plugins/:pluginId/config/:projectId | 플러그인 설정 조회 |
+| PUT | /api/plugins/:pluginId/config/:projectId | 플러그인 설정 저장 |
 | GET | /api/tunnel/status | 터널 상태 |
 | POST | /api/tunnel/start | 터널 시작 |
 | POST | /api/tunnel/stop | 터널 중지 |

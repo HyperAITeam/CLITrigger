@@ -1,5 +1,67 @@
 # Changelog
 
+## 2026-04-03 — 플러그인 아키텍처 추출
+
+### 배경
+
+Jira, GitHub, Notion, gstack 통합이 코어 코드에 하드코딩되어 있어, 새 통합 추가 시 index.ts, ProjectDetail.tsx, ProjectHeader.tsx, schema.ts, queries.ts 등 다수의 파일을 수정해야 했음. 이를 자기완결적인 플러그인 모듈로 추출하여 확장성을 확보.
+
+### 주요 변경
+
+#### 1. 서버 플러그인 시스템
+
+- **`src/server/plugins/types.ts`**: `PluginManifest`, `PluginHelpers`, `ExecutionContext` 인터페이스 정의
+- **`src/server/plugins/registry.ts`**: `registerPlugin()`, `mountPluginRoutes()`, `getExecutionHookPlugins()` 레지스트리
+- **플러그인 모듈**: `src/server/plugins/{jira,github,notion,gstack}/` — 각 플러그인이 자체 manifest + router 보유
+- **2가지 카테고리**: `external-service` (REST 프록시 + 패널 탭) / `execution-hook` (오케스트레이터 실행 전 훅)
+- **`src/server/routes/plugins.ts`**: 플러그인 설정 CRUD API (`GET/PUT /api/plugins/:id/config/:projectId`)
+
+#### 2. DB 스키마
+
+- **`plugin_configs` 테이블 추가**: 프로젝트×플러그인×키 단위 제네릭 key-value 저장소
+- **자동 마이그레이션**: 서버 시작 시 기존 `projects` 테이블의 레거시 컬럼 → `plugin_configs`로 idempotent 복사
+- **하위 호환**: 레거시 컬럼 유지, 저장 시 양쪽 동기화
+
+#### 3. 오케스트레이터 제네릭 훅
+
+- **기존**: `if (cliTool === 'claude' && project.gstack_enabled)` 하드코딩
+- **변경**: `getExecutionHookPlugins()` 루프로 모든 execution-hook 플러그인의 `onBeforeExecution()` 호출
+- 실패 시 로그만 남기고 실행 계속 (failure tolerance 유지)
+
+#### 4. 클라이언트 플러그인 시스템
+
+- **`src/client/src/plugins/`**: `ClientPluginManifest` 기반 레지스트리
+- **동적 탭 렌더링**: `ProjectDetail.tsx`에서 하드코딩 3개 탭 → `getPluginsWithTabs(project).map(...)` 루프
+- **동적 설정 UI**: `ProjectHeader.tsx`에서 하드코딩 ~23개 useState → `pluginConfigs` 단일 상태 + 플러그인 SettingsComponent 루프
+- **i18n**: 각 플러그인이 자체 번역 키 보유
+
+### 파일 구조
+
+```
+src/server/plugins/
+├── types.ts, registry.ts
+├── jira/    (index.ts, router.ts)
+├── github/  (index.ts, router.ts)
+├── notion/  (index.ts, router.ts)
+└── gstack/  (index.ts — with onBeforeExecution hook)
+
+src/client/src/plugins/
+├── types.ts, registry.ts, init.ts
+├── jira/    (index.ts, JiraSettings.tsx)
+├── github/  (index.ts, GitHubSettings.tsx)
+├── notion/  (index.ts, NotionSettings.tsx)
+└── gstack/  (index.ts, GstackSettings.tsx)
+```
+
+### 검증
+
+- 서버 TypeScript 컴파일: 통과
+- 서버 빌드: 통과
+- 서버 테스트 69개: 전체 통과
+- 기존 API 경로 유지 (`/api/jira`, `/api/github`, `/api/notion`, `/api/gstack` — `routePrefix` 사용)
+
+---
+
 ## 2026-04-01 — GitHub Issues 연동 + 모델 관리 + 실행 안정성 강화
 
 ### 배경

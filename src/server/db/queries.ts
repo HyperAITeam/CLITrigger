@@ -633,6 +633,54 @@ export function getNextFallbackCli(projectId: string, currentCliTool: string): {
   return { cliTool: chain[currentIndex + 1], cliModel: null };
 }
 
+// ── Plugin Configs ──
+
+export function getPluginConfig(projectId: string, pluginId: string): Record<string, string | null> | null {
+  const db = getDatabase();
+  const rows = db.prepare(
+    'SELECT config_key, config_value FROM plugin_configs WHERE project_id = ? AND plugin_id = ?'
+  ).all(projectId, pluginId) as Array<{ config_key: string; config_value: string | null }>;
+
+  if (rows.length === 0) return null;
+
+  const config: Record<string, string | null> = {};
+  for (const row of rows) {
+    config[row.config_key] = row.config_value;
+  }
+  return config;
+}
+
+export function setPluginConfigs(projectId: string, pluginId: string, configs: Record<string, string | null>): void {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const upsert = db.prepare(
+    `INSERT INTO plugin_configs (id, project_id, plugin_id, config_key, config_value, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(project_id, plugin_id, config_key) DO UPDATE SET config_value = excluded.config_value, updated_at = excluded.updated_at`
+  );
+
+  const transaction = db.transaction(() => {
+    for (const [key, value] of Object.entries(configs)) {
+      upsert.run(uuidv4(), projectId, pluginId, key, value, now, now);
+    }
+  });
+
+  transaction();
+}
+
+export function isPluginEnabled(projectId: string, pluginId: string): boolean {
+  const db = getDatabase();
+  const row = db.prepare(
+    "SELECT config_value FROM plugin_configs WHERE project_id = ? AND plugin_id = ? AND config_key = 'enabled'"
+  ).get(projectId, pluginId) as { config_value: string | null } | undefined;
+  return row?.config_value === '1';
+}
+
+export function deletePluginConfigs(projectId: string, pluginId: string): void {
+  const db = getDatabase();
+  db.prepare('DELETE FROM plugin_configs WHERE project_id = ? AND plugin_id = ?').run(projectId, pluginId);
+}
+
 // ── Cleanup ──
 
 export function cleanOldLogs(daysToKeep: number): number {

@@ -9,7 +9,7 @@ import { getDatabase } from './db/connection.js';
 import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
-import projectsRouter, { gstackRouter } from './routes/projects.js';
+import projectsRouter from './routes/projects.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
@@ -20,11 +20,14 @@ import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
-import jiraRouter from './routes/jira.js';
-import notionRouter from './routes/notion.js';
-import githubRouter from './routes/github.js';
+import pluginsRouter from './routes/plugins.js';
 import modelsRouter from './routes/models.js';
 import { scheduler } from './services/scheduler.js';
+import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
+import { jiraPlugin } from './plugins/jira/index.js';
+import { githubPlugin } from './plugins/github/index.js';
+import { notionPlugin } from './plugins/notion/index.js';
+import { gstackPlugin } from './plugins/gstack/index.js';
 
 const app = express();
 const server = createServer(app);
@@ -99,20 +102,24 @@ if (cleaned > 0) {
 initAuth(app);
 app.use('/api/auth', authRouter);
 
+// --- Plugins ---
+registerPlugin(jiraPlugin);
+registerPlugin(githubPlugin);
+registerPlugin(notionPlugin);
+registerPlugin(gstackPlugin);
+
 // --- Routes ---
 app.use('/api/projects', projectsRouter);
-app.use('/api/gstack', gstackRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
 app.use('/api', imagesRouter);
 app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
-app.use('/api/jira', jiraRouter);
-app.use('/api/notion', notionRouter);
-app.use('/api/github', githubRouter);
+app.use('/api/plugins', pluginsRouter);
 app.use('/api/tunnel', tunnelRouter);
 app.use('/api', modelsRouter);
+mountPluginRoutes(app);
 
 // --- Scheduler ---
 scheduler.initialize();

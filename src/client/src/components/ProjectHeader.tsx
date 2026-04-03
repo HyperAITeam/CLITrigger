@@ -1,14 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { Project, Todo, GstackSkill } from '../types';
+import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
-import * as gstackApi from '../api/gstack';
-import * as jiraApi from '../api/jira';
-import * as notionApi from '../api/notion';
-import * as githubApi from '../api/github';
+import * as pluginsApi from '../api/plugins';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
 import ModelSettings from './ModelSettings';
+import { getClientPlugins } from '../plugins/registry';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -23,7 +21,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     (t) => t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
   );
   const hasRunning = todos.some((t) => t.status === 'running');
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
@@ -34,29 +32,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
 
-  // Jira state
-  const [jiraEnabled, setJiraEnabled] = useState(!!project.jira_enabled);
-  const [jiraBaseUrl, setJiraBaseUrl] = useState(project.jira_base_url ?? '');
-  const [jiraEmail, setJiraEmail] = useState(project.jira_email ?? '');
-  const [jiraApiToken, setJiraApiToken] = useState(project.jira_api_token ?? '');
-  const [jiraProjectKey, setJiraProjectKey] = useState(project.jira_project_key ?? '');
-  const [jiraTesting, setJiraTesting] = useState(false);
-  const [jiraTestResult, setJiraTestResult] = useState<'ok' | 'fail' | null>(null);
-
-  // GitHub state
-  const [githubEnabled, setGithubEnabled] = useState(!!project.github_enabled);
-  const [githubToken, setGithubToken] = useState(project.github_token ?? '');
-  const [githubOwner, setGithubOwner] = useState(project.github_owner ?? '');
-  const [githubRepo, setGithubRepo] = useState(project.github_repo ?? '');
-  const [githubTesting, setGithubTesting] = useState(false);
-  const [githubTestResult, setGithubTestResult] = useState<'ok' | 'fail' | null>(null);
-
-  // Notion state
-  const [notionEnabled, setNotionEnabled] = useState(!!project.notion_enabled);
-  const [notionApiKey, setNotionApiKey] = useState(project.notion_api_key ?? '');
-  const [notionDatabaseId, setNotionDatabaseId] = useState(project.notion_database_id ?? '');
-  const [notionTesting, setNotionTesting] = useState(false);
-  const [notionTestResult, setNotionTestResult] = useState<'ok' | 'fail' | null>(null);
+  // Plugin configs (replaces per-integration useState)
+  const [pluginConfigs, setPluginConfigs] = useState<Record<string, Record<string, any>>>({});
 
   // CLI fallback chain state
   const [fallbackChain, setFallbackChain] = useState<string[]>(() => {
@@ -65,18 +42,26 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     } catch { return []; }
   });
 
-  // gstack state
-  const [gstackEnabled, setGstackEnabled] = useState(!!project.gstack_enabled);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => {
-    try {
-      return project.gstack_skills ? JSON.parse(project.gstack_skills) : [];
-    } catch { return []; }
-  });
-  const [availableSkills, setAvailableSkills] = useState<GstackSkill[]>([]);
-
+  // Load plugin configs from server
   useEffect(() => {
-    gstackApi.getAvailableSkills().then(setAvailableSkills).catch(() => {});
-  }, []);
+    const plugins = getClientPlugins();
+    Promise.all(
+      plugins.map(async (p) => {
+        try {
+          const config = await pluginsApi.getPluginConfig(p.id, project.id);
+          return [p.id, config] as const;
+        } catch {
+          return [p.id, {}] as const;
+        }
+      })
+    ).then((results) => {
+      const configs: Record<string, Record<string, any>> = {};
+      for (const [id, config] of results) {
+        configs[id] = config;
+      }
+      setPluginConfigs(configs);
+    });
+  }, [project.id]);
 
   const { getToolConfig } = useModels();
 
@@ -96,94 +81,48 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     finally { setCheckingGit(false); }
   }, [project.id, onProjectUpdate]);
 
-  const handleToggleSkill = (skillId: string) => {
-    setSelectedSkills((prev) =>
-      prev.includes(skillId) ? prev.filter((s) => s !== skillId) : [...prev, skillId]
-    );
-  };
-
-  const handleTestJira = async () => {
-    setJiraTesting(true);
-    setJiraTestResult(null);
-    try {
-      await projectsApi.updateProject(project.id, {
-        jira_enabled: 1,
-        jira_base_url: jiraBaseUrl || null,
-        jira_email: jiraEmail || null,
-        jira_api_token: jiraApiToken || null,
-        jira_project_key: jiraProjectKey || null,
-      });
-      const result = await jiraApi.testConnection(project.id);
-      setJiraTestResult(result.ok ? 'ok' : 'fail');
-    } catch {
-      setJiraTestResult('fail');
-    } finally {
-      setJiraTesting(false);
-    }
-  };
-
-  const handleTestGitHub = async () => {
-    setGithubTesting(true);
-    setGithubTestResult(null);
-    try {
-      await projectsApi.updateProject(project.id, {
-        github_enabled: 1,
-        github_token: githubToken || null,
-        github_owner: githubOwner || null,
-        github_repo: githubRepo || null,
-      });
-      const result = await githubApi.testConnection(project.id);
-      setGithubTestResult(result.ok ? 'ok' : 'fail');
-    } catch {
-      setGithubTestResult('fail');
-    } finally {
-      setGithubTesting(false);
-    }
-  };
-
-  const handleTestNotion = async () => {
-    setNotionTesting(true);
-    setNotionTestResult(null);
-    try {
-      await projectsApi.updateProject(project.id, {
-        notion_enabled: 1,
-        notion_api_key: notionApiKey || null,
-        notion_database_id: notionDatabaseId || null,
-      });
-      const result = await notionApi.testConnection(project.id);
-      setNotionTestResult(result.ok ? 'ok' : 'fail');
-    } catch {
-      setNotionTestResult('fail');
-    } finally {
-      setNotionTesting(false);
-    }
+  const handlePluginConfigChange = (pluginId: string, updates: Record<string, any>) => {
+    setPluginConfigs(prev => ({
+      ...prev,
+      [pluginId]: { ...prev[pluginId], ...updates },
+    }));
   };
 
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
+      // Save core project settings
       const updated = await projectsApi.updateProject(project.id, {
         max_concurrent: maxConcurrent,
         default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
-        gstack_enabled: gstackEnabled ? 1 : 0,
-        gstack_skills: selectedSkills.length > 0 ? JSON.stringify(selectedSkills) : null,
-        jira_enabled: jiraEnabled ? 1 : 0,
-        jira_base_url: jiraBaseUrl || null,
-        jira_email: jiraEmail || null,
-        jira_api_token: jiraApiToken || null,
-        jira_project_key: jiraProjectKey || null,
-        notion_enabled: notionEnabled ? 1 : 0,
-        notion_api_key: notionApiKey || null,
-        notion_database_id: notionDatabaseId || null,
-        github_enabled: githubEnabled ? 1 : 0,
-        github_token: githubToken || null,
-        github_owner: githubOwner || null,
-        github_repo: githubRepo || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
+        // Keep legacy columns in sync for backward compatibility
+        gstack_enabled: pluginConfigs.gstack?.enabled === '1' ? 1 : 0,
+        gstack_skills: pluginConfigs.gstack?.skills || null,
+        jira_enabled: pluginConfigs.jira?.enabled === '1' ? 1 : 0,
+        jira_base_url: pluginConfigs.jira?.base_url || null,
+        jira_email: pluginConfigs.jira?.email || null,
+        jira_api_token: pluginConfigs.jira?.api_token || null,
+        jira_project_key: pluginConfigs.jira?.project_key || null,
+        notion_enabled: pluginConfigs.notion?.enabled === '1' ? 1 : 0,
+        notion_api_key: pluginConfigs.notion?.api_key || null,
+        notion_database_id: pluginConfigs.notion?.database_id || null,
+        github_enabled: pluginConfigs.github?.enabled === '1' ? 1 : 0,
+        github_token: pluginConfigs.github?.token || null,
+        github_owner: pluginConfigs.github?.owner || null,
+        github_repo: pluginConfigs.github?.repo || null,
       });
+
+      // Save plugin configs to plugin_configs table
+      await Promise.all(
+        Object.entries(pluginConfigs).map(([pluginId, config]) =>
+          pluginsApi.updatePluginConfig(pluginId, project.id, config)
+        )
+      );
+
       onProjectUpdate(updated);
       setShowSettings(false);
     } catch {
@@ -192,8 +131,6 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
       setSaving(false);
     }
   };
-
-  const isClaudeCli = cliTool === 'claude';
 
   return (
     <div className="mb-8">
@@ -404,302 +341,16 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             )}
           </div>
 
-          {/* gstack Skills Section */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-warm-700">
-                {t('header.gstackTitle')}
-              </h4>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={gstackEnabled}
-                  onChange={(e) => setGstackEnabled(e.target.checked)}
-                  disabled={!isClaudeCli}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-status-success peer-disabled:opacity-50" />
-              </label>
+          {/* Plugin Settings */}
+          {getClientPlugins().map((plugin) => (
+            <div key={plugin.id} className="mt-6">
+              <plugin.SettingsComponent
+                project={project}
+                config={pluginConfigs[plugin.id] || {}}
+                onConfigChange={(updates) => handlePluginConfigChange(plugin.id, updates)}
+              />
             </div>
-
-            {!isClaudeCli && (
-              <p className="text-xs text-warm-400 mb-3">{t('header.gstackClaudeOnly')}</p>
-            )}
-
-            {isClaudeCli && gstackEnabled && availableSkills.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                {availableSkills.map((skill) => (
-                  <label
-                    key={skill.id}
-                    className="flex items-start gap-2 p-2 rounded-lg hover:bg-warm-50 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSkills.includes(skill.id)}
-                      onChange={() => handleToggleSkill(skill.id)}
-                      className="mt-0.5 rounded border-warm-300 text-status-success focus:ring-status-success"
-                    />
-                    <div className="min-w-0">
-                      <span className="text-xs font-medium text-warm-700">{skill.name}</span>
-                      <p className="text-xs text-warm-400 truncate">
-                        {lang === 'ko' ? skill.descriptionKo : skill.description}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            <p className="text-xs text-warm-300">
-              {t('header.gstackCredit')}
-            </p>
-          </div>
-
-          {/* Jira Integration Section */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-warm-700">
-                {t('header.jiraTitle')}
-              </h4>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={jiraEnabled}
-                  onChange={(e) => setJiraEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
-              </label>
-            </div>
-
-            {jiraEnabled && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.jiraBaseUrl')}
-                    </label>
-                    <input
-                      type="url"
-                      value={jiraBaseUrl}
-                      onChange={(e) => setJiraBaseUrl(e.target.value)}
-                      placeholder={t('header.jiraBaseUrlPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.jiraProjectKey')}
-                    </label>
-                    <input
-                      type="text"
-                      value={jiraProjectKey}
-                      onChange={(e) => setJiraProjectKey(e.target.value.toUpperCase())}
-                      placeholder={t('header.jiraProjectKeyPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.jiraEmail')}
-                    </label>
-                    <input
-                      type="email"
-                      value={jiraEmail}
-                      onChange={(e) => setJiraEmail(e.target.value)}
-                      placeholder={t('header.jiraEmailPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.jiraApiToken')}
-                    </label>
-                    <input
-                      type="password"
-                      value={jiraApiToken}
-                      onChange={(e) => setJiraApiToken(e.target.value)}
-                      placeholder={t('header.jiraApiTokenPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTestJira}
-                    disabled={jiraTesting || !jiraBaseUrl || !jiraEmail || !jiraApiToken}
-                    className="btn-ghost text-xs"
-                  >
-                    {jiraTesting ? t('header.jiraTesting') : t('header.jiraTestConnection')}
-                  </button>
-                  {jiraTestResult === 'ok' && (
-                    <span className="text-xs text-status-success font-medium">{t('header.jiraConnected')}</span>
-                  )}
-                  {jiraTestResult === 'fail' && (
-                    <span className="text-xs text-status-error font-medium">{t('header.jiraFailed')}</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-warm-300 mt-2">
-                  {t('header.jiraTokenHint')}
-                </p>
-              </>
-            )}
-          </div>
-
-          {/* Notion Integration Section */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-warm-700">
-                {t('header.notionTitle')}
-              </h4>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={notionEnabled}
-                  onChange={(e) => setNotionEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
-              </label>
-            </div>
-
-            {notionEnabled && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.notionApiKey')}
-                    </label>
-                    <input
-                      type="password"
-                      value={notionApiKey}
-                      onChange={(e) => setNotionApiKey(e.target.value)}
-                      placeholder={t('header.notionApiKeyPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.notionDatabaseId')}
-                    </label>
-                    <input
-                      type="text"
-                      value={notionDatabaseId}
-                      onChange={(e) => setNotionDatabaseId(e.target.value)}
-                      placeholder={t('header.notionDatabaseIdPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTestNotion}
-                    disabled={notionTesting || !notionApiKey || !notionDatabaseId}
-                    className="btn-ghost text-xs"
-                  >
-                    {notionTesting ? t('header.notionTesting') : t('header.notionTestConnection')}
-                  </button>
-                  {notionTestResult === 'ok' && (
-                    <span className="text-xs text-status-success font-medium">{t('header.notionConnected')}</span>
-                  )}
-                  {notionTestResult === 'fail' && (
-                    <span className="text-xs text-status-error font-medium">{t('header.notionFailed')}</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-warm-300 mt-2">
-                  {t('header.notionTokenHint')}
-                </p>
-              </>
-            )}
-          </div>
-
-          {/* GitHub Integration Section */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-warm-700">
-                {t('header.githubTitle')}
-              </h4>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={githubEnabled}
-                  onChange={(e) => setGithubEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-warm-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-warm-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-disabled:opacity-50" />
-              </label>
-            </div>
-
-            {githubEnabled && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.githubToken')}
-                    </label>
-                    <input
-                      type="password"
-                      value={githubToken}
-                      onChange={(e) => setGithubToken(e.target.value)}
-                      placeholder={t('header.githubTokenPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.githubOwner')}
-                    </label>
-                    <input
-                      type="text"
-                      value={githubOwner}
-                      onChange={(e) => setGithubOwner(e.target.value)}
-                      placeholder={t('header.githubOwnerPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-warm-500 mb-1">
-                      {t('header.githubRepo')}
-                    </label>
-                    <input
-                      type="text"
-                      value={githubRepo}
-                      onChange={(e) => setGithubRepo(e.target.value)}
-                      placeholder={t('header.githubRepoPlaceholder')}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTestGitHub}
-                    disabled={githubTesting || !githubToken || !githubOwner || !githubRepo}
-                    className="btn-ghost text-xs"
-                  >
-                    {githubTesting ? t('header.githubTesting') : t('header.githubTestConnection')}
-                  </button>
-                  {githubTestResult === 'ok' && (
-                    <span className="text-xs text-status-success font-medium">{t('header.githubConnected')}</span>
-                  )}
-                  {githubTestResult === 'fail' && (
-                    <span className="text-xs text-status-error font-medium">{t('header.githubFailed')}</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-warm-300 mt-2">
-                  {t('header.githubTokenHint')}
-                </p>
-              </>
-            )}
-          </div>
+          ))}
 
           {/* Model Management */}
           <ModelSettings />

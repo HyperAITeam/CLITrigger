@@ -4,8 +4,8 @@ import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
-import { injectSkills, parseSkillConfig } from './skill-injector.js';
 import { getTodoImagePaths } from '../routes/images.js';
+import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import * as queries from '../db/queries.js';
@@ -287,17 +287,20 @@ Complete the task in the current directory.`;
     // Determine CLI tool: task-level overrides project-level
     const cliTool = (todo.cli_tool as CliTool) || (project.cli_tool as CliTool) || 'claude';
 
-    // Inject gstack skills if enabled (Claude CLI only)
-    if (cliTool === 'claude' && project.gstack_enabled && project.gstack_skills) {
-      const skillIds = parseSkillConfig(project.gstack_skills);
-      if (skillIds.length > 0) {
-        try {
-          await injectSkills(workDir, skillIds);
-          queries.createTaskLog(todoId, 'output', `Injected gstack skills: ${skillIds.join(', ')}`);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          queries.createTaskLog(todoId, 'error', `Failed to inject gstack skills: ${msg}`);
-        }
+    // Run execution-hook plugins (e.g. gstack skill injection)
+    const hookPlugins = getExecutionHookPlugins();
+    for (const plugin of hookPlugins) {
+      try {
+        await plugin.onBeforeExecution!({
+          project,
+          todoId,
+          workDir,
+          cliTool,
+          log: (type, message) => queries.createTaskLog(todoId, type, message),
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        queries.createTaskLog(todoId, 'error', `Plugin "${plugin.id}" hook failed: ${msg}`);
       }
     }
 

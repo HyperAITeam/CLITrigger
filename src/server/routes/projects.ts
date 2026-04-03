@@ -3,7 +3,6 @@ import nodePath from 'path';
 import fs from 'fs';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
-import { getAvailableSkills } from '../services/skill-injector.js';
 
 const router = Router();
 
@@ -202,11 +201,3 @@ router.get('/:id/git-status', async (req: Request<{ id: string }>, res: Response
 });
 
 export default router;
-
-// Separate router for gstack endpoints (mounted at /api/gstack)
-export const gstackRouter = Router();
-
-// GET /api/gstack/skills - list available gstack skills
-gstackRouter.get('/skills', (_req: Request, res: Response) => {
-  res.json(getAvailableSkills());
-});
