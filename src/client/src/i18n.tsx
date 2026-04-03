@@ -408,6 +408,16 @@ const translations = {
     'tabs.jira': 'Jira',
     'tabs.notion': 'Notion',
     'tabs.github': 'GitHub',
+    'tabs.git': 'Git',
+
+    // Git Status
+    'git.ahead': 'ahead',
+    'git.behind': 'behind',
+    'git.staged': 'Staged',
+    'git.unstaged': 'Unstaged',
+    'git.noChanges': 'Working tree clean',
+    'git.refresh': 'Refresh',
+    'git.files': 'files',
 
     // Language
     'lang.toggle': 'KO',
@@ -817,6 +827,16 @@ const translations = {
     'tabs.jira': 'Jira',
     'tabs.notion': 'Notion',
     'tabs.github': 'GitHub',
+    'tabs.git': 'Git',
+
+    // Git Status
+    'git.ahead': '앞섬',
+    'git.behind': '뒤처짐',
+    'git.staged': '스테이징',
+    'git.unstaged': '변경됨',
+    'git.noChanges': '작업 트리 깨끗',
+    'git.refresh': '새로고침',
+    'git.files': '파일',
 
     // Language
     'lang.toggle': 'EN',

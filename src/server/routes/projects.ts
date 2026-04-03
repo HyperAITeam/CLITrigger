@@ -162,6 +162,45 @@ router.post('/:id/check-git', async (req: Request<{ id: string }>, res: Response
   }
 });
 
+// GET /api/projects/:id/git-status - get git status tree
+router.get('/:id/git-status', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.is_git_repo) {
+      res.status(400).json({ error: 'Project is not a git repository' });
+      return;
+    }
+
+    const worktreePath = req.query.worktreePath as string | undefined;
+    let targetPath = project.path;
+
+    if (worktreePath) {
+      // Validate worktree path: must be under project's .worktrees directory
+      const resolved = nodePath.resolve(worktreePath);
+      const worktreeBase = nodePath.resolve(project.path, '.worktrees');
+      if (!resolved.startsWith(worktreeBase)) {
+        res.status(400).json({ error: 'Invalid worktree path' });
+        return;
+      }
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+        res.status(400).json({ error: 'Worktree path does not exist' });
+        return;
+      }
+      targetPath = resolved;
+    }
+
+    const status = await worktreeManager.getGitStatus(targetPath);
+    res.json(status);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;
 
 // Separate router for gstack endpoints (mounted at /api/gstack)

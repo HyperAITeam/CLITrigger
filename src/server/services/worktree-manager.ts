@@ -179,6 +179,32 @@ export class WorktreeManager {
 
     return worktrees;
   }
+
+  /**
+   * Get git status for a directory (repo or worktree).
+   * Returns branch info and file statuses.
+   */
+  async getGitStatus(dirPath: string): Promise<{
+    branch: string;
+    tracking: string | null;
+    ahead: number;
+    behind: number;
+    files: Array<{ path: string; index: string; working_dir: string }>;
+  }> {
+    const git = simpleGit(dirPath);
+    const status = await git.status();
+    return {
+      branch: status.current ?? '',
+      tracking: status.tracking ?? null,
+      ahead: status.ahead,
+      behind: status.behind,
+      files: status.files.map((f) => ({
+        path: f.path,
+        index: f.index ?? ' ',
+        working_dir: f.working_dir ?? ' ',
+      })),
+    };
+  }
 }
 
 export const worktreeManager = new WorktreeManager();

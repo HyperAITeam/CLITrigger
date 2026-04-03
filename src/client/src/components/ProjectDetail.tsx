@@ -15,6 +15,7 @@ import ScheduleList from './ScheduleList';
 import JiraPanel from './JiraPanel';
 import NotionPanel from './NotionPanel';
 import GitHubPanel from './GitHubPanel';
+import GitStatusPanel from './GitStatusPanel';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -27,7 +28,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [todos, setTodos] = useState<Todo[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules' | 'jira' | 'notion' | 'github'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'pipelines' | 'schedules' | 'jira' | 'notion' | 'github' | 'git'>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
@@ -410,6 +411,18 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             {t('tabs.github')}
           </button>
         ) : null}
+        {project.is_git_repo ? (
+          <button
+            onClick={() => setActiveTab('git')}
+            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
+              activeTab === 'git'
+                ? 'text-accent-gold border-accent-gold'
+                : 'text-warm-400 border-transparent hover:text-warm-600'
+            }`}
+          >
+            {t('tabs.git')}
+          </button>
+        ) : null}
       </div>
 
       {activeTab === 'tasks' && (
@@ -472,6 +485,9 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             setTodos((prev) => [...prev, newTodo]);
           }}
         />
+      ) : null}
+      {activeTab === 'git' && project.is_git_repo ? (
+        <GitStatusPanel project={project} />
       ) : null}
       {activeTab === 'schedules' && (
         <ScheduleList

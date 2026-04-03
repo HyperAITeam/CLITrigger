@@ -37,4 +37,23 @@ export function checkGitStatus(id: string): Promise<Project> {
   return post(`/api/projects/${id}/check-git`);
 }
 
+export interface GitStatusFile {
+  path: string;
+  index: string;
+  working_dir: string;
+}
+
+export interface GitStatusResult {
+  branch: string;
+  tracking: string | null;
+  ahead: number;
+  behind: number;
+  files: GitStatusFile[];
+}
+
+export function getGitStatusTree(id: string, worktreePath?: string): Promise<GitStatusResult> {
+  const qs = worktreePath ? `?worktreePath=${encodeURIComponent(worktreePath)}` : '';
+  return get(`/api/projects/${id}/git-status${qs}`);
+}
+
 
