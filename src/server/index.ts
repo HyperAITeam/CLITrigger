@@ -171,8 +171,11 @@ process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
 
 // Plugin mode: shut down when parent process closes stdin
-process.stdin.on('end', cleanup);
-process.stdin.resume();
+// Only enable stdin-based shutdown in headless/plugin mode (not in dev with concurrently)
+if (process.env.HEADLESS === 'true') {
+  process.stdin.on('end', cleanup);
+  process.stdin.resume();
+}
 
 server.listen(PORT, () => {
   console.log(`CLITrigger server running on http://localhost:${PORT}`);
