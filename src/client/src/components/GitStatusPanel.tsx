@@ -917,9 +917,9 @@ export default function GitStatusPanel({ project }: GitStatusPanelProps) {
           <div className="flex items-center px-4 py-1.5 border-b border-warm-50 text-[10px] text-warm-400 uppercase tracking-wider">
             <div className="w-24 shrink-0">{t('git.graph')}</div>
             <div className="flex-1 min-w-0">{t('git.description')}</div>
-            <div className="w-20 text-right shrink-0">{t('git.date')}</div>
-            <div className="w-24 text-right shrink-0">{t('git.author')}</div>
-            <div className="w-20 text-right shrink-0">{t('git.hash')}</div>
+            <div className="w-14 text-right shrink-0">{t('git.date')}</div>
+            <div className="shrink-0 ml-2">{t('git.author')}</div>
+            <div className="w-16 text-right shrink-0">{t('git.hash')}</div>
           </div>
 
           {error && (
@@ -962,22 +962,22 @@ export default function GitStatusPanel({ project }: GitStatusPanelProps) {
                             ))}
                           </div>
                         )}
-                        <span className="text-xs text-warm-700 truncate">{commit.message}</span>
+                        <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
                       </div>
 
-                      <div className="w-20 text-right shrink-0">
+                      <div className="w-14 text-right shrink-0">
                         <span className="text-[11px] text-warm-400" title={commit.date}>
                           {relativeTime(commit.date)}
                         </span>
                       </div>
 
-                      <div className="w-24 text-right shrink-0">
-                        <span className="text-[11px] text-warm-500 truncate inline-block max-w-full">
+                      <div className="shrink-0 ml-2">
+                        <span className="text-[11px] text-warm-500">
                           {commit.author}
                         </span>
                       </div>
 
-                      <div className="w-20 text-right shrink-0">
+                      <div className="w-16 text-right shrink-0">
                         <span
                           className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent-gold transition-colors"
                           title={commit.hash}
