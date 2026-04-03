@@ -29,6 +29,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
   const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
+  const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
+  const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
 
@@ -96,6 +98,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         max_concurrent: maxConcurrent,
         default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
+        sandbox_mode: sandboxMode,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
@@ -162,6 +165,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 {t('header.model')}: {project.claude_model}
               </span>
             )}
+            <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
+              {(project.sandbox_mode || 'strict') === 'strict' ? 'Sandbox' : 'Permissive'}
+            </span>
             {project.gstack_enabled ? (
               <span className="badge bg-status-success/10 text-status-success">gstack</span>
             ) : null}
@@ -340,6 +346,72 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               </p>
             )}
           </div>
+
+          {/* Sandbox Mode */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">
+              {t('header.sandboxTitle')}
+            </h4>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSandboxMode('strict')}
+                className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                  sandboxMode === 'strict'
+                    ? 'bg-status-success/10 border-status-success text-status-success'
+                    : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                }`}
+              >
+                <div className="text-xs font-semibold">{t('header.sandboxStrict')}</div>
+                <div className="text-[10px] mt-1 opacity-80">{t('header.sandboxStrictDesc')}</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sandboxMode !== 'permissive') {
+                    setShowSandboxWarning(true);
+                  }
+                }}
+                className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                  sandboxMode === 'permissive'
+                    ? 'bg-status-warning/10 border-status-warning text-status-warning'
+                    : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                }`}
+              >
+                <div className="text-xs font-semibold">{t('header.sandboxPermissive')}</div>
+                <div className="text-[10px] mt-1 opacity-80">{t('header.sandboxPermissiveDesc')}</div>
+              </button>
+            </div>
+            {sandboxMode === 'permissive' && (
+              <p className="text-[10px] text-status-warning mt-2">{t('header.sandboxWarning')}</p>
+            )}
+          </div>
+
+          {/* Sandbox warning confirmation dialog */}
+          {showSandboxWarning && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-xl">
+                <p className="text-sm text-warm-700 mb-4">{t('header.sandboxWarning')}</p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowSandboxWarning(false)}
+                    className="btn-ghost text-sm"
+                  >
+                    {t('header.cancel')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSandboxMode('permissive');
+                      setShowSandboxWarning(false);
+                    }}
+                    className="btn-danger text-sm"
+                  >
+                    {t('header.sandboxPermissive')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Plugin Settings */}
           {getClientPlugins().map((plugin) => (

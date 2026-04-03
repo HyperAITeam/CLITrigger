@@ -158,6 +158,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'context_switch_count', definition: 'INTEGER DEFAULT 0' },
     { table: 'schedules', column: 'schedule_type', definition: "TEXT DEFAULT 'recurring'" },
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
+    { table: 'projects', column: 'sandbox_mode', definition: "TEXT DEFAULT 'strict'" },
   ];
 
   for (const { table, column, definition } of migrations) {

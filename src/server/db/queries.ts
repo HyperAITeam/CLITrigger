@@ -29,6 +29,7 @@ export interface Project {
   github_repo: string | null;
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
+  sandbox_mode: string;
   created_at: string;
   updated_at: string;
 }
@@ -54,7 +55,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -83,6 +84,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.github_repo !== undefined) { fields.push('github_repo = ?'); values.push(updates.github_repo); }
   if (updates.cli_fallback_chain !== undefined) { fields.push('cli_fallback_chain = ?'); values.push(updates.cli_fallback_chain); }
   if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
+  if (updates.sandbox_mode !== undefined) { fields.push('sandbox_mode = ?'); values.push(updates.sandbox_mode); }
 
   if (fields.length === 0) return getProjectById(id);
 
