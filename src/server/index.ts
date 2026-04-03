@@ -124,11 +124,12 @@ initWebSocket(server);
 if (process.env.TUNNEL_ENABLED === 'true') {
   const port = Number(PORT);
   const tunnelName = process.env.TUNNEL_NAME;
-  if (tunnelName) {
-    tunnelManager.startNamedTunnel(tunnelName, port);
-  } else {
-    tunnelManager.startTunnel(port);
-  }
+  const tunnelPromise = tunnelName
+    ? tunnelManager.startNamedTunnel(tunnelName, port)
+    : tunnelManager.startTunnel(port);
+  tunnelPromise.catch((err: Error) => {
+    console.error('Failed to start tunnel:', err.message);
+  });
   tunnelManager.on('url', (url: string) => {
     console.log(`Cloudflare Tunnel URL: ${url}`);
   });
