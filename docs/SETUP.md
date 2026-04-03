@@ -333,17 +333,65 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 
 서버 시작 시 기본 모델이 자동 시딩됩니다 (Claude Sonnet/Opus/Haiku, GPT-4.1 계열, Gemini 등).
 
-### 13. Verbose 모드
+### 13. 샌드박스 모드
+
+CLI 도구가 워크트리 디렉토리 밖의 파일에 접근하지 못하도록 제한하는 보안 기능입니다.
+
+#### 모드
+
+| 모드 | 설명 |
+|------|------|
+| **strict** (기본값) | CLI별 네이티브 샌드박싱 활용. 워크트리 디렉토리 내로 파일 접근 제한 |
+| **permissive** | 기존 방식 (`--dangerously-skip-permissions` 등). 시스템 전체 파일 접근 가능 |
+
+#### CLI별 동작
+
+| CLI | strict 모드 동작 |
+|-----|------------------|
+| **Claude** | `.claude/settings.json` 자동 생성 (dontAsk + 디렉토리 스코프 권한) |
+| **Codex** | `--full-auto` + `--add-dir .git` (워크스페이스 샌드박스 + git 메타데이터 접근) |
+| **Gemini** | 프롬프트 수준 경로 제한 (네이티브 샌드박싱 미지원) |
+
+#### 설정 방법
+
+1. 프로젝트 설정(톱니바퀴) 클릭
+2. **Sandbox Mode** 토글로 strict/permissive 전환
+3. permissive로 전환 시 경고 다이얼로그가 표시됨
+
+> **⚠ 보안 권장**: 특별한 이유가 없다면 strict 모드를 유지하세요. permissive 모드는 CLI가 시스템 전체 파일에 접근할 수 있어 의도치 않은 파일 수정 위험이 있습니다.
+
+### 14. Git 클라이언트
+
+Git 탭에서 터미널 전환 없이 주요 Git 작업을 수행할 수 있습니다.
+
+#### 지원 작업
+
+- **커밋**: 파일 스테이징/언스테이징 + 커밋 메시지 입력
+- **Pull/Push/Fetch**: 리모트와 동기화
+- **브랜치**: 생성, 삭제, 체크아웃
+- **병합**: 브랜치 병합
+- **스태시**: 변경사항 임시 저장/복원
+- **태그**: 태그 생성
+- **폐기**: 파일 변경 되돌리기
+
+#### 파일 상태 패널
+
+좌측 사이드바에서 파일 상태를 실시간 확인하고 인라인 액션을 수행할 수 있습니다:
+- **Staged**: 커밋 대기 중인 파일 (클릭으로 언스테이지)
+- **Unstaged**: 변경됐지만 미스테이징 파일 (클릭으로 스테이지 / 폐기)
+- **Untracked**: 새로 추가된 파일
+
+### 15. Verbose 모드
 
 TODO 실행 시 **Verbose** 옵션을 활성화하면 Claude CLI의 모든 로그를 필터 없이 실시간 스트리밍합니다. 디버깅이나 상세 진행 확인에 유용합니다.
 
-### 14. CLI Fallback Chain
+### 16. CLI Fallback Chain
 
 프로젝트 설정에서 **Fallback Chain**을 지정하면, CLI가 컨텍스트 윈도우를 소진했을 때 자동으로 다음 CLI/모델로 재시도합니다. 예: Claude Sonnet → Claude Opus → Gemini 순서로 시도.
 
 ---
 
-### 15. Hecaton 플러그인 (선택)
+### 17. Hecaton 플러그인 (선택)
 
 [Hecaton](https://github.com/nickthecook/hecaton) 터미널 멀티플렉서에서 CLITrigger를 TUI 대시보드로 사용할 수 있습니다. 웹 브라우저 없이 터미널 안에서 프로젝트/태스크 관리와 실시간 로그 확인이 가능합니다.
 
@@ -404,7 +452,7 @@ DISABLE_AUTH=true   # 인증 비활성화 (로컬 전용 환경)
 
 ---
 
-### 16. gstack 스킬 (선택)
+### 18. gstack 스킬 (선택)
 
 [gstack](https://github.com/garrytan/gstack)의 AI 스킬을 worktree에 자동 주입하여 Claude CLI의 작업 품질을 높일 수 있습니다.
 
@@ -614,6 +662,22 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/models | CLI 모델 목록 조회 |
 | POST | /api/models | CLI 모델 추가 |
 | DELETE | /api/models/:id | CLI 모델 삭제 |
+| POST | /api/projects/:id/git-stage | 파일 스테이징 |
+| POST | /api/projects/:id/git-unstage | 파일 언스테이징 |
+| POST | /api/projects/:id/git-commit | 커밋 |
+| POST | /api/projects/:id/git-pull | Pull |
+| POST | /api/projects/:id/git-push | Push |
+| POST | /api/projects/:id/git-fetch | Fetch |
+| POST | /api/projects/:id/git-branch | 브랜치 생성 |
+| POST | /api/projects/:id/git-branch-delete | 브랜치 삭제 |
+| POST | /api/projects/:id/git-checkout | 브랜치 체크아웃 |
+| POST | /api/projects/:id/git-merge | 브랜치 병합 |
+| POST | /api/projects/:id/git-stash | 스태시 저장 |
+| POST | /api/projects/:id/git-stash-pop | 스태시 복원 |
+| POST | /api/projects/:id/git-discard | 파일 변경 폐기 |
+| POST | /api/projects/:id/git-tag | 태그 생성 |
+| POST | /api/projects/:id/git-diff-file | 파일 Diff 조회 |
+| GET | /api/projects/:id/git-file-status | 파일 상태 조회 |
 | GET | /api/gstack/skills | gstack 스킬 목록 |
 | GET | /api/plugins | 등록된 플러그인 목록 |
 | GET | /api/plugins/:pluginId/config/:projectId | 플러그인 설정 조회 |

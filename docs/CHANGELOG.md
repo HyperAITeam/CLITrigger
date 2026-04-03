@@ -1,5 +1,65 @@
 # Changelog
 
+## 2026-04-04 — Git 클라이언트 + 워크트리 샌드박싱
+
+### 배경
+
+Git 탭이 커밋 히스토리 그래프만 표시하는 읽기 전용 뷰였으나, 웹 UI에서 직접 Git 작업을 수행할 수 있는 완전한 클라이언트로 확장. 또한 CLI 도구가 `--dangerously-skip-permissions` 등 전체 파일시스템 접근 플래그를 사용하고 있어, 보안 강화를 위해 워크트리 디렉토리 내로 접근을 제한하는 샌드박스 모드를 도입.
+
+### 주요 변경
+
+#### 1. Git 액션 툴바 + 파일 상태 뷰 (`7891eac`)
+
+Git 탭을 커밋 그래프 뷰어에서 완전한 Git 클라이언트로 확장.
+
+- **서버**: `worktree-manager.ts`에 16개 Git 작업 메서드 추가 (stage, unstage, commit, pull, push, fetch, branch, checkout, merge, stash, discard, tag, diff 등)
+- **서버**: `routes/projects.ts`에 대응하는 16개 REST 엔드포인트 추가
+- **클라이언트 API**: `api/projects.ts`에 16개 Git 작업 함수 추가
+- **클라이언트 UI**: 액션 툴바 (커밋/Pull/Push/패치/브랜치/병합/스태시/폐기/태그)
+  - 각 작업별 모달 다이얼로그 (커밋 메시지 입력, 브랜치 생성/삭제, 태그 생성 등)
+- **클라이언트 UI**: 좌측 사이드바에 파일 상태 패널 추가
+  - Staged/Unstaged/Untracked 파일 분류 표시
+  - 파일별 stage/unstage/discard 인라인 액션
+- **i18n**: 한/영 35개 번역 키 추가
+- **버그 수정**: 커밋 그래프 연결선 y2 좌표 클램핑 오류 수정
+
+#### 2. CLI 도구 워크트리 디렉토리 샌드박싱 (`1537f56`)
+
+프로젝트별 `sandbox_mode` 설정으로 CLI 도구의 파일 접근 범위를 제어.
+
+- **Claude CLI**: strict 모드에서 워크트리에 `.claude/settings.json` 자동 생성 (dontAsk + 디렉토리 스코프 권한), `--dangerously-skip-permissions` 플래그 제거
+- **Codex CLI**: strict 모드에서 `--full-auto` + `--add-dir .git`으로 워크스페이스 샌드박스 활성화 (git 메타데이터 접근은 허용)
+- **Gemini CLI**: 네이티브 샌드박싱 미지원으로 프롬프트 수준 경로 제한만 적용
+- **DB**: `projects` 테이블에 `sandbox_mode` 컬럼 추가 (`strict`/`permissive`, 기본값 `strict`)
+- **UI**: 프로젝트 설정에 샌드박스 모드 토글 + 경고 다이얼로그 + 뱃지 표시
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/worktree-manager.ts` | 16개 Git 작업 메서드 추가 |
+| `src/server/routes/projects.ts` | 16개 Git 작업 REST 엔드포인트 추가 |
+| `src/server/services/cli-adapters.ts` | `SandboxMode` 타입 + CLI별 샌드박스 분기 로직 |
+| `src/server/services/orchestrator.ts` | strict 모드 시 `.claude/settings.json` 생성 + 프롬프트 경로 제한 |
+| `src/server/services/claude-manager.ts` | `projectPath`, `sandboxMode` 파라미터 전달 |
+| `src/server/services/pipeline-orchestrator.ts` | 파이프라인에도 샌드박스 모드 적용 |
+| `src/server/db/schema.ts` | `sandbox_mode` 컬럼 마이그레이션 |
+| `src/server/db/queries.ts` | `Project` 인터페이스에 `sandbox_mode` 추가 |
+| `src/client/src/components/GitStatusPanel.tsx` | 액션 툴바 + 파일 상태 사이드바 UI |
+| `src/client/src/components/ProjectHeader.tsx` | 샌드박스 모드 토글 + 경고 다이얼로그 UI |
+| `src/client/src/api/projects.ts` | Git 작업 API 함수 + `sandbox_mode` 필드 |
+| `src/client/src/i18n.tsx` | 샌드박스 + Git 작업 번역 키 추가 |
+| `src/client/src/types.ts` | `Project`에 `sandbox_mode` 필드 추가 |
+
+### 아키텍처 결정
+
+1. **기본값 strict**: 새 프로젝트는 기본적으로 strict 모드로 생성되어 보안 우선
+2. **CLI별 네이티브 샌드박싱 활용**: 각 CLI의 자체 샌드박스 메커니즘을 활용하되, Gemini는 미지원이므로 프롬프트 수준 제한
+3. **Git 메타데이터 허용**: Codex strict 모드에서 `--add-dir .git`으로 워크트리 외부의 git 메타데이터 접근 허용 (커밋/푸시에 필요)
+4. **실패 허용**: settings.json 생성 실패 시 로그만 남기고 실행 계속
+
+---
+
 ## 2026-04-03 — 플러그인 아키텍처 추출
 
 ### 배경

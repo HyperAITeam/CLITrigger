@@ -47,11 +47,11 @@ npm run typecheck              # server + client
 - **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, plugins, models, tunnel. Integration routes (Jira, GitHub, Notion, gstack) are mounted via the plugin system.
 - **Plugins**: `src/server/plugins/` — Modular integration system. Each plugin (jira, github, notion, gstack) is a self-contained module with its own `PluginManifest`, router, and config. Registered in `index.ts` via `registerPlugin()` and auto-mounted via `mountPluginRoutes()`. Two categories: `external-service` (REST proxy + UI panel) and `execution-hook` (orchestrator pre-execution hook). Config stored in generic `plugin_configs` table (key-value per project+plugin). Legacy `projects` table columns maintained for backward compatibility.
 - **Services**: `src/server/services/` — Core business logic:
-  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, CLI fallback on context exhaustion, and plugin execution hooks (e.g. gstack skill injection).
+  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, CLI fallback on context exhaustion, plugin execution hooks (e.g. gstack skill injection), and sandbox mode (strict: directory-scoped permissions, permissive: full access).
   - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex, child_process for Claude/Gemini). Windows cmd.exe wrapper for .cmd shims.
-  - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format).
+  - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format). Supports `SandboxMode` (strict/permissive) per CLI tool.
   - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes. Detects context exhaustion for CLI fallback chain.
-  - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max).
+  - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max). Also provides 16 Git action methods (stage, unstage, commit, pull, push, fetch, branch, checkout, merge, stash, discard, tag, diff) for the web Git client.
   - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`.
   - `pipeline-orchestrator.ts` — Multi-phase sequential/parallel pipeline execution.
   - `skill-injector.ts` — Injects gstack skill files into `.claude/skills/` in worktrees (Claude CLI only). Used by gstack plugin's `onBeforeExecution` hook.
@@ -68,7 +68,7 @@ npm run typecheck              # server + client
 - **Plugins**: `src/client/src/plugins/` — Client-side plugin system. Each plugin (jira, github, notion, gstack) provides a `ClientPluginManifest` with `PanelComponent` (tab content), `SettingsComponent` (project settings), `isEnabled()`, and i18n translations. Registered via `registerClientPlugin()` in `plugins/init.ts`. `ProjectDetail.tsx` renders plugin tabs dynamically via `getPluginsWithTabs()`. `ProjectHeader.tsx` renders plugin settings via `getClientPlugins()` loop.
 - **Hooks**: `useAuth` (session state), `useWebSocket` (auto-reconnect with exponential backoff).
 - **i18n**: `src/client/src/i18n.tsx` — Context-based Korean/English translations. All UI strings go through `t(key)`. Plugin-specific translations provided by each plugin manifest.
-- **Components**: 24 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization.
+- **Components**: 24 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization. `GitStatusPanel.tsx` provides a full Git client (commit graph + action toolbar + file status sidebar).
 
 ### Key Patterns
 
@@ -78,6 +78,7 @@ npm run typecheck              # server + client
 - **Graceful Shutdown**: Server handles SIGTERM/SIGINT — kills running CLI processes, stops scheduler, closes tunnel. Also shuts down on stdin EOF (plugin sidecar mode).
 - **Headless Mode**: `HEADLESS=true` skips static file serving (API-only mode for plugin/embedded use). `DISABLE_AUTH=true` removes auth middleware (local-only plugin scenarios).
 - **DB Migrations**: Schema changes add columns with `ALTER TABLE ... ADD COLUMN` guarded by try/catch, so the app works with both old and new DB files. Plugin configs use a separate `plugin_configs` table with automatic migration from legacy project columns.
+- **Sandbox Mode**: Per-project `sandbox_mode` (strict/permissive). Strict mode uses each CLI's native sandboxing to restrict file access to the worktree directory. Claude: auto-generated `.claude/settings.json`; Codex: `--full-auto` + `--add-dir .git`; Gemini: prompt-level path restriction.
 - **Failure Tolerance**: On startup, stale "running" todos are reset to "failed". Plugin execution hook failures are logged but don't block CLI execution.
 
 ## Environment
