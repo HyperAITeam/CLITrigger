@@ -1,233 +1,433 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
-import type { GitStatusFile } from '../api/projects';
+import type { GitLogEntry, GitRef } from '../api/projects';
 import { useI18n } from '../i18n';
 
 interface GitStatusPanelProps {
   project: Project;
 }
 
-interface TreeNode {
-  name: string;
-  path: string;
-  type: 'dir' | 'file';
-  index?: string;
-  working_dir?: string;
-  children: TreeNode[];
+// --- Lane assignment algorithm ---
+
+const LANE_COLORS = [
+  '#D4A843', // gold
+  '#2196F3', // blue
+  '#4CAF50', // green
+  '#E53935', // red
+  '#9C27B0', // purple
+  '#FF9800', // orange
+  '#00BCD4', // cyan
+  '#795548', // brown
+];
+
+interface GraphNode {
+  lane: number;
+  color: string;
+  connections: Array<{
+    fromLane: number;
+    toLane: number;
+    toRow: number;
+    color: string;
+  }>;
 }
 
-function buildTree(files: GitStatusFile[]): TreeNode[] {
-  const root: TreeNode[] = [];
+function computeGraphLanes(commits: GitLogEntry[]): GraphNode[] {
+  const hashToRow = new Map<string, number>();
+  commits.forEach((c, i) => hashToRow.set(c.hash, i));
 
-  for (const file of files) {
-    const parts = file.path.split('/');
-    let current = root;
+  const activeLanes: (string | null)[] = [];
+  const result: GraphNode[] = [];
 
-    for (let i = 0; i < parts.length; i++) {
-      const name = parts[i];
-      const isFile = i === parts.length - 1;
-      const pathSoFar = parts.slice(0, i + 1).join('/');
+  for (let row = 0; row < commits.length; row++) {
+    const commit = commits[row];
 
-      let existing = current.find((n) => n.name === name && n.type === (isFile ? 'file' : 'dir'));
-
-      if (!existing) {
-        existing = {
-          name,
-          path: pathSoFar,
-          type: isFile ? 'file' : 'dir',
-          children: [],
-          ...(isFile ? { index: file.index, working_dir: file.working_dir } : {}),
-        };
-        current.push(existing);
+    // Find lane for this commit
+    let lane = activeLanes.indexOf(commit.hash);
+    if (lane === -1) {
+      // New lane — find first empty slot
+      lane = activeLanes.indexOf(null);
+      if (lane === -1) {
+        lane = activeLanes.length;
+        activeLanes.push(null);
       }
-
-      current = existing.children;
     }
+    activeLanes[lane] = null; // consume
+
+    const color = LANE_COLORS[lane % LANE_COLORS.length];
+    const connections: GraphNode['connections'] = [];
+
+    for (let pi = 0; pi < commit.parentHashes.length; pi++) {
+      const parentHash = commit.parentHashes[pi];
+      const parentRow = hashToRow.get(parentHash);
+      if (parentRow === undefined) continue;
+
+      let parentLane = activeLanes.indexOf(parentHash);
+      if (parentLane !== -1) {
+        // Parent already claimed by another child — merge line
+        connections.push({
+          fromLane: lane,
+          toLane: parentLane,
+          toRow: parentRow,
+          color: LANE_COLORS[parentLane % LANE_COLORS.length],
+        });
+      } else {
+        if (pi === 0) {
+          // First parent takes current lane
+          activeLanes[lane] = parentHash;
+          connections.push({
+            fromLane: lane,
+            toLane: lane,
+            toRow: parentRow,
+            color,
+          });
+        } else {
+          // Additional parents — find empty lane
+          let newLane = activeLanes.indexOf(null);
+          if (newLane === -1) {
+            newLane = activeLanes.length;
+            activeLanes.push(null);
+          }
+          activeLanes[newLane] = parentHash;
+          connections.push({
+            fromLane: lane,
+            toLane: newLane,
+            toRow: parentRow,
+            color: LANE_COLORS[newLane % LANE_COLORS.length],
+          });
+        }
+      }
+    }
+
+    result.push({ lane, color, connections });
   }
 
-  const sortNodes = (nodes: TreeNode[]): TreeNode[] => {
-    nodes.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    for (const n of nodes) {
-      if (n.children.length > 0) sortNodes(n.children);
-    }
-    return nodes;
-  };
-
-  return sortNodes(root);
+  // Trim trailing empty lanes
+  return result;
 }
 
-function countFiles(nodes: TreeNode[]): number {
-  let count = 0;
-  for (const n of nodes) {
-    if (n.type === 'file') count++;
-    else count += countFiles(n.children);
-  }
-  return count;
-}
+// --- Ref badge ---
 
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  M: { color: 'text-status-warning', label: 'Modified' },
-  A: { color: 'text-status-success', label: 'Added' },
-  D: { color: 'text-status-error', label: 'Deleted' },
-  '?': { color: 'text-warm-400', label: 'Untracked' },
-  R: { color: 'text-status-running', label: 'Renamed' },
-  C: { color: 'text-status-running', label: 'Copied' },
-  U: { color: 'text-status-error', label: 'Unmerged' },
-};
+function RefBadge({ refStr }: { refStr: string }) {
+  const isHead = refStr.startsWith('HEAD');
+  const isRemote = refStr.startsWith('origin/') || refStr.includes('remotes/');
+  const isTag = refStr.startsWith('tag: ');
 
-function StatusBadge({ code, type }: { code: string; type: 'staged' | 'unstaged' }) {
-  if (!code || code === ' ' || code === '?') {
-    if (code === '?' && type === 'unstaged') {
-      return <span className="inline-block w-5 text-center text-[10px] font-bold text-warm-400">?</span>;
-    }
-    return <span className="inline-block w-5" />;
+  let label = refStr;
+  let classes = '';
+
+  if (isTag) {
+    label = refStr.replace('tag: ', '');
+    classes = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+  } else if (isHead) {
+    label = refStr.replace('HEAD -> ', '');
+    classes = 'bg-status-success/15 text-status-success font-semibold';
+  } else if (isRemote) {
+    classes = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+  } else {
+    classes = 'bg-accent-gold/15 text-accent-gold';
   }
-  const cfg = STATUS_CONFIG[code] || { color: 'text-warm-500', label: code };
+
   return (
-    <span className={`inline-block w-5 text-center text-[10px] font-bold ${cfg.color}`} title={`${type}: ${cfg.label}`}>
-      {code}
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${classes}`}>
+      {label}
     </span>
   );
 }
 
-function FileTreeNode({ node, expanded, onToggle, depth }: {
-  node: TreeNode;
-  expanded: Set<string>;
-  onToggle: (path: string) => void;
-  depth: number;
-}) {
-  const isOpen = expanded.has(node.path);
-  const pl = depth * 16;
+// --- Graph SVG ---
 
-  if (node.type === 'dir') {
-    const fileCount = countFiles(node.children);
-    return (
-      <>
-        <button
-          onClick={() => onToggle(node.path)}
-          className="w-full flex items-center gap-1.5 py-1 px-2 hover:bg-warm-50 rounded text-left transition-colors"
-          style={{ paddingLeft: `${pl + 8}px` }}
-        >
-          <svg
-            className={`h-3.5 w-3.5 text-warm-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-          <svg className="h-4 w-4 text-accent-gold shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-          </svg>
-          <span className="text-sm text-warm-700 font-medium truncate">{node.name}</span>
-          <span className="text-[10px] text-warm-400 ml-auto shrink-0">{fileCount}</span>
-        </button>
-        {isOpen && node.children.map((child) => (
-          <FileTreeNode key={child.path} node={child} expanded={expanded} onToggle={onToggle} depth={depth + 1} />
-        ))}
-      </>
-    );
-  }
+const ROW_HEIGHT = 32;
+const LANE_WIDTH = 16;
+const DOT_RADIUS = 4;
+const MAX_LANES = 10;
+
+function CommitGraphSvg({ graphNodes, totalRows }: { graphNodes: GraphNode[]; totalRows: number }) {
+  const maxLane = Math.min(
+    MAX_LANES,
+    graphNodes.reduce((max, n) => {
+      const connMax = n.connections.reduce((cm, c) => Math.max(cm, c.fromLane, c.toLane), 0);
+      return Math.max(max, n.lane, connMax);
+    }, 0) + 1
+  );
+  const width = (maxLane + 1) * LANE_WIDTH + 8;
 
   return (
-    <div
-      className="flex items-center gap-1.5 py-1 px-2 hover:bg-warm-50 rounded transition-colors"
-      style={{ paddingLeft: `${pl + 24}px` }}
+    <svg
+      width={width}
+      height={totalRows * ROW_HEIGHT}
+      className="shrink-0"
+      style={{ minWidth: width }}
     >
-      <svg className="h-3.5 w-3.5 text-warm-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+      {/* Draw connections first (behind dots) */}
+      {graphNodes.map((node, row) =>
+        node.connections.map((conn, ci) => {
+          const x1 = conn.fromLane * LANE_WIDTH + LANE_WIDTH / 2 + 4;
+          const y1 = row * ROW_HEIGHT + ROW_HEIGHT / 2;
+          const x2 = conn.toLane * LANE_WIDTH + LANE_WIDTH / 2 + 4;
+          const y2Row = Math.min(conn.toRow, row + 1);
+          const y2 = y2Row * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+          if (x1 === x2) {
+            // Straight line down
+            return (
+              <line
+                key={`${row}-${ci}`}
+                x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={conn.color} strokeWidth={2} strokeOpacity={0.7}
+              />
+            );
+          } else {
+            // Curved merge/branch line
+            const midY = (y1 + y2) / 2;
+            return (
+              <path
+                key={`${row}-${ci}`}
+                d={`M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`}
+                fill="none" stroke={conn.color} strokeWidth={2} strokeOpacity={0.7}
+              />
+            );
+          }
+        })
+      )}
+      {/* Draw dots */}
+      {graphNodes.map((node, row) => {
+        const cx = node.lane * LANE_WIDTH + LANE_WIDTH / 2 + 4;
+        const cy = row * ROW_HEIGHT + ROW_HEIGHT / 2;
+        return (
+          <circle
+            key={`dot-${row}`}
+            cx={cx} cy={cy} r={DOT_RADIUS}
+            fill={node.color} stroke="white" strokeWidth={1.5}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+// --- Refs Sidebar ---
+
+function RefsSidebar({ branches, tags, stashCount }: {
+  branches: GitRef[];
+  tags: string[];
+  stashCount: number;
+}) {
+  const { t } = useI18n();
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['local', 'remote'])
+  );
+
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const localBranches = branches.filter(b => !b.remote);
+  const remoteBranches = branches.filter(b => b.remote);
+
+  const SectionHeader = ({ id, label, count }: { id: string; label: string; count: number }) => (
+    <button
+      onClick={() => toggleSection(id)}
+      className="w-full flex items-center gap-1.5 py-1.5 text-[11px] font-semibold text-warm-500 uppercase tracking-wider hover:text-warm-700 transition-colors"
+    >
+      <svg
+        className={`h-3 w-3 transition-transform ${expandedSections.has(id) ? 'rotate-90' : ''}`}
+        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
       </svg>
-      <span className="text-sm text-warm-600 truncate font-mono">{node.name}</span>
-      <div className="ml-auto flex items-center gap-0.5 shrink-0">
-        <StatusBadge code={node.index ?? ' '} type="staged" />
-        <StatusBadge code={node.working_dir ?? ' '} type="unstaged" />
-      </div>
+      {label}
+      <span className="text-warm-400 font-normal ml-auto">{count}</span>
+    </button>
+  );
+
+  return (
+    <div className="space-y-1">
+      {/* Local branches */}
+      <SectionHeader id="local" label={t('git.branches')} count={localBranches.length} />
+      {expandedSections.has('local') && (
+        <div className="pl-1 space-y-px">
+          {localBranches.map(b => (
+            <div
+              key={b.name}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate ${
+                b.current ? 'text-accent-gold font-semibold bg-accent-gold/10' : 'text-warm-600 hover:bg-warm-50'
+              }`}
+            >
+              {b.current && (
+                <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+              <span className="truncate">{b.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Remote branches */}
+      {remoteBranches.length > 0 && (
+        <>
+          <SectionHeader id="remote" label={t('git.remotes')} count={remoteBranches.length} />
+          {expandedSections.has('remote') && (
+            <div className="pl-1 space-y-px">
+              {remoteBranches.map(b => (
+                <div key={b.name} className="px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded">
+                  {b.name.replace('remotes/', '')}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tags */}
+      {tags.length > 0 && (
+        <>
+          <SectionHeader id="tags" label={t('git.tags')} count={tags.length} />
+          {expandedSections.has('tags') && (
+            <div className="pl-1 space-y-px">
+              {tags.map(tag => (
+                <div key={tag} className="flex items-center gap-1.5 px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded">
+                  <svg className="h-3 w-3 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                  </svg>
+                  {tag}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Stashes */}
+      {stashCount > 0 && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
+          {t('git.stashes')}
+          <span className="text-warm-400 font-normal ml-auto">{stashCount}</span>
+        </div>
+      )}
     </div>
   );
 }
 
+// --- Relative time ---
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffSec = Math.floor((now - then) / 1000);
+
+  if (diffSec < 60) return `${diffSec}s`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d`;
+  const diffMonth = Math.floor(diffDay / 30);
+  if (diffMonth < 12) return `${diffMonth}mo`;
+  return `${Math.floor(diffDay / 365)}y`;
+}
+
+// --- Main component ---
+
 export default function GitStatusPanel({ project }: GitStatusPanelProps) {
   const { t } = useI18n();
-  const [status, setStatus] = useState<projectsApi.GitStatusResult | null>(null);
+  const [commits, setCommits] = useState<GitLogEntry[]>([]);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [branches, setBranches] = useState<GitRef[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [stashCount, setStashCount] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
 
-  const fetchStatus = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchRefs = useCallback(async () => {
     try {
-      const result = await projectsApi.getGitStatusTree(project.id);
-      setStatus(result);
-      // Auto-expand all directories on first load
-      if (result.files.length > 0) {
-        const dirs = new Set<string>();
-        for (const f of result.files) {
-          const parts = f.path.split('/');
-          for (let i = 1; i < parts.length; i++) {
-            dirs.add(parts.slice(0, i).join('/'));
-          }
-        }
-        setExpanded(dirs);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch git status');
-    } finally {
-      setLoading(false);
+      const refs = await projectsApi.getGitRefs(project.id);
+      setBranches(refs.branches);
+      setTags(refs.tags);
+      setStashCount(refs.stashCount);
+    } catch {
+      // non-critical
     }
   }, [project.id]);
 
+  const fetchLog = useCallback(async (skip: number, reset = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await projectsApi.getGitLog(project.id, skip, 50);
+      setCommits(prev => reset ? result.commits : [...prev, ...result.commits]);
+      setHasMore(result.hasMore);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch git log');
+    } finally {
+      setLoading(false);
+      setInitialLoading(false);
+      loadingRef.current = false;
+    }
+  }, [project.id]);
+
+  const refresh = useCallback(() => {
+    setCommits([]);
+    setHasMore(true);
+    setInitialLoading(true);
+    fetchLog(0, true);
+    fetchRefs();
+  }, [fetchLog, fetchRefs]);
+
   useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+    fetchLog(0, true);
+    fetchRefs();
+  }, [fetchLog, fetchRefs]);
 
-  const tree = useMemo(() => (status ? buildTree(status.files) : []), [status]);
+  // Infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
-  const handleToggle = useCallback((path: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }, []);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingRef.current && commits.length > 0) {
+          fetchLog(commits.length);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, commits.length, fetchLog]);
+
+  const graphNodes = useMemo(() => computeGraphLanes(commits), [commits]);
 
   return (
-    <div className="animate-fade-in">
-      {/* Branch info header */}
-      <div className="card p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <svg className="h-4 w-4 text-accent-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-              </svg>
-              <span className="text-sm font-semibold text-warm-800">
-                {status?.branch || '...'}
-              </span>
-            </div>
-            {status && (status.ahead > 0 || status.behind > 0) && (
-              <div className="flex items-center gap-2 text-xs">
-                {status.ahead > 0 && (
-                  <span className="badge bg-status-success/10 text-status-success">
-                    {status.ahead} {t('git.ahead')}
-                  </span>
-                )}
-                {status.behind > 0 && (
-                  <span className="badge bg-status-warning/10 text-status-warning">
-                    {status.behind} {t('git.behind')}
-                  </span>
-                )}
-              </div>
-            )}
-            {status?.tracking && (
-              <span className="text-xs text-warm-400">{status.tracking}</span>
-            )}
-          </div>
+    <div className="animate-fade-in flex gap-3" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
+      {/* Left sidebar */}
+      <div className="card w-48 shrink-0 overflow-y-auto p-3">
+        <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} />
+      </div>
+
+      {/* Main commit history */}
+      <div className="card flex-1 overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-warm-100">
+          <span className="text-sm font-semibold text-warm-700">{t('git.commitHistory')}</span>
           <button
-            onClick={fetchStatus}
+            onClick={refresh}
             disabled={loading}
             className="btn-ghost text-xs flex items-center gap-1.5"
           >
@@ -237,50 +437,104 @@ export default function GitStatusPanel({ project }: GitStatusPanelProps) {
             {t('git.refresh')}
           </button>
         </div>
-      </div>
 
-      {/* Error state */}
-      {error && (
-        <div className="card p-6 text-center">
-          <p className="text-status-error text-sm">{error}</p>
+        {/* Column headers */}
+        <div className="flex items-center px-4 py-1.5 border-b border-warm-50 text-[10px] text-warm-400 uppercase tracking-wider">
+          <div className="w-24 shrink-0">{t('git.graph')}</div>
+          <div className="flex-1 min-w-0">{t('git.description')}</div>
+          <div className="w-20 text-right shrink-0">{t('git.date')}</div>
+          <div className="w-24 text-right shrink-0">{t('git.author')}</div>
+          <div className="w-20 text-right shrink-0">{t('git.hash')}</div>
         </div>
-      )}
 
-      {/* Loading state */}
-      {loading && !status && (
-        <div className="card p-6 text-center">
-          <p className="text-warm-500 text-sm">{t('detail.loading')}</p>
-        </div>
-      )}
+        {/* Error */}
+        {error && (
+          <div className="p-6 text-center">
+            <p className="text-status-error text-sm">{error}</p>
+          </div>
+        )}
 
-      {/* File tree */}
-      {status && !error && (
-        <div className="card p-3">
-          {status.files.length === 0 ? (
-            <div className="py-8 text-center">
-              <svg className="h-8 w-8 text-status-success mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-warm-500 text-sm">{t('git.noChanges')}</p>
-            </div>
-          ) : (
-            <>
-              {/* Legend */}
-              <div className="flex items-center gap-3 px-2 pb-2 mb-2 border-b border-warm-100 text-[10px] text-warm-400">
-                <span>{status.files.length} {t('git.files')}</span>
-                <span className="ml-auto">{t('git.staged')}</span>
-                <span>{t('git.unstaged')}</span>
+        {/* Initial loading */}
+        {initialLoading && !error && (
+          <div className="p-6 text-center">
+            <p className="text-warm-500 text-sm">{t('detail.loading')}</p>
+          </div>
+        )}
+
+        {/* No commits */}
+        {!initialLoading && !error && commits.length === 0 && (
+          <div className="p-6 text-center">
+            <p className="text-warm-500 text-sm">{t('git.noCommits')}</p>
+          </div>
+        )}
+
+        {/* Commit list */}
+        {commits.length > 0 && (
+          <div className="flex-1 overflow-y-auto" ref={scrollRef}>
+            <div className="relative flex">
+              {/* SVG Graph */}
+              <div className="shrink-0 sticky left-0">
+                <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
               </div>
-              {/* Tree */}
-              <div className="max-h-[60vh] overflow-y-auto">
-                {tree.map((node) => (
-                  <FileTreeNode key={node.path} node={node} expanded={expanded} onToggle={handleToggle} depth={0} />
+
+              {/* Commit rows */}
+              <div className="flex-1 min-w-0">
+                {commits.map((commit, i) => (
+                  <div
+                    key={commit.hash}
+                    className="flex items-center px-3 hover:bg-warm-50/50 transition-colors border-b border-warm-50/50"
+                    style={{ height: ROW_HEIGHT }}
+                  >
+                    {/* Ref badges + message */}
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      {commit.refs.length > 0 && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {commit.refs.map((ref, ri) => (
+                            <RefBadge key={ri} refStr={ref} />
+                          ))}
+                        </div>
+                      )}
+                      <span className="text-xs text-warm-700 truncate">{commit.message}</span>
+                    </div>
+
+                    {/* Date */}
+                    <div className="w-20 text-right shrink-0">
+                      <span className="text-[11px] text-warm-400" title={commit.date}>
+                        {relativeTime(commit.date)}
+                      </span>
+                    </div>
+
+                    {/* Author */}
+                    <div className="w-24 text-right shrink-0">
+                      <span className="text-[11px] text-warm-500 truncate inline-block max-w-full">
+                        {commit.author}
+                      </span>
+                    </div>
+
+                    {/* Hash */}
+                    <div className="w-20 text-right shrink-0">
+                      <span
+                        className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent-gold transition-colors"
+                        title={commit.hash}
+                        onClick={() => navigator.clipboard.writeText(commit.hash)}
+                      >
+                        {commit.hash.substring(0, 7)}
+                      </span>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </>
-          )}
-        </div>
-      )}
+            </div>
+
+            {/* Sentinel for infinite scroll */}
+            <div ref={sentinelRef} className="h-8 flex items-center justify-center">
+              {loading && (
+                <span className="text-xs text-warm-400">{t('git.loadMore')}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -184,6 +184,80 @@ export class WorktreeManager {
    * Get git status for a directory (repo or worktree).
    * Returns branch info and file statuses.
    */
+  /**
+   * Get git log (commit history) for a directory.
+   */
+  async getGitLog(dirPath: string, options: { skip?: number; limit?: number } = {}): Promise<{
+    commits: Array<{
+      hash: string;
+      parentHashes: string[];
+      refs: string[];
+      message: string;
+      author: string;
+      date: string;
+    }>;
+    hasMore: boolean;
+  }> {
+    const skip = options.skip ?? 0;
+    const limit = options.limit ?? 50;
+    const git = simpleGit(dirPath);
+    const raw = await git.raw([
+      'log', '--all', '--topo-order',
+      `--format=%H%x1E%P%x1E%D%x1E%s%x1E%an%x1E%aI`,
+      `--max-count=${limit + 1}`,
+      `--skip=${skip}`,
+    ]);
+
+    const lines = raw.trim().split('\n').filter(Boolean);
+    const hasMore = lines.length > limit;
+    const entries = hasMore ? lines.slice(0, limit) : lines;
+
+    const commits = entries.map((line) => {
+      const [hash, parents, refsStr, message, author, date] = line.split('\x1E');
+      return {
+        hash,
+        parentHashes: parents ? parents.split(' ').filter(Boolean) : [],
+        refs: refsStr ? refsStr.split(', ').filter(Boolean) : [],
+        message,
+        author,
+        date,
+      };
+    });
+
+    return { commits, hasMore };
+  }
+
+  /**
+   * Get git refs (branches, tags, stash count) for a directory.
+   */
+  async getGitRefs(dirPath: string): Promise<{
+    branches: Array<{ name: string; current: boolean; remote: boolean }>;
+    tags: string[];
+    stashCount: number;
+  }> {
+    const git = simpleGit(dirPath);
+
+    const branchResult = await git.branch(['-a']);
+    const branches = Object.values(branchResult.branches).map((b) => ({
+      name: b.name,
+      current: b.current,
+      remote: b.name.startsWith('remotes/'),
+    }));
+
+    const tagResult = await git.tags();
+    const tags = tagResult.all;
+
+    let stashCount = 0;
+    try {
+      const stashResult = await git.stashList();
+      stashCount = stashResult.total;
+    } catch {
+      // No stash support or empty
+    }
+
+    return { branches, tags, stashCount };
+  }
+
   async getGitStatus(dirPath: string): Promise<{
     branch: string;
     tracking: string | null;

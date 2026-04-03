@@ -410,7 +410,7 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
 
-    // Git Status
+    // Git
     'git.ahead': 'ahead',
     'git.behind': 'behind',
     'git.staged': 'Staged',
@@ -418,6 +418,18 @@ const translations = {
     'git.noChanges': 'Working tree clean',
     'git.refresh': 'Refresh',
     'git.files': 'files',
+    'git.commitHistory': 'Commit History',
+    'git.branches': 'Branches',
+    'git.remotes': 'Remotes',
+    'git.tags': 'Tags',
+    'git.stashes': 'Stashes',
+    'git.noCommits': 'No commits yet',
+    'git.loadMore': 'Loading more...',
+    'git.author': 'Author',
+    'git.hash': 'Hash',
+    'git.graph': 'Graph',
+    'git.description': 'Description',
+    'git.date': 'Date',
 
     // Language
     'lang.toggle': 'KO',
@@ -829,7 +841,7 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
 
-    // Git Status
+    // Git
     'git.ahead': '앞섬',
     'git.behind': '뒤처짐',
     'git.staged': '스테이징',
@@ -837,6 +849,18 @@ const translations = {
     'git.noChanges': '작업 트리 깨끗',
     'git.refresh': '새로고침',
     'git.files': '파일',
+    'git.commitHistory': '커밋 히스토리',
+    'git.branches': '브랜치',
+    'git.remotes': '원격',
+    'git.tags': '태그',
+    'git.stashes': '스태시',
+    'git.noCommits': '아직 커밋이 없습니다',
+    'git.loadMore': '더 불러오는 중...',
+    'git.author': '작성자',
+    'git.hash': '해시',
+    'git.graph': '그래프',
+    'git.description': '설명',
+    'git.date': '날짜',
 
     // Language
     'lang.toggle': 'EN',

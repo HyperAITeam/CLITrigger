@@ -56,4 +56,41 @@ export function getGitStatusTree(id: string, worktreePath?: string): Promise<Git
   return get(`/api/projects/${id}/git-status${qs}`);
 }
 
+// Git Log (commit history)
+export interface GitLogEntry {
+  hash: string;
+  parentHashes: string[];
+  refs: string[];
+  message: string;
+  author: string;
+  date: string;
+}
 
+export interface GitLogResult {
+  commits: GitLogEntry[];
+  hasMore: boolean;
+}
+
+export function getGitLog(id: string, skip = 0, limit = 50, worktreePath?: string): Promise<GitLogResult> {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  if (worktreePath) params.set('worktreePath', worktreePath);
+  return get(`/api/projects/${id}/git-log?${params}`);
+}
+
+// Git Refs (branches, tags, stashes)
+export interface GitRef {
+  name: string;
+  current: boolean;
+  remote: boolean;
+}
+
+export interface GitRefsResult {
+  branches: GitRef[];
+  tags: string[];
+  stashCount: number;
+}
+
+export function getGitRefs(id: string, worktreePath?: string): Promise<GitRefsResult> {
+  const qs = worktreePath ? `?worktreePath=${encodeURIComponent(worktreePath)}` : '';
+  return get(`/api/projects/${id}/git-refs${qs}`);
+}

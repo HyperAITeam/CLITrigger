@@ -200,4 +200,82 @@ router.get('/:id/git-status', async (req: Request<{ id: string }>, res: Response
   }
 });
 
+// GET /api/projects/:id/git-log - get commit history
+router.get('/:id/git-log', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.is_git_repo) {
+      res.status(400).json({ error: 'Project is not a git repository' });
+      return;
+    }
+
+    const worktreePath = req.query.worktreePath as string | undefined;
+    let targetPath = project.path;
+
+    if (worktreePath) {
+      const resolved = nodePath.resolve(worktreePath);
+      const worktreeBase = nodePath.resolve(project.path, '.worktrees');
+      if (!resolved.startsWith(worktreeBase)) {
+        res.status(400).json({ error: 'Invalid worktree path' });
+        return;
+      }
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+        res.status(400).json({ error: 'Worktree path does not exist' });
+        return;
+      }
+      targetPath = resolved;
+    }
+
+    const skip = parseInt(req.query.skip as string) || 0;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const result = await worktreeManager.getGitLog(targetPath, { skip, limit });
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/projects/:id/git-refs - get branches, tags, stashes
+router.get('/:id/git-refs', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.is_git_repo) {
+      res.status(400).json({ error: 'Project is not a git repository' });
+      return;
+    }
+
+    const worktreePath = req.query.worktreePath as string | undefined;
+    let targetPath = project.path;
+
+    if (worktreePath) {
+      const resolved = nodePath.resolve(worktreePath);
+      const worktreeBase = nodePath.resolve(project.path, '.worktrees');
+      if (!resolved.startsWith(worktreeBase)) {
+        res.status(400).json({ error: 'Invalid worktree path' });
+        return;
+      }
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+        res.status(400).json({ error: 'Worktree path does not exist' });
+        return;
+      }
+      targetPath = resolved;
+    }
+
+    const refs = await worktreeManager.getGitRefs(targetPath);
+    res.json(refs);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;
