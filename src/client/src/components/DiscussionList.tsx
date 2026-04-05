@@ -89,13 +89,13 @@ export default function DiscussionList({
         <div className="flex gap-2">
           <button
             onClick={() => setShowAgentManager(!showAgentManager)}
-            className="btn btn-sm text-xs"
+            className="btn-secondary text-xs py-2"
           >
             {t('agents.manage')}
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="btn btn-sm btn-primary text-xs"
+            className="btn-primary text-xs py-2"
           >
             + {t('discussions.add')}
           </button>
