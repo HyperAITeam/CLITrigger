@@ -30,6 +30,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
+  const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
@@ -99,6 +100,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
         sandbox_mode: sandboxMode,
+        debug_logging: debugLogging ? 1 : 0,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
@@ -168,6 +170,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
+            {project.debug_logging ? (
+              <span className="badge bg-purple-100 text-purple-700">{t('header.debugBadge')}</span>
+            ) : null}
             {project.gstack_enabled ? (
               <span className="badge bg-status-success/10 text-status-success">gstack</span>
             ) : null}
@@ -412,6 +417,21 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               </div>
             </div>
           )}
+
+          {/* Debug Logging */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.debugLoggingTitle')}</h4>
+            <p className="text-[10px] text-warm-500 mb-3">{t('header.debugLoggingDesc')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={debugLogging}
+                onChange={(e) => setDebugLogging(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-xs text-warm-600">{t('header.debugLoggingEnable')}</span>
+            </label>
+          </div>
 
           {/* Plugin Settings */}
           {getClientPlugins().map((plugin) => (

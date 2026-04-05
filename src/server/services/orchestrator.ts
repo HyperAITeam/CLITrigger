@@ -8,6 +8,7 @@ import { getTodoImagePaths } from '../routes/images.js';
 import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
+import { debugLogger, type DebugSession } from './debug-logger.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -360,16 +361,32 @@ Complete the task in the current directory.`;
     let pid: number;
     let exitPromise: Promise<number>;
 
+    let debugSession: DebugSession | null = null;
+
     try {
       const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns, projectPath, sandboxMode);
       pid = result.pid;
       exitPromise = result.exitPromise;
 
+      // Debug logging: capture full stdin/stdout/stderr to file
+      let stdout = result.stdout;
+      let stderr = result.stderr;
+      if (project.debug_logging) {
+        debugSession = debugLogger.startSession({
+          todoId, projectPath, cliTool,
+          command: result.command, args: result.args,
+          workDir, model: claudeModel, sandboxMode,
+        });
+        debugSession.writeStdin(prompt);
+        stdout = debugSession.teeStdout(result.stdout);
+        stderr = debugSession.teeStderr(result.stderr);
+      }
+
       // Start streaming logs to DB (Claude uses structured JSON, others use plain text)
       if (cliTool === 'claude') {
-        logStreamer.streamJsonToDb(todoId, result.stdout, result.stderr, mode === 'verbose');
+        logStreamer.streamJsonToDb(todoId, stdout, stderr, mode === 'verbose');
       } else {
-        logStreamer.streamToDb(todoId, result.stdout, result.stderr);
+        logStreamer.streamToDb(todoId, stdout, stderr);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -400,6 +417,10 @@ Complete the task in the current directory.`;
 
     // Handle process exit asynchronously
     exitPromise.then((exitCode) => {
+      // Finalize debug log file
+      if (debugSession) {
+        try { debugSession.finalize(exitCode); } catch { /* ignore */ }
+      }
       const currentTodo = queries.getTodoById(todoId);
       // Only update if still in running state (not manually stopped)
       if (currentTodo && currentTodo.status === 'running') {

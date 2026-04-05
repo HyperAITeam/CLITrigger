@@ -26,15 +26,19 @@ export class ClaudeManager {
     stderr: NodeJS.ReadableStream;
     stdin: NodeJS.WritableStream | null;
     exitPromise: Promise<number>;
+    command: string;
+    args: string[];
   }> {
     const adapter = getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode });
 
     if (adapter.requiresTty) {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
-      return this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt);
+      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt);
+      return { ...result, command: adapter.command, args };
     }
-    return this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
+    const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
+    return { ...result, command: adapter.command, args };
   }
 
   /**

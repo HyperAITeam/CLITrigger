@@ -420,6 +420,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onEvent={onEvent}
           onSendInput={() => {}}
           interactiveTodos={new Set<string>()}
+          debugLogging={!!project.debug_logging}
         />
       )}
       {activeTab === 'pipelines' && (

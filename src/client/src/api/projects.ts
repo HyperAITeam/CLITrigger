@@ -13,8 +13,34 @@ export function createProject(data: { name: string; path: string }): Promise<Pro
   return post('/api/projects', data);
 }
 
-export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode'>>): Promise<Project> {
+export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging'>>): Promise<Project> {
   return put(`/api/projects/${id}`, data);
+}
+
+// --- Debug Logs ---
+
+export interface DebugLogFile {
+  name: string;
+  todoId: string;
+  timestamp: string;
+  size: number;
+}
+
+export function getDebugLogs(projectId: string, todoId?: string): Promise<{ files: DebugLogFile[] }> {
+  const qs = todoId ? `?todoId=${encodeURIComponent(todoId)}` : '';
+  return get(`/api/projects/${projectId}/debug-logs${qs}`);
+}
+
+export function getDebugLogContent(projectId: string, filename: string): Promise<string> {
+  return get(`/api/projects/${projectId}/debug-logs/${encodeURIComponent(filename)}`);
+}
+
+export function deleteDebugLog(projectId: string, filename: string): Promise<void> {
+  return del(`/api/projects/${projectId}/debug-logs/${encodeURIComponent(filename)}`);
+}
+
+export function deleteAllDebugLogs(projectId: string): Promise<void> {
+  return del(`/api/projects/${projectId}/debug-logs`);
 }
 
 export function deleteProject(id: string): Promise<void> {

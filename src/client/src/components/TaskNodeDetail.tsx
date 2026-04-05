@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
+import * as projectsApi from '../api/projects';
 import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
@@ -22,6 +23,7 @@ interface TaskNodeDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
+  debugLogging?: boolean;
 }
 
 export default function TaskNodeDetail({
@@ -38,6 +40,7 @@ export default function TaskNodeDetail({
   onEvent,
   isInteractive,
   onSendInput,
+  debugLogging,
 }: TaskNodeDetailProps) {
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [logsLoaded, setLogsLoaded] = useState(false);
@@ -120,6 +123,15 @@ export default function TaskNodeDetail({
       setShowDiff(true);
     } catch { /* ignore */ }
     finally { setDiffLoading(false); }
+  };
+
+  const handleViewDebugLog = async () => {
+    try {
+      const { files } = await projectsApi.getDebugLogs(todo.project_id, todo.id);
+      if (files.length > 0) {
+        window.open(`/api/projects/${todo.project_id}/debug-logs/${encodeURIComponent(files[0].name)}`, '_blank');
+      }
+    } catch { /* ignore */ }
   };
 
   const formatDuration = (seconds: number): string => {
@@ -211,6 +223,11 @@ export default function TaskNodeDetail({
           {canViewDiff && (
             <button onClick={handleViewDiff} disabled={diffLoading} className="btn-ghost text-xs py-1.5 text-status-info disabled:opacity-30">
               {t('todo.viewDiff')}
+            </button>
+          )}
+          {debugLogging && hasResult && (
+            <button onClick={handleViewDebugLog} className="btn-ghost text-xs py-1.5 text-purple-600">
+              {t('todo.viewDebugLog')}
             </button>
           )}
           {canMerge && (

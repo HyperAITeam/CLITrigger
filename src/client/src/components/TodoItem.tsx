@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
+import * as projectsApi from '../api/projects';
 import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
@@ -34,9 +35,10 @@ interface TodoItemProps {
   onDragLeaveTarget?: (todoId: string) => void;
   onDropTarget?: (todoId: string) => void;
   onRemoveDependency?: (todoId: string) => void;
+  debugLogging?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -125,6 +127,15 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
       }
     });
   }, [onEvent, todo.id]);
+
+  const handleViewDebugLog = async () => {
+    try {
+      const { files } = await projectsApi.getDebugLogs(todo.project_id, todo.id);
+      if (files.length > 0) {
+        window.open(`/api/projects/${todo.project_id}/debug-logs/${encodeURIComponent(files[0].name)}`, '_blank');
+      }
+    } catch { /* ignore */ }
+  };
 
   const handleViewDiff = async () => {
     if (showDiff) {
@@ -460,6 +471,17 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+          )}
+          {debugLogging && hasResult && (
+            <button
+              onClick={handleViewDebugLog}
+              className="p-1.5 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+              title={t('todo.viewDebugLog')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
             </button>
           )}

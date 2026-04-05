@@ -26,6 +26,7 @@ interface TodoListProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
+  debugLogging?: boolean;
 }
 
 function wouldCreateCycle(todos: Todo[], sourceId: string, targetId: string): boolean {
@@ -60,6 +61,7 @@ export default function TodoList({
   onEvent,
   onSendInput,
   interactiveTodos,
+  debugLogging,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
@@ -216,6 +218,7 @@ export default function TodoList({
           onEvent={onEvent}
           onSendInput={onSendInput}
           interactiveTodos={interactiveTodos}
+          debugLogging={debugLogging}
         />
       </div>
     );
@@ -312,6 +315,7 @@ export default function TodoList({
                 onDragLeaveTarget={handleDragLeaveTarget}
                 onDropTarget={handleDrop}
                 onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
+                debugLogging={debugLogging}
               />
             </div>
           ))

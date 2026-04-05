@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline, getAllProjects } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -22,7 +22,9 @@ import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
 import pluginsRouter from './routes/plugins.js';
 import modelsRouter from './routes/models.js';
+import debugLogsRouter from './routes/debug-logs.js';
 import { scheduler } from './services/scheduler.js';
+import { debugLogger } from './services/debug-logger.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
 import { jiraPlugin } from './plugins/jira/index.js';
 import { githubPlugin } from './plugins/github/index.js';
@@ -98,6 +100,16 @@ if (cleaned > 0) {
   console.log(`Cleaned up ${cleaned} old log entries (older than ${LOG_RETENTION_DAYS} days)`);
 }
 
+// Auto-cleanup old debug log files
+for (const p of getAllProjects()) {
+  if (p.debug_logging) {
+    const debugCleaned = debugLogger.cleanupOldLogs(p.path, LOG_RETENTION_DAYS);
+    if (debugCleaned > 0) {
+      console.log(`Cleaned up ${debugCleaned} debug log files for project "${p.name}"`);
+    }
+  }
+}
+
 // Auth middleware
 initAuth(app);
 app.use('/api/auth', authRouter);
@@ -119,6 +131,7 @@ app.use('/api', schedulesRouter);
 app.use('/api/plugins', pluginsRouter);
 app.use('/api/tunnel', tunnelRouter);
 app.use('/api', modelsRouter);
+app.use('/api', debugLogsRouter);
 mountPluginRoutes(app);
 
 // --- Scheduler ---
