@@ -43,8 +43,8 @@ npm run typecheck              # server + client
 ### Server
 
 - **Entry**: `src/server/index.ts` — Express app, middleware, route mounting, graceful shutdown.
-- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 10 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`, `cli_models`, `plugin_configs`.
-- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, plugins, models, tunnel. Integration routes (Jira, GitHub, Notion, gstack) are mounted via the plugin system.
+- **Database**: `src/server/db/` — SQLite via `better-sqlite3` with WAL mode. Schema uses backward-compatible migrations (adds columns dynamically, never drops tables). 14 tables: `projects`, `todos`, `task_logs`, `pipelines`, `pipeline_phases`, `pipeline_logs`, `schedules`, `schedule_runs`, `cli_models`, `plugin_configs`, `discussion_agents`, `discussions`, `discussion_messages`, `discussion_logs`.
+- **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, plugins, models, tunnel, discussions, debug-logs. Integration routes (Jira, GitHub, Notion, gstack) are mounted via the plugin system.
 - **Plugins**: `src/server/plugins/` — Modular integration system. Each plugin (jira, github, notion, gstack) is a self-contained module with its own `PluginManifest`, router, and config. Registered in `index.ts` via `registerPlugin()` and auto-mounted via `mountPluginRoutes()`. Two categories: `external-service` (REST proxy + UI panel) and `execution-hook` (orchestrator pre-execution hook). Config stored in generic `plugin_configs` table (key-value per project+plugin). Legacy `projects` table columns maintained for backward compatibility.
 - **Services**: `src/server/services/` — Core business logic:
   - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, CLI fallback on context exhaustion, plugin execution hooks (e.g. gstack skill injection), and sandbox mode (strict: directory-scoped permissions, permissive: full access).
@@ -55,20 +55,22 @@ npm run typecheck              # server + client
   - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`.
   - `pipeline-orchestrator.ts` — Multi-phase sequential/parallel pipeline execution.
   - `skill-injector.ts` — Injects gstack skill files into `.claude/skills/` in worktrees (Claude CLI only). Used by gstack plugin's `onBeforeExecution` hook.
+  - `discussion-orchestrator.ts` — Multi-agent discussion engine. Round-based turn execution where agents speak sequentially, each receiving the full discussion history in their prompt. Supports start/stop/pause/resume, user message injection, turn skipping, and a special implementation round (max_rounds+1) where a designated agent writes code. Uses worktree isolation and sandbox mode like todos.
+  - `debug-logger.ts` — CLI debug logging service. When `project.debug_logging` is enabled, captures raw stdin/stdout/stderr to `.debug-logs/` via PassThrough stream tee (non-invasive to existing log pipeline). Auto-cleans old logs on startup based on `LOG_RETENTION_DAYS`.
   - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
 - **WebSocket**: `src/server/websocket/` — Real-time log streaming and status broadcasts. Session-authenticated. Supports stdin relay for interactive mode.
-- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`. Disabled entirely when `DISABLE_AUTH=true` (plugin/headless mode).
+- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`. When `AUTH_PASSWORD` is not set, authentication is bypassed entirely (server returns `authRequired: false`, client skips login page). Also disabled when `DISABLE_AUTH=true` (plugin/headless mode).
 
 ### Client
 
 - **Entry**: `src/client/src/main.tsx` → `App.tsx` (React Router). Calls `initPlugins()` to register client-side plugins before rendering.
-- **Routes**: `/` (ProjectList), `/projects/:id` (ProjectDetail), `/projects/:id/pipelines/:pipelineId` (PipelineDetail).
+- **Routes**: `/` (ProjectList), `/projects/:id` (ProjectDetail), `/projects/:id/pipelines/:pipelineId` (PipelineDetail), `/projects/:id/discussions/:discussionId` (DiscussionDetail).
 - **API layer**: `src/client/src/api/` — Fetch wrapper with 401 → auto-logout handling. Plugin config API in `plugins.ts`.
 - **Plugins**: `src/client/src/plugins/` — Client-side plugin system. Each plugin (jira, github, notion, gstack) provides a `ClientPluginManifest` with `PanelComponent` (tab content), `SettingsComponent` (project settings), `isEnabled()`, and i18n translations. Registered via `registerClientPlugin()` in `plugins/init.ts`. `ProjectDetail.tsx` renders plugin tabs dynamically via `getPluginsWithTabs()`. `ProjectHeader.tsx` renders plugin settings via `getClientPlugins()` loop.
 - **Hooks**: `useAuth` (session state), `useWebSocket` (auto-reconnect with exponential backoff).
 - **i18n**: `src/client/src/i18n.tsx` — Context-based Korean/English translations. All UI strings go through `t(key)`. Plugin-specific translations provided by each plugin manifest.
-- **Components**: 24 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization. `GitStatusPanel.tsx` provides a full Git client (commit graph + action toolbar + file status sidebar).
+- **Components**: 27 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization. `GitStatusPanel.tsx` provides a full Git client (commit graph + action toolbar + file status sidebar). `DiscussionDetail.tsx` provides a chat UI for multi-agent discussions (round-grouped messages, streaming logs, user injection, implementation modal). `DiscussionList.tsx` shows discussion list with creation form. `AgentManager.tsx` provides CRUD for agent personas.
 
 ### Key Patterns
 
@@ -79,7 +81,8 @@ npm run typecheck              # server + client
 - **Headless Mode**: `HEADLESS=true` skips static file serving (API-only mode for plugin/embedded use). `DISABLE_AUTH=true` removes auth middleware (local-only plugin scenarios).
 - **DB Migrations**: Schema changes add columns with `ALTER TABLE ... ADD COLUMN` guarded by try/catch, so the app works with both old and new DB files. Plugin configs use a separate `plugin_configs` table with automatic migration from legacy project columns.
 - **Sandbox Mode**: Per-project `sandbox_mode` (strict/permissive). Strict mode uses each CLI's native sandboxing to restrict file access to the worktree directory. Claude: auto-generated `.claude/settings.json`; Codex: `--full-auto` + `--add-dir .git`; Gemini: prompt-level path restriction.
-- **Failure Tolerance**: On startup, stale "running" todos are reset to "failed". Plugin execution hook failures are logged but don't block CLI execution.
+- **Agent Discussion**: Multiple AI agents with different roles (architect, developer, reviewer, etc.) discuss a feature in rounds before implementation. Each agent speaks sequentially with full history context. After discussion completes, a designated agent implements the consensus. Uses same worktree isolation and CLI adapter patterns as todos.
+- **Failure Tolerance**: On startup, stale "running" todos are reset to "failed", stale "running" discussions are reset to "paused". Plugin execution hook failures are logged but don't block CLI execution.
 
 ## Environment
 
