@@ -189,13 +189,13 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         {canStart && (
           <button onClick={handleStart} className="btn btn-sm btn-primary text-xs flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-            {discussion.status === 'pending' ? t('header.runAll') : 'Resume'}
+            {discussion.status === 'pending' ? t('header.runAll') : t('discussions.resume')}
           </button>
         )}
         {canStop && (
           <button onClick={handleStop} className="btn btn-sm text-xs flex items-center gap-1 text-amber-600">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
-            Pause
+            {t('discussions.pause')}
           </button>
         )}
         {canStop && (
@@ -267,7 +267,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           <span className="text-xs font-semibold text-warm-700">{msg.agent_name}</span>
                           <span className="text-[10px] text-warm-400">{t(`agents.roles.${msg.role}`) || msg.role}</span>
                           {msg.status === 'skipped' && (
-                            <span className="text-[10px] text-warm-300 italic">skipped</span>
+                            <span className="text-[10px] text-warm-300 italic">{t('status.skipped')}</span>
                           )}
                         </div>
                       )}
@@ -300,7 +300,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
 
                         {/* Pending */}
                         {msg.status === 'pending' && !msg.content && (
-                          <div className="text-xs text-warm-300 italic">waiting...</div>
+                          <div className="text-xs text-warm-300 italic">{t('discussions.waiting')}</div>
                         )}
                       </div>
                     </div>
