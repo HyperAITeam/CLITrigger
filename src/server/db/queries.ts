@@ -685,6 +685,255 @@ export function deletePluginConfigs(projectId: string, pluginId: string): void {
   db.prepare('DELETE FROM plugin_configs WHERE project_id = ? AND plugin_id = ?').run(projectId, pluginId);
 }
 
+// ── Discussion Agents ──
+
+export interface DiscussionAgent {
+  id: string;
+  project_id: string;
+  name: string;
+  role: string;
+  system_prompt: string;
+  cli_tool: string | null;
+  cli_model: string | null;
+  avatar_color: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createDiscussionAgent(
+  projectId: string, name: string, role: string, systemPrompt: string,
+  cliTool?: string, cliModel?: string, avatarColor?: string
+): DiscussionAgent {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM discussion_agents WHERE project_id = ?').get(projectId) as { max_order: number | null };
+  const sortOrder = (maxOrder.max_order ?? -1) + 1;
+  db.prepare(
+    `INSERT INTO discussion_agents (id, project_id, name, role, system_prompt, cli_tool, cli_model, avatar_color, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, name, role, systemPrompt, cliTool ?? null, cliModel ?? null, avatarColor ?? null, sortOrder, now, now);
+  return getDiscussionAgentById(id)!;
+}
+
+export function getDiscussionAgentsByProjectId(projectId: string): DiscussionAgent[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussion_agents WHERE project_id = ? ORDER BY sort_order ASC').all(projectId) as DiscussionAgent[];
+}
+
+export function getDiscussionAgentById(id: string): DiscussionAgent | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussion_agents WHERE id = ?').get(id) as DiscussionAgent | undefined;
+}
+
+export function updateDiscussionAgent(id: string, updates: Partial<Pick<DiscussionAgent, 'name' | 'role' | 'system_prompt' | 'cli_tool' | 'cli_model' | 'avatar_color' | 'sort_order'>>): DiscussionAgent | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.role !== undefined) { fields.push('role = ?'); values.push(updates.role); }
+  if (updates.system_prompt !== undefined) { fields.push('system_prompt = ?'); values.push(updates.system_prompt); }
+  if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
+  if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
+  if (updates.avatar_color !== undefined) { fields.push('avatar_color = ?'); values.push(updates.avatar_color); }
+  if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(updates.sort_order); }
+
+  if (fields.length === 0) return getDiscussionAgentById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE discussion_agents SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getDiscussionAgentById(id);
+}
+
+export function deleteDiscussionAgent(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM discussion_agents WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Discussions ──
+
+export interface Discussion {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: string;
+  current_round: number;
+  max_rounds: number;
+  current_agent_id: string | null;
+  branch_name: string | null;
+  worktree_path: string | null;
+  process_pid: number | null;
+  agent_ids: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createDiscussion(
+  projectId: string, title: string, description: string, agentIds: string[], maxRounds = 3
+): Discussion {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), now, now);
+  return getDiscussionById(id)!;
+}
+
+export function getDiscussionsByProjectId(projectId: string): Discussion[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussions WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Discussion[];
+}
+
+export function getDiscussionById(id: string): Discussion | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussions WHERE id = ?').get(id) as Discussion | undefined;
+}
+
+export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids'>>): Discussion | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.current_round !== undefined) { fields.push('current_round = ?'); values.push(updates.current_round); }
+  if (updates.max_rounds !== undefined) { fields.push('max_rounds = ?'); values.push(updates.max_rounds); }
+  if (updates.current_agent_id !== undefined) { fields.push('current_agent_id = ?'); values.push(updates.current_agent_id); }
+  if (updates.branch_name !== undefined) { fields.push('branch_name = ?'); values.push(updates.branch_name); }
+  if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
+  if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
+  if (updates.agent_ids !== undefined) { fields.push('agent_ids = ?'); values.push(updates.agent_ids); }
+
+  if (fields.length === 0) return getDiscussionById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE discussions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getDiscussionById(id);
+}
+
+export function updateDiscussionStatus(id: string, status: string): Discussion | undefined {
+  const db = getDatabase();
+  db.prepare('UPDATE discussions SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), id);
+  return getDiscussionById(id);
+}
+
+export function getDiscussionsByStatus(status: string): Discussion[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussions WHERE status = ? ORDER BY created_at DESC').all(status) as Discussion[];
+}
+
+export function deleteDiscussion(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM discussions WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Discussion Messages ──
+
+export interface DiscussionMessage {
+  id: string;
+  discussion_id: string;
+  agent_id: string;
+  round_number: number;
+  turn_order: number;
+  role: string;
+  agent_name: string;
+  content: string | null;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export function createDiscussionMessage(
+  discussionId: string, agentId: string, roundNumber: number, turnOrder: number,
+  role: string, agentName: string
+): DiscussionMessage {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO discussion_messages (id, discussion_id, agent_id, round_number, turn_order, role, agent_name, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, discussionId, agentId, roundNumber, turnOrder, role, agentName, now);
+  return db.prepare('SELECT * FROM discussion_messages WHERE id = ?').get(id) as DiscussionMessage;
+}
+
+export function getDiscussionMessages(discussionId: string): DiscussionMessage[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussion_messages WHERE discussion_id = ? ORDER BY round_number ASC, turn_order ASC').all(discussionId) as DiscussionMessage[];
+}
+
+export function getDiscussionMessageById(id: string): DiscussionMessage | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM discussion_messages WHERE id = ?').get(id) as DiscussionMessage | undefined;
+}
+
+export function updateDiscussionMessage(id: string, updates: Partial<Pick<DiscussionMessage, 'content' | 'status' | 'started_at' | 'completed_at'>>): DiscussionMessage | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.content !== undefined) { fields.push('content = ?'); values.push(updates.content); }
+  if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+  if (updates.started_at !== undefined) { fields.push('started_at = ?'); values.push(updates.started_at); }
+  if (updates.completed_at !== undefined) { fields.push('completed_at = ?'); values.push(updates.completed_at); }
+
+  if (fields.length === 0) return undefined;
+
+  values.push(id);
+  db.prepare(`UPDATE discussion_messages SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return db.prepare('SELECT * FROM discussion_messages WHERE id = ?').get(id) as DiscussionMessage | undefined;
+}
+
+// ── Discussion Logs ──
+
+export interface DiscussionLog {
+  id: string;
+  discussion_id: string;
+  message_id: string | null;
+  log_type: string;
+  message: string;
+  created_at: string;
+}
+
+export function createDiscussionLog(discussionId: string, messageId: string | null, logType: string, message: string): DiscussionLog {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO discussion_logs (id, discussion_id, message_id, log_type, message, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, discussionId, messageId, logType, message, now);
+  return db.prepare('SELECT * FROM discussion_logs WHERE id = ?').get(id) as DiscussionLog;
+}
+
+export function getDiscussionLogs(discussionId: string, messageId?: string): DiscussionLog[] {
+  const db = getDatabase();
+  if (messageId) {
+    return db.prepare('SELECT * FROM discussion_logs WHERE discussion_id = ? AND message_id = ? ORDER BY created_at ASC').all(discussionId, messageId) as DiscussionLog[];
+  }
+  return db.prepare('SELECT * FROM discussion_logs WHERE discussion_id = ? ORDER BY created_at ASC').all(discussionId) as DiscussionLog[];
+}
+
+export function deleteDiscussionLogs(discussionId: string): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM discussion_logs WHERE discussion_id = ?').run(discussionId);
+  return result.changes;
+}
+
 // ── Cleanup ──
 
 export function cleanOldLogs(daysToKeep: number): number {
@@ -692,5 +941,6 @@ export function cleanOldLogs(daysToKeep: number): number {
   const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString();
   const taskResult = db.prepare('DELETE FROM task_logs WHERE created_at < ?').run(cutoff);
   const pipelineResult = db.prepare('DELETE FROM pipeline_logs WHERE created_at < ?').run(cutoff);
-  return taskResult.changes + pipelineResult.changes;
+  const discussionResult = db.prepare('DELETE FROM discussion_logs WHERE created_at < ?').run(cutoff);
+  return taskResult.changes + pipelineResult.changes + discussionResult.changes;
 }

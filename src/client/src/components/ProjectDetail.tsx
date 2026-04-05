@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Project, Todo, Pipeline, Schedule, TaskLog } from '../types';
+import type { Project, Todo, Pipeline, Schedule, Discussion, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
 import * as pipelinesApi from '../api/pipelines';
 import * as schedulesApi from '../api/schedules';
+import * as discussionsApi from '../api/discussions';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
@@ -13,6 +14,7 @@ import { useI18n } from '../i18n';
 import PipelineList from './PipelineList';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
+import DiscussionList from './DiscussionList';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -26,6 +28,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [todos, setTodos] = useState<Todo[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [activeTab, setActiveTab] = useState<string>('tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -33,12 +36,13 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id)])
-      .then(([proj, todoList, pipelineList, scheduleList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
+      .then(([proj, todoList, pipelineList, scheduleList, discussionList]) => {
         setProject(proj);
         setTodos(todoList);
         setPipelines(pipelineList);
         setSchedules(scheduleList);
+        setDiscussions(discussionList);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -75,6 +79,15 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             s.id === event.scheduleId
               ? { ...s, is_active: event.isActive ? 1 : 0, updated_at: new Date().toISOString() }
               : s
+          )
+        );
+      }
+      if (event.type === 'discussion:status-changed' && event.discussionId) {
+        setDiscussions((prev) =>
+          prev.map((d) =>
+            d.id === event.discussionId
+              ? { ...d, status: event.status as Discussion['status'], current_round: event.currentRound ?? d.current_round, updated_at: new Date().toISOString() }
+              : d
           )
         );
       }
@@ -251,6 +264,30 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     await schedulesApi.triggerSchedule(scheduleId);
   }, []);
 
+  // Discussion handlers
+  const handleAddDiscussion = useCallback((discussion: Discussion) => {
+    setDiscussions((prev) => [discussion, ...prev]);
+  }, []);
+
+  const handleStartDiscussion = useCallback(async (discussionId: string) => {
+    await discussionsApi.startDiscussion(discussionId);
+    setDiscussions((prev) =>
+      prev.map((d) => d.id === discussionId ? { ...d, status: 'running' as const, updated_at: new Date().toISOString() } : d)
+    );
+  }, []);
+
+  const handleStopDiscussion = useCallback(async (discussionId: string) => {
+    await discussionsApi.stopDiscussion(discussionId);
+    setDiscussions((prev) =>
+      prev.map((d) => d.id === discussionId ? { ...d, status: 'paused' as const, updated_at: new Date().toISOString() } : d)
+    );
+  }, []);
+
+  const handleDeleteDiscussion = useCallback(async (discussionId: string) => {
+    await discussionsApi.deleteDiscussion(discussionId);
+    setDiscussions((prev) => prev.filter((d) => d.id !== discussionId));
+  }, []);
+
   const handleStartAll = useCallback(async () => {
     if (!id) return;
     await projectsApi.startProject(id);
@@ -364,6 +401,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           {t('tabs.pipelines')} ({pipelines.length})
         </button>
         <button
+          onClick={() => setActiveTab('discussions')}
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
+            activeTab === 'discussions'
+              ? 'text-accent-gold border-accent-gold'
+              : 'text-warm-400 border-transparent hover:text-warm-600'
+          }`}
+        >
+          {t('tabs.discussions')} ({discussions.length})
+        </button>
+        <button
           onClick={() => setActiveTab('schedules')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'schedules'
@@ -430,6 +477,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onStartPipeline={handleStartPipeline}
           onStopPipeline={handleStopPipeline}
           onDeletePipeline={handleDeletePipeline}
+        />
+      )}
+      {activeTab === 'discussions' && id && (
+        <DiscussionList
+          projectId={id}
+          discussions={discussions}
+          onAddDiscussion={handleAddDiscussion}
+          onStartDiscussion={handleStartDiscussion}
+          onStopDiscussion={handleStopDiscussion}
+          onDeleteDiscussion={handleDeleteDiscussion}
         />
       )}
       {getPluginsWithTabs(project).map((plugin) =>

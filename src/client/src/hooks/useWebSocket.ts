@@ -21,6 +21,13 @@ export interface WsEvent {
   runId?: string;
   isActive?: boolean;
   reason?: string;
+  // Discussion events
+  discussionId?: string;
+  messageId?: string;
+  agentId?: string;
+  agentName?: string;
+  currentRound?: number;
+  currentAgentId?: string | null;
 }
 
 type EventCallback = (event: WsEvent) => void;

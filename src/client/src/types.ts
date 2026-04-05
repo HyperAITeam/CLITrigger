@@ -199,6 +199,67 @@ export interface TaskLog {
   created_at: string;
 }
 
+// ── Discussions ──
+
+export interface DiscussionAgent {
+  id: string;
+  project_id: string;
+  name: string;
+  role: string;
+  system_prompt: string;
+  cli_tool: string | null;
+  cli_model: string | null;
+  avatar_color: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Discussion {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'merged';
+  current_round: number;
+  max_rounds: number;
+  current_agent_id: string | null;
+  branch_name: string | null;
+  worktree_path: string | null;
+  agent_ids: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscussionMessage {
+  id: string;
+  discussion_id: string;
+  agent_id: string;
+  round_number: number;
+  turn_order: number;
+  role: string;
+  agent_name: string;
+  content: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface DiscussionLog {
+  id: string;
+  discussion_id: string;
+  message_id: string | null;
+  log_type: 'info' | 'error' | 'output' | 'commit';
+  message: string;
+  created_at: string;
+}
+
+export interface DiscussionWithMessages extends Discussion {
+  messages: DiscussionMessage[];
+  agents: DiscussionAgent[];
+}
+
 export interface JiraIssue {
   key: string;
   fields: {
