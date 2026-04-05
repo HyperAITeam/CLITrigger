@@ -293,23 +293,22 @@ Complete the task in the current directory.`;
       try {
         const claudeDir = path.join(workDir, '.claude');
         const settingsPath = path.join(claudeDir, 'settings.json');
-        if (!fs.existsSync(settingsPath)) {
-          if (!fs.existsSync(claudeDir)) {
-            fs.mkdirSync(claudeDir, { recursive: true });
-          }
-          const settings = {
-            permissions: {
-              defaultMode: 'dontAsk',
-              allow: [
-                'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
-                'TodoRead','TodoWrite','WebFetch(*)',
-              ],
-              deny: [],
-            },
-          };
-          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-          queries.createTaskLog(todoId, 'output', `[sandbox] Created .claude/settings.json with directory-scoped permissions`);
+        if (!fs.existsSync(claudeDir)) {
+          fs.mkdirSync(claudeDir, { recursive: true });
         }
+        // Merge permissions into existing settings.json (may already exist from git checkout with hooks etc.)
+        const existingSettings = fs.existsSync(settingsPath)
+          ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+          : {};
+        existingSettings.permissions = {
+          allow: [
+            'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+            'TodoRead','TodoWrite','WebFetch(*)',
+          ],
+          deny: [],
+        };
+        fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
+        queries.createTaskLog(todoId, 'output', `[sandbox] Configured .claude/settings.json with directory-scoped permissions`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         queries.createTaskLog(todoId, 'error', `[sandbox] Failed to create permission settings: ${msg}`);

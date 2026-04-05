@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
@@ -207,6 +209,32 @@ export class PipelineOrchestrator {
 
     try {
       const sandboxMode = (project.sandbox_mode as SandboxMode) || 'strict';
+
+      // Sandbox: generate Claude CLI permission settings in pipeline worktree
+      if (sandboxMode === 'strict' && cliTool === 'claude' && pipeline.worktree_path !== project.path) {
+        try {
+          const claudeDir = path.join(pipeline.worktree_path, '.claude');
+          const settingsPath = path.join(claudeDir, 'settings.json');
+          if (!fs.existsSync(claudeDir)) {
+            fs.mkdirSync(claudeDir, { recursive: true });
+          }
+          const existingSettings = fs.existsSync(settingsPath)
+            ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+            : {};
+          existingSettings.permissions = {
+            allow: [
+              'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+              'TodoRead','TodoWrite','WebFetch(*)',
+            ],
+            deny: [],
+          };
+          fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
+        } catch {
+          // Non-fatal: log and continue
+          queries.createPipelineLog(pipelineId, phaseType, 'warning', '[sandbox] Failed to configure permission settings');
+        }
+      }
+
       const result = await claudeManager.startClaude(pipeline.worktree_path, prompt, claudeModel, claudeOptions, 'headless', cliTool, maxTurns, project.path, sandboxMode);
       pid = result.pid;
       exitPromise = result.exitPromise;
