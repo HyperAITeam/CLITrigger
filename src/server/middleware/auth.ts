@@ -34,6 +34,11 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
     return next();
   }
 
+  // Skip auth when no password is configured
+  if (!process.env.AUTH_PASSWORD) {
+    return next();
+  }
+
   if (req.session && req.session.authenticated) {
     return next();
   }

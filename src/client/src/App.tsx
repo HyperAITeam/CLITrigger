@@ -8,7 +8,7 @@ import ProjectDetail from './components/ProjectDetail';
 import PipelineDetail from './components/PipelineDetail';
 
 function App() {
-  const { authenticated, loading, login, logout } = useAuth();
+  const { authenticated, authRequired, loading, login, logout } = useAuth();
   const { connected, onEvent } = useWebSocket(authenticated);
   const { t } = useI18n();
 
@@ -33,7 +33,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProjectList onEvent={onEvent} onLogout={logout} />
+              <ProjectList onEvent={onEvent} onLogout={logout} authRequired={authRequired} />
             }
           />
           <Route

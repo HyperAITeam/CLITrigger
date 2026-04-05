@@ -8,6 +8,6 @@ export function logout(): Promise<void> {
   return post('/api/auth/logout');
 }
 
-export function getAuthStatus(): Promise<{ authenticated: boolean }> {
+export function getAuthStatus(): Promise<{ authenticated: boolean; authRequired: boolean }> {
   return get('/api/auth/status');
 }

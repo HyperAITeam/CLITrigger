@@ -3,11 +3,15 @@ import * as authApi from '../api/auth';
 
 export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [authRequired, setAuthRequired] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     authApi.getAuthStatus()
-      .then((res) => setAuthenticated(res.authenticated))
+      .then((res) => {
+        setAuthenticated(res.authenticated);
+        setAuthRequired(res.authRequired);
+      })
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
   }, []);
@@ -29,5 +33,5 @@ export function useAuth() {
     setAuthenticated(false);
   }, []);
 
-  return { authenticated, loading, login, logout };
+  return { authenticated, authRequired, loading, login, logout };
 }

@@ -64,9 +64,14 @@ router.post('/logout', (req, res) => {
 });
 
 // GET /api/auth/status
-// Returns { authenticated: boolean }
+// Returns { authenticated: boolean, authRequired: boolean }
 router.get('/status', (req, res) => {
-  res.json({ authenticated: req.session?.authenticated === true });
+  const authRequired = !!process.env.AUTH_PASSWORD;
+  if (!authRequired) {
+    res.json({ authenticated: true, authRequired: false });
+  } else {
+    res.json({ authenticated: req.session?.authenticated === true, authRequired: true });
+  }
 });
 
 export default router;

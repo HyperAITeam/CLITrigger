@@ -9,6 +9,7 @@ import type { WsEvent } from '../hooks/useWebSocket';
 interface ProjectListProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onLogout: () => void;
+  authRequired?: boolean;
 }
 
 interface ProjectStatus {
@@ -17,7 +18,7 @@ interface ProjectStatus {
   total: number;
 }
 
-export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
+export default function ProjectList({ onEvent, onLogout, authRequired = true }: ProjectListProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
   const [showForm, setShowForm] = useState(false);
@@ -101,12 +102,14 @@ export default function ProjectList({ onEvent, onLogout }: ProjectListProps) {
             </svg>
             <span className="hidden sm:inline">{t('projects.new')}</span>
           </button>
-          <button
-            onClick={onLogout}
-            className="btn-ghost text-sm"
-          >
-            {t('projects.logout')}
-          </button>
+          {authRequired && (
+            <button
+              onClick={onLogout}
+              className="btn-ghost text-sm"
+            >
+              {t('projects.logout')}
+            </button>
+          )}
         </div>
       </div>
 
