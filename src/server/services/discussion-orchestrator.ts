@@ -297,6 +297,14 @@ export class DiscussionOrchestrator {
           broadcaster.broadcast({ type: 'discussion:message-changed', discussionId, messageId, agentId: message.agent_id, agentName: message.agent_name, round: message.round_number, status: 'failed' });
           broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
         }
+      }).catch((err) => {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        queries.updateDiscussionMessage(messageId, { status: 'failed', completed_at: new Date().toISOString() });
+        queries.updateDiscussionStatus(discussionId, 'failed');
+        queries.updateDiscussion(discussionId, { process_pid: 0 });
+        queries.createDiscussionLog(discussionId, messageId, 'error', `Process error: ${errMsg}`);
+        broadcaster.broadcast({ type: 'discussion:message-changed', discussionId, messageId, agentId: message.agent_id, agentName: message.agent_name, round: message.round_number, status: 'failed' });
+        broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
