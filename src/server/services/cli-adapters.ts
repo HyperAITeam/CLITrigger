@@ -75,8 +75,7 @@ const claudeAdapter: CliAdapter = {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
     if (sandboxMode === 'strict') {
-      // In strict mode, rely on .claude/settings.json generated in the worktree
-      // (dontAsk mode with directory-scoped permissions). No permission bypass flag needed.
+      args.push('--permission-mode', 'dontAsk');
     } else {
       args.push('--dangerously-skip-permissions');
     }
