@@ -31,7 +31,7 @@ export default function DiscussionList({
   onStopDiscussion,
   onDeleteDiscussion,
 }: DiscussionListProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [agents, setAgents] = useState<DiscussionAgent[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -111,46 +111,64 @@ export default function DiscussionList({
 
       {/* Create Form */}
       {showForm && (
-        <div className="card p-4 space-y-3">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="input text-sm"
-            placeholder={t('discussions.add') + ' — ' + t('todos.titlePlaceholder')}
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="input text-sm resize-none"
-            placeholder="Describe the feature to discuss..."
-          />
+        <div className="card p-5 space-y-5">
+          {/* Title */}
           <div>
-            <label className="text-xs font-medium text-warm-600">{t('discussions.agents')} ({selectedAgentIds.length} selected, min 2)</label>
+            <label className="block text-xs font-medium text-warm-500 mb-2">{t('todos.title')}</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="input-field"
+              placeholder={lang === 'ko' ? '토론 주제를 입력하세요' : 'Enter discussion topic'}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-medium text-warm-500 mb-2">{t('todos.description')}</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              className="input-field resize-y min-h-[80px]"
+              placeholder={lang === 'ko' ? '토론할 기능/피쳐를 상세히 설명하세요...' : 'Describe the feature to discuss in detail...'}
+            />
+          </div>
+
+          {/* Agent Selection */}
+          <div>
+            <label className="block text-xs font-medium text-warm-500 mb-2">
+              {t('discussions.agents')}
+              <span className="ml-2 text-warm-400 font-normal">
+                ({selectedAgentIds.length}{lang === 'ko' ? '개 선택됨, 최소 2개' : ' selected, min 2'})
+              </span>
+            </label>
             {agents.length === 0 ? (
-              <p className="text-xs text-warm-400 mt-1">{t('agents.empty')}</p>
+              <p className="text-xs text-warm-400 py-3 px-4 bg-warm-50 rounded-xl border border-warm-150">{t('agents.empty')}</p>
             ) : (
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-2">
                 {agents.map((agent) => {
                   const selected = selectedAgentIds.includes(agent.id);
                   return (
                     <button
                       key={agent.id}
                       onClick={() => toggleAgent(agent.id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all border ${
                         selected
-                          ? 'border-accent-gold bg-accent-gold/5 text-warm-700'
-                          : 'border-warm-200 bg-warm-50 text-warm-500 hover:border-warm-300'
+                          ? 'border-accent-gold bg-accent-gold/5 text-warm-700 shadow-sm'
+                          : 'border-warm-200 bg-warm-50 text-warm-500 hover:border-warm-300 hover:bg-warm-100'
                       }`}
                     >
                       <div
-                        className="w-4 h-4 rounded-full flex-shrink-0"
+                        className="w-5 h-5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: agent.avatar_color || '#6366f1' }}
                       />
                       {agent.name}
                       {selected && (
-                        <span className="text-[10px] text-warm-400 ml-1">#{selectedAgentIds.indexOf(agent.id) + 1}</span>
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent-gold/15 text-[9px] text-accent-goldDark font-bold">
+                          {selectedAgentIds.indexOf(agent.id) + 1}
+                        </span>
                       )}
                     </button>
                   );
@@ -158,23 +176,30 @@ export default function DiscussionList({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-warm-600">{t('discussions.maxRounds')}</label>
+
+          {/* Max Rounds */}
+          <div>
+            <label className="block text-xs font-medium text-warm-500 mb-2">{t('discussions.maxRounds')}</label>
             <input
               type="number"
               min={1}
               max={10}
               value={maxRounds}
               onChange={(e) => setMaxRounds(Number(e.target.value))}
-              className="input w-20 text-sm text-center"
+              className="input-field w-24 text-center"
             />
+            <p className="text-[10px] text-warm-400 mt-1.5">
+              {lang === 'ko' ? '에이전트 전원이 한 번씩 발언하는 단위입니다.' : 'One round = each agent speaks once.'}
+            </p>
           </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setShowForm(false)} className="btn btn-sm text-xs text-warm-500">{t('header.cancel')}</button>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2 border-t border-warm-100">
+            <button onClick={() => setShowForm(false)} className="btn-secondary text-xs py-2">{t('header.cancel')}</button>
             <button
               onClick={handleCreate}
               disabled={!title.trim() || !description.trim() || selectedAgentIds.length < 2 || creating}
-              className="btn btn-sm btn-primary text-xs"
+              className="btn-primary text-xs py-2"
             >
               {creating ? t('header.saving') : t('discussions.add')}
             </button>
