@@ -1,5 +1,88 @@
 # Changelog
 
+## 2026-04-05/06 — 에이전트 토론 + 디버그 로깅 + 인증 개선
+
+### 배경
+
+단일 에이전트(Todo)나 고정 단계(Pipeline)만으로는 복잡한 기능의 설계 품질을 보장하기 어려웠음. 다수의 AI 에이전트가 역할별로 토론하고 합의 후 구현하는 Discussion 시스템을 도입. 또한 CLI 도구의 실제 입출력을 확인할 방법이 없어 디버깅이 어려운 문제를 해결하기 위해 디버그 로깅 기능을 추가.
+
+### 주요 변경
+
+#### 1. 에이전트 토론 기능 (`f1a1dce`, `7de78df`, `354c924`, `fd62b73`, `c03a04f`, `4222743`)
+
+다수의 AI 에이전트(아키텍트, 개발자, 리뷰어 등)가 라운드 기반으로 피쳐를 토론하고, 합의 후 지정 에이전트가 구현까지 수행하는 협업 시스템.
+
+- **DB**: `discussion_agents`, `discussions`, `discussion_messages`, `discussion_logs` 4개 테이블 + CRUD 쿼리 함수 ~20개 추가
+- **서버**: `DiscussionOrchestrator` 서비스 — 라운드 턴제 실행, 프롬프트 빌드 (이전 발언 누적), 자동 라운드 진행, 유저 메시지 주입, 구현 라운드 트리거
+- **서버**: `routes/discussions.ts` — 18개 REST 엔드포인트 (에이전트 CRUD, 토론 CRUD, 시작/정지/주입/스킵/구현/머지/diff/cleanup)
+- **WebSocket**: `discussion:status-changed`, `discussion:message-changed`, `discussion:log`, `discussion:commit` 4개 이벤트
+- **클라이언트**: `DiscussionDetail` 채팅 UI (라운드별 메시지 그룹, 스트리밍 로그, 사용자 개입 입력), `DiscussionList` (토론 목록 + 생성 폼), `AgentManager` (에이전트 페르소나 CRUD)
+- **클라이언트**: `ProjectDetail`에 토론 탭 추가, 라우트 `/projects/:id/discussions/:discussionId`
+- **i18n**: 한/영 토론 관련 35개 + 버그 수정 6개 번역 키 추가
+- **복구**: 서버 재시작 시 running 토론을 paused로 자동 복구
+- **버그 수정**: `exitPromise`에 `.catch()` 핸들러 추가 (unhandled rejection 방지), 하드코딩 문자열 i18n 적용
+
+#### 2. CLI 디버그 로깅 (`ba6c8c1`, `a3c219a`)
+
+프로젝트 설정에서 디버그 모드를 켜면 CLI 실행 시 전체 stdin/stdout/stderr를 `.debug-logs/` 디렉토리에 저장.
+
+- **서버**: `debug-logger.ts` 서비스 — PassThrough 스트림으로 기존 logStreamer에 영향 없이 raw 입출력을 파일에 tee 방식 기록
+- **서버**: `orchestrator.ts`에 디버그 세션 통합 — `project.debug_logging` 활성화 시 stdout/stderr tee + 종료 시 exit code/소요시간 기록
+- **서버**: `debug-logs.ts` API 라우트 — 목록 조회/파일 읽기/삭제 엔드포인트 4개
+- **서버**: `claude-manager.ts` 반환값에 `command`/`args` 추가 (로그 헤더용)
+- **DB**: `projects` 테이블에 `debug_logging` 컬럼 (INTEGER DEFAULT 0)
+- **클라이언트**: 프로젝트 설정에 디버그 로깅 토글 + Debug Logs 배지
+- **클라이언트**: `TodoItem`/`TaskNodeDetail`에 Debug Log 버튼 (새 탭에서 로그 파일 열기)
+- 서버 시작 시 `LOG_RETENTION_DAYS` 기준 오래된 디버그 로그 자동 정리
+
+#### 3. AUTH_PASSWORD 미설정 시 인증 건너뛰기 (`fd6b80a`)
+
+비밀번호가 설정되지 않은 로컬 환경에서 로그인 화면 없이 바로 사용 가능.
+
+- **서버**: `AUTH_PASSWORD` 미설정 시 auth 미들웨어 통과 + `/api/auth/status`에서 `authenticated=true`, `authRequired=false` 반환
+- **클라이언트**: `authRequired` 플래그로 로그인 페이지 스킵 + 로그아웃 버튼 숨김
+
+#### 4. 샌드박스 모드 개선 (`6e9251a`, `276d138`, `4b27e66`, `bbe2378`)
+
+기존 샌드박스 설정의 안정성 및 파이프라인 지원 확대.
+
+- **서버**: `settings.json` 덮어쓰기 → 병합 방식으로 변경 (기존 설정 보존)
+- **서버**: `pipeline-orchestrator.ts`에도 샌드박스 모드 적용
+- **서버**: strict 모드에서 `--permission-mode dontAsk` 플래그 추가 (Write/Edit 도구 차단 방지)
+- **클라이언트**: 샌드박스 배지 텍스트 i18n 적용
+- **API**: `updateProject`에 `sandbox_mode` 필드 추가
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/discussion-orchestrator.ts` | 토론 오케스트레이터 신규 (라운드 턴제, 프롬프트 빌드, 자동 진행) |
+| `src/server/routes/discussions.ts` | 토론 REST 엔드포인트 18개 |
+| `src/server/db/queries.ts` | 토론 관련 CRUD 함수 ~20개 + 디버그 로깅 쿼리 |
+| `src/server/db/schema.ts` | discussion 4개 테이블 + `debug_logging` 컬럼 마이그레이션 |
+| `src/server/services/debug-logger.ts` | 디버그 로깅 서비스 신규 |
+| `src/server/routes/debug-logs.ts` | 디버그 로그 API 라우트 신규 |
+| `src/server/services/orchestrator.ts` | 디버그 세션 통합 + 샌드박스 settings.json 병합 |
+| `src/server/services/pipeline-orchestrator.ts` | 파이프라인 샌드박스 지원 |
+| `src/server/services/cli-adapters.ts` | strict 모드 `--permission-mode dontAsk` 추가 |
+| `src/server/middleware/auth.ts` | AUTH_PASSWORD 미설정 시 통과 로직 |
+| `src/client/src/components/DiscussionDetail.tsx` | 토론 채팅 UI (라운드 메시지, 스트리밍, 구현 모달) |
+| `src/client/src/components/DiscussionList.tsx` | 토론 목록 + 생성 폼 |
+| `src/client/src/components/AgentManager.tsx` | 에이전트 페르소나 관리 UI |
+| `src/client/src/components/ProjectDetail.tsx` | 토론 탭 추가 |
+| `src/client/src/i18n.tsx` | 토론·디버그·샌드박스 번역 키 추가 |
+| `src/client/src/types.ts` | Discussion 관련 인터페이스 5개 추가 |
+
+### 아키텍처 결정
+
+1. **턴 기반 순차 실행**: 에이전트가 순서대로 CLI를 spawn하고, 이전 발언을 다음 프롬프트에 누적 포함. 동시 쓰기 충돌 방지 + 컨텍스트 연속성 보장
+2. **구현 라운드 분리**: 토론 라운드(코드 작성 금지)와 구현 라운드(max_rounds+1)를 명확히 분리하여 토론 중 의도치 않은 코드 변경 방지
+3. **프롬프트 인젝션 방어**: `<user_task>` 태그로 사용자 입력 격리 + untrusted input 경고 명시
+4. **디버그 로깅의 tee 방식**: 기존 logStreamer 파이프라인에 영향 없이 PassThrough 스트림으로 파일 기록을 분기
+5. **인증 선택적 적용**: `AUTH_PASSWORD` 미설정 시 서버·클라이언트 양쪽에서 인증 흐름 완전 스킵 (Hecaton 사이드카 등 로컬 환경 대응)
+
+---
+
 ## 2026-04-04 — Git 클라이언트 + 워크트리 샌드박싱
 
 ### 배경
