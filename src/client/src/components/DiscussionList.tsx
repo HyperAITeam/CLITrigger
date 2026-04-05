@@ -114,7 +114,7 @@ export default function DiscussionList({
         <div className="card p-5 space-y-5">
           {/* Title */}
           <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">{t('todos.title')}</label>
+            <label className="block text-xs font-medium text-warm-500 mb-2">{lang === 'ko' ? '제목' : 'Title'}</label>
             <input
               type="text"
               value={title}
@@ -126,7 +126,7 @@ export default function DiscussionList({
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">{t('todos.description')}</label>
+            <label className="block text-xs font-medium text-warm-500 mb-2">{lang === 'ko' ? '설명' : 'Description'}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
