@@ -120,6 +120,61 @@ export function initDatabase(db: Database.Database): void {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(project_id, plugin_id, config_key)
     );
+
+    CREATE TABLE IF NOT EXISTS discussion_agents (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      system_prompt TEXT NOT NULL,
+      cli_tool TEXT,
+      cli_model TEXT,
+      avatar_color TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS discussions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      current_round INTEGER DEFAULT 0,
+      max_rounds INTEGER DEFAULT 3,
+      current_agent_id TEXT,
+      branch_name TEXT,
+      worktree_path TEXT,
+      process_pid INTEGER,
+      agent_ids TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS discussion_messages (
+      id TEXT PRIMARY KEY,
+      discussion_id TEXT NOT NULL REFERENCES discussions(id) ON DELETE CASCADE,
+      agent_id TEXT NOT NULL,
+      round_number INTEGER NOT NULL,
+      turn_order INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      agent_name TEXT NOT NULL,
+      content TEXT,
+      status TEXT DEFAULT 'pending',
+      started_at DATETIME,
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS discussion_logs (
+      id TEXT PRIMARY KEY,
+      discussion_id TEXT NOT NULL REFERENCES discussions(id) ON DELETE CASCADE,
+      message_id TEXT,
+      log_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs

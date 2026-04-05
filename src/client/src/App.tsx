@@ -6,6 +6,7 @@ import LoginPage from './components/LoginPage';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import PipelineDetail from './components/PipelineDetail';
+import DiscussionDetail from './components/DiscussionDetail';
 
 function App() {
   const { authenticated, authRequired, loading, login, logout } = useAuth();
@@ -46,6 +47,12 @@ function App() {
             path="/projects/:id/pipelines/:pipelineId"
             element={
               <PipelineDetail onEvent={onEvent} connected={connected} />
+            }
+          />
+          <Route
+            path="/projects/:id/discussions/:discussionId"
+            element={
+              <DiscussionDetail onEvent={onEvent} connected={connected} />
             }
           />
         </Routes>

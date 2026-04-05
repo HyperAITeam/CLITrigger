@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline, getAllProjects } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -23,6 +23,7 @@ import schedulesRouter from './routes/schedules.js';
 import pluginsRouter from './routes/plugins.js';
 import modelsRouter from './routes/models.js';
 import debugLogsRouter from './routes/debug-logs.js';
+import discussionsRouter from './routes/discussions.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
@@ -93,6 +94,17 @@ if (stalePipelines.length > 0) {
   }
 }
 
+// Startup recovery: reset stale 'running' discussions to 'paused'
+const staleDiscussions = getDiscussionsByStatus('running');
+if (staleDiscussions.length > 0) {
+  console.log(`Recovering ${staleDiscussions.length} stale running discussion(s)...`);
+  for (const discussion of staleDiscussions) {
+    updateDiscussionStatus(discussion.id, 'paused');
+    updateDiscussion(discussion.id, { process_pid: 0 });
+    console.log(`  Reset discussion "${discussion.title}" (${discussion.id}) from running to paused`);
+  }
+}
+
 // Auto-cleanup old logs (default 30 days)
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
 const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
@@ -132,6 +144,7 @@ app.use('/api/plugins', pluginsRouter);
 app.use('/api/tunnel', tunnelRouter);
 app.use('/api', modelsRouter);
 app.use('/api', debugLogsRouter);
+app.use('/api', discussionsRouter);
 mountPluginRoutes(app);
 
 // --- Scheduler ---
