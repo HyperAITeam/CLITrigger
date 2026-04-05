@@ -105,8 +105,8 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo } = req.body;
-    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo });
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo } = req.body;
+    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo });
 
     const cliChanged =
       (cli_tool !== undefined && cli_tool !== existing.cli_tool) ||
