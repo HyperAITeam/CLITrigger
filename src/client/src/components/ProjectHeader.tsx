@@ -166,7 +166,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               </span>
             )}
             <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
-              {(project.sandbox_mode || 'strict') === 'strict' ? 'Sandbox' : 'Permissive'}
+              {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
             {project.gstack_enabled ? (
               <span className="badge bg-status-success/10 text-status-success">gstack</span>
