@@ -58,6 +58,7 @@ export class DiscussionOrchestrator {
           worktreePath = await worktreeManager.createWorktree(project.path, branchName);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error(`[discussion] Failed to create worktree for discussion ${discussionId}:`, message);
           queries.updateDiscussionStatus(discussionId, 'failed');
           queries.createDiscussionLog(discussionId, null, 'error', `Failed to create worktree: ${message}`);
           broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: 0, currentAgentId: null });
@@ -286,6 +287,7 @@ export class DiscussionOrchestrator {
 
           this.advanceDiscussion(discussionId, messageId).catch(() => {});
         } else {
+          console.error(`[discussion] Agent ${message.agent_name} failed (exit code ${exitCode}). Output:\n${fullOutput.slice(-500)}`);
           queries.updateDiscussionMessage(messageId, {
             content: fullOutput,
             status: 'failed',
@@ -299,6 +301,7 @@ export class DiscussionOrchestrator {
         }
       }).catch((err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[discussion] Process error for discussion ${discussionId}:`, errMsg);
         queries.updateDiscussionMessage(messageId, { status: 'failed', completed_at: new Date().toISOString() });
         queries.updateDiscussionStatus(discussionId, 'failed');
         queries.updateDiscussion(discussionId, { process_pid: 0 });
@@ -308,6 +311,7 @@ export class DiscussionOrchestrator {
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[discussion] Failed to start ${adapter.displayName} for discussion ${discussionId}:`, errMsg);
       queries.updateDiscussionMessage(messageId, { status: 'failed', completed_at: new Date().toISOString() });
       queries.updateDiscussionStatus(discussionId, 'failed');
       queries.createDiscussionLog(discussionId, messageId, 'error', `Failed to start ${adapter.displayName}: ${errMsg}`);
