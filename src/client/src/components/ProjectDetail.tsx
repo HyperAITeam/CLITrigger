@@ -30,7 +30,11 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
+  const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
+  const setActiveTab = useCallback((tab: string) => {
+    _setActiveTab(tab);
+    setSearchParams(tab === 'tasks' ? {} : { tab }, { replace: true });
+  }, [setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
