@@ -266,7 +266,7 @@ export class DiscussionOrchestrator {
       queries.updateDiscussion(discussionId, { process_pid: pid });
 
       // Stream logs + capture output
-      const outputBuffer = this.streamToDiscussionDb(discussionId, messageId, message.agent_name, result.stdout, result.stderr);
+      const outputBuffer = this.streamToDiscussionDb(discussionId, messageId, message.agent_name, result.stdout, result.stderr, cliTool);
 
       exitPromise.then((exitCode) => {
         const currentDiscussion = queries.getDiscussionById(discussionId);
@@ -490,12 +490,95 @@ Keep your response focused and under 2000 words.`;
     agentName: string,
     stdout: NodeJS.ReadableStream,
     stderr: NodeJS.ReadableStream,
+    cliTool: CliTool = 'claude',
   ): string[] {
     const outputBuffer: string[] = [];
     const commitPattern = /commit\s+[0-9a-f]{7,40}/i;
+    const adapter = getAdapter(cliTool);
+    const isJsonMode = adapter.outputFormat === 'stream-json';
 
     stdout.setEncoding('utf8' as BufferEncoding);
     stderr.setEncoding('utf8' as BufferEncoding);
+
+    /** Helper: push a parsed text line to output buffer, DB, and broadcast */
+    const emitLine = (text: string, logType: 'output' | 'commit' = 'output') => {
+      if (!text.trim()) return;
+      const trimmed = text.trim();
+      outputBuffer.push(trimmed);
+
+      if (commitPattern.test(trimmed)) {
+        queries.createDiscussionLog(discussionId, messageId, 'commit', trimmed);
+        const hashMatch = trimmed.match(/[0-9a-f]{7,40}/i);
+        broadcaster.broadcast({
+          type: 'discussion:commit',
+          discussionId,
+          messageId,
+          commitHash: hashMatch ? hashMatch[0] : '',
+          message: trimmed,
+        });
+      } else {
+        queries.createDiscussionLog(discussionId, messageId, logType, trimmed);
+        broadcaster.broadcast({
+          type: 'discussion:log',
+          discussionId,
+          messageId,
+          message: trimmed,
+          logType,
+          agentName,
+        });
+      }
+    };
+
+    /** Process a single JSON line from Claude CLI stream-json output */
+    const processJsonLine = (line: string) => {
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        // Not valid JSON — treat as raw text (Gemini/Codex fallback)
+        emitLine(line);
+        return;
+      }
+
+      switch (event.type) {
+        case 'assistant': {
+          const message = event.message as Record<string, unknown> | undefined;
+          const content = message?.content as Array<Record<string, unknown>> | undefined;
+          if (content) {
+            for (const block of content) {
+              if (block.type === 'text' && typeof block.text === 'string') {
+                const textLines = block.text.split('\n');
+                for (const textLine of textLines) {
+                  emitLine(textLine);
+                }
+              } else if (block.type === 'tool_use') {
+                const toolName = (block.name as string) || 'unknown';
+                emitLine(`[Tool: ${toolName}]`);
+              }
+            }
+          }
+          break;
+        }
+        case 'error': {
+          const errorMsg = typeof event.error === 'string' ? event.error
+            : typeof event.message === 'string' ? event.message
+            : JSON.stringify(event);
+          queries.createDiscussionLog(discussionId, messageId, 'error', errorMsg);
+          broadcaster.broadcast({
+            type: 'discussion:log',
+            discussionId,
+            messageId,
+            message: errorMsg,
+            logType: 'error',
+            agentName,
+          });
+          break;
+        }
+        // 'system', 'result', etc. — silently skip
+        default:
+          break;
+      }
+    };
 
     let stdoutBuf = '';
     stdout.on('data', (chunk: string) => {
@@ -505,44 +588,21 @@ Keep your response focused and under 2000 words.`;
 
       for (const line of lines) {
         if (!line.trim()) continue;
-        outputBuffer.push(line.trim());
-
-        if (commitPattern.test(line)) {
-          queries.createDiscussionLog(discussionId, messageId, 'commit', line.trim());
-          const hashMatch = line.match(/[0-9a-f]{7,40}/i);
-          broadcaster.broadcast({
-            type: 'discussion:commit',
-            discussionId,
-            messageId,
-            commitHash: hashMatch ? hashMatch[0] : '',
-            message: line.trim(),
-          });
+        if (isJsonMode) {
+          processJsonLine(line.trim());
         } else {
-          queries.createDiscussionLog(discussionId, messageId, 'output', line.trim());
-          broadcaster.broadcast({
-            type: 'discussion:log',
-            discussionId,
-            messageId,
-            message: line.trim(),
-            logType: 'output',
-            agentName,
-          });
+          emitLine(line);
         }
       }
     });
 
     stdout.on('end', () => {
       if (stdoutBuf.trim()) {
-        outputBuffer.push(stdoutBuf.trim());
-        queries.createDiscussionLog(discussionId, messageId, 'output', stdoutBuf.trim());
-        broadcaster.broadcast({
-          type: 'discussion:log',
-          discussionId,
-          messageId,
-          message: stdoutBuf.trim(),
-          logType: 'output',
-          agentName,
-        });
+        if (isJsonMode) {
+          processJsonLine(stdoutBuf.trim());
+        } else {
+          emitLine(stdoutBuf.trim());
+        }
       }
     });
 
@@ -554,29 +614,37 @@ Keep your response focused and under 2000 words.`;
 
       for (const line of lines) {
         if (!line.trim()) continue;
-        queries.createDiscussionLog(discussionId, messageId, 'error', line.trim());
-        broadcaster.broadcast({
-          type: 'discussion:log',
-          discussionId,
-          messageId,
-          message: line.trim(),
-          logType: 'error',
-          agentName,
-        });
+        if (isJsonMode) {
+          processJsonLine(line.trim());
+        } else {
+          queries.createDiscussionLog(discussionId, messageId, 'error', line.trim());
+          broadcaster.broadcast({
+            type: 'discussion:log',
+            discussionId,
+            messageId,
+            message: line.trim(),
+            logType: 'error',
+            agentName,
+          });
+        }
       }
     });
 
     stderr.on('end', () => {
       if (stderrBuf.trim()) {
-        queries.createDiscussionLog(discussionId, messageId, 'error', stderrBuf.trim());
-        broadcaster.broadcast({
-          type: 'discussion:log',
-          discussionId,
-          messageId,
-          message: stderrBuf.trim(),
-          logType: 'error',
-          agentName,
-        });
+        if (isJsonMode) {
+          processJsonLine(stderrBuf.trim());
+        } else {
+          queries.createDiscussionLog(discussionId, messageId, 'error', stderrBuf.trim());
+          broadcaster.broadcast({
+            type: 'discussion:log',
+            discussionId,
+            messageId,
+            message: stderrBuf.trim(),
+            logType: 'error',
+            agentName,
+          });
+        }
       }
     });
 
