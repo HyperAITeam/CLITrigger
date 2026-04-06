@@ -161,7 +161,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
 
       {/* Form */}
       {showForm && (
-        <div className="space-y-5 p-5 rounded-xl border border-warm-200 bg-white shadow-sm">
+        <div className="space-y-5 p-5 rounded-xl border border-warm-200 bg-theme-card shadow-sm">
           {/* Presets row (only for new agents) */}
           {!editingId && (
             <div>

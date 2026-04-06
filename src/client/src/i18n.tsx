@@ -528,8 +528,10 @@ const translations = {
     'git.renamed': 'Renamed',
     'git.copied': 'Copied',
 
-    // Language
+    // Language & Theme
     'lang.toggle': 'KO',
+    'theme.light': 'Light',
+    'theme.dark': 'Dark',
   },
   ko: {
     // Login
@@ -1055,8 +1057,10 @@ const translations = {
     'git.renamed': '이름변경',
     'git.copied': '복사됨',
 
-    // Language
+    // Language & Theme
     'lang.toggle': 'EN',
+    'theme.light': '라이트',
+    'theme.dark': '다크',
   },
 } as const;
 

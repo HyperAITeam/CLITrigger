@@ -55,7 +55,7 @@ function TaskNodeComponent({ data }: NodeProps) {
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-soft min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent-gold shadow-lg' : ''}`}
+      className={`bg-theme-card rounded-xl shadow-soft min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent-gold shadow-lg' : ''}`}
       style={{ borderLeft: `4px solid ${borderColor}` }}
     >
       {/* Target handle (input - top) */}

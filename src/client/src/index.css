@@ -5,14 +5,78 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-bg-primary: #FBF8F3;
+    --color-bg-secondary: #FEFDFB;
+    --color-bg-tertiary: #F5F0E8;
+    --color-bg-card: #FFFFFF;
+    --color-bg-input: #FEFDFB;
+    --color-bg-hover: #F5F0E8;
+    --color-bg-active: #E8E0D4;
+    --color-text-primary: #3D3629;
+    --color-text-secondary: #5A4F3D;
+    --color-text-tertiary: #7D6E56;
+    --color-text-muted: #A09178;
+    --color-text-faint: #C4B89E;
+    --color-border: #F5F0E8;
+    --color-border-strong: #E8E0D4;
+    --color-border-muted: #F5F0E880;
+    --color-accent: #D4A843;
+    --color-accent-light: #E8C96A;
+    --color-accent-dark: #B08A2E;
+    --color-accent-amber: #F0B429;
+    --color-scrollbar: #E8E0D4;
+    --color-scrollbar-hover: #C4B89E;
+    --color-selection-bg: rgba(212, 168, 67, 0.2);
+    --color-selection-text: #2A2419;
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.12);
+    --shadow-gold: 0 4px 16px rgba(212, 168, 67, 0.2);
+  }
+
+  [data-theme="dark"] {
+    --color-bg-primary: #17171F;
+    --color-bg-secondary: #1E1E2A;
+    --color-bg-tertiary: #262635;
+    --color-bg-card: #1E1E2A;
+    --color-bg-input: #262635;
+    --color-bg-hover: #2E2E40;
+    --color-bg-active: #3A3A50;
+    --color-text-primary: #E8E8EC;
+    --color-text-secondary: #B8B8C4;
+    --color-text-tertiary: #8888A0;
+    --color-text-muted: #686880;
+    --color-text-faint: #4A4A60;
+    --color-border: #2E2E40;
+    --color-border-strong: #3A3A50;
+    --color-border-muted: #2E2E4080;
+    --color-accent: #E8C96A;
+    --color-accent-light: #F0D878;
+    --color-accent-dark: #D4A843;
+    --color-accent-amber: #F0B429;
+    --color-scrollbar: #3A3A50;
+    --color-scrollbar-hover: #4A4A60;
+    --color-selection-bg: rgba(232, 201, 106, 0.25);
+    --color-selection-text: #E8E8EC;
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --shadow-gold: 0 4px 16px rgba(232, 201, 106, 0.15);
+  }
+
   body {
-    @apply bg-warm-100 text-warm-800 font-sans;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   ::selection {
-    @apply bg-accent-gold/20 text-warm-900;
+    background-color: var(--color-selection-bg);
+    color: var(--color-selection-text);
   }
 
   ::-webkit-scrollbar {
@@ -23,34 +87,47 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-warm-300 rounded-full;
+    background-color: var(--color-scrollbar);
+    @apply rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-warm-400;
+    background-color: var(--color-scrollbar-hover);
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl shadow-soft border border-warm-200/50 transition-all duration-200;
+    background-color: var(--color-bg-card);
+    border-color: var(--color-border-muted);
+    box-shadow: var(--shadow-soft);
+    @apply rounded-2xl border transition-all duration-200;
   }
   .card:hover {
-    @apply shadow-card border-warm-300/50;
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-card);
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-accent-gold text-white font-medium
+    background-color: var(--color-accent);
+    @apply inline-flex items-center justify-center gap-2 text-white font-medium
            px-5 py-2.5 rounded-xl transition-all duration-200
-           hover:bg-accent-goldDark hover:shadow-gold
            active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none;
   }
+  .btn-primary:hover {
+    background-color: var(--color-accent-dark);
+    box-shadow: var(--shadow-gold);
+  }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 bg-warm-200 text-warm-700 font-medium
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    @apply inline-flex items-center justify-center gap-2 font-medium
            px-5 py-2.5 rounded-xl transition-all duration-200
-           hover:bg-warm-300
            active:scale-[0.98];
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-bg-active);
   }
 
   .btn-danger {
@@ -62,15 +139,29 @@
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 text-warm-500 font-medium
-           px-3 py-2 rounded-xl transition-all duration-200
-           hover:bg-warm-200 hover:text-warm-700;
+    color: var(--color-text-muted);
+    @apply inline-flex items-center justify-center gap-2 font-medium
+           px-3 py-2 rounded-xl transition-all duration-200;
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
   }
 
   .input-field {
-    @apply w-full bg-warm-50 border border-warm-300 rounded-xl px-4 py-3 text-warm-800
-           placeholder-warm-400 transition-all duration-200
-           focus:border-accent-gold focus:outline-none focus:ring-2 focus:ring-accent-gold/20;
+    background-color: var(--color-bg-input);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+    @apply w-full border rounded-xl px-4 py-3
+           transition-all duration-200
+           focus:outline-none focus:ring-2;
+  }
+  .input-field::placeholder {
+    color: var(--color-text-faint);
+  }
+  .input-field:focus {
+    border-color: var(--color-accent);
+    --tw-ring-color: rgba(212, 168, 67, 0.2);
   }
 
   .badge {
@@ -78,8 +169,13 @@
   }
 
   .lang-toggle {
-    @apply flex items-center justify-center w-9 h-9 rounded-full bg-warm-200 text-warm-600
-           font-medium text-xs transition-all duration-200
-           hover:bg-accent-gold hover:text-white;
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-tertiary);
+    @apply flex items-center justify-center w-9 h-9 rounded-full
+           font-medium text-xs transition-all duration-200;
+  }
+  .lang-toggle:hover {
+    background-color: var(--color-accent);
+    @apply text-white;
   }
 }

@@ -551,7 +551,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
               type="datetime-local"
               value={scheduleRunAt}
               onChange={(e) => setScheduleRunAt(e.target.value)}
-              className="bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+              className="bg-theme-card border border-blue-200 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
               min={new Date().toISOString().slice(0, 16)}
             />
             <button

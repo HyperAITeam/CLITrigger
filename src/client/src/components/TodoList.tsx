@@ -190,7 +190,7 @@ export default function TodoList({
               </button>
               <button
                 onClick={() => handleViewModeChange('graph')}
-                className="p-1.5 rounded-md transition-colors bg-white shadow-sm text-accent-gold"
+                className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent-gold"
                 title={t('graph.graphView')}
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -235,7 +235,7 @@ export default function TodoList({
           <div className="flex items-center bg-warm-100 rounded-lg p-0.5">
             <button
               onClick={() => handleViewModeChange('list')}
-              className="p-1.5 rounded-md transition-colors bg-white shadow-sm text-accent-gold"
+              className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent-gold"
               title={t('graph.listView')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -261,7 +261,7 @@ function ActionToolbar({
 
   const Modal = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={closeModal}>
-      <div className="bg-white rounded-lg shadow-xl w-80 max-w-[90vw]" onClick={e => e.stopPropagation()}>
+      <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
           <span className="text-sm font-semibold text-warm-700">{title}</span>
           <button onClick={closeModal} className="text-warm-400 hover:text-warm-600">
@@ -472,7 +472,7 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setInputValue('')}>
-      <div className="bg-white rounded-lg shadow-xl w-80 max-w-[90vw]" onClick={e => e.stopPropagation()}>
+      <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
           <span className="text-sm font-semibold text-warm-700">{t('git.stash')}</span>
         </div>

@@ -152,7 +152,7 @@ export default function TaskNodeDetail({
 
   if (editing) {
     return (
-      <div className="w-[380px] border-l border-warm-200 bg-white overflow-y-auto p-4">
+      <div className="w-[380px] border-l border-warm-200 bg-theme-card overflow-y-auto p-4">
         <TodoForm
           initialTitle={todo.title}
           initialDescription={todo.description ?? undefined}
@@ -178,9 +178,9 @@ export default function TaskNodeDetail({
   }
 
   return (
-    <div className="w-[380px] border-l border-warm-200 bg-white overflow-y-auto animate-slide-up">
+    <div className="w-[380px] border-l border-warm-200 bg-theme-card overflow-y-auto animate-slide-up">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-warm-200 px-4 py-3 flex items-center gap-2 z-10">
+      <div className="sticky top-0 bg-theme-card border-b border-warm-200 px-4 py-3 flex items-center gap-2 z-10">
         <StatusBadge status={todo.status} />
         <span className="flex-1 text-sm font-medium text-warm-800 truncate">{todo.title}</span>
         <button
