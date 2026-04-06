@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, DiscussionLog } from '../types';
+import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
 import { useI18n } from '../i18n';
+import DiscussionForm, { type DiscussionFormValues } from './DiscussionForm';
 
 interface DiscussionDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -19,15 +20,40 @@ const STATUS_COLORS: Record<string, string> = {
   merged: 'bg-accent-gold/10 text-accent-gold',
 };
 
+function parseAgentIds(agentIdsJson: string): string[] {
+  try {
+    const parsed = JSON.parse(agentIdsJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getEditableDiscussionConfig(status: DiscussionWithMessages['status']) {
+  if (status === 'pending' || status === 'failed') {
+    return { canEdit: true, allowAdvancedFields: true };
+  }
+
+  if (status === 'paused' || status === 'completed') {
+    return { canEdit: true, allowAdvancedFields: false };
+  }
+
+  return { canEdit: false, allowAdvancedFields: false };
+}
+
 export default function DiscussionDetail({ onEvent, connected }: DiscussionDetailProps) {
   const { id, discussionId } = useParams<{ id: string; discussionId: string }>();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [discussion, setDiscussion] = useState<DiscussionWithMessages | null>(null);
+  const [projectAgents, setProjectAgents] = useState<DiscussionAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [streamingLogs, setStreamingLogs] = useState<Map<string, string[]>>(new Map());
   const [userMessage, setUserMessage] = useState('');
   const [showImplementModal, setShowImplementModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [savingDiscussion, setSavingDiscussion] = useState(false);
   const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set());
+  const [errorMessage, setErrorMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const toggleCollapse = useCallback((msgId: string) => {
@@ -41,7 +67,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
 
   const collapseAll = useCallback(() => {
     if (!discussion) return;
-    const ids = new Set(discussion.messages.filter((m) => m.content && m.status === 'completed').map((m) => m.id));
+    const ids = new Set(discussion.messages.filter((message) => message.content && message.status === 'completed').map((message) => message.id));
     setCollapsedMessages(ids);
   }, [discussion]);
 
@@ -50,11 +76,10 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   }, []);
 
   const getSummary = (content: string) => {
-    const firstLine = content.split('\n').find((l) => l.trim()) || '';
-    return firstLine.length > 120 ? firstLine.slice(0, 120) + '…' : firstLine;
+    const firstLine = content.split('\n').find((line) => line.trim()) || '';
+    return firstLine.length > 120 ? `${firstLine.slice(0, 120)}...` : firstLine;
   };
 
-  // Load discussion
   useEffect(() => {
     if (!discussionId) return;
     discussionsApi.getDiscussion(discussionId)
@@ -63,7 +88,11 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       .finally(() => setLoading(false));
   }, [discussionId]);
 
-  // WebSocket events
+  useEffect(() => {
+    if (!id) return;
+    discussionsApi.getAgents(id).then(setProjectAgents).catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     return onEvent((event) => {
       if (!discussionId) return;
@@ -71,7 +100,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       if (event.type === 'discussion:status-changed' && event.discussionId === discussionId) {
         setDiscussion((prev) => prev ? {
           ...prev,
-          status: event.status as any,
+          status: event.status as DiscussionWithMessages['status'],
           current_round: event.currentRound ?? prev.current_round,
           current_agent_id: event.currentAgentId ?? prev.current_agent_id,
         } : prev);
@@ -82,12 +111,12 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           if (!prev) return prev;
           return {
             ...prev,
-            messages: prev.messages.map((m) =>
-              m.id === event.messageId ? { ...m, status: event.status as any } : m
+            messages: prev.messages.map((message) =>
+              message.id === event.messageId ? { ...message, status: event.status as DiscussionMessage['status'] } : message
             ),
           };
         });
-        // If completed, reload to get content
+
         if (event.status === 'completed' || event.status === 'failed') {
           discussionsApi.getDiscussion(discussionId).then(setDiscussion).catch(() => {});
         }
@@ -96,15 +125,15 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       if (event.type === 'discussion:log' && event.discussionId === discussionId && event.messageId) {
         setStreamingLogs((prev) => {
           const next = new Map(prev);
-          const logs = next.get(event.messageId!) || [];
-          next.set(event.messageId!, [...logs, event.message || '']);
+          const messageId = event.messageId!;
+          const logs = next.get(messageId) || [];
+          next.set(messageId, [...logs, event.message || '']);
           return next;
         });
       }
     });
   }, [onEvent, discussionId]);
 
-  // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [discussion?.messages, streamingLogs]);
@@ -113,6 +142,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     if (!discussionId) return;
     const updated = await discussionsApi.startDiscussion(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
 
   const handleStop = useCallback(async () => {
@@ -120,6 +150,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     await discussionsApi.stopDiscussion(discussionId);
     const updated = await discussionsApi.getDiscussion(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
 
   const handleInject = useCallback(async () => {
@@ -128,12 +159,14 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     setUserMessage('');
     const updated = await discussionsApi.getDiscussion(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId, userMessage]);
 
   const handleSkipTurn = useCallback(async () => {
     if (!discussionId) return;
     const updated = await discussionsApi.skipTurn(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
 
   const handleImplement = useCallback(async (agentId: string) => {
@@ -141,6 +174,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     setShowImplementModal(false);
     const updated = await discussionsApi.triggerImplementation(discussionId, agentId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
 
   const handleMerge = useCallback(async () => {
@@ -148,6 +182,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     await discussionsApi.mergeDiscussion(discussionId);
     const updated = await discussionsApi.getDiscussion(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
 
   const handleCleanup = useCallback(async () => {
@@ -155,7 +190,40 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     await discussionsApi.cleanupDiscussion(discussionId);
     const updated = await discussionsApi.getDiscussion(discussionId);
     setDiscussion(updated);
+    setErrorMessage('');
   }, [discussionId]);
+
+  const handleUpdateDiscussion = useCallback(async (values: discussionsApi.DiscussionInput) => {
+    if (!discussionId || !discussion) return;
+
+    setSavingDiscussion(true);
+    try {
+      const { allowAdvancedFields } = getEditableDiscussionConfig(discussion.status);
+      const payload: discussionsApi.DiscussionUpdateInput = allowAdvancedFields
+        ? {
+            title: values.title,
+            description: values.description,
+            agent_ids: values.agent_ids,
+            max_rounds: values.max_rounds,
+            auto_implement: values.auto_implement,
+            implement_agent_id: values.auto_implement ? values.implement_agent_id : null,
+          }
+        : {
+            title: values.title,
+            description: values.description,
+          };
+
+      await discussionsApi.updateDiscussion(discussionId, payload);
+      const refreshed = await discussionsApi.getDiscussion(discussionId);
+      setDiscussion(refreshed);
+      setShowEditModal(false);
+      setErrorMessage('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : lang === 'ko' ? '토론 저장에 실패했습니다.' : 'Failed to save discussion.');
+    } finally {
+      setSavingDiscussion(false);
+    }
+  }, [discussionId, discussion, lang]);
 
   if (loading) {
     return <div className="mx-auto max-w-4xl px-4 py-8 text-center text-warm-500">{t('detail.loading')}</div>;
@@ -170,26 +238,34 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     );
   }
 
-  const agentMap = new Map(discussion.agents.map((a) => [a.id, a]));
+  const agentMap = new Map(discussion.agents.map((agent) => [agent.id, agent]));
   const canStart = discussion.status === 'pending' || discussion.status === 'paused' || discussion.status === 'failed';
   const canStop = discussion.status === 'running';
   const canImplement = discussion.status === 'completed' || discussion.status === 'paused';
   const canMerge = discussion.status === 'completed';
   const canInject = discussion.status === 'paused' || discussion.status === 'running';
   const canCleanup = !canStop && !!discussion.worktree_path;
+  const { canEdit, allowAdvancedFields } = getEditableDiscussionConfig(discussion.status);
 
-  // Group messages by round
+  const initialEditValues: DiscussionFormValues = {
+    title: discussion.title,
+    description: discussion.description,
+    agent_ids: parseAgentIds(discussion.agent_ids),
+    max_rounds: discussion.max_rounds,
+    auto_implement: discussion.auto_implement === 1,
+    implement_agent_id: discussion.implement_agent_id || '',
+  };
+
   const rounds = new Map<number, DiscussionMessage[]>();
-  for (const msg of discussion.messages) {
-    const arr = rounds.get(msg.round_number) || [];
-    arr.push(msg);
-    rounds.set(msg.round_number, arr);
+  for (const message of discussion.messages) {
+    const current = rounds.get(message.round_number) || [];
+    current.push(message);
+    rounds.set(message.round_number, current);
   }
   const sortedRounds = [...rounds.keys()].sort((a, b) => a - b);
 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 flex flex-col" style={{ height: 'calc(100vh - 2rem)' }}>
-      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <Link
           to={`/projects/${id}`}
@@ -217,7 +293,31 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         )}
       </div>
 
-      {/* Control bar */}
+      <div className="mb-4 rounded-xl border border-warm-150 bg-warm-50/80 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold text-warm-800">{discussion.title}</h1>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-warm-500">{discussion.description}</p>
+          </div>
+          {canEdit && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="btn-secondary text-xs py-2 flex-shrink-0"
+            >
+              {t('todo.edit')}
+            </button>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-warm-400">
+          <span>{t('discussions.maxRounds')}: {discussion.max_rounds}</span>
+          <span>{t('discussions.agents')}: {discussion.agents.map((agent) => agent.name).join(', ') || '-'}</span>
+          <span>{t('discussions.autoImplement')}: {discussion.auto_implement ? (lang === 'ko' ? '사용' : 'Enabled') : (lang === 'ko' ? '사용 안 함' : 'Disabled')}</span>
+        </div>
+        {errorMessage && (
+          <p className="mt-3 text-xs text-status-error">{errorMessage}</p>
+        )}
+      </div>
+
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {canStart && (
           <button onClick={handleStart} className="btn-primary text-sm">
@@ -259,8 +359,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           </button>
         )}
 
-        {/* Collapse/Expand all */}
-        {discussion.messages.some((m) => m.content && m.status === 'completed') && (
+        {discussion.messages.some((message) => message.content && message.status === 'completed') && (
           <button
             onClick={collapsedMessages.size > 0 ? expandAll : collapseAll}
             className="btn btn-sm text-xs text-warm-500"
@@ -269,7 +368,6 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           </button>
         )}
 
-        {/* Agent avatars */}
         <div className="ml-auto flex items-center gap-1">
           {discussion.agents.map((agent) => (
             <div
@@ -286,32 +384,30 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         </div>
       </div>
 
-      {/* Chat area */}
       <div className="flex-1 overflow-y-auto space-y-1 pb-4">
         {sortedRounds.map((round) => {
-          const msgs = rounds.get(round)!;
-          const isImplRound = round > discussion.max_rounds;
+          const messages = rounds.get(round)!;
+          const isImplementationRound = round > discussion.max_rounds;
           return (
             <div key={round}>
-              {/* Round separator */}
               <div className="flex items-center gap-3 my-4">
                 <div className="flex-1 h-px bg-warm-200" />
                 <span className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider">
-                  {isImplRound ? t('discussions.implementation') : `${t('discussions.round')} ${round}`}
+                  {isImplementationRound ? t('discussions.implementation') : `${t('discussions.round')} ${round}`}
                 </span>
                 <div className="flex-1 h-px bg-warm-200" />
               </div>
 
-              {msgs.map((msg) => {
-                const agent = agentMap.get(msg.agent_id);
-                const isUser = msg.agent_id === 'user';
-                const isRunning = msg.status === 'running';
-                const logs = streamingLogs.get(msg.id) || [];
-                const isCollapsed = collapsedMessages.has(msg.id);
-                const canCollapse = !!msg.content && msg.status === 'completed' && !isUser;
+              {messages.map((message) => {
+                const agent = agentMap.get(message.agent_id);
+                const isUser = message.agent_id === 'user';
+                const isRunning = message.status === 'running';
+                const logs = streamingLogs.get(message.id) || [];
+                const isCollapsed = collapsedMessages.has(message.id);
+                const canCollapse = !!message.content && message.status === 'completed' && !isUser;
 
                 return (
-                  <div key={msg.id} className={`flex gap-3 py-3 ${isUser ? 'justify-end' : ''}`}>
+                  <div key={message.id} className={`flex gap-3 py-3 ${isUser ? 'justify-end' : ''}`}>
                     {!isUser && (
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
@@ -319,20 +415,20 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                         }`}
                         style={{ backgroundColor: agent?.avatar_color || '#94a3b8' }}
                       >
-                        {msg.agent_name.charAt(0)}
+                        {message.agent_name.charAt(0)}
                       </div>
                     )}
                     <div className={`flex-1 min-w-0 ${isUser ? 'max-w-[80%]' : ''}`}>
                       {!isUser && (
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold text-warm-700">{msg.agent_name}</span>
-                          <span className="text-[10px] text-warm-400">{t(`agents.roles.${msg.role}`) || msg.role}</span>
-                          {msg.status === 'skipped' && (
+                          <span className="text-xs font-semibold text-warm-700">{message.agent_name}</span>
+                          <span className="text-[10px] text-warm-400">{t(`agents.roles.${message.role}`) || message.role}</span>
+                          {message.status === 'skipped' && (
                             <span className="text-[10px] text-warm-300 italic">{t('status.skipped')}</span>
                           )}
                           {canCollapse && (
                             <button
-                              onClick={() => toggleCollapse(msg.id)}
+                              onClick={() => toggleCollapse(message.id)}
                               className="text-[10px] text-warm-300 hover:text-accent-gold transition-colors flex items-center gap-0.5"
                             >
                               <svg className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -343,33 +439,30 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           )}
                         </div>
                       )}
-                      <div className={`rounded-xl p-3 text-sm ${
-                        isUser
-                          ? 'bg-accent-gold/10 text-warm-700 ml-auto'
-                          : msg.status === 'failed'
-                          ? 'bg-status-error/5 border border-status-error/20'
-                          : 'bg-warm-50 border border-warm-150'
-                      } ${canCollapse ? 'cursor-pointer' : ''}`}
-                        onClick={canCollapse ? () => toggleCollapse(msg.id) : undefined}
+                      <div
+                        className={`rounded-xl p-3 text-sm ${
+                          isUser
+                            ? 'bg-accent-gold/10 text-warm-700 ml-auto'
+                            : message.status === 'failed'
+                            ? 'bg-status-error/5 border border-status-error/20'
+                            : 'bg-warm-50 border border-warm-150'
+                        } ${canCollapse ? 'cursor-pointer' : ''}`}
+                        onClick={canCollapse ? () => toggleCollapse(message.id) : undefined}
                       >
-                        {/* Collapsed summary */}
-                        {isCollapsed && msg.content && (
-                          <div className="text-xs text-warm-400 italic truncate">{getSummary(msg.content)}</div>
+                        {isCollapsed && message.content && (
+                          <div className="text-xs text-warm-400 italic truncate">{getSummary(message.content)}</div>
                         )}
 
-                        {/* Completed message content */}
-                        {!isCollapsed && msg.content && (
-                          <div className="whitespace-pre-wrap text-xs leading-relaxed">{msg.content}</div>
+                        {!isCollapsed && message.content && (
+                          <div className="whitespace-pre-wrap text-xs leading-relaxed">{message.content}</div>
                         )}
 
-                        {/* Streaming output */}
                         {isRunning && logs.length > 0 && (
                           <div className="text-xs text-warm-500 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto font-mono">
                             {logs.slice(-50).join('\n')}
                           </div>
                         )}
 
-                        {/* Running indicator */}
                         {isRunning && logs.length === 0 && (
                           <div className="flex items-center gap-2 text-xs text-status-success">
                             <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
@@ -377,8 +470,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           </div>
                         )}
 
-                        {/* Pending */}
-                        {msg.status === 'pending' && !msg.content && (
+                        {message.status === 'pending' && !message.content && (
                           <div className="text-xs text-warm-300 italic">{t('discussions.waiting')}</div>
                         )}
                       </div>
@@ -397,7 +489,6 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         <div ref={chatEndRef} />
       </div>
 
-      {/* User input */}
       {canInject && (
         <div className="border-t border-warm-200 pt-3 flex gap-2">
           <input
@@ -418,7 +509,22 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         </div>
       )}
 
-      {/* Implementation modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4" onClick={() => setShowEditModal(false)}>
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <DiscussionForm
+              agents={allowAdvancedFields ? projectAgents : discussion.agents}
+              initialValues={initialEditValues}
+              mode="edit"
+              allowAdvancedFields={allowAdvancedFields}
+              submitting={savingDiscussion}
+              onSubmit={handleUpdateDiscussion}
+              onCancel={() => setShowEditModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
       {showImplementModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowImplementModal(false)}>
           <div className="bg-theme-card rounded-xl p-6 w-80 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>

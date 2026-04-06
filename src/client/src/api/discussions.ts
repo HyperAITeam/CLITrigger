@@ -1,6 +1,24 @@
 import { get, post, put, del } from './client';
 import type { DiscussionAgent, Discussion, DiscussionMessage, DiscussionLog, DiscussionWithMessages, DiffResult } from '../types';
 
+export interface DiscussionInput {
+  title: string;
+  description: string;
+  agent_ids: string[];
+  max_rounds?: number;
+  auto_implement?: boolean;
+  implement_agent_id?: string;
+}
+
+export interface DiscussionUpdateInput {
+  title?: string;
+  description?: string;
+  agent_ids?: string[];
+  max_rounds?: number;
+  auto_implement?: boolean;
+  implement_agent_id?: string | null;
+}
+
 // ── Agents ──
 
 export function getAgents(projectId: string): Promise<DiscussionAgent[]> {
@@ -40,19 +58,16 @@ export function getDiscussions(projectId: string): Promise<Discussion[]> {
   return get(`/api/projects/${projectId}/discussions`);
 }
 
-export function createDiscussion(projectId: string, data: {
-  title: string;
-  description: string;
-  agent_ids: string[];
-  max_rounds?: number;
-  auto_implement?: boolean;
-  implement_agent_id?: string;
-}): Promise<Discussion> {
+export function createDiscussion(projectId: string, data: DiscussionInput): Promise<Discussion> {
   return post(`/api/projects/${projectId}/discussions`, data);
 }
 
 export function getDiscussion(id: string): Promise<DiscussionWithMessages> {
   return get(`/api/discussions/${id}`);
+}
+
+export function updateDiscussion(id: string, data: DiscussionUpdateInput): Promise<Discussion> {
+  return put(`/api/discussions/${id}`, data);
 }
 
 export function deleteDiscussion(id: string): Promise<void> {

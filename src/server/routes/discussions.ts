@@ -7,6 +7,108 @@ import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
+const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id'] as const;
+const LIMITED_EDITABLE_DISCUSSION_FIELDS = ['title', 'description'] as const;
+const RUNNABLE_DISCUSSION_STATUSES = new Set(['pending', 'failed']);
+const LIMITED_EDIT_DISCUSSION_STATUSES = new Set(['paused', 'completed']);
+
+type EditableDiscussionField = (typeof FULL_EDITABLE_DISCUSSION_FIELDS)[number];
+
+interface DiscussionPayload {
+  title: string;
+  description: string;
+  agent_ids: string[];
+  max_rounds: number;
+  auto_implement: boolean;
+  implement_agent_id: string | null;
+}
+
+function parseDiscussionAgentIds(agentIdsJson: string): string[] {
+  try {
+    const parsed = JSON.parse(agentIdsJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getDiscussionAgents(discussion: queries.Discussion): queries.DiscussionAgent[] {
+  return parseDiscussionAgentIds(discussion.agent_ids)
+    .map((agentId) => queries.getDiscussionAgentById(agentId))
+    .filter((agent): agent is queries.DiscussionAgent => !!agent);
+}
+
+function buildDiscussionResponse(discussion: queries.Discussion) {
+  const messages = queries.getDiscussionMessages(discussion.id);
+  const agents = getDiscussionAgents(discussion);
+  return { ...discussion, messages, agents };
+}
+
+function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionPayload {
+  const parsedMaxRounds = typeof input.max_rounds === 'number' ? input.max_rounds : Number(input.max_rounds);
+
+  return {
+    title: typeof input.title === 'string' ? input.title.trim() : '',
+    description: typeof input.description === 'string' ? input.description.trim() : '',
+    agent_ids: Array.isArray(input.agent_ids) ? input.agent_ids.filter((value): value is string => typeof value === 'string') : [],
+    max_rounds: parsedMaxRounds,
+    auto_implement: Boolean(input.auto_implement),
+    implement_agent_id: typeof input.implement_agent_id === 'string' && input.implement_agent_id.trim()
+      ? input.implement_agent_id.trim()
+      : null,
+  };
+}
+
+function validateDiscussionPayload(payload: DiscussionPayload): string | null {
+  if (!payload.title || !payload.description) {
+    return 'title and description are required';
+  }
+
+  if (payload.agent_ids.length < 2) {
+    return 'At least 2 agents are required';
+  }
+
+  if (!Number.isInteger(payload.max_rounds) || payload.max_rounds < 1) {
+    return 'max_rounds must be at least 1';
+  }
+
+  if (payload.auto_implement) {
+    if (!payload.implement_agent_id) {
+      return 'implement_agent_id is required when auto_implement is enabled';
+    }
+
+    if (!payload.agent_ids.includes(payload.implement_agent_id)) {
+      return 'implement_agent_id must be one of the selected agents';
+    }
+  }
+
+  return null;
+}
+
+function getAllowedDiscussionUpdateFields(status: string): readonly EditableDiscussionField[] | null {
+  if (RUNNABLE_DISCUSSION_STATUSES.has(status)) {
+    return FULL_EDITABLE_DISCUSSION_FIELDS;
+  }
+
+  if (LIMITED_EDIT_DISCUSSION_STATUSES.has(status)) {
+    return LIMITED_EDITABLE_DISCUSSION_FIELDS;
+  }
+
+  return null;
+}
+
+function pickDiscussionUpdates(body: Record<string, unknown>, allowedFields: readonly EditableDiscussionField[]) {
+  const updates: Partial<Record<EditableDiscussionField, unknown>> = {};
+
+  for (const field of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      updates[field] = body[field];
+    }
+  }
+
+  return updates;
+}
+
 // ── Discussion Agents ──
 
 // POST /api/projects/:id/agents - create agent persona
@@ -92,33 +194,31 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const { title, description, agent_ids, max_rounds, auto_implement, implement_agent_id } = req.body;
-    if (!title || !description || !agent_ids || !Array.isArray(agent_ids)) {
-      res.status(400).json({ error: 'title, description, and agent_ids (array) are required' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      res.status(400).json({ error: 'Invalid request body' });
       return;
     }
 
-    if (agent_ids.length < 2) {
-      res.status(400).json({ error: 'At least 2 agents are required' });
+    const payload = normalizeDiscussionPayload({
+      ...req.body,
+      max_rounds: req.body.max_rounds ?? 3,
+    });
+
+    const validationError = validateDiscussionPayload(payload);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
       return;
     }
 
-    if (auto_implement) {
-      if (!implement_agent_id) {
-        res.status(400).json({ error: 'implement_agent_id is required when auto_implement is enabled' });
-        return;
-      }
-      if (!agent_ids.includes(implement_agent_id)) {
-        res.status(400).json({ error: 'implement_agent_id must be one of the selected agents' });
-        return;
-      }
-      if ((max_rounds ?? 3) < 1) {
-        res.status(400).json({ error: 'max_rounds must be at least 1 when auto_implement is enabled' });
-        return;
-      }
-    }
-
-    const discussion = queries.createDiscussion(req.params.id, title, description, agent_ids, max_rounds ?? 3, !!auto_implement, implement_agent_id);
+    const discussion = queries.createDiscussion(
+      req.params.id,
+      payload.title,
+      payload.description,
+      payload.agent_ids,
+      payload.max_rounds,
+      payload.auto_implement,
+      payload.implement_agent_id ?? undefined
+    );
     res.status(201).json(discussion);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -152,19 +252,78 @@ router.get('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
-    const messages = queries.getDiscussionMessages(discussion.id);
+    res.json(buildDiscussionResponse(discussion));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
 
-    let agentIds: string[];
-    try {
-      agentIds = JSON.parse(discussion.agent_ids);
-    } catch {
-      agentIds = [];
+// PUT /api/discussions/:id - update discussion metadata
+router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const discussion = queries.getDiscussionById(req.params.id);
+    if (!discussion) {
+      res.status(404).json({ error: 'Discussion not found' });
+      return;
     }
-    const agents = agentIds
-      .map((id) => queries.getDiscussionAgentById(id))
-      .filter((a): a is queries.DiscussionAgent => !!a);
 
-    res.json({ ...discussion, messages, agents });
+    const allowedFields = getAllowedDiscussionUpdateFields(discussion.status);
+    if (!allowedFields) {
+      res.status(409).json({ error: `Cannot edit a discussion while status is ${discussion.status}` });
+      return;
+    }
+
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      res.status(400).json({ error: 'Invalid request body' });
+      return;
+    }
+
+    const rawUpdates = pickDiscussionUpdates(req.body as Record<string, unknown>, allowedFields);
+    if (Object.keys(rawUpdates).length === 0) {
+      res.status(400).json({ error: 'No editable fields were provided' });
+      return;
+    }
+
+    const mergedPayload = normalizeDiscussionPayload({
+      title: discussion.title,
+      description: discussion.description,
+      agent_ids: parseDiscussionAgentIds(discussion.agent_ids),
+      max_rounds: discussion.max_rounds,
+      auto_implement: discussion.auto_implement === 1,
+      implement_agent_id: discussion.implement_agent_id,
+      ...rawUpdates,
+    });
+
+    const validationError = validateDiscussionPayload(mergedPayload);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
+    }
+
+    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id'>> = {};
+
+    if (rawUpdates.title !== undefined) {
+      updates.title = mergedPayload.title;
+    }
+    if (rawUpdates.description !== undefined) {
+      updates.description = mergedPayload.description;
+    }
+    if (rawUpdates.max_rounds !== undefined) {
+      updates.max_rounds = mergedPayload.max_rounds;
+    }
+    if (rawUpdates.agent_ids !== undefined) {
+      updates.agent_ids = JSON.stringify(mergedPayload.agent_ids);
+    }
+    if (rawUpdates.auto_implement !== undefined) {
+      updates.auto_implement = mergedPayload.auto_implement ? 1 : 0;
+    }
+    if (rawUpdates.implement_agent_id !== undefined || (rawUpdates.auto_implement !== undefined && !mergedPayload.auto_implement)) {
+      updates.implement_agent_id = mergedPayload.auto_implement ? mergedPayload.implement_agent_id : null;
+    }
+
+    const updated = queries.updateDiscussion(discussion.id, updates);
+    res.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -204,17 +363,7 @@ router.post('/discussions/:id/start', async (req: Request<{ id: string }>, res: 
     await discussionOrchestrator.startDiscussion(discussion.id);
 
     const updated = queries.getDiscussionById(discussion.id);
-    const messages = queries.getDiscussionMessages(discussion.id);
-    let agentIds: string[];
-    try {
-      agentIds = JSON.parse(updated!.agent_ids);
-    } catch {
-      agentIds = [];
-    }
-    const agents = agentIds
-      .map((id) => queries.getDiscussionAgentById(id))
-      .filter((a): a is queries.DiscussionAgent => !!a);
-    res.json({ ...updated, messages, agents });
+    res.json(buildDiscussionResponse(updated!));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -275,17 +424,7 @@ router.post('/discussions/:id/skip-turn', async (req: Request<{ id: string }>, r
     await discussionOrchestrator.skipCurrentTurn(discussion.id);
 
     const updated = queries.getDiscussionById(discussion.id);
-    const messages = queries.getDiscussionMessages(discussion.id);
-    let agentIds: string[];
-    try {
-      agentIds = JSON.parse(updated!.agent_ids);
-    } catch {
-      agentIds = [];
-    }
-    const agents = agentIds
-      .map((id) => queries.getDiscussionAgentById(id))
-      .filter((a): a is queries.DiscussionAgent => !!a);
-    res.json({ ...updated, messages, agents });
+    res.json(buildDiscussionResponse(updated!));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -310,17 +449,7 @@ router.post('/discussions/:id/implement', async (req: Request<{ id: string }>, r
     await discussionOrchestrator.triggerImplementation(discussion.id, agent_id);
 
     const updated = queries.getDiscussionById(discussion.id);
-    const messages = queries.getDiscussionMessages(discussion.id);
-    let agentIds: string[];
-    try {
-      agentIds = JSON.parse(updated!.agent_ids);
-    } catch {
-      agentIds = [];
-    }
-    const agents = agentIds
-      .map((id) => queries.getDiscussionAgentById(id))
-      .filter((a): a is queries.DiscussionAgent => !!a);
-    res.json({ ...updated, messages, agents });
+    res.json(buildDiscussionResponse(updated!));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

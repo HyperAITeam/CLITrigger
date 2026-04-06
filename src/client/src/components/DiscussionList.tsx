@@ -4,6 +4,7 @@ import type { Discussion, DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import * as discussionsApi from '../api/discussions';
 import AgentManager from './AgentManager';
+import DiscussionForm from './DiscussionForm';
 
 interface DiscussionListProps {
   projectId: string;
@@ -31,62 +32,32 @@ export default function DiscussionList({
   onStopDiscussion,
   onDeleteDiscussion,
 }: DiscussionListProps) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [agents, setAgents] = useState<DiscussionAgent[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
-  const [maxRounds, setMaxRounds] = useState(3);
-  const [autoImplement, setAutoImplement] = useState(false);
-  const [implementAgentId, setImplementAgentId] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     discussionsApi.getAgents(projectId).then(setAgents).catch(() => {});
   }, [projectId]);
 
-  const handleCreate = useCallback(async () => {
-    if (!title.trim() || !description.trim() || selectedAgentIds.length < 2) return;
-    if (autoImplement && !implementAgentId) return;
+  const handleCreate = useCallback(async (values: discussionsApi.DiscussionInput) => {
     setCreating(true);
     try {
-      const discussion = await discussionsApi.createDiscussion(projectId, {
-        title,
-        description,
-        agent_ids: selectedAgentIds,
-        max_rounds: maxRounds,
-        ...(autoImplement ? { auto_implement: true, implement_agent_id: implementAgentId } : {}),
-      });
+      const discussion = await discussionsApi.createDiscussion(projectId, values);
       onAddDiscussion(discussion);
-      setTitle('');
-      setDescription('');
-      setSelectedAgentIds([]);
-      setMaxRounds(3);
-      setAutoImplement(false);
-      setImplementAgentId('');
       setShowForm(false);
     } finally {
       setCreating(false);
     }
-  }, [projectId, title, description, selectedAgentIds, maxRounds, autoImplement, implementAgentId, onAddDiscussion]);
-
-  const toggleAgent = (agentId: string) => {
-    setSelectedAgentIds((prev) => {
-      const next = prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId];
-      if (implementAgentId && !next.includes(implementAgentId)) {
-        setImplementAgentId('');
-      }
-      return next;
-    });
-  };
+  }, [projectId, onAddDiscussion]);
 
   const getAgentNames = (agentIdsJson: string): DiscussionAgent[] => {
     try {
       const ids = JSON.parse(agentIdsJson) as string[];
-      return ids.map((id) => agents.find((a) => a.id === id)).filter((a): a is DiscussionAgent => !!a);
+      return ids.map((id) => agents.find((agent) => agent.id === id)).filter((agent): agent is DiscussionAgent => !!agent);
     } catch {
       return [];
     }
@@ -112,144 +83,22 @@ export default function DiscussionList({
         </div>
       </div>
 
-      {/* Agent Manager */}
       {showAgentManager && (
         <div className="card p-4">
           <AgentManager projectId={projectId} agents={agents} onAgentsChange={setAgents} />
         </div>
       )}
 
-      {/* Create Form */}
       {showForm && (
-        <div className="card p-5 space-y-5">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">{lang === 'ko' ? '제목' : 'Title'}</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="input-field"
-              placeholder={lang === 'ko' ? '토론 주제를 입력하세요' : 'Enter discussion topic'}
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">{lang === 'ko' ? '설명' : 'Description'}</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="input-field resize-y min-h-[80px]"
-              placeholder={lang === 'ko' ? '토론할 기능/피쳐를 상세히 설명하세요...' : 'Describe the feature to discuss in detail...'}
-            />
-          </div>
-
-          {/* Agent Selection */}
-          <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">
-              {t('discussions.agents')}
-              <span className="ml-2 text-warm-400 font-normal">
-                ({selectedAgentIds.length}{lang === 'ko' ? '개 선택됨, 최소 2개' : ' selected, min 2'})
-              </span>
-            </label>
-            {agents.length === 0 ? (
-              <p className="text-xs text-warm-400 py-3 px-4 bg-warm-50 rounded-xl border border-warm-150">{t('agents.empty')}</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {agents.map((agent) => {
-                  const selected = selectedAgentIds.includes(agent.id);
-                  return (
-                    <button
-                      key={agent.id}
-                      onClick={() => toggleAgent(agent.id)}
-                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all border ${
-                        selected
-                          ? 'border-accent-gold bg-accent-gold/5 text-warm-700 shadow-sm'
-                          : 'border-warm-200 bg-warm-50 text-warm-500 hover:border-warm-300 hover:bg-warm-100'
-                      }`}
-                    >
-                      <div
-                        className="w-5 h-5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: agent.avatar_color || '#6366f1' }}
-                      />
-                      {agent.name}
-                      {selected && (
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent-gold/15 text-[9px] text-accent-goldDark font-bold">
-                          {selectedAgentIds.indexOf(agent.id) + 1}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Max Rounds */}
-          <div>
-            <label className="block text-xs font-medium text-warm-500 mb-2">{t('discussions.maxRounds')}</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={maxRounds}
-              onChange={(e) => setMaxRounds(Number(e.target.value))}
-              className="input-field w-24 text-center"
-            />
-            <p className="text-[10px] text-warm-400 mt-1.5">
-              {t('discussions.roundExplain')}
-            </p>
-          </div>
-
-          {/* Auto Implement */}
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoImplement}
-                onChange={(e) => {
-                  setAutoImplement(e.target.checked);
-                  if (!e.target.checked) setImplementAgentId('');
-                }}
-                className="rounded border-warm-300 text-accent-gold focus:ring-accent-gold"
-              />
-              <span className="text-xs font-medium text-warm-500">{t('discussions.autoImplement')}</span>
-            </label>
-            <p className="text-[10px] text-warm-400 mt-1 ml-6">{t('discussions.autoImplementHint')}</p>
-            {autoImplement && (
-              <div className="mt-2 ml-6">
-                <label className="block text-xs font-medium text-warm-500 mb-1">{t('discussions.selectAgent')}</label>
-                <select
-                  value={implementAgentId}
-                  onChange={(e) => setImplementAgentId(e.target.value)}
-                  className="input-field text-xs w-56"
-                >
-                  <option value="">{lang === 'ko' ? '-- 에이전트 선택 --' : '-- Select agent --'}</option>
-                  {agents.filter((a) => selectedAgentIds.includes(a.id)).map((agent) => (
-                    <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-warm-100">
-            <button onClick={() => setShowForm(false)} className="btn-secondary text-xs py-2">{t('header.cancel')}</button>
-            <button
-              onClick={handleCreate}
-              disabled={!title.trim() || !description.trim() || selectedAgentIds.length < 2 || (autoImplement && !implementAgentId) || creating}
-              className="btn-primary text-xs py-2"
-            >
-              {creating ? t('header.saving') : t('discussions.add')}
-            </button>
-          </div>
-        </div>
+        <DiscussionForm
+          agents={agents}
+          mode="create"
+          submitting={creating}
+          onSubmit={handleCreate}
+          onCancel={() => setShowForm(false)}
+        />
       )}
 
-      {/* Discussion list */}
       {discussions.length === 0 && !showForm ? (
         <div className="card p-10 text-center">
           <p className="text-warm-400 text-sm">{t('discussions.empty')}</p>
@@ -258,7 +107,7 @@ export default function DiscussionList({
       ) : (
         <div className="space-y-2">
           {discussions.map((discussion) => {
-            const dAgents = getAgentNames(discussion.agent_ids);
+            const discussionAgents = getAgentNames(discussion.agent_ids);
             const canStart = discussion.status === 'pending' || discussion.status === 'paused' || discussion.status === 'failed';
             const canStop = discussion.status === 'running';
 
@@ -282,7 +131,7 @@ export default function DiscussionList({
                         {t('discussions.round')} {discussion.current_round}/{discussion.max_rounds}
                       </span>
                       <div className="flex -space-x-1">
-                        {dAgents.slice(0, 5).map((agent) => (
+                        {discussionAgents.slice(0, 5).map((agent) => (
                           <div
                             key={agent.id}
                             className="w-5 h-5 rounded-full border-2 border-white text-[8px] text-white font-bold flex items-center justify-center"
