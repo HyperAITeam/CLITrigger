@@ -771,20 +771,23 @@ export interface Discussion {
   worktree_path: string | null;
   process_pid: number | null;
   agent_ids: string;
+  auto_implement: number;
+  implement_agent_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function createDiscussion(
-  projectId: string, title: string, description: string, agentIds: string[], maxRounds = 3
+  projectId: string, title: string, description: string, agentIds: string[], maxRounds = 3,
+  autoImplement = false, implementAgentId?: string
 ): Discussion {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), now, now);
+    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, auto_implement, implement_agent_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), autoImplement ? 1 : 0, implementAgentId || null, now, now);
   return getDiscussionById(id)!;
 }
 
@@ -798,7 +801,7 @@ export function getDiscussionById(id: string): Discussion | undefined {
   return db.prepare('SELECT * FROM discussions WHERE id = ?').get(id) as Discussion | undefined;
 }
 
-export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids'>>): Discussion | undefined {
+export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids' | 'auto_implement' | 'implement_agent_id'>>): Discussion | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -812,6 +815,8 @@ export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, '
   if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
   if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
   if (updates.agent_ids !== undefined) { fields.push('agent_ids = ?'); values.push(updates.agent_ids); }
+  if (updates.auto_implement !== undefined) { fields.push('auto_implement = ?'); values.push(updates.auto_implement); }
+  if (updates.implement_agent_id !== undefined) { fields.push('implement_agent_id = ?'); values.push(updates.implement_agent_id); }
 
   if (fields.length === 0) return getDiscussionById(id);
 

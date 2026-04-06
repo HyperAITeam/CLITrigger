@@ -215,6 +215,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'schedules', column: 'run_at', definition: 'DATETIME' },
     { table: 'projects', column: 'sandbox_mode', definition: "TEXT DEFAULT 'strict'" },
     { table: 'projects', column: 'debug_logging', definition: 'INTEGER DEFAULT 0' },
+    { table: 'discussions', column: 'auto_implement', definition: 'INTEGER DEFAULT 0' },
+    { table: 'discussions', column: 'implement_agent_id', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

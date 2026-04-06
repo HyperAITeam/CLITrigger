@@ -92,7 +92,7 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const { title, description, agent_ids, max_rounds } = req.body;
+    const { title, description, agent_ids, max_rounds, auto_implement, implement_agent_id } = req.body;
     if (!title || !description || !agent_ids || !Array.isArray(agent_ids)) {
       res.status(400).json({ error: 'title, description, and agent_ids (array) are required' });
       return;
@@ -103,7 +103,22 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const discussion = queries.createDiscussion(req.params.id, title, description, agent_ids, max_rounds ?? 3);
+    if (auto_implement) {
+      if (!implement_agent_id) {
+        res.status(400).json({ error: 'implement_agent_id is required when auto_implement is enabled' });
+        return;
+      }
+      if (!agent_ids.includes(implement_agent_id)) {
+        res.status(400).json({ error: 'implement_agent_id must be one of the selected agents' });
+        return;
+      }
+      if ((max_rounds ?? 3) < 1) {
+        res.status(400).json({ error: 'max_rounds must be at least 1 when auto_implement is enabled' });
+        return;
+      }
+    }
+
+    const discussion = queries.createDiscussion(req.params.id, title, description, agent_ids, max_rounds ?? 3, !!auto_implement, implement_agent_id);
     res.status(201).json(discussion);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

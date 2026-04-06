@@ -227,6 +227,8 @@ export interface Discussion {
   branch_name: string | null;
   worktree_path: string | null;
   agent_ids: string;
+  auto_implement: number;
+  implement_agent_id: string | null;
   created_at: string;
   updated_at: string;
 }

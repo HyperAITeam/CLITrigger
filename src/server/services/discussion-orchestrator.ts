@@ -174,11 +174,11 @@ export class DiscussionOrchestrator {
   /**
    * Trigger implementation round: a designated agent writes code.
    */
-  async triggerImplementation(discussionId: string, agentId: string): Promise<void> {
+  async triggerImplementation(discussionId: string, agentId: string, options?: { fromAutoImplement?: boolean }): Promise<void> {
     const discussion = queries.getDiscussionById(discussionId);
     if (!discussion) throw new Error('Discussion not found');
 
-    if (discussion.status === 'running') {
+    if (!options?.fromAutoImplement && discussion.status === 'running') {
       throw new Error('Discussion is currently running. Stop it first.');
     }
 
@@ -371,7 +371,19 @@ export class DiscussionOrchestrator {
       }
     }
 
-    // All rounds complete — mark as completed (user can trigger implementation)
+    // All rounds complete — check auto_implement
+    if (discussion.auto_implement && discussion.implement_agent_id) {
+      const implAgent = queries.getDiscussionAgentById(discussion.implement_agent_id);
+      if (implAgent) {
+        queries.createDiscussionLog(discussionId, null, 'info', `All discussion rounds completed. Auto-implementing with ${implAgent.name}...`);
+        broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: discussion.max_rounds, currentAgentId: implAgent.id });
+        await this.triggerImplementation(discussionId, implAgent.id, { fromAutoImplement: true });
+        return;
+      }
+      // Agent was deleted — fall back to normal completion
+      queries.createDiscussionLog(discussionId, null, 'warning', 'Auto-implement agent not found. Completing without implementation.');
+    }
+
     queries.updateDiscussionStatus(discussionId, 'completed');
     queries.updateDiscussion(discussionId, { current_agent_id: null });
     queries.createDiscussionLog(discussionId, null, 'info', 'All discussion rounds completed.');

@@ -40,6 +40,8 @@ export default function DiscussionList({
   const [description, setDescription] = useState('');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [maxRounds, setMaxRounds] = useState(3);
+  const [autoImplement, setAutoImplement] = useState(false);
+  const [implementAgentId, setImplementAgentId] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function DiscussionList({
 
   const handleCreate = useCallback(async () => {
     if (!title.trim() || !description.trim() || selectedAgentIds.length < 2) return;
+    if (autoImplement && !implementAgentId) return;
     setCreating(true);
     try {
       const discussion = await discussionsApi.createDiscussion(projectId, {
@@ -55,22 +58,29 @@ export default function DiscussionList({
         description,
         agent_ids: selectedAgentIds,
         max_rounds: maxRounds,
+        ...(autoImplement ? { auto_implement: true, implement_agent_id: implementAgentId } : {}),
       });
       onAddDiscussion(discussion);
       setTitle('');
       setDescription('');
       setSelectedAgentIds([]);
       setMaxRounds(3);
+      setAutoImplement(false);
+      setImplementAgentId('');
       setShowForm(false);
     } finally {
       setCreating(false);
     }
-  }, [projectId, title, description, selectedAgentIds, maxRounds, onAddDiscussion]);
+  }, [projectId, title, description, selectedAgentIds, maxRounds, autoImplement, implementAgentId, onAddDiscussion]);
 
   const toggleAgent = (agentId: string) => {
-    setSelectedAgentIds((prev) =>
-      prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId]
-    );
+    setSelectedAgentIds((prev) => {
+      const next = prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId];
+      if (implementAgentId && !next.includes(implementAgentId)) {
+        setImplementAgentId('');
+      }
+      return next;
+    });
   };
 
   const getAgentNames = (agentIdsJson: string): DiscussionAgent[] => {
@@ -193,12 +203,44 @@ export default function DiscussionList({
             </p>
           </div>
 
+          {/* Auto Implement */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoImplement}
+                onChange={(e) => {
+                  setAutoImplement(e.target.checked);
+                  if (!e.target.checked) setImplementAgentId('');
+                }}
+                className="rounded border-warm-300 text-accent-gold focus:ring-accent-gold"
+              />
+              <span className="text-xs font-medium text-warm-500">{t('discussions.autoImplement')}</span>
+            </label>
+            <p className="text-[10px] text-warm-400 mt-1 ml-6">{t('discussions.autoImplementHint')}</p>
+            {autoImplement && (
+              <div className="mt-2 ml-6">
+                <label className="block text-xs font-medium text-warm-500 mb-1">{t('discussions.selectAgent')}</label>
+                <select
+                  value={implementAgentId}
+                  onChange={(e) => setImplementAgentId(e.target.value)}
+                  className="input-field text-xs w-56"
+                >
+                  <option value="">{lang === 'ko' ? '-- 에이전트 선택 --' : '-- Select agent --'}</option>
+                  {agents.filter((a) => selectedAgentIds.includes(a.id)).map((agent) => (
+                    <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2 border-t border-warm-100">
             <button onClick={() => setShowForm(false)} className="btn-secondary text-xs py-2">{t('header.cancel')}</button>
             <button
               onClick={handleCreate}
-              disabled={!title.trim() || !description.trim() || selectedAgentIds.length < 2 || creating}
+              disabled={!title.trim() || !description.trim() || selectedAgentIds.length < 2 || (autoImplement && !implementAgentId) || creating}
               className="btn-primary text-xs py-2"
             >
               {creating ? t('header.saving') : t('discussions.add')}

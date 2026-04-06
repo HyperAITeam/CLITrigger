@@ -45,6 +45,8 @@ export function createDiscussion(projectId: string, data: {
   description: string;
   agent_ids: string[];
   max_rounds?: number;
+  auto_implement?: boolean;
+  implement_agent_id?: string;
 }): Promise<Discussion> {
   return post(`/api/projects/${projectId}/discussions`, data);
 }
