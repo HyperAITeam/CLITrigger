@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
+import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { useModels } from '../hooks/useModels';
 import * as discussionsApi from '../api/discussions';
 
 const ROLE_OPTIONS = ['architect', 'developer', 'reviewer', 'pm', 'tester', 'custom'] as const;
@@ -56,13 +58,18 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
   const [name, setName] = useState('');
   const [role, setRole] = useState('developer');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [cliTool, setCliTool] = useState<CliTool | ''>('');
+  const [cliModel, setCliModel] = useState('');
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [saving, setSaving] = useState(false);
+  const { getToolConfig } = useModels();
 
   const resetForm = () => {
     setName('');
     setRole('developer');
     setSystemPrompt('');
+    setCliTool('');
+    setCliModel('');
     setAvatarColor(AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]);
     setShowForm(false);
     setEditingId(null);
@@ -73,10 +80,17 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
     setSaving(true);
     try {
       if (editingId) {
-        const updated = await discussionsApi.updateAgent(editingId, { name, role, system_prompt: systemPrompt, avatar_color: avatarColor });
+        const updated = await discussionsApi.updateAgent(editingId, {
+          name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
+          cli_tool: cliTool || null, cli_model: cliModel || null,
+        });
         onAgentsChange(agents.map((a) => (a.id === editingId ? updated : a)));
       } else {
-        const created = await discussionsApi.createAgent(projectId, { name, role, system_prompt: systemPrompt, avatar_color: avatarColor });
+        const created = await discussionsApi.createAgent(projectId, {
+          name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
+          ...(cliTool ? { cli_tool: cliTool } : {}),
+          ...(cliModel ? { cli_model: cliModel } : {}),
+        });
         onAgentsChange([...agents, created]);
       }
       resetForm();
@@ -90,6 +104,8 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
     setName(agent.name);
     setRole(agent.role);
     setSystemPrompt(agent.system_prompt);
+    setCliTool((agent.cli_tool as CliTool) || '');
+    setCliModel(agent.cli_model || '');
     setAvatarColor(agent.avatar_color || AVATAR_COLORS[0]);
     setShowForm(true);
   };
@@ -135,7 +151,15 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-warm-700 truncate">{agent.name}</div>
-              <div className="text-xs text-warm-400 mt-0.5">{t(`agents.roles.${agent.role}`) || agent.role}</div>
+              <div className="text-xs text-warm-400 mt-0.5">
+                {t(`agents.roles.${agent.role}`) || agent.role}
+                {agent.cli_tool && (
+                  <span className="ml-1.5 text-warm-300">
+                    · {CLI_TOOLS.find(t => t.value === agent.cli_tool)?.label || agent.cli_tool}
+                    {agent.cli_model ? ` / ${agent.cli_model}` : ''}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
@@ -215,6 +239,39 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
             <p className="text-[10px] text-warm-400 mt-1.5">
               {lang === 'ko' ? '토론 시 이 에이전트가 어떤 관점에서 발언할지 결정합니다.' : 'Determines what perspective this agent brings to the discussion.'}
             </p>
+          </div>
+
+          {/* CLI Tool & Model */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-warm-500 mb-2">{t('agents.cliTool')}</label>
+              <select
+                value={cliTool}
+                onChange={(e) => { setCliTool(e.target.value as CliTool | ''); setCliModel(''); }}
+                className="input-field text-sm"
+              >
+                <option value="">{lang === 'ko' ? '프로젝트 기본값 사용' : 'Use project default'}</option>
+                {CLI_TOOLS.map((tool) => (
+                  <option key={tool.value} value={tool.value}>{tool.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-warm-500 mb-2">{t('agents.cliModel')}</label>
+              <select
+                value={cliModel}
+                onChange={(e) => setCliModel(e.target.value)}
+                className="input-field text-sm"
+                disabled={!cliTool}
+              >
+                {cliTool
+                  ? getToolConfig(cliTool).models.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))
+                  : <option value="">{lang === 'ko' ? '프로젝트 기본값 사용' : 'Use project default'}</option>
+                }
+              </select>
+            </div>
           </div>
 
           {/* Avatar Color */}
