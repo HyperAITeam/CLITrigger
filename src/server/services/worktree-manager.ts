@@ -1,6 +1,7 @@
 import simpleGit from 'simple-git';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 export class WorktreeManager {
   /**
@@ -80,7 +81,35 @@ export class WorktreeManager {
       await git.raw(['worktree', 'add', '-b', branchName, worktreePath]);
     }
 
+    // Auto-install dependencies in the new worktree
+    await this.installDependencies(worktreePath);
+
     return worktreePath;
+  }
+
+  /**
+   * Install npm dependencies in a worktree (root + client).
+   * Failures are logged but do not block worktree creation.
+   */
+  private async installDependencies(worktreePath: string): Promise<void> {
+    // Root-level dependencies
+    if (fs.existsSync(path.join(worktreePath, 'package.json'))) {
+      try {
+        execSync('npm install', { cwd: worktreePath, stdio: 'ignore', timeout: 120_000 });
+      } catch (err) {
+        console.warn(`[worktree] npm install failed at root: ${(err as Error).message}`);
+      }
+    }
+
+    // Client-level dependencies (monorepo sub-package)
+    const clientDir = path.join(worktreePath, 'src', 'client');
+    if (fs.existsSync(path.join(clientDir, 'package.json'))) {
+      try {
+        execSync('npm install', { cwd: clientDir, stdio: 'ignore', timeout: 120_000 });
+      } catch (err) {
+        console.warn(`[worktree] npm install failed at src/client: ${(err as Error).message}`);
+      }
+    }
   }
 
   /**
