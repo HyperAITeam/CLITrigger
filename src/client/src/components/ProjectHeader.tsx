@@ -395,7 +395,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           {/* Sandbox warning confirmation dialog */}
           {showSandboxWarning && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-xl">
+              <div className="bg-theme-card rounded-2xl p-6 max-w-sm mx-4 shadow-xl">
                 <p className="text-sm text-warm-700 mb-4">{t('header.sandboxWarning')}</p>
                 <div className="flex justify-end gap-3">
                   <button

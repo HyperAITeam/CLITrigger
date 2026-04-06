@@ -23,6 +23,7 @@ import TaskNodeDetail from './TaskNodeDetail';
 import TodoForm from './TodoForm';
 import type { PendingImage } from './TodoForm';
 import { useI18n } from '../i18n';
+import { useTheme } from '../hooks/useTheme';
 
 const nodeTypes: NodeTypes = {
   taskNode: TaskNodeComponent,
@@ -123,6 +124,8 @@ export default function TaskGraph({
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const handleSelectNode = useCallback((todoId: string) => {
     setSelectedTodoId(prev => prev === todoId ? null : todoId);
@@ -269,10 +272,10 @@ export default function TaskGraph({
           deleteKeyCode="Delete"
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#D4B896" style={{ opacity: 0.3 }} />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={isDark ? '#4A4A60' : '#D4B896'} style={{ opacity: 0.3 }} />
           <Controls
             showInteractive={false}
-            className="!bg-white !border-warm-200 !shadow-soft !rounded-lg"
+            className="!bg-theme-card !border-warm-200 !shadow-soft !rounded-lg"
           />
           <MiniMap
             nodeColor={(n) => {
@@ -280,8 +283,8 @@ export default function TaskGraph({
               const status = nd?.todo?.status ?? 'pending';
               return edgeStatusColor[status] ?? '#B8A88A';
             }}
-            maskColor="rgba(245, 241, 235, 0.7)"
-            className="!bg-white !border-warm-200 !shadow-soft !rounded-lg"
+            maskColor={isDark ? 'rgba(23, 23, 31, 0.7)' : 'rgba(245, 241, 235, 0.7)'}
+            className="!bg-theme-card !border-warm-200 !shadow-soft !rounded-lg"
           />
         </ReactFlow>
 
@@ -289,7 +292,7 @@ export default function TaskGraph({
         <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
           <button
             onClick={handleAutoLayout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-warm-200 rounded-lg shadow-soft hover:bg-warm-50 text-warm-600 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-theme-card border border-warm-200 rounded-lg shadow-soft hover:bg-warm-50 text-warm-600 transition-colors"
             title={t('graph.autoLayout')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

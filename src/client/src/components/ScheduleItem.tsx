@@ -259,7 +259,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             ) : (
               <div className="max-h-48 overflow-auto space-y-1">
                 {runs.map((run) => (
-                  <div key={run.id} className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-lg bg-white/50">
+                  <div key={run.id} className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-lg bg-theme-hover">
                     <span className={`font-medium ${runStatusColor[run.status] || 'text-warm-500'}`}>
                       {runStatusLabel[run.status] || run.status}
                     </span>

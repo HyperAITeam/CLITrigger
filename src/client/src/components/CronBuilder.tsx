@@ -250,7 +250,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
                   className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${
                     state.weeklyDays.includes(day.value)
                       ? 'bg-amber-500 text-white'
-                      : 'bg-white text-warm-500 border border-warm-200 hover:border-amber-300'
+                      : 'bg-theme-card text-warm-500 border border-warm-200 hover:border-amber-300'
                   }`}
                 >
                   {t(day.labelKey)}

@@ -421,7 +421,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       {/* Implementation modal */}
       {showImplementModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowImplementModal(false)}>
-          <div className="bg-white rounded-xl p-6 w-80 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-theme-card rounded-xl p-6 w-80 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-warm-700">{t('discussions.selectAgent')}</h3>
             <p className="text-xs text-warm-400">{t('discussions.implementHint')}</p>
             <div className="space-y-2">
