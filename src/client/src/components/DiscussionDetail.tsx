@@ -233,7 +233,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 text-center">
         <p className="text-status-error">{t('discussions.notFound')}</p>
-        <Link to={`/projects/${id}`} className="text-sm text-accent-gold mt-2 inline-block">{t('discussions.back')}</Link>
+        <Link to={`/projects/${id}?tab=discussions`} className="text-sm text-accent-gold mt-2 inline-block">{t('discussions.back')}</Link>
       </div>
     );
   }
@@ -268,7 +268,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 flex flex-col" style={{ height: 'calc(100vh - 2rem)' }}>
       <div className="flex items-center gap-3 mb-4">
         <Link
-          to={`/projects/${id}`}
+          to={`/projects/${id}?tab=discussions`}
           className="inline-flex items-center gap-1 text-sm text-warm-500 hover:text-accent-gold transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import type { Project, Todo, Pipeline, Schedule, Discussion, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
@@ -29,7 +29,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('tasks');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { t, toggleLang } = useI18n();
