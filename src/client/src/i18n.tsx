@@ -109,6 +109,7 @@ const translations = {
     'todos.add': 'Add Task',
     'todos.empty': 'No tasks yet',
     'todos.emptyHint': 'Add a task to begin.',
+    'todos.merge': 'Merge',
 
     // Todo Item
     'todo.description': 'Description',
@@ -629,10 +630,11 @@ const translations = {
     'form.create': '\uC0DD\uC131',
 
     // Todo List
-    'todos.title': '\uC791\uC5C5 \uBAA9\uB85D',
-    'todos.add': '\uC791\uC5C5 \uCD94\uAC00',
-    'todos.empty': '\uC791\uC5C5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4',
-    'todos.emptyHint': '\uC791\uC5C5\uC744 \uCD94\uAC00\uD574\uBCF4\uC138\uC694.',
+    'todos.title': '작업 목록',
+    'todos.add': '작업 추가',
+    'todos.empty': '작업이 없습니다',
+    'todos.emptyHint': '작업을 추가해보세요.',
+    'todos.merge': '병합',
 
     // Todo Item
     'todo.description': '\uC124\uBA85',
