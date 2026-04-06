@@ -205,7 +205,16 @@ router.post('/discussions/:id/start', async (req: Request<{ id: string }>, res: 
 
     const updated = queries.getDiscussionById(discussion.id);
     const messages = queries.getDiscussionMessages(discussion.id);
-    res.json({ ...updated, messages });
+    let agentIds: string[];
+    try {
+      agentIds = JSON.parse(updated!.agent_ids);
+    } catch {
+      agentIds = [];
+    }
+    const agents = agentIds
+      .map((id) => queries.getDiscussionAgentById(id))
+      .filter((a): a is queries.DiscussionAgent => !!a);
+    res.json({ ...updated, messages, agents });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -267,7 +276,16 @@ router.post('/discussions/:id/skip-turn', async (req: Request<{ id: string }>, r
 
     const updated = queries.getDiscussionById(discussion.id);
     const messages = queries.getDiscussionMessages(discussion.id);
-    res.json({ ...updated, messages });
+    let agentIds: string[];
+    try {
+      agentIds = JSON.parse(updated!.agent_ids);
+    } catch {
+      agentIds = [];
+    }
+    const agents = agentIds
+      .map((id) => queries.getDiscussionAgentById(id))
+      .filter((a): a is queries.DiscussionAgent => !!a);
+    res.json({ ...updated, messages, agents });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -293,7 +311,16 @@ router.post('/discussions/:id/implement', async (req: Request<{ id: string }>, r
 
     const updated = queries.getDiscussionById(discussion.id);
     const messages = queries.getDiscussionMessages(discussion.id);
-    res.json({ ...updated, messages });
+    let agentIds: string[];
+    try {
+      agentIds = JSON.parse(updated!.agent_ids);
+    } catch {
+      agentIds = [];
+    }
+    const agents = agentIds
+      .map((id) => queries.getDiscussionAgentById(id))
+      .filter((a): a is queries.DiscussionAgent => !!a);
+    res.json({ ...updated, messages, agents });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
