@@ -27,7 +27,32 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   const [streamingLogs, setStreamingLogs] = useState<Map<string, string[]>>(new Map());
   const [userMessage, setUserMessage] = useState('');
   const [showImplementModal, setShowImplementModal] = useState(false);
+  const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set());
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const toggleCollapse = useCallback((msgId: string) => {
+    setCollapsedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      return next;
+    });
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    if (!discussion) return;
+    const ids = new Set(discussion.messages.filter((m) => m.content && m.status === 'completed').map((m) => m.id));
+    setCollapsedMessages(ids);
+  }, [discussion]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedMessages(new Set());
+  }, []);
+
+  const getSummary = (content: string) => {
+    const firstLine = content.split('\n').find((l) => l.trim()) || '';
+    return firstLine.length > 120 ? firstLine.slice(0, 120) + '…' : firstLine;
+  };
 
   // Load discussion
   useEffect(() => {
@@ -234,6 +259,16 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           </button>
         )}
 
+        {/* Collapse/Expand all */}
+        {discussion.messages.some((m) => m.content && m.status === 'completed') && (
+          <button
+            onClick={collapsedMessages.size > 0 ? expandAll : collapseAll}
+            className="btn btn-sm text-xs text-warm-500"
+          >
+            {collapsedMessages.size > 0 ? t('discussions.expandAll') : t('discussions.collapseAll')}
+          </button>
+        )}
+
         {/* Agent avatars */}
         <div className="ml-auto flex items-center gap-1">
           {discussion.agents.map((agent) => (
@@ -272,6 +307,8 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                 const isUser = msg.agent_id === 'user';
                 const isRunning = msg.status === 'running';
                 const logs = streamingLogs.get(msg.id) || [];
+                const isCollapsed = collapsedMessages.has(msg.id);
+                const canCollapse = !!msg.content && msg.status === 'completed' && !isUser;
 
                 return (
                   <div key={msg.id} className={`flex gap-3 py-3 ${isUser ? 'justify-end' : ''}`}>
@@ -293,6 +330,17 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           {msg.status === 'skipped' && (
                             <span className="text-[10px] text-warm-300 italic">{t('status.skipped')}</span>
                           )}
+                          {canCollapse && (
+                            <button
+                              onClick={() => toggleCollapse(msg.id)}
+                              className="text-[10px] text-warm-300 hover:text-accent-gold transition-colors flex items-center gap-0.5"
+                            >
+                              <svg className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
+                              {isCollapsed ? t('discussions.expand') : t('discussions.collapse')}
+                            </button>
+                          )}
                         </div>
                       )}
                       <div className={`rounded-xl p-3 text-sm ${
@@ -301,9 +349,16 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           : msg.status === 'failed'
                           ? 'bg-status-error/5 border border-status-error/20'
                           : 'bg-warm-50 border border-warm-150'
-                      }`}>
+                      } ${canCollapse ? 'cursor-pointer' : ''}`}
+                        onClick={canCollapse ? () => toggleCollapse(msg.id) : undefined}
+                      >
+                        {/* Collapsed summary */}
+                        {isCollapsed && msg.content && (
+                          <div className="text-xs text-warm-400 italic truncate">{getSummary(msg.content)}</div>
+                        )}
+
                         {/* Completed message content */}
-                        {msg.content && (
+                        {!isCollapsed && msg.content && (
                           <div className="whitespace-pre-wrap text-xs leading-relaxed">{msg.content}</div>
                         )}
 
