@@ -62,23 +62,38 @@ export class WorktreeManager {
     // Compute worktree directory
     const worktreeBase = path.resolve(projectPath, '.worktrees');
     // Use the part after "feature/" for the directory name, or the whole branch name
-    const dirName = branchName.replace(/\//g, '-');
-    const worktreePath = path.resolve(worktreeBase, dirName);
+    const baseDirName = branchName.replace(/\//g, '-');
 
     // Ensure the worktrees base directory exists
     if (!fs.existsSync(worktreeBase)) {
       fs.mkdirSync(worktreeBase, { recursive: true });
     }
 
+    // Find a unique directory name (append -2, -3, etc. if already exists)
+    let dirName = baseDirName;
+    let worktreePath = path.resolve(worktreeBase, dirName);
+    let suffix = 1;
+    while (fs.existsSync(worktreePath)) {
+      suffix++;
+      dirName = `${baseDirName}-${suffix}`;
+      worktreePath = path.resolve(worktreeBase, dirName);
+    }
+
+    // Also deduplicate branch name if directory needed a suffix
+    let actualBranch = branchName;
+    if (suffix > 1) {
+      actualBranch = `${branchName}-${suffix}`;
+    }
+
     // Create a new branch and worktree
     // First, check if the branch already exists
     const branchSummary = await git.branchLocal();
-    if (branchSummary.all.includes(branchName)) {
+    if (branchSummary.all.includes(actualBranch)) {
       // Branch exists, create worktree using existing branch
-      await git.raw(['worktree', 'add', worktreePath, branchName]);
+      await git.raw(['worktree', 'add', worktreePath, actualBranch]);
     } else {
       // Create new branch with worktree
-      await git.raw(['worktree', 'add', '-b', branchName, worktreePath]);
+      await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
     }
 
     // Auto-install dependencies in the new worktree
