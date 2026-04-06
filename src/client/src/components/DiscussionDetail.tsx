@@ -125,6 +125,13 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     setDiscussion(updated);
   }, [discussionId]);
 
+  const handleCleanup = useCallback(async () => {
+    if (!discussionId) return;
+    await discussionsApi.cleanupDiscussion(discussionId);
+    const updated = await discussionsApi.getDiscussion(discussionId);
+    setDiscussion(updated);
+  }, [discussionId]);
+
   if (loading) {
     return <div className="mx-auto max-w-4xl px-4 py-8 text-center text-warm-500">{t('detail.loading')}</div>;
   }
@@ -144,6 +151,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   const canImplement = discussion.status === 'completed' || discussion.status === 'paused';
   const canMerge = discussion.status === 'completed';
   const canInject = discussion.status === 'paused' || discussion.status === 'running';
+  const canCleanup = !canStop && !!discussion.worktree_path;
 
   // Group messages by round
   const rounds = new Map<number, DiscussionMessage[]>();
@@ -187,14 +195,14 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       {/* Control bar */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {canStart && (
-          <button onClick={handleStart} className="btn btn-sm btn-primary text-xs flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+          <button onClick={handleStart} className="btn-primary text-sm">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
             {discussion.status === 'pending' ? t('header.runAll') : t('discussions.resume')}
           </button>
         )}
         {canStop && (
-          <button onClick={handleStop} className="btn btn-sm text-xs flex items-center gap-1 text-amber-600">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
+          <button onClick={handleStop} className="btn-danger text-sm">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
             {t('discussions.pause')}
           </button>
         )}
@@ -202,12 +210,28 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           <button onClick={handleSkipTurn} className="btn btn-sm text-xs text-warm-500">{t('discussions.skipTurn')}</button>
         )}
         {canImplement && (
-          <button onClick={() => setShowImplementModal(true)} className="btn btn-sm text-xs text-accent-gold border-accent-gold">
+          <button onClick={() => setShowImplementModal(true)} className="btn-primary text-sm">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
             {t('discussions.implement')}
           </button>
         )}
         {canMerge && discussion.branch_name && (
-          <button onClick={handleMerge} className="btn btn-sm text-xs text-accent-gold">{t('todos.merge')}</button>
+          <button onClick={handleMerge} className="btn-primary text-sm">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            {t('todos.merge')}
+          </button>
+        )}
+        {canCleanup && (
+          <button onClick={handleCleanup} className="btn-danger text-sm">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            {t('todo.cleanup')}
+          </button>
         )}
 
         {/* Agent avatars */}
