@@ -23,6 +23,7 @@ import TaskNodeDetail from './TaskNodeDetail';
 import TodoForm from './TodoForm';
 import type { PendingImage } from './TodoForm';
 import { useI18n } from '../i18n';
+import { useTheme } from '../hooks/useTheme';
 
 const nodeTypes: NodeTypes = {
   taskNode: TaskNodeComponent,
@@ -123,6 +124,8 @@ export default function TaskGraph({
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const handleSelectNode = useCallback((todoId: string) => {
     setSelectedTodoId(prev => prev === todoId ? null : todoId);
@@ -269,7 +272,7 @@ export default function TaskGraph({
           deleteKeyCode="Delete"
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#D4B896" style={{ opacity: 0.3 }} />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={isDark ? '#4A4A60' : '#D4B896'} style={{ opacity: 0.3 }} />
           <Controls
             showInteractive={false}
             className="!bg-theme-card !border-warm-200 !shadow-soft !rounded-lg"
@@ -280,7 +283,7 @@ export default function TaskGraph({
               const status = nd?.todo?.status ?? 'pending';
               return edgeStatusColor[status] ?? '#B8A88A';
             }}
-            maskColor="rgba(245, 241, 235, 0.7)"
+            maskColor={isDark ? 'rgba(23, 23, 31, 0.7)' : 'rgba(245, 241, 235, 0.7)'}
             className="!bg-theme-card !border-warm-200 !shadow-soft !rounded-lg"
           />
         </ReactFlow>

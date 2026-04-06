@@ -161,7 +161,7 @@
   }
   .input-field:focus {
     border-color: var(--color-accent);
-    --tw-ring-color: rgba(212, 168, 67, 0.2);
+    --tw-ring-color: var(--color-selection-bg);
   }
 
   .badge {
