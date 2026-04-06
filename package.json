@@ -11,7 +11,7 @@
     "build:server": "tsc -p tsconfig.server.json && node -e \"const fs=require('fs');fs.cpSync('src/server/resources','dist/server/resources',{recursive:true})\"",
     "build:client": "cd src/client && npx vite build",
     "start": "node dist/server/index.js",
-    "start:tunnel": "node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\"",
+    "start:tunnel": "npm run build && node -e \"process.env.TUNNEL_ENABLED='true'; import('./dist/server/index.js')\"",
     "test": "npm run test:server && npm run test:client",
     "test:server": "vitest run --config vitest.config.ts",
     "test:client": "cd src/client && npx vitest run --config vitest.config.ts",
