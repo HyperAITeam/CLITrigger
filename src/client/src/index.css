@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --color-bg-primary: #FBF8F3;
     --color-bg-secondary: #FEFDFB;
     --color-bg-tertiary: #F5F0E8;
@@ -36,6 +37,7 @@
   }
 
   [data-theme="dark"] {
+    color-scheme: dark;
     --color-bg-primary: #17171F;
     --color-bg-secondary: #1E1E2A;
     --color-bg-tertiary: #262635;
@@ -65,9 +67,12 @@
     --shadow-gold: 0 4px 16px rgba(232, 201, 106, 0.15);
   }
 
-  body {
+  html, body {
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
+  }
+
+  body {
     @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
