@@ -96,8 +96,10 @@ export class WorktreeManager {
       await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
     }
 
-    // Auto-install dependencies in the new worktree
-    await this.installDependencies(worktreePath);
+    // Auto-install dependencies in the background (non-blocking)
+    this.installDependencies(worktreePath).catch((err) => {
+      console.warn(`[worktree] dependency install failed:`, err);
+    });
 
     return worktreePath;
   }
