@@ -1,5 +1,103 @@
 # Changelog
 
+## 2026-04-06 — 다크 모드 + 토론 UX 강화 + 워크트리 안정성
+
+### 배경
+
+토론 기능이 안정화되면서 사용성 개선 요구가 집중됨. 에이전트별 CLI 도구/모델 선택, 토론 완료 후 자동 구현, 메시지 접기/펼치기 등 토론 워크플로우 전반을 강화. 또한 다크 모드 테마 시스템을 도입하고, 워크트리 생성 시 npm 의존성 자동 설치 및 백그라운드 실행으로 안정성과 응답 속도를 개선.
+
+### 주요 변경
+
+#### 1. 다크 모드 테마 시스템 (`3aea8ff`, `0f527f2`, `68a5a64`)
+
+CSS 변수 기반 테마 시스템을 도입하여 라이트/다크 모드를 지원.
+
+- **클라이언트**: `useTheme` 훅 + `ThemeContext` 추가 — `localStorage` 저장, OS 기본값 감지, `data-theme` 어트리뷰트 방식
+- **클라이언트**: Tailwind 컬러 팔레트를 하드코딩 HEX에서 CSS 변수(`--color-*`)로 전면 전환
+- **클라이언트**: `index.css`에 `[data-theme="light"]` / `[data-theme="dark"]` 변수 셋 정의
+- **클라이언트**: `index.html`에 인라인 스크립트로 FOUC(Flash of Unstyled Content) 방지 — 페이지 로드 전 테마 적용
+- **클라이언트**: `ProjectList`에 테마 토글 버튼 추가
+- **클라이언트**: 다크 모드 누락 스타일 수정 (ScheduleItem, TaskGraph, TaskNode 등)
+
+#### 2. 토론 자동 구현 (`2a3f039`)
+
+토론 완료 후 수동으로 구현 에이전트를 지정하는 대신, 토론 생성 시 자동 구현 옵션을 설정하면 토론 종료 즉시 자동으로 구현 라운드가 시작됨.
+
+- **DB**: `discussions` 테이블에 `auto_implement` (INTEGER), `implement_agent_id` (TEXT) 컬럼 추가
+- **서버**: `DiscussionOrchestrator`에 자동 구현 트리거 로직 — 전체 라운드 완료 시 지정 에이전트로 즉시 구현 시작
+- **서버**: 구현 에이전트 삭제 시 fallback (정상 완료 처리)
+- **서버**: `createDiscussion` API에 `auto_implement`, `implement_agent_id` 파라미터 + 유효성 검증
+- **클라이언트**: 토론 생성 폼에 자동 구현 토글 + 구현 에이전트 선택 UI
+
+#### 3. 토론 메시지 접기/펼치기 (`a19cf5b`)
+
+긴 토론에서 이전 메시지를 접어 최신 대화에 집중할 수 있는 기능.
+
+- **클라이언트**: `DiscussionDetail`에 메시지별 접기/펼치기 토글 + 접힌 상태에서 요약 미리보기 (첫 200자)
+- **i18n**: 접기/펼치기 관련 번역 키 추가
+
+#### 4. 에이전트별 CLI 도구/모델 선택 (`65af70b`)
+
+에이전트마다 다른 CLI 도구(Claude/Gemini/Codex)와 모델을 지정 가능. 프로젝트 기본값을 사용하거나 에이전트별로 오버라이드.
+
+- **클라이언트**: `AgentManager` 폼에 CLI 도구 드롭다운 + 모델 드롭다운 추가 (프로젝트 기본값 옵션 포함)
+- **클라이언트**: 에이전트 목록에 CLI 도구/모델 표시
+
+#### 5. 토론 메타데이터 편집 (`2d095d4`)
+
+토론 생성 후에도 제목, 설명, 참여 에이전트, 최대 라운드를 수정 가능.
+
+- **서버**: `DiscussionDetail` 컴포넌트에 편집 모드 추가
+- **서버**: `discussions.ts` 라우트 리팩토링 + `DiscussionForm` 컴포넌트 분리
+- **클라이언트**: `DiscussionForm` 신규 — 토론 생성/편집 공용 폼 컴포넌트
+
+#### 6. 워크트리 안정성 개선 (`1b37862`, `58936f1`, `17640d0`)
+
+- **서버**: 워크트리 생성 시 `package.json` 존재하면 자동 `npm install` 실행 (`1b37862`)
+- **서버**: npm install을 백그라운드(fire-and-forget)로 실행하여 API 응답 지연 해소 (`58936f1`)
+- **서버**: 워크트리 브랜치 이름 생성 시 중복 방지 로직 강화 — 기존 브랜치 존재 시 `-2`, `-3` 접미사 추가 (`17640d0`)
+
+#### 7. 토론 버그 수정 (`72769c4`, `b0bc271`, `ea59400`, `162b902`, `c03a04f`, `fd62b73`)
+
+- 토론 목록 링크가 작업 탭 대신 토론 탭으로 이동하도록 수정 (`72769c4`)
+- 토론 mutation 응답에 `agents` 필드 누락 수정 (`b0bc271`, `ea59400`)
+- `exitPromise` 미처리 rejection 방어 + 하드코딩 문자열 i18n 적용 (`162b902`)
+- 잘못된 i18n 키 참조 수정 (`c03a04f`)
+- 토론 생성 폼 UI를 프로젝트 패턴에 맞게 개선 (`fd62b73`)
+- 토론 화이트 스크린 수정 (`17640d0`)
+
+#### 8. 기타 수정
+
+- **탭 URL 동기화**: 탭 변경 시 URL 쿼리 파라미터를 함께 업데이트하여 새로고침 시 올바른 탭 유지 (`70b3c9d`)
+- **터널 빌드 자동화**: `start:tunnel` 실행 전 자동 빌드 추가 (`911c847`)
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/client/src/hooks/useTheme.ts` | 테마 컨텍스트 + 훅 신규 |
+| `src/client/tailwind.config.js` | 컬러 팔레트 CSS 변수 전환 |
+| `src/client/src/index.css` | 라이트/다크 모드 CSS 변수 정의 |
+| `src/client/src/main.tsx` | ThemeContext.Provider 래핑 |
+| `src/client/src/components/DiscussionForm.tsx` | 토론 생성/편집 공용 폼 컴포넌트 신규 |
+| `src/client/src/components/DiscussionDetail.tsx` | 메시지 접기/펼치기, 메타데이터 편집 |
+| `src/client/src/components/DiscussionList.tsx` | 자동 구현 옵션 UI, 폼 분리 |
+| `src/client/src/components/AgentManager.tsx` | CLI 도구/모델 선택 UI |
+| `src/server/services/discussion-orchestrator.ts` | 자동 구현 트리거 로직 |
+| `src/server/services/worktree-manager.ts` | npm 자동 설치, 백그라운드 실행, 브랜치 중복 방지 |
+| `src/server/db/schema.ts` | `auto_implement`, `implement_agent_id` 컬럼 마이그레이션 |
+| `src/server/routes/discussions.ts` | 메타데이터 편집 + 자동 구현 파라미터 |
+| `src/client/src/components/ProjectDetail.tsx` | 탭 URL 쿼리 파라미터 동기화 |
+
+### 아키텍처 결정
+
+1. **CSS 변수 기반 테마**: Tailwind 컬러를 CSS 변수로 간접 참조하여, 테마 전환 시 변수값만 교체. 기존 `warm-*`, `accent-*` 클래스명은 그대로 유지하면서 다크 모드 지원
+2. **FOUC 방지 인라인 스크립트**: React hydration 전에 `data-theme` 어트리뷰트를 설정하여 초기 렌더링에서 올바른 테마 적용
+3. **자동 구현의 실패 허용**: 구현 에이전트가 삭제된 경우 경고 로그만 남기고 정상 완료 처리 (기존 실패 허용 패턴 일관 적용)
+4. **npm install 백그라운드 실행**: 워크트리 생성 API 응답은 즉시 반환하고, npm install은 비동기 실행하여 UX 지연 방지
+
+---
+
 ## 2026-04-05/06 — 에이전트 토론 + 디버그 로깅 + 인증 개선
 
 ### 배경

@@ -51,11 +51,11 @@ npm run typecheck              # server + client
   - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex, child_process for Claude/Gemini). Windows cmd.exe wrapper for .cmd shims.
   - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format). Supports `SandboxMode` (strict/permissive) per CLI tool.
   - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes. Detects context exhaustion for CLI fallback chain.
-  - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max). Also provides 16 Git action methods (stage, unstage, commit, pull, push, fetch, branch, checkout, merge, stash, discard, tag, diff) for the web Git client.
+  - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max, duplicate suffix `-2`/`-3`). Auto-runs `npm install` in background on worktree creation when `package.json` exists. Also provides 16 Git action methods (stage, unstage, commit, pull, push, fetch, branch, checkout, merge, stash, discard, tag, diff) for the web Git client.
   - `scheduler.ts` — Cron (recurring) and one-time schedules via `node-cron`.
   - `pipeline-orchestrator.ts` — Multi-phase sequential/parallel pipeline execution.
   - `skill-injector.ts` — Injects gstack skill files into `.claude/skills/` in worktrees (Claude CLI only). Used by gstack plugin's `onBeforeExecution` hook.
-  - `discussion-orchestrator.ts` — Multi-agent discussion engine. Round-based turn execution where agents speak sequentially, each receiving the full discussion history in their prompt. Supports start/stop/pause/resume, user message injection, turn skipping, and a special implementation round (max_rounds+1) where a designated agent writes code. Uses worktree isolation and sandbox mode like todos.
+  - `discussion-orchestrator.ts` — Multi-agent discussion engine. Round-based turn execution where agents speak sequentially, each receiving the full discussion history in their prompt. Supports start/stop/pause/resume, user message injection, turn skipping, auto-implement (automatically triggers implementation round on discussion completion), and a special implementation round (max_rounds+1) where a designated agent writes code. Uses worktree isolation and sandbox mode like todos.
   - `debug-logger.ts` — CLI debug logging service. When `project.debug_logging` is enabled, captures raw stdin/stdout/stderr to `.debug-logs/` via PassThrough stream tee (non-invasive to existing log pipeline). Auto-cleans old logs on startup based on `LOG_RETENTION_DAYS`.
   - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
@@ -64,13 +64,13 @@ npm run typecheck              # server + client
 
 ### Client
 
-- **Entry**: `src/client/src/main.tsx` → `App.tsx` (React Router). Calls `initPlugins()` to register client-side plugins before rendering.
+- **Entry**: `src/client/src/main.tsx` → `App.tsx` (React Router). Wraps app in `ThemeContext.Provider` and `I18nProvider`. Calls `initPlugins()` to register client-side plugins before rendering.
 - **Routes**: `/` (ProjectList), `/projects/:id` (ProjectDetail), `/projects/:id/pipelines/:pipelineId` (PipelineDetail), `/projects/:id/discussions/:discussionId` (DiscussionDetail).
 - **API layer**: `src/client/src/api/` — Fetch wrapper with 401 → auto-logout handling. Plugin config API in `plugins.ts`.
 - **Plugins**: `src/client/src/plugins/` — Client-side plugin system. Each plugin (jira, github, notion, gstack) provides a `ClientPluginManifest` with `PanelComponent` (tab content), `SettingsComponent` (project settings), `isEnabled()`, and i18n translations. Registered via `registerClientPlugin()` in `plugins/init.ts`. `ProjectDetail.tsx` renders plugin tabs dynamically via `getPluginsWithTabs()`. `ProjectHeader.tsx` renders plugin settings via `getClientPlugins()` loop.
-- **Hooks**: `useAuth` (session state), `useWebSocket` (auto-reconnect with exponential backoff).
+- **Hooks**: `useAuth` (session state), `useWebSocket` (auto-reconnect with exponential backoff), `useTheme` (light/dark mode via CSS variables + `data-theme` attribute, persisted to localStorage, OS default detection), `useModels` (CLI model list for tool/model selection).
 - **i18n**: `src/client/src/i18n.tsx` — Context-based Korean/English translations. All UI strings go through `t(key)`. Plugin-specific translations provided by each plugin manifest.
-- **Components**: 27 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization. `GitStatusPanel.tsx` provides a full Git client (commit graph + action toolbar + file status sidebar). `DiscussionDetail.tsx` provides a chat UI for multi-agent discussions (round-grouped messages, streaming logs, user injection, implementation modal). `DiscussionList.tsx` shows discussion list with creation form. `AgentManager.tsx` provides CRUD for agent personas.
+- **Components**: 32 components in `src/client/src/components/`. Task graph uses `@xyflow/react` + `dagre` for dependency visualization. `GitStatusPanel.tsx` provides a full Git client (commit graph + action toolbar + file status sidebar). `DiscussionDetail.tsx` provides a chat UI for multi-agent discussions (round-grouped messages, streaming logs, user injection, implementation modal, message collapse/expand with summary preview). `DiscussionList.tsx` shows discussion list. `DiscussionForm.tsx` provides shared create/edit form for discussions (auto-implement option, agent selection). `AgentManager.tsx` provides CRUD for agent personas with per-agent CLI tool/model selection.
 
 ### Key Patterns
 
