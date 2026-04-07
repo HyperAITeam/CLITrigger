@@ -518,7 +518,11 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                             ? 'bg-status-error/5 border border-status-error/20'
                             : 'bg-warm-50 border border-warm-150'
                         } ${canCollapse ? 'cursor-pointer' : ''}`}
-                        onClick={canCollapse ? () => toggleCollapse(message.id) : undefined}
+                        onClick={canCollapse ? () => {
+                          const sel = window.getSelection();
+                          if (sel && sel.toString().length > 0) return;
+                          toggleCollapse(message.id);
+                        } : undefined}
                       >
                         {isCollapsed && message.content && (
                           <div className="text-xs text-warm-400 italic truncate">{getSummary(message.content)}</div>
