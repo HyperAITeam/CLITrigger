@@ -211,11 +211,12 @@ router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: 
       return;
     }
 
-    // Find the leaf task with an actual branch (the one that has worktree/branch after squash cascade)
-    const leafWithBranch = chainMembers.find(t => t.branch_name && t.worktree_path)
-      || chainMembers.find(t => t.branch_name);
+    // Find the leaf task (no other chain member depends on it) — this is the bottommost task
+    const leafTask = chainMembers.find(t =>
+      !chainMembers.some(other => other.depends_on === t.id)
+    );
 
-    if (!leafWithBranch) {
+    if (!leafTask?.branch_name) {
       res.status(400).json({ error: 'No branch found in chain to merge' });
       return;
     }
@@ -226,7 +227,7 @@ router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: 
     await git.checkout(defaultBranch);
 
     try {
-      const mergeResult = await git.merge([leafWithBranch.branch_name!]);
+      const mergeResult = await git.merge([leafTask.branch_name!]);
 
       // Mark all chain members as merged and cleanup
       for (const member of chainMembers) {
