@@ -194,7 +194,7 @@ export interface TaskResult {
 export interface TaskLog {
   id: string;
   todo_id: string;
-  log_type: 'info' | 'error' | 'output' | 'commit' | 'input';
+  log_type: 'info' | 'error' | 'output' | 'commit' | 'input' | 'prompt' | 'warning';
   message: string;
   created_at: string;
 }

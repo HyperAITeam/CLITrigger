@@ -1,6 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import type { TaskLog } from '../types';
 import { useI18n } from '../i18n';
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*)|(`(.+?)`)|(\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1]) {
+      parts.push(<strong key={key++} className="font-bold text-white/90">{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<code key={key++} className="px-1 py-0.5 rounded bg-white/10 text-pink-300 text-[0.7rem]">{match[4]}</code>);
+    } else if (match[5]) {
+      parts.push(<em key={key++} className="italic text-white/70">{match[6]}</em>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : [text];
+}
 
 interface LogViewerProps {
   logs: TaskLog[];
@@ -15,6 +40,8 @@ const logColors: Record<TaskLog['log_type'], string> = {
   output: 'text-gray-300',
   commit: 'text-green-400',
   input: 'text-amber-400',
+  prompt: 'text-purple-400',
+  warning: 'text-orange-400',
 };
 
 const logPrefixes: Record<TaskLog['log_type'], string> = {
@@ -23,6 +50,8 @@ const logPrefixes: Record<TaskLog['log_type'], string> = {
   output: '[OUT]',
   commit: '[GIT]',
   input: '[>>>]',
+  prompt: '[PRM]',
+  warning: '[WRN]',
 };
 
 export default function LogViewer({ logs, interactive, todoId, onSendInput }: LogViewerProps) {
@@ -82,7 +111,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
                 <span className={`font-bold ${logColors[log.log_type]}`}>
                   {logPrefixes[log.log_type]}
                 </span>{' '}
-                <span className={logColors[log.log_type]}>{log.message}</span>
+                <span className={logColors[log.log_type]}>{renderInlineMarkdown(log.message)}</span>
               </div>
             );
           })
