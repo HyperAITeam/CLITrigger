@@ -26,7 +26,7 @@ export default function ProgressBar({ todos }: ProgressBarProps) {
     <div className="mb-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
         <span className="text-sm font-medium text-warm-700">
-          <span className="text-accent-goldDark">{completedPercent}%</span>
+          <span className="text-accent-dark">{completedPercent}%</span>
           <span className="text-warm-400 ml-2">{doneCount}/{total} {t('progress.complete')}</span>
         </span>
         <div className="flex flex-wrap gap-2 sm:gap-3 text-xs text-warm-500">

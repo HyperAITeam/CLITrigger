@@ -76,7 +76,7 @@ export default function PipelineItem({ pipeline, onStart, onStop, onDelete }: Pi
           to={`/projects/${pipeline.project_id}/pipelines/${pipeline.id}`}
           className="flex-1 min-w-0 group"
         >
-          <span className="text-sm text-warm-800 font-medium truncate block group-hover:text-accent-gold transition-colors">
+          <span className="text-sm text-warm-800 font-medium truncate block group-hover:text-accent transition-colors">
             {pipeline.title}
           </span>
           {pipeline.current_phase && (

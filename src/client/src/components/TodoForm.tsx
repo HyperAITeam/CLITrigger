@@ -141,7 +141,7 @@ export default function TodoForm({
   const totalImages = existingImgs.length + pendingImages.length;
 
   return (
-    <form onSubmit={handleSubmit} className="card p-5 border-accent-gold/30">
+    <form onSubmit={handleSubmit} className="card p-5 border-accent/30">
       <div className="mb-3">
         <input
           type="text"
@@ -230,7 +230,7 @@ export default function TodoForm({
                 <img
                   src={img.preview}
                   alt={img.name}
-                  className="h-20 w-20 object-cover rounded-lg border border-accent-gold/30"
+                  className="h-20 w-20 object-cover rounded-lg border border-accent/30"
                 />
                 <button
                   type="button"

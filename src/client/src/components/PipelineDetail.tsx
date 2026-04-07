@@ -242,7 +242,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
       <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="card p-16 text-center animate-fade-in">
           <p className="text-status-error font-medium text-lg">{error}</p>
-          <Link to={`/projects/${id}`} className="mt-4 inline-block text-sm text-accent-gold hover:text-accent-goldDark transition-colors">
+          <Link to={`/projects/${id}`} className="mt-4 inline-block text-sm text-accent hover:text-accent-dark transition-colors">
             {t('pipeline.backToProject')}
           </Link>
         </div>
@@ -279,7 +279,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
       <div className="flex items-center gap-3 mb-6">
         <Link
           to={`/projects/${id}`}
-          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent-gold transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -306,7 +306,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
               {pipeline.description}
             </p>
             {pipeline.branch_name && (
-              <span className="inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-medium font-mono bg-accent-gold/10 text-accent-gold">
+              <span className="inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-medium font-mono bg-accent/10 text-accent">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.193-9.193a4.5 4.5 0 00-6.364 0l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
                 </svg>
@@ -416,7 +416,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
               if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-status-success';
               else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-status-error';
               else if (line.startsWith('@@')) className = 'text-status-running';
-              else if (line.startsWith('diff ')) className = 'text-accent-gold font-semibold';
+              else if (line.startsWith('diff ')) className = 'text-accent font-semibold';
               return <div key={i} className={className}>{line}</div>;
             }) : <span className="text-warm-400 italic">{t('pipeline.noChanges')}</span>}
           </pre>
@@ -446,7 +446,7 @@ export default function PipelineDetail({ onEvent, connected }: PipelineDetailPro
           {/* Phase output (collapsed) */}
           {selectedPhaseData?.output && (
             <details className="mb-3">
-              <summary className="text-xs text-accent-gold cursor-pointer hover:underline font-medium">
+              <summary className="text-xs text-accent cursor-pointer hover:underline font-medium">
                 {t('pipeline.phaseOutput')}
               </summary>
               <pre className="mt-2 max-h-60 overflow-auto bg-warm-50 border border-warm-200 rounded-xl p-3 font-mono text-xs text-warm-600 leading-relaxed whitespace-pre-wrap">

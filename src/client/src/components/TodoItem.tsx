@@ -338,7 +338,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
         </div>
 
         {/* Expand arrow */}
-        <button className="text-warm-400 hover:text-accent-gold flex-shrink-0 transition-colors">
+        <button className="text-warm-400 hover:text-accent flex-shrink-0 transition-colors">
           <svg
             className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
             fill="currentColor"
@@ -524,7 +524,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
           )}
           <button
             onClick={() => setEditing(true)}
-            className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
+            className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
             title={t('todo.edit')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -612,7 +612,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     <img
                       src={todosApi.getTodoImageUrl(todo.id, img.id)}
                       alt={img.originalName}
-                      className="h-24 w-24 object-cover rounded-lg border border-warm-200 hover:border-accent-gold transition-colors cursor-pointer"
+                      className="h-24 w-24 object-cover rounded-lg border border-warm-200 hover:border-accent transition-colors cursor-pointer"
                     />
                   </a>
                 ))}

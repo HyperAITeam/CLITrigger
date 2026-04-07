@@ -193,7 +193,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
           {/* Edit */}
           <button
             onClick={() => setEditing(true)}
-            className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
+            className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
             title={t('schedule.edit')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

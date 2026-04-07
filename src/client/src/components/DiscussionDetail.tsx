@@ -16,9 +16,9 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-600',
   running: 'bg-status-success/10 text-status-success',
   paused: 'bg-amber-100 text-amber-700',
-  completed: 'bg-accent-gold/10 text-accent-gold',
+  completed: 'bg-accent/10 text-accent',
   failed: 'bg-status-error/10 text-status-error',
-  merged: 'bg-accent-gold/10 text-accent-gold',
+  merged: 'bg-accent/10 text-accent',
 };
 
 function parseAgentIds(agentIdsJson: string): string[] {
@@ -247,7 +247,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 text-center">
         <p className="text-status-error">{t('discussions.notFound')}</p>
-        <Link to={`/projects/${id}?tab=discussions`} className="text-sm text-accent-gold mt-2 inline-block">{t('discussions.back')}</Link>
+        <Link to={`/projects/${id}?tab=discussions`} className="text-sm text-accent mt-2 inline-block">{t('discussions.back')}</Link>
       </div>
     );
   }
@@ -283,7 +283,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       <div className="flex items-center gap-3 mb-4">
         <Link
           to={`/projects/${id}?tab=discussions`}
-          className="inline-flex items-center gap-1 text-sm text-warm-500 hover:text-accent-gold transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-warm-500 hover:text-accent transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -500,7 +500,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           {canCollapse && (
                             <button
                               onClick={() => toggleCollapse(message.id)}
-                              className="text-[10px] text-warm-300 hover:text-accent-gold transition-colors flex items-center gap-0.5"
+                              className="text-[10px] text-warm-300 hover:text-accent transition-colors flex items-center gap-0.5"
                             >
                               <svg className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -513,7 +513,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                       <div
                         className={`rounded-xl p-3 text-sm ${
                           isUser
-                            ? 'bg-accent-gold/10 text-warm-700 ml-auto'
+                            ? 'bg-accent/10 text-warm-700 ml-auto'
                             : message.status === 'failed'
                             ? 'bg-status-error/5 border border-status-error/20'
                             : 'bg-warm-50 border border-warm-150'
@@ -606,7 +606,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                 <button
                   key={agent.id}
                   onClick={() => handleImplement(agent.id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-warm-200 hover:border-accent-gold hover:bg-accent-gold/5 transition-colors"
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-warm-200 hover:border-accent hover:bg-accent/5 transition-colors"
                 >
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"

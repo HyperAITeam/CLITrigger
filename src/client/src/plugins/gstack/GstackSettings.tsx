@@ -60,7 +60,7 @@ export default function GstackSettings({ project, config, onConfigChange }: Plug
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="flex items-center gap-1 text-xs text-accent-goldDark hover:text-accent-gold transition-colors"
+            className="flex items-center gap-1 text-xs text-accent-dark hover:text-accent transition-colors"
           >
             <span className={`inline-block transition-transform ${showGuide ? 'rotate-90' : ''}`}>&#9654;</span>
             {t('header.gstackGuideToggle')}

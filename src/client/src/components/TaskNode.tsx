@@ -55,7 +55,7 @@ function TaskNodeComponent({ data }: NodeProps) {
 
   return (
     <div
-      className={`bg-theme-card rounded-xl shadow-soft min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent-gold shadow-lg' : ''}`}
+      className={`bg-theme-card rounded-xl shadow-soft min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent shadow-lg' : ''}`}
       style={{ borderLeft: `4px solid ${borderColor}` }}
     >
       {/* Target handle (input - top) */}
@@ -175,7 +175,7 @@ function TaskNodeComponent({ data }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-3 !h-3 !bg-accent-gold !border-2 !border-white !-bottom-1.5"
+        className="!w-3 !h-3 !bg-accent !border-2 !border-white !-bottom-1.5"
       />
     </div>
   );

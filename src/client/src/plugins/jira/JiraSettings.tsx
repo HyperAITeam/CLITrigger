@@ -47,7 +47,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="flex items-center gap-1 text-xs text-accent-goldDark hover:text-accent-gold transition-colors"
+            className="flex items-center gap-1 text-xs text-accent-dark hover:text-accent transition-colors"
           >
             <span className={`inline-block transition-transform ${showGuide ? 'rotate-90' : ''}`}>&#9654;</span>
             {t('header.jiraGuideToggle')}
@@ -89,7 +89,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
                 value={config.base_url ?? ''}
                 onChange={(e) => onConfigChange({ base_url: e.target.value || null })}
                 placeholder={t('header.jiraBaseUrlPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
             <div>
@@ -99,7 +99,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
                 value={config.project_key ?? ''}
                 onChange={(e) => onConfigChange({ project_key: e.target.value || null })}
                 placeholder={t('header.jiraProjectKeyPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
             <div>
@@ -109,7 +109,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
                 value={config.email ?? ''}
                 onChange={(e) => onConfigChange({ email: e.target.value || null })}
                 placeholder={t('header.jiraEmailPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
             <div>
@@ -119,7 +119,7 @@ export default function JiraSettings({ project, config, onConfigChange }: Plugin
                 value={config.api_token ?? ''}
                 onChange={(e) => onConfigChange({ api_token: e.target.value || null })}
                 placeholder={t('header.jiraApiTokenPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
           </div>

@@ -26,7 +26,7 @@ export default function PipelineForm({ onSave, onCancel }: PipelineFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card p-5 space-y-4 border-l-4 border-l-accent-gold">
+    <form onSubmit={handleSubmit} className="card p-5 space-y-4 border-l-4 border-l-accent">
       <div>
         <label className="block text-xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
           {t('pipeline.featureTitle')}

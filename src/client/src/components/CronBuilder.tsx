@@ -146,7 +146,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
     { value: 'custom', labelKey: 'cron.custom' },
   ];
 
-  const compactSelect = "bg-warm-50 border border-warm-300 rounded-lg px-2 py-1.5 text-sm text-warm-800 font-mono text-center transition-all duration-200 focus:border-accent-gold focus:outline-none focus:ring-2 focus:ring-accent-gold/20";
+  const compactSelect = "bg-warm-50 border border-warm-300 rounded-lg px-2 py-1.5 text-sm text-warm-800 font-mono text-center transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
   const timeSelect = (hour: number, minute: number, onHourChange: (h: number) => void, onMinuteChange: (m: number) => void) => (
     <div className="flex items-center gap-1.5">
@@ -296,7 +296,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
               placeholder="*/30 * * * *"
               value={customValue}
               onChange={(e) => setCustomValue(e.target.value)}
-              className="bg-warm-50 border border-warm-300 rounded-lg px-3 py-1.5 w-full text-sm text-warm-800 font-mono transition-all duration-200 focus:border-accent-gold focus:outline-none focus:ring-2 focus:ring-accent-gold/20"
+              className="bg-warm-50 border border-warm-300 rounded-lg px-3 py-1.5 w-full text-sm text-warm-800 font-mono transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
             <p className="text-[10px] text-warm-400 mt-1">
               {t('schedule.cronHint')}

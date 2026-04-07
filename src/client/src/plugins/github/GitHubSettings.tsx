@@ -47,7 +47,7 @@ export default function GitHubSettings({ project, config, onConfigChange }: Plug
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="flex items-center gap-1 text-xs text-accent-goldDark hover:text-accent-gold transition-colors"
+            className="flex items-center gap-1 text-xs text-accent-dark hover:text-accent transition-colors"
           >
             <span className={`inline-block transition-transform ${showGuide ? 'rotate-90' : ''}`}>&#9654;</span>
             {t('header.githubGuideToggle')}
@@ -89,7 +89,7 @@ export default function GitHubSettings({ project, config, onConfigChange }: Plug
                 value={config.token ?? ''}
                 onChange={(e) => onConfigChange({ token: e.target.value || null })}
                 placeholder={t('header.githubTokenPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -100,7 +100,7 @@ export default function GitHubSettings({ project, config, onConfigChange }: Plug
                   value={config.owner ?? ''}
                   onChange={(e) => onConfigChange({ owner: e.target.value || null })}
                   placeholder={t('header.githubOwnerPlaceholder')}
-                  className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                  className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
                 />
               </div>
               <div>
@@ -110,7 +110,7 @@ export default function GitHubSettings({ project, config, onConfigChange }: Plug
                   value={config.repo ?? ''}
                   onChange={(e) => onConfigChange({ repo: e.target.value || null })}
                   placeholder={t('header.githubRepoPlaceholder')}
-                  className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                  className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
                 />
               </div>
             </div>

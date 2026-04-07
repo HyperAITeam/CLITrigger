@@ -156,7 +156,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             ) : (
               <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
             )}
-            <span className="badge bg-accent-gold/10 text-accent-goldDark">
+            <span className="badge bg-accent/10 text-accent-dark">
               {t('header.workers')}: {project.max_concurrent ?? 3}
             </span>
             <span className="badge bg-status-merged/10 text-status-merged">
@@ -335,7 +335,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       isSelected
-                        ? 'bg-accent-gold/20 border-accent-gold text-accent-goldDark'
+                        ? 'bg-accent/20 border-accent text-accent-dark'
                         : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
                     }`}
                   >

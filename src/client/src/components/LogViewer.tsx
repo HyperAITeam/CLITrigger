@@ -116,7 +116,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
             );
           })
         )}
-        <span className="text-accent-gold animate-pulse">_</span>
+        <span className="text-accent animate-pulse">_</span>
       </div>
       </div>
 
@@ -125,7 +125,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
           onSubmit={handleSubmit}
           className="flex items-center gap-2 bg-warm-800 border border-t-0 border-warm-700 rounded-b-xl px-4 py-2"
         >
-          <span className="text-accent-gold font-mono font-bold text-xs">$</span>
+          <span className="text-accent font-mono font-bold text-xs">$</span>
           <input
             type="text"
             value={inputValue}
@@ -136,7 +136,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
           />
           <button
             type="submit"
-            className="text-accent-gold hover:text-accent-gold/80 text-xs font-mono font-bold tracking-wider"
+            className="text-accent hover:text-accent/80 text-xs font-mono font-bold tracking-wider"
           >
             SEND
           </button>

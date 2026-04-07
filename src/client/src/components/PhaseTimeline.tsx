@@ -73,7 +73,7 @@ export default function PhaseTimeline({ phases, selectedPhase, onSelectPhase }: 
                   w-10 h-10 rounded-xl flex items-center justify-center border-2 text-sm font-bold
                   transition-all duration-200
                   ${style.node}
-                  ${isSelected ? 'ring-2 ring-offset-2 ring-offset-white ring-accent-gold scale-110' : 'hover:scale-105'}
+                  ${isSelected ? 'ring-2 ring-offset-2 ring-offset-white ring-accent scale-110' : 'hover:scale-105'}
                 `}
               >
                 {phase.status === 'completed' ? (

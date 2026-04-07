@@ -47,7 +47,7 @@ export default function NotionSettings({ project, config, onConfigChange }: Plug
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="flex items-center gap-1 text-xs text-accent-goldDark hover:text-accent-gold transition-colors"
+            className="flex items-center gap-1 text-xs text-accent-dark hover:text-accent transition-colors"
           >
             <span className={`inline-block transition-transform ${showGuide ? 'rotate-90' : ''}`}>&#9654;</span>
             {t('header.notionGuideToggle')}
@@ -90,7 +90,7 @@ export default function NotionSettings({ project, config, onConfigChange }: Plug
                 value={config.api_key ?? ''}
                 onChange={(e) => onConfigChange({ api_key: e.target.value || null })}
                 placeholder={t('header.notionApiKeyPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
             <div>
@@ -100,7 +100,7 @@ export default function NotionSettings({ project, config, onConfigChange }: Plug
                 value={config.database_id ?? ''}
                 onChange={(e) => onConfigChange({ database_id: e.target.value || null })}
                 placeholder={t('header.notionDatabaseIdPlaceholder')}
-                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent-gold focus:border-accent-gold"
+                className="w-full px-3 py-1.5 text-xs border border-warm-200 rounded-lg bg-warm-50 text-warm-700 focus:ring-1 focus:ring-accent focus:border-accent"
               />
             </div>
           </div>

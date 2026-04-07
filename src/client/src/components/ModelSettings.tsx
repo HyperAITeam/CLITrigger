@@ -62,7 +62,7 @@ export default function ModelSettings() {
             onClick={() => { setActiveTool(tool.value); setError(''); }}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeTool === tool.value
-                ? 'bg-accent-gold text-white'
+                ? 'bg-accent text-white'
                 : 'bg-warm-100 text-warm-500 hover:bg-warm-200'
             }`}
           >

@@ -114,7 +114,7 @@ function RefBadge({ refStr }: { refStr: string }) {
   } else if (isRemote) {
     classes = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
   } else {
-    classes = 'bg-accent-gold/15 text-accent-gold';
+    classes = 'bg-accent/15 text-accent';
   }
 
   return (
@@ -198,7 +198,7 @@ function fileStatusLabel(index: string, workingDir: string): { label: string; co
   if (index === 'D' || workingDir === 'D') return { label: 'D', color: 'text-status-error' };
   if (index === 'R' || workingDir === 'R') return { label: 'R', color: 'text-purple-500' };
   if (index === 'C' || workingDir === 'C') return { label: 'C', color: 'text-blue-500' };
-  return { label: 'M', color: 'text-accent-gold' };
+  return { label: 'M', color: 'text-accent' };
 }
 
 // --- Action Toolbar ---
@@ -252,7 +252,7 @@ function ActionToolbar({
       <div className="h-5 w-5 flex items-center justify-center text-warm-500">{icon}</div>
       <span className="text-[10px] text-warm-600 whitespace-nowrap">{label}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 bg-accent-gold text-white text-[9px] font-bold rounded-full h-3.5 min-w-[14px] flex items-center justify-center px-0.5">
+        <span className="absolute -top-0.5 -right-0.5 bg-accent text-white text-[9px] font-bold rounded-full h-3.5 min-w-[14px] flex items-center justify-center px-0.5">
           {badge}
         </span>
       )}
@@ -343,7 +343,7 @@ function ActionToolbar({
       {activeModal === 'commit' && (
         <Modal title={t('git.commit')}>
           <textarea
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent-gold"
+            className="w-full border border-warm-200 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
             rows={3}
             placeholder={t('git.commitMessage')}
             value={inputValue}
@@ -363,7 +363,7 @@ function ActionToolbar({
       {activeModal === 'branch' && (
         <Modal title={t('git.newBranch')}>
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-gold"
+            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.branchName')}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
@@ -385,7 +385,7 @@ function ActionToolbar({
                 {localBranches.filter(b => !b.current).map(b => (
                   <div key={b.name} className="flex items-center justify-between px-2 py-1 text-xs hover:bg-warm-50 rounded group">
                     <button
-                      className="truncate text-warm-600 hover:text-accent-gold"
+                      className="truncate text-warm-600 hover:text-accent"
                       onClick={() => exec(() => projectsApi.gitCheckout(projectId, b.name))}
                     >
                       {b.name}
@@ -429,14 +429,14 @@ function ActionToolbar({
       {activeModal === 'tag' && (
         <Modal title={t('git.tag')}>
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-gold"
+            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.tagName')}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             autoFocus
           />
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-gold"
+            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.tagMessage')}
             value={inputValue2}
             onChange={e => setInputValue2(e.target.value)}
@@ -479,7 +479,7 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
         <div className="p-4 space-y-3">
           <div className="flex gap-2">
             <input
-              className="flex-1 border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-gold"
+              className="flex-1 border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
               placeholder={t('git.stashMessage')}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
@@ -500,7 +500,7 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
                 <div key={s.index} className="flex items-center justify-between px-2 py-1.5 text-xs hover:bg-warm-50 rounded">
                   <span className="text-warm-600 truncate flex-1">{s.message || `stash@{${s.index}}`}</span>
                   <button
-                    className="text-accent-gold hover:underline text-[11px] ml-2 shrink-0"
+                    className="text-accent hover:underline text-[11px] ml-2 shrink-0"
                     disabled={busy}
                     onClick={() => exec(() => projectsApi.gitStashPop(projectId, s.index))}
                   >
@@ -572,7 +572,7 @@ function FileStatusSection({
           {type === 'unstaged' && (
             <>
               <button
-                className="text-[10px] text-accent-gold hover:underline"
+                className="text-[10px] text-accent hover:underline"
                 disabled={busy}
                 onClick={() => exec(() => projectsApi.gitStage(projectId, [file.path]))}
               >{t('git.stage')}</button>
@@ -585,7 +585,7 @@ function FileStatusSection({
           )}
           {type === 'untracked' && (
             <button
-              className="text-[10px] text-accent-gold hover:underline"
+              className="text-[10px] text-accent hover:underline"
               disabled={busy}
               onClick={() => exec(() => projectsApi.gitStage(projectId, [file.path]))}
             >{t('git.stage')}</button>
@@ -616,7 +616,7 @@ function FileStatusSection({
       {unstaged.length > 0 && (
         <div>
           <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-[10px] font-semibold text-accent-gold uppercase tracking-wider">{t('git.unstaged')} ({unstaged.length})</span>
+            <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">{t('git.unstaged')} ({unstaged.length})</span>
             <button
               className="text-[10px] text-warm-400 hover:text-warm-600"
               disabled={busy}
@@ -694,7 +694,7 @@ function RefsSidebar({ branches, tags, stashCount }: {
             <div
               key={b.name}
               className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate ${
-                b.current ? 'text-accent-gold font-semibold bg-accent-gold/10' : 'text-warm-600 hover:bg-warm-50'
+                b.current ? 'text-accent font-semibold bg-accent/10' : 'text-warm-600 hover:bg-warm-50'
               }`}
             >
               {b.current && (
@@ -979,7 +979,7 @@ export default function GitStatusPanel({ project }: GitStatusPanelProps) {
 
                       <div className="w-16 text-right shrink-0">
                         <span
-                          className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent-gold transition-colors"
+                          className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
                           title={commit.hash}
                           onClick={() => navigator.clipboard.writeText(commit.hash)}
                         >

@@ -152,7 +152,7 @@ export default function DiscussionForm({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-accent-gold/30 bg-accent-gold/5 p-3 space-y-3">
+            <div className="rounded-2xl border border-accent/30 bg-accent/5 p-3 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold text-warm-700">
@@ -165,7 +165,7 @@ export default function DiscussionForm({
                   </p>
                 </div>
                 {selectedAgents.length >= 2 && (
-                  <div className="text-[10px] font-semibold text-accent-goldDark bg-white/70 border border-accent-gold/30 rounded-full px-2.5 py-1">
+                  <div className="text-[10px] font-semibold text-accent-dark bg-white/70 border border-accent/30 rounded-full px-2.5 py-1">
                     {lang === 'ko' ? '순서 조정 가능' : 'Reorder enabled'}
                   </div>
                 )}
@@ -194,7 +194,7 @@ export default function DiscussionForm({
                         className="flex flex-col gap-3 rounded-xl border border-warm-200 bg-white/85 px-3 py-3 md:flex-row md:items-center md:justify-between"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-gold text-[11px] font-bold text-white flex-shrink-0">
+                          <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white flex-shrink-0">
                             {index + 1}
                           </div>
                           <div
@@ -249,7 +249,7 @@ export default function DiscussionForm({
                       onClick={() => toggleAgent(agent.id)}
                       className={`text-left rounded-2xl border px-3.5 py-3 transition-all ${
                         selected
-                          ? 'border-accent-gold bg-accent-gold/5 shadow-sm'
+                          ? 'border-accent bg-accent/5 shadow-sm'
                           : 'border-warm-200 bg-warm-50 hover:border-warm-300 hover:bg-warm-100'
                       }`}
                     >
@@ -268,13 +268,13 @@ export default function DiscussionForm({
                         </div>
 
                         {selected && (
-                          <div className="inline-flex items-center justify-center min-w-7 h-7 rounded-full bg-accent-gold text-[11px] font-bold text-white flex-shrink-0">
+                          <div className="inline-flex items-center justify-center min-w-7 h-7 rounded-full bg-accent text-[11px] font-bold text-white flex-shrink-0">
                             {order}
                           </div>
                         )}
                       </div>
 
-                      <div className={`mt-3 text-[11px] ${selected ? 'text-accent-goldDark' : 'text-warm-400'}`}>
+                      <div className={`mt-3 text-[11px] ${selected ? 'text-accent-dark' : 'text-warm-400'}`}>
                         {selected
                           ? (lang === 'ko' ? `${order}번째 발언으로 참여 중` : `Included as turn ${order}`)
                           : (lang === 'ko' ? '클릭해서 참여 에이전트에 추가' : 'Click to add this participant')}
@@ -312,7 +312,7 @@ export default function DiscussionForm({
                     implement_agent_id: checked ? prev.implement_agent_id : '',
                   }));
                 }}
-                className="rounded border-warm-300 text-accent-gold focus:ring-accent-gold"
+                className="rounded border-warm-300 text-accent focus:ring-accent"
               />
               <span className="text-xs font-medium text-warm-500">{t('discussions.autoImplement')}</span>
             </label>

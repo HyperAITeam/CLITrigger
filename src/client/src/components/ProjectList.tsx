@@ -162,7 +162,7 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
                   </svg>
                 </button>
 
-                <h3 className="text-base font-semibold text-warm-800 group-hover:text-accent-goldDark transition-colors truncate">
+                <h3 className="text-base font-semibold text-warm-800 group-hover:text-accent-dark transition-colors truncate">
                   {project.name}
                 </h3>
                 <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
@@ -196,7 +196,7 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
                 {counts.total > 0 && (
                   <div className="mt-4 h-1.5 w-full overflow-hidden bg-warm-200 rounded-full">
                     <div
-                      className="h-full bg-accent-gold rounded-full transition-all duration-500"
+                      className="h-full bg-accent rounded-full transition-all duration-500"
                       style={{ width: `${(counts.completed / counts.total) * 100}%` }}
                     />
                   </div>

@@ -185,7 +185,7 @@ export default function TaskNodeDetail({
         <span className="flex-1 text-sm font-medium text-warm-800 truncate">{todo.title}</span>
         <button
           onClick={() => setEditing(true)}
-          className="p-1.5 text-warm-400 hover:text-accent-gold hover:bg-accent-gold/10 rounded-lg transition-colors"
+          className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
           title={t('todo.edit')}
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -267,7 +267,7 @@ export default function TaskNodeDetail({
                   <img
                     src={todosApi.getTodoImageUrl(todo.id, img.id)}
                     alt={img.originalName}
-                    className="h-16 w-16 object-cover rounded-lg border border-warm-200 hover:border-accent-gold transition-colors"
+                    className="h-16 w-16 object-cover rounded-lg border border-warm-200 hover:border-accent transition-colors"
                   />
                 </a>
               ))}

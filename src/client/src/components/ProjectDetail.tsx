@@ -344,7 +344,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
             to="/"
-            className="mt-4 inline-block text-sm text-accent-gold hover:text-accent-goldDark transition-colors"
+            className="mt-4 inline-block text-sm text-accent hover:text-accent-dark transition-colors"
           >
             {t('detail.backToProjects')}
           </Link>
@@ -359,7 +359,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       <div className="flex items-center gap-3 mb-6">
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent-gold transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -399,7 +399,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onClick={() => setActiveTab('tasks')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'tasks'
-              ? 'text-accent-gold border-accent-gold'
+              ? 'text-accent border-accent'
               : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
@@ -409,7 +409,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onClick={() => setActiveTab('pipelines')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'pipelines'
-              ? 'text-accent-gold border-accent-gold'
+              ? 'text-accent border-accent'
               : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
@@ -419,7 +419,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onClick={() => setActiveTab('discussions')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'discussions'
-              ? 'text-accent-gold border-accent-gold'
+              ? 'text-accent border-accent'
               : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
@@ -429,7 +429,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onClick={() => setActiveTab('schedules')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'schedules'
-              ? 'text-accent-gold border-accent-gold'
+              ? 'text-accent border-accent'
               : 'text-warm-400 border-transparent hover:text-warm-600'
           }`}
         >
@@ -441,7 +441,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             onClick={() => setActiveTab(plugin.id)}
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === plugin.id
-                ? 'text-accent-gold border-accent-gold'
+                ? 'text-accent border-accent'
                 : 'text-warm-400 border-transparent hover:text-warm-600'
             }`}
           >
@@ -453,7 +453,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             onClick={() => setActiveTab('git')}
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === 'git'
-                ? 'text-accent-gold border-accent-gold'
+                ? 'text-accent border-accent'
                 : 'text-warm-400 border-transparent hover:text-warm-600'
             }`}
           >
