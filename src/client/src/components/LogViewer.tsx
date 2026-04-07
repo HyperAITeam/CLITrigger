@@ -12,7 +12,7 @@ interface LogViewerProps {
 const logColors: Record<TaskLog['log_type'], string> = {
   info: 'text-blue-400',
   error: 'text-red-400',
-  output: 'text-warm-300',
+  output: 'text-gray-300',
   commit: 'text-green-400',
   input: 'text-amber-400',
 };

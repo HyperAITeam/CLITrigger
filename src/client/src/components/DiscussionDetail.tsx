@@ -5,6 +5,7 @@ import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
 import { useI18n } from '../i18n';
 import DiscussionForm, { type DiscussionFormValues } from './DiscussionForm';
+import MarkdownContent from './MarkdownContent';
 
 interface DiscussionDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -524,7 +525,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                         )}
 
                         {!isCollapsed && message.content && (
-                          <div className="whitespace-pre-wrap text-xs leading-relaxed">{message.content}</div>
+                          <MarkdownContent content={message.content} />
                         )}
 
                         {isRunning && logs.length > 0 && (
