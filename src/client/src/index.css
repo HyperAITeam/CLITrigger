@@ -183,4 +183,78 @@
     background-color: var(--color-accent);
     @apply text-white;
   }
+
+  /* Markdown content styles for discussion messages */
+  .markdown-content {
+    @apply text-xs leading-relaxed;
+    color: var(--color-text-primary);
+  }
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4 {
+    @apply font-semibold mt-3 mb-1.5;
+    color: var(--color-text-primary);
+  }
+  .markdown-content h1 { @apply text-base; }
+  .markdown-content h2 { @apply text-sm; }
+  .markdown-content h3 { @apply text-xs font-bold; }
+  .markdown-content p {
+    @apply mb-2 last:mb-0;
+  }
+  .markdown-content ul,
+  .markdown-content ol {
+    @apply ml-4 mb-2;
+  }
+  .markdown-content ul { @apply list-disc; }
+  .markdown-content ol { @apply list-decimal; }
+  .markdown-content li { @apply mb-0.5; }
+  .markdown-content code {
+    background-color: var(--color-bg-tertiary);
+    @apply px-1 py-0.5 rounded text-[0.7rem] font-mono;
+  }
+  .markdown-content pre {
+    background-color: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    @apply p-2 rounded-lg mb-2 overflow-x-auto;
+  }
+  .markdown-content pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown-content table {
+    border-color: var(--color-border-strong);
+    @apply w-full border-collapse mb-2 text-[0.7rem];
+  }
+  .markdown-content th,
+  .markdown-content td {
+    border-color: var(--color-border-strong);
+    @apply border px-2 py-1 text-left;
+  }
+  .markdown-content th {
+    background-color: var(--color-bg-tertiary);
+    @apply font-semibold;
+  }
+  .markdown-content blockquote {
+    border-left-color: var(--color-accent);
+    color: var(--color-text-secondary);
+    @apply border-l-2 pl-3 mb-2 italic;
+  }
+  .markdown-content a {
+    color: var(--color-accent);
+    @apply underline;
+  }
+  .markdown-content a:hover {
+    color: var(--color-accent-dark);
+  }
+  .markdown-content hr {
+    border-color: var(--color-border);
+    @apply my-3;
+  }
+  .markdown-content strong {
+    @apply font-semibold;
+    color: var(--color-text-primary);
+  }
+  .markdown-content input[type="checkbox"] {
+    @apply mr-1.5;
+  }
 }
