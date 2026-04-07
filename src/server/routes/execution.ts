@@ -154,6 +154,112 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
   }
 });
 
+// POST /api/todos/:id/merge-chain - merge an entire dependency chain to main
+router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    const project = getProjectById(todo.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    // Collect all chain members by walking up to root and then collecting all descendants
+    const allTodos = getTodosByProjectId(todo.project_id);
+
+    // Walk up to find chain root
+    let rootId = todo.id;
+    const visited = new Set<string>();
+    while (true) {
+      visited.add(rootId);
+      const current = allTodos.find(t => t.id === rootId);
+      if (!current?.depends_on) break;
+      if (visited.has(current.depends_on)) break; // circular guard
+      rootId = current.depends_on;
+    }
+
+    // Walk down from root to collect all chain members
+    const chainMembers: typeof allTodos = [];
+    const collectChain = (parentId: string) => {
+      const member = allTodos.find(t => t.id === parentId);
+      if (!member) return;
+      chainMembers.push(member);
+      const children = allTodos.filter(t => t.depends_on === parentId);
+      for (const child of children) {
+        collectChain(child.id);
+      }
+    };
+    collectChain(rootId);
+
+    if (chainMembers.length < 2) {
+      res.status(400).json({ error: 'Not a chain. Use single merge instead.' });
+      return;
+    }
+
+    // Verify all chain members are completed (or already merged)
+    const nonCompleted = chainMembers.filter(t => t.status !== 'completed' && t.status !== 'merged');
+    if (nonCompleted.length > 0) {
+      res.status(400).json({
+        error: 'All tasks in the chain must be completed before merging',
+        pending: nonCompleted.map(t => ({ id: t.id, title: t.title, status: t.status })),
+      });
+      return;
+    }
+
+    // Find the leaf task with an actual branch (the one that has worktree/branch after squash cascade)
+    const leafWithBranch = chainMembers.find(t => t.branch_name && t.worktree_path)
+      || chainMembers.find(t => t.branch_name);
+
+    if (!leafWithBranch) {
+      res.status(400).json({ error: 'No branch found in chain to merge' });
+      return;
+    }
+
+    const git = simpleGit(project.path);
+    const defaultBranch = project.default_branch || 'main';
+
+    await git.checkout(defaultBranch);
+
+    try {
+      const mergeResult = await git.merge([leafWithBranch.branch_name!]);
+
+      // Mark all chain members as merged and cleanup
+      for (const member of chainMembers) {
+        updateTodoStatus(member.id, 'merged');
+        if (member.worktree_path || member.branch_name) {
+          try {
+            await worktreeManager.cleanupWorktree(
+              project.path,
+              member.worktree_path || '',
+              member.branch_name || ''
+            );
+          } catch { /* non-fatal */ }
+          updateTodo(member.id, { worktree_path: null, branch_name: null });
+        }
+      }
+
+      res.json({
+        success: true,
+        result: mergeResult,
+        mergedCount: chainMembers.length,
+        mergedIds: chainMembers.map(t => t.id),
+      });
+    } catch (mergeErr: unknown) {
+      try { await git.merge(['--abort']); } catch { /* ignore */ }
+      const message = mergeErr instanceof Error ? mergeErr.message : 'Merge failed';
+      res.status(409).json({ error: 'Merge conflict', details: message });
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // POST /api/todos/:id/cleanup - remove worktree and branch for a todo
 router.post('/todos/:id/cleanup', async (req: Request<{ id: string }>, res: Response) => {
   try {

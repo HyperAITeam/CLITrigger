@@ -47,6 +47,10 @@ export function mergeTodo(id: string): Promise<{ success: boolean; result?: unkn
   return post(`/api/todos/${id}/merge`);
 }
 
+export function mergeChain(id: string): Promise<{ success: boolean; result?: unknown; mergedCount: number; mergedIds: string[] }> {
+  return post(`/api/todos/${id}/merge-chain`);
+}
+
 export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
   return post(`/api/todos/${id}/cleanup`);
 }

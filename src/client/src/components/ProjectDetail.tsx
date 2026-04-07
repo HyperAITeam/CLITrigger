@@ -142,6 +142,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
+  const handleMergeChain = useCallback(async (rootTodoId: string) => {
+    const result = await todosApi.mergeChain(rootTodoId);
+    const mergedIds = new Set(result.mergedIds);
+    setTodos((prev) =>
+      prev.map((t) =>
+        mergedIds.has(t.id) ? { ...t, status: 'merged' as const, worktree_path: null, branch_name: null, updated_at: new Date().toISOString() } : t
+      )
+    );
+  }, []);
+
   const handleCleanupTodo = useCallback(async (todoId: string) => {
     await todosApi.cleanupTodo(todoId);
     setTodos((prev) =>
@@ -463,6 +473,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onDeleteTodo={handleDeleteTodo}
           onEditTodo={handleEditTodo}
           onMergeTodo={handleMergeTodo}
+          onMergeChain={handleMergeChain}
           onCleanupTodo={handleCleanupTodo}
           onRetryTodo={handleRetryTodo}
           onFixTodo={handleFixTodo}

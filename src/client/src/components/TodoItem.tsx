@@ -36,9 +36,10 @@ interface TodoItemProps {
   onDropTarget?: (todoId: string) => void;
   onRemoveDependency?: (todoId: string) => void;
   debugLogging?: boolean;
+  isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -75,9 +76,9 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
-  const canMerge = todo.status === 'completed';
+  const canMerge = todo.status === 'completed' && !isChainMember;
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
-  const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name);
+  const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name) && !isChainMember;
 
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
 

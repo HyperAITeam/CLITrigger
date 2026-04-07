@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
@@ -17,6 +17,7 @@ interface TodoListProps {
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
+  onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
@@ -52,6 +53,7 @@ export default function TodoList({
   onDeleteTodo,
   onEditTodo,
   onMergeTodo,
+  onMergeChain,
   onCleanupTodo,
   onRetryTodo,
   onFixTodo,
@@ -120,6 +122,60 @@ export default function TodoList({
 
     return result;
   })();
+
+  // Detect completed chains: chains with 2+ members where all are 'completed'
+  const { completedChainRoots, completedChainMembers } = useMemo(() => {
+    const childrenMap = new Map<string, string[]>();
+    for (const todo of todos) {
+      if (todo.depends_on) {
+        const siblings = childrenMap.get(todo.depends_on) || [];
+        siblings.push(todo.id);
+        childrenMap.set(todo.depends_on, siblings);
+      }
+    }
+
+    const roots = todos.filter(t => !t.depends_on && childrenMap.has(t.id));
+    const completedRoots = new Map<string, number>(); // rootId -> member count
+    const memberSet = new Set<string>();
+
+    for (const root of roots) {
+      const members: string[] = [];
+      const collect = (id: string) => {
+        const t = todos.find(x => x.id === id);
+        if (!t) return;
+        members.push(id);
+        const children = childrenMap.get(id) || [];
+        for (const childId of children) collect(childId);
+      };
+      collect(root.id);
+
+      if (members.length >= 2 && members.every(id => {
+        const t = todos.find(x => x.id === id);
+        return t?.status === 'completed' || t?.status === 'merged';
+      })) {
+        completedRoots.set(root.id, members.length);
+        for (const id of members) memberSet.add(id);
+      }
+    }
+
+    return { completedChainRoots: completedRoots, completedChainMembers: memberSet };
+  }, [todos]);
+
+  const [mergingChain, setMergingChain] = useState<string | null>(null);
+  const [chainMergeError, setChainMergeError] = useState<string | null>(null);
+
+  const handleMergeChain = useCallback(async (rootId: string) => {
+    if (!onMergeChain) return;
+    setMergingChain(rootId);
+    setChainMergeError(null);
+    try {
+      await onMergeChain(rootId);
+    } catch (err: unknown) {
+      setChainMergeError(err instanceof Error ? err.message : 'Merge failed');
+    } finally {
+      setMergingChain(null);
+    }
+  }, [onMergeChain]);
 
   const dropSucceededRef = useRef(false);
 
@@ -288,37 +344,74 @@ export default function TodoList({
             <p className="text-warm-400 text-sm mt-1">{t('todos.emptyHint')}</p>
           </div>
         ) : (
-          sortedTodos.map(({ todo, depth }, index) => (
-            <div key={todo.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
-              <TodoItem
-                todo={todo}
-                allTodos={todos}
-                onStart={onStartTodo}
-                onStop={onStopTodo}
-                onDelete={onDeleteTodo}
-                onEdit={onEditTodo}
-                onMerge={onMergeTodo}
-                onCleanup={onCleanupTodo}
-                onRetry={onRetryTodo}
-                onFix={onFixTodo}
-                onSchedule={onScheduleTodo}
-                onEvent={onEvent}
-                isInteractive={interactiveTodos.has(todo.id)}
-                onSendInput={onSendInput}
-                isDragSource={dragSourceId === todo.id}
-                isDragging={dragSourceId !== null}
-                isDragOver={dragOverTargetId === todo.id}
-                isValidDropTarget={isValidDropTarget(todo.id)}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDragOverTarget={handleDragOverTarget}
-                onDragLeaveTarget={handleDragLeaveTarget}
-                onDropTarget={handleDrop}
-                onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
-                debugLogging={debugLogging}
-              />
-            </div>
-          ))
+          sortedTodos.map(({ todo, depth }, index) => {
+            const isCompletedChainRoot = completedChainRoots.has(todo.id);
+            const isChainMember = completedChainMembers.has(todo.id);
+            return (
+              <div key={todo.id}>
+                {/* Chain merge header for completed chain roots */}
+                {isCompletedChainRoot && (
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-status-merged/5 border border-status-merged/20 animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+                    <svg className="h-4 w-4 text-status-merged flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    <span className="text-xs font-semibold text-status-merged">
+                      {t('todo.chainComplete')}
+                    </span>
+                    <span className="text-[10px] font-mono text-warm-400">
+                      {t('todo.chainTasks').replace('{count}', String(completedChainRoots.get(todo.id)))}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      {chainMergeError && mergingChain === null && (
+                        <span className="text-[10px] text-status-error">{chainMergeError}</span>
+                      )}
+                      <button
+                        onClick={() => handleMergeChain(todo.id)}
+                        disabled={mergingChain === todo.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-status-merged/15 text-status-merged hover:bg-status-merged/25 border border-status-merged/30 transition-colors disabled:opacity-50"
+                        title={t('todo.mergeChainDesc')}
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        {mergingChain === todo.id ? '...' : t('todo.mergeChain')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="animate-slide-up" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
+                  <TodoItem
+                    todo={todo}
+                    allTodos={todos}
+                    onStart={onStartTodo}
+                    onStop={onStopTodo}
+                    onDelete={onDeleteTodo}
+                    onEdit={onEditTodo}
+                    onMerge={onMergeTodo}
+                    onCleanup={onCleanupTodo}
+                    onRetry={onRetryTodo}
+                    onFix={onFixTodo}
+                    onSchedule={onScheduleTodo}
+                    onEvent={onEvent}
+                    isInteractive={interactiveTodos.has(todo.id)}
+                    onSendInput={onSendInput}
+                    isDragSource={dragSourceId === todo.id}
+                    isDragging={dragSourceId !== null}
+                    isDragOver={dragOverTargetId === todo.id}
+                    isValidDropTarget={isValidDropTarget(todo.id)}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOverTarget={handleDragOverTarget}
+                    onDragLeaveTarget={handleDragLeaveTarget}
+                    onDropTarget={handleDrop}
+                    onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
+                    debugLogging={debugLogging}
+                    isChainMember={isChainMember}
+                  />
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
       {dragSourceId && todos.find(t => t.id === dragSourceId)?.depends_on && (
