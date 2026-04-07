@@ -1,5 +1,82 @@
 # Changelog
 
+## 2026-04-07 — Apple 디자인 시스템 + 의존성 체인 병합 + 토론 마크다운 렌더링
+
+### 배경
+
+UI 디자인을 웜 골드 톤에서 Apple HIG 기반 쿨 뉴트럴 팔레트로 전면 전환하고, 의존성 체인 태스크의 일괄 병합 기능을 추가. 토론 메시지의 마크다운 렌더링 지원과 에러 핸들링도 강화.
+
+### 주요 변경
+
+#### 1. Apple 스타일 디자인 시스템 전환 (`e1a9c74`)
+
+CSS 변수 팔레트를 웜 골드에서 Apple HIG 기반 쿨 뉴트럴로 전면 교체.
+
+- **클라이언트**: 라이트 모드 — `#FBF8F3` 크림 → `#FFFFFF`/`#F5F5F7`, 액센트 `#D4A843` 금색 → `#0071E3` 블루
+- **클라이언트**: 다크 모드 — `#17171F` 블루-블랙 → `#000000` 순수 블랙 (OLED 최적화), 액센트 `#0A84FF`
+- **클라이언트**: 상태색을 Material 팔레트에서 iOS 시스템 컬러로 전환 (`#34C759`, `#007AFF`, `#FF3B30`, `#AF52DE`)
+- **클라이언트**: 그림자 색조 제거, opacity 낮춤 (Apple식 중성 그림자)
+- **클라이언트**: 버튼 `active:scale-[0.98]` 제거, `shadow-gold` → `shadow-accent`
+- **클라이언트**: 카드 `rounded-2xl` → `rounded-xl` (절제된 radius)
+- **클라이언트**: Tailwind 토큰 리네이밍 — `accent-gold`/`goldDark`/`goldLight` → `accent`/`dark`/`light`
+
+#### 2. 의존성 체인 일괄 병합 (`2fbda02`, `d34d01d`)
+
+의존성 관계로 연결된 태스크 체인을 한 번에 main 브랜치로 병합하는 기능.
+
+- **서버**: `POST /api/todos/:id/merge-chain` 엔드포인트 — 루트→리프 체인 수집 후 리프 브랜치를 main에 병합, 전체 멤버 상태/워크트리 정리
+- **서버**: leaf 태스크 탐색 로직을 branch/worktree 존재 여부 대신 의존성 그래프 기반으로 변경
+- **클라이언트**: 완료된 체인 감지 시 헤더 배너 + 체인 병합 버튼 표시
+- **클라이언트**: 체인 멤버의 개별 merge/cleanup 버튼 비활성화 (`isChainMember` prop)
+- **i18n**: `mergeChain`, `chainComplete`, `chainTasks` 등 번역 키 추가
+
+#### 3. 토론 마크다운 렌더링 (`03cc257`)
+
+토론 에이전트 응답의 마크다운(헤더/테이블/코드블록 등)이 raw text로 표시되던 문제 해결.
+
+- **클라이언트**: `react-markdown` + `remark-gfm` 의존성 추가
+- **클라이언트**: `MarkdownContent` 래퍼 컴포넌트 신규 생성 — GFM 테이블/체크리스트 지원
+- **클라이언트**: `DiscussionDetail` 메시지 영역에 마크다운 렌더링 적용
+- **클라이언트**: `index.css`에 `.markdown-content` 스타일 추가 (다크/라이트 테마 대응)
+
+#### 4. 토론 실패 시 에러 로그 패널 (`2670a1e`)
+
+- **클라이언트**: `DiscussionDetail`에 `failed` 상태 시 에러 로그 fetch + 실패 패널 표시
+- **클라이언트**: 실패한 에이전트명, 라운드 번호, 재시도 버튼 포함
+- **i18n**: `retry`, `failureTitle`, `noErrorLogs` 번역 키 추가
+
+#### 5. 로그 뷰어 가독성 개선 (`47e2b48`)
+
+- **클라이언트**: `TaskLog` 타입에 `prompt`, `warning` 로그 타입 추가
+- **클라이언트**: `LogViewer`에 prompt(보라색 `[PRM]`), warning(주황색 `[WRN]`) 색상/프리픽스 추가
+- **클라이언트**: 로그 메시지에 인라인 마크다운 렌더링 (`**bold**`, `` `code` ``, `*italic*`)
+
+#### 6. 토론 발언 순서 UI 개선 (`2b0eb91`)
+
+- **클라이언트**: `DiscussionForm`에서 에이전트 발언 순서를 직관적으로 조정할 수 있는 UI 개선
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/client/src/index.css` | Apple HIG 기반 CSS 변수 팔레트 전면 교체 + `.markdown-content` 스타일 |
+| `src/client/tailwind.config.js` | 토큰 리네이밍 (`accent-gold` → `accent`), iOS 상태색 적용 |
+| `src/client/src/components/MarkdownContent.tsx` | `react-markdown` + `remark-gfm` 래퍼 컴포넌트 신규 |
+| `src/client/src/components/DiscussionDetail.tsx` | 마크다운 렌더링 적용 + 에러 로그 실패 패널 |
+| `src/client/src/components/DiscussionForm.tsx` | 발언 순서 UI 개선 |
+| `src/client/src/components/LogViewer.tsx` | prompt/warning 로그 타입 + 인라인 마크다운 |
+| `src/client/src/components/TodoList.tsx` | 체인 병합 UI (배너 + 버튼) |
+| `src/server/routes/execution.ts` | `merge-chain` 엔드포인트 + leaf 탐색 로직 변경 |
+| `src/client/src/types.ts` | `TaskLog` 타입에 `prompt`/`warning` 추가 |
+
+### 아키텍처 결정
+
+1. **Apple HIG 팔레트**: 웜 골드 톤 대비 가독성과 접근성이 높은 쿨 뉴트럴 팔레트 선택. OLED 다크 모드(`#000000`)로 전력 효율 향상
+2. **체인 병합 전략**: 리프 브랜치만 main에 병합 (의존성 체인에서 squash cascade가 이미 완료되어 리프에 전체 변경이 집약됨)
+3. **마크다운 렌더링 격리**: `MarkdownContent` 래퍼 컴포넌트로 분리하여 `react-markdown` 의존성을 한 곳에서 관리
+
+---
+
 ## 2026-04-06 — 다크 모드 + 토론 UX 강화 + 워크트리 안정성
 
 ### 배경

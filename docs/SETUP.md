@@ -667,6 +667,7 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/todos/:id/start | 개별 시작 |
 | POST | /api/todos/:id/stop | 개별 중지 |
 | POST | /api/todos/:id/merge | 브랜치 머지 |
+| POST | /api/todos/:id/merge-chain | 의존성 체인 일괄 병합 |
 | GET | /api/todos/:id/logs | 로그 조회 |
 | GET | /api/todos/:id/diff | Diff 조회 |
 | GET | /api/projects/:id/status | 프로젝트 상태 |
