@@ -74,7 +74,14 @@ router.post('/', async (req: Request, res: Response) => {
 router.get('/', (_req: Request, res: Response) => {
   try {
     const projects = getAllProjects();
-    res.json(projects);
+    const enriched = projects.map((p) => {
+      let pathExists = false;
+      try {
+        pathExists = fs.statSync(p.path).isDirectory();
+      } catch { /* path missing */ }
+      return { ...p, path_exists: pathExists };
+    });
+    res.json(enriched);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
