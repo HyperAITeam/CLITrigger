@@ -119,8 +119,20 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
     const git = simpleGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
+    // Resolve actual branch (handle main vs master mismatch)
+    const localBranches = await git.branchLocal();
+    const targetBranch = localBranches.all.includes(defaultBranch)
+      ? defaultBranch
+      : (localBranches.all.find(b => b === 'master' || b === 'main') ?? defaultBranch);
+
     // Checkout main branch
-    await git.checkout(defaultBranch);
+    await git.checkout(targetBranch);
+
+    // Verify todo branch exists
+    if (!localBranches.all.includes(todo.branch_name)) {
+      res.status(400).json({ error: `Branch not found: ${todo.branch_name}` });
+      return;
+    }
 
     // Attempt merge
     try {
@@ -224,7 +236,19 @@ router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: 
     const git = simpleGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
-    await git.checkout(defaultBranch);
+    // Resolve actual branch (handle main vs master mismatch)
+    const localBranches = await git.branchLocal();
+    const targetBranch = localBranches.all.includes(defaultBranch)
+      ? defaultBranch
+      : (localBranches.all.find(b => b === 'master' || b === 'main') ?? defaultBranch);
+
+    // Verify leaf branch exists before attempting merge
+    if (!localBranches.all.includes(leafTask.branch_name!)) {
+      res.status(400).json({ error: `Branch not found: ${leafTask.branch_name}` });
+      return;
+    }
+
+    await git.checkout(targetBranch);
 
     try {
       const mergeResult = await git.merge([leafTask.branch_name!]);
