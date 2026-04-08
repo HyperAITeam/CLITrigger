@@ -1,5 +1,70 @@
 # Changelog
 
+## 2026-04-08 — 샌드박스 절대 경로 수정 + 병합 안정성 + 유효하지 않은 경로 UX + LogViewer 재디자인
+
+### 배경
+
+엄격 모드 샌드박스의 파일 권한 패턴이 상대 경로로 되어 있어 Claude가 워크트리 파일을 전혀 읽지 못하는 치명적 버그를 수정. 병합 시 브랜치 미존재로 인한 오류도 방어 처리하고, 유효하지 않은 경로를 가진 프로젝트의 감지·삭제 UX를 추가. LogViewer는 다크 모드 가시성 문제를 근본적으로 해결하기 위해 VS Code Dark Modern 팔레트로 전면 재작성.
+
+### 주요 변경
+
+#### 1. 샌드박스 엄격 모드 권한 패턴 절대 경로 수정 (`f1ad827`)
+
+Claude CLI의 `--permission-mode dontAsk`에서 `Read(./)` 같은 상대 경로 패턴은 절대 경로로 접근하는 파일을 매칭하지 못해 모든 파일 접근이 거부되는 문제 수정.
+
+- **서버**: `orchestrator.ts` — `Read/Edit/Write` 권한 패턴을 `Read(${workDir}/**)` 절대 경로 형식으로 변경
+- **서버**: `pipeline-orchestrator.ts` — `pipeline.worktree_path` 절대 경로 기반으로 수정
+- **서버**: `discussion-orchestrator.ts` — `discussion.worktree_path` 절대 경로 기반으로 수정
+
+#### 2. 병합 시 브랜치 미존재 오류 방어 처리 (`e006678`)
+
+`default_branch`가 `main`이지만 실제 레포가 `master`를 쓸 때 checkout 실패, 이미 삭제된 브랜치 병합 시 모호한 git 오류가 발생하던 문제 수정.
+
+- **서버**: `merge`, `merge-chain` 엔드포인트 모두에서 checkout 전 `branchLocal()`로 실제 존재 브랜치 목록 조회
+- **서버**: 설정된 브랜치 없으면 `master` → `main` 순으로 fallback
+- **서버**: 대상 브랜치 미존재 시 git 오류 대신 즉시 400 반환
+
+#### 3. 프로젝트 목록 유효하지 않은 경로 UX 개선 (`c0f10a5`)
+
+로컬에서 삭제된 폴더를 가진 프로젝트가 목록에 남아 사용자가 인지하지 못하는 문제 해결.
+
+- **서버**: `GET /api/projects` 응답에 `path_exists` 필드 추가 (`fs.statSync`로 폴더 존재 확인)
+- **클라이언트**: 경로 없는 프로젝트에 빨간색 "경로 없음" 배지 + 반투명 처리
+- **클라이언트**: 경로 없는 프로젝트 클릭 시 삭제 확인 다이얼로그 (네비게이션 차단)
+- **클라이언트**: 모든 프로젝트 삭제(X 버튼)에 confirm 다이얼로그 추가
+- **i18n**: `deleteConfirm`, `pathMissing`, `pathMissingConfirm` 한/영 번역 키 추가
+
+#### 4. LogViewer VS Code Dark Modern 팔레트 전환 (`6323eb1`)
+
+다크 모드에서 배경색이 `#F5F5F7`(거의 흰색)이 되어 연한 텍스트가 보이지 않는 문제를 근본 해결. 로그 뷰어는 앱 테마와 무관하게 항상 고정된 어두운 터미널 배경을 유지하도록 재작성.
+
+- **클라이언트**: 배경 `#1e1e1e`, 테두리 `#3c3c3c`로 테마 독립 고정
+- **클라이언트**: `[OUT]` `#9cdcfe`/`#d4d4d4`, `[ERR]` `#f44747`, `[INF]` `#569cd6`, `[GIT]` `#4ec9b0`, `[WRN]` `#dcdcaa`
+- **클라이언트**: `[>>>]`/`[PRM]` `#c586c0`(보라), inline bold `#d7ba7d`(골드), `` `code` `` `#ce9178`(오렌지)
+- **클라이언트**: 타임스탬프 `#6a9955`(VS Code 주석 녹색), 복사 버튼 다크 스타일 통일
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/orchestrator.ts` | 엄격 모드 권한 패턴 절대 경로 수정 |
+| `src/server/services/pipeline-orchestrator.ts` | 엄격 모드 권한 패턴 절대 경로 수정 |
+| `src/server/services/discussion-orchestrator.ts` | 엄격 모드 권한 패턴 절대 경로 수정 |
+| `src/server/routes/execution.ts` | 병합 브랜치 fallback + 미존재 브랜치 400 반환 |
+| `src/server/routes/projects.ts` | `path_exists` 필드 추가 |
+| `src/client/src/components/ProjectList.tsx` | 유효하지 않은 경로 배지 + 삭제 확인 다이얼로그 |
+| `src/client/src/components/LogViewer.tsx` | VS Code Dark Modern 팔레트 전면 재작성 |
+| `src/client/src/types.ts` | `Project`에 `path_exists` 필드 추가 |
+| `src/client/src/i18n.tsx` | `deleteConfirm`/`pathMissing`/`pathMissingConfirm` 번역 키 추가 |
+
+### 아키텍처 결정
+
+1. **절대 경로 권한 패턴**: Claude CLI는 파일 경로를 내부적으로 절대 경로로 처리하므로, `.claude/settings.json`의 Read/Edit/Write 패턴은 반드시 워크트리 절대 경로 기반(`${workDir}/**`)으로 지정해야 함
+2. **브랜치 존재 확인 우선**: git merge/checkout 전 `branchLocal()`로 실제 브랜치 목록을 먼저 확인하여 모호한 git 오류 대신 명확한 HTTP 오류 반환
+3. **LogViewer 테마 독립**: 로그 뷰어는 앱 테마 CSS 변수에 의존하지 않고 고정 hex 값을 사용 — 터미널은 항상 어두운 배경이 적합
+
+---
+
 ## 2026-04-07 — Apple 디자인 시스템 + 의존성 체인 병합 + 토론 마크다운 렌더링
 
 ### 배경
