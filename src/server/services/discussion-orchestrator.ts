@@ -249,7 +249,8 @@ export class DiscussionOrchestrator {
             : {};
           existingSettings.permissions = {
             allow: [
-              'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+              `Read(${discussion.worktree_path}/**)`,`Edit(${discussion.worktree_path}/**)`,`Write(${discussion.worktree_path}/**)`,
+              'Bash(*)','Glob(*)','Grep(*)',
               'TodoRead','TodoWrite','WebFetch(*)',
             ],
             deny: [],

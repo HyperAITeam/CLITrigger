@@ -223,7 +223,8 @@ export class PipelineOrchestrator {
             : {};
           existingSettings.permissions = {
             allow: [
-              'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+              `Read(${pipeline.worktree_path}/**)`,`Edit(${pipeline.worktree_path}/**)`,`Write(${pipeline.worktree_path}/**)`,
+              'Bash(*)','Glob(*)','Grep(*)',
               'TodoRead','TodoWrite','WebFetch(*)',
             ],
             deny: [],

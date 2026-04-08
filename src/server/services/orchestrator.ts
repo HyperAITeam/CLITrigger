@@ -303,7 +303,8 @@ Complete the task in the current directory.`;
           : {};
         existingSettings.permissions = {
           allow: [
-            'Read(./)','Edit(./)','Write(./)','Bash(*)','Glob(*)','Grep(*)',
+            `Read(${workDir}/**)`,`Edit(${workDir}/**)`,`Write(${workDir}/**)`,
+            'Bash(*)','Glob(*)','Grep(*)',
             'TodoRead','TodoWrite','WebFetch(*)',
           ],
           deny: [],
