@@ -68,9 +68,10 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
     }
   };
 
-  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteProject = async (id: string, e: React.MouseEvent, skipConfirm = false) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!skipConfirm && !confirm(t('projects.deleteConfirm'))) return;
     try {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -144,12 +145,27 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, index) => {
             const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
+            const pathMissing = project.path_exists === false;
+            const CardWrapper = pathMissing ? 'div' : Link;
+            const cardProps = pathMissing
+              ? {
+                  onClick: (e: React.MouseEvent) => {
+                    if (confirm(t('projects.pathMissingConfirm'))) {
+                      handleDeleteProject(project.id, e, true);
+                    }
+                  },
+                  className: 'group card p-5 animate-slide-up cursor-pointer opacity-60',
+                  style: { animationDelay: `${index * 50}ms` },
+                }
+              : {
+                  to: `/projects/${project.id}`,
+                  className: 'group card p-5 animate-slide-up',
+                  style: { animationDelay: `${index * 50}ms` },
+                };
             return (
-              <Link
+              <CardWrapper
                 key={project.id}
-                to={`/projects/${project.id}`}
-                className="group card p-5 animate-slide-up"
-                style={{ animationDelay: `${index * 50}ms` }}
+                {...cardProps as any}
               >
                 {/* Delete button */}
                 <button
@@ -166,8 +182,10 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
                   {project.name}
                 </h3>
                 <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
-                <div className="mt-1.5">
-                  {project.is_git_repo ? (
+                <div className="mt-1.5 flex gap-1.5">
+                  {pathMissing ? (
+                    <span className="badge bg-status-error/10 text-status-error text-[10px]">{t('projects.pathMissing')}</span>
+                  ) : project.is_git_repo ? (
                     <span className="badge bg-status-success/10 text-status-success text-[10px]">Git</span>
                   ) : (
                     <span className="badge bg-status-warning/10 text-status-warning text-[10px]">{t('projects.noGit')}</span>
@@ -201,7 +219,7 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
                     />
                   </div>
                 )}
-              </Link>
+              </CardWrapper>
             );
           })}
         </div>

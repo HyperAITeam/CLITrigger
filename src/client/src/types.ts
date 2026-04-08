@@ -26,6 +26,7 @@ export interface Project {
   default_max_turns: number | null;
   sandbox_mode: string;
   debug_logging: number;
+  path_exists?: boolean;
   created_at: string;
   updated_at: string;
 }

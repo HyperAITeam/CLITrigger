@@ -27,6 +27,9 @@ const translations = {
     'projects.active': 'active',
     'projects.done': 'done',
     'projects.delete': 'Delete project',
+    'projects.deleteConfirm': 'Are you sure you want to delete this project?',
+    'projects.pathMissing': 'Path not found',
+    'projects.pathMissingConfirm': 'The local folder for this project no longer exists. Delete it?',
     'projects.noGit': 'No Git',
 
     // Project Detail
@@ -566,8 +569,11 @@ const translations = {
     'projects.tasks': '\uC791\uC5C5',
     'projects.active': '\uC2E4\uD589 \uC911',
     'projects.done': '\uC644\uB8CC',
-    'projects.delete': '\uD504\uB85C\uC81D\uD2B8 \uC0AD\uC81C',
-    'projects.noGit': 'Git \uC5C6\uC74C',
+    'projects.delete': '프로젝트 삭제',
+    'projects.deleteConfirm': '이 프로젝트를 삭제하시겠습니까?',
+    'projects.pathMissing': '경로 없음',
+    'projects.pathMissingConfirm': '이 프로젝트의 로컬 폴더가 존재하지 않습니다. 삭제하시겠습니까?',
+    'projects.noGit': 'Git 없음',
 
     // Project Detail
     'detail.back': '\uD504\uB85C\uC81D\uD2B8',
