@@ -12,7 +12,8 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
+[![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 
@@ -103,6 +104,27 @@ Access and control from anywhere via Cloudflare Tunnel.
 ## Quick Start
 
 ```bash
+npm i -g clitrigger
+clitrigger
+```
+
+On first run, you'll be prompted to set a password. Then the server starts immediately.  
+Open `http://localhost:3000` → Register a project → Write TODOs → Click Start.
+
+```bash
+# Change settings
+clitrigger config port 8080    # Change port
+clitrigger config password     # Change password
+```
+
+> **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
+
+### Run from Source (for development)
+
+<details>
+<summary>Click to expand</summary>
+
+```bash
 # 1. Clone & install
 git clone https://github.com/OSgoodYZ/CLITrigger.git
 cd CLITrigger
@@ -117,9 +139,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:5173` → Register a project → Write TODOs → Click Start.
+Open `http://localhost:5173`.
 
-### Windows One-Click Scripts
+#### Windows One-Click Scripts
 
 Double-click any bat file in `scripts/` — no terminal needed.
 
@@ -131,6 +153,8 @@ Double-click any bat file in `scripts/` — no terminal needed.
 | `start.bat` | Start production server |
 | `start-tunnel.bat` | Start with Cloudflare Tunnel |
 | `test.bat` | Run all tests |
+
+</details>
 
 ### Remote Access (Cloudflare Tunnel)
 

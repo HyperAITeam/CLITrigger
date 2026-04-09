@@ -12,7 +12,8 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
+[![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 
@@ -103,6 +104,27 @@ Cloudflare Tunnel로 어디서든 폰·노트북으로 제어한다.
 ## 빠른 시작
 
 ```bash
+npm i -g clitrigger
+clitrigger
+```
+
+첫 실행 시 비밀번호 설정 여부를 물어보고, 바로 서버가 시작된다.  
+브라우저에서 `http://localhost:3000` 접속 → 프로젝트 등록 → TODO 작성 → Start.
+
+```bash
+# 설정 변경
+clitrigger config port 8080    # 포트 변경
+clitrigger config password     # 비밀번호 변경
+```
+
+> **사전 요구사항**: Node.js 20+, Git, 사용할 AI CLI (Claude / Gemini / Codex 중 하나 이상)
+
+### 소스에서 직접 실행 (개발용)
+
+<details>
+<summary>클릭하여 펼치기</summary>
+
+```bash
 # 1. 클론 & 설치
 git clone https://github.com/OSgoodYZ/CLITrigger.git
 cd CLITrigger
@@ -117,9 +139,9 @@ cp .env.example .env
 npm run dev
 ```
 
-브라우저에서 `http://localhost:5173` 접속 → 프로젝트 등록 → TODO 작성 → Start.
+브라우저에서 `http://localhost:5173` 접속.
 
-### Windows 원클릭 실행
+#### Windows 원클릭 실행
 
 `scripts/` 폴더의 bat 파일을 더블클릭하면 명령어 입력 없이 바로 실행된다.
 
@@ -131,6 +153,8 @@ npm run dev
 | `start.bat` | 프로덕션 서버 실행 |
 | `start-tunnel.bat` | 터널 모드 실행 |
 | `test.bat` | 전체 테스트 |
+
+</details>
 
 ### 외부 접속 (Cloudflare Tunnel)
 
