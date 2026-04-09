@@ -15,6 +15,7 @@ import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
 import imagesRouter from './routes/images.js';
 import { claudeManager } from './services/claude-manager.js';
+import { orchestrator } from './services/orchestrator.js';
 import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
@@ -189,6 +190,7 @@ app.get('/api/health', (_req, res) => {
 // Cleanup on process exit: kill all Claude CLI processes
 function cleanup() {
   console.log('Shutting down: killing all Claude CLI processes, scheduler, and tunnel...');
+  orchestrator.stopStaleProcessChecker();
   scheduler.stopAll();
   Promise.all([
     claudeManager.killAll(),
@@ -212,6 +214,7 @@ if (process.env.HEADLESS === 'true') {
 
 server.listen(PORT, () => {
   console.log(`CLITrigger server running on http://localhost:${PORT}`);
+  orchestrator.startStaleProcessChecker();
 });
 
 export { app, server };

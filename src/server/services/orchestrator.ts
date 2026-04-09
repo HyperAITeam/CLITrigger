@@ -13,7 +13,55 @@ import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
 
+const STALE_CHECK_INTERVAL_MS = 30_000; // 30 seconds
+
 export class Orchestrator {
+  private staleCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Start periodic process liveness check.
+   * Detects tasks stuck in 'running' state whose process has already exited.
+   */
+  startStaleProcessChecker(): void {
+    if (this.staleCheckTimer) return;
+    this.staleCheckTimer = setInterval(() => this.recoverStaleTasks(), STALE_CHECK_INTERVAL_MS);
+  }
+
+  stopStaleProcessChecker(): void {
+    if (this.staleCheckTimer) {
+      clearInterval(this.staleCheckTimer);
+      this.staleCheckTimer = null;
+    }
+  }
+
+  /**
+   * Find tasks marked 'running' whose process is no longer alive, and mark them as failed.
+   */
+  private recoverStaleTasks(): void {
+    const runningTodos = queries.getTodosByStatus('running');
+    for (const todo of runningTodos) {
+      if (!todo.process_pid || todo.process_pid === 0) continue;
+      if (!this.isProcessAlive(todo.process_pid)) {
+        try {
+          queries.updateTodoStatus(todo.id, 'failed');
+          queries.createTaskLog(todo.id, 'error', 'Process exited unexpectedly (detected by liveness check).');
+          queries.updateTodo(todo.id, { process_pid: 0 });
+        } catch { /* ignore */ }
+        broadcaster.broadcast({ type: 'todo:status-changed', todoId: todo.id, status: 'failed' });
+        this.broadcastProjectStatus(todo.project_id);
+      }
+    }
+  }
+
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Get the max concurrent setting for a project.
    */

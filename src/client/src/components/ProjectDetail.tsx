@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import type { Project, Todo, Pipeline, Schedule, Discussion, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -52,6 +52,22 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Re-fetch data on WebSocket reconnection to catch missed status updates
+  const prevConnectedRef = useRef(connected);
+  useEffect(() => {
+    if (connected && !prevConnectedRef.current && id) {
+      Promise.all([todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
+        .then(([todoList, pipelineList, scheduleList, discussionList]) => {
+          setTodos(todoList);
+          setPipelines(pipelineList);
+          setSchedules(scheduleList);
+          setDiscussions(discussionList);
+        })
+        .catch(() => {});
+    }
+    prevConnectedRef.current = connected;
+  }, [connected, id]);
 
   useEffect(() => {
     return onEvent((event) => {
