@@ -95,7 +95,9 @@ export class ClaudeManager {
         // Codex outputs '›' when ready for input. We also detect common
         // prompt characters ($, >, %) as fallback for other PTY-based CLIs.
         // A 10-second fallback timer ensures delivery even if detection fails.
-        if (stdinPrompt && !stdinDelivered && !exited) {
+        // For interactive mode: wait until trust prompt is confirmed before
+        // detecting ready state, to avoid matching '>' in the trust selection UI.
+        if (stdinPrompt && !stdinDelivered && !exited && (!interactive || trustConfirmed)) {
           if (/[›>$%]\s*$/.test(clean)) {
             stdinDelivered = true;
             try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
