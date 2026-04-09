@@ -79,9 +79,17 @@ export class ClaudeManager {
       let stdinDelivered = false;
       let exited = false;
 
+      let trustConfirmed = false;
+
       ptyProcess.onData((data) => {
         const clean = stripAnsi(data);
         stdoutStream.push(clean);
+
+        // Auto-confirm workspace trust prompt (shown when Claude CLI runs without --print)
+        if (!trustConfirmed && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
+          trustConfirmed = true;
+          try { ptyProcess.write('\r'); } catch { /* PTY may have exited */ }
+        }
 
         // Detect CLI ready state and deliver prompt via stdin.
         // Codex outputs '›' when ready for input. We also detect common
