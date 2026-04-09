@@ -52,7 +52,8 @@ export class DiscussionOrchestrator {
     let branchName = discussion.branch_name;
 
     if (!worktreePath) {
-      if (project.is_git_repo) {
+      const useWorktree = !!project.is_git_repo && !!project.use_worktree;
+      if (useWorktree) {
         branchName = worktreeManager.sanitizeBranchName(`discuss-${discussion.title}`);
         try {
           worktreePath = await worktreeManager.createWorktree(project.path, branchName);
@@ -68,7 +69,9 @@ export class DiscussionOrchestrator {
       } else {
         worktreePath = project.path;
         queries.updateDiscussion(discussionId, { worktree_path: worktreePath });
-        queries.createDiscussionLog(discussionId, null, 'info', 'Project is not a git repository. Running directly without worktree isolation.');
+        queries.createDiscussionLog(discussionId, null, 'info', project.is_git_repo
+          ? 'Running directly on main branch without worktree isolation (use_worktree disabled).'
+          : 'Project is not a git repository. Running directly without worktree isolation.');
       }
     }
 

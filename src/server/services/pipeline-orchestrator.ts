@@ -49,7 +49,8 @@ export class PipelineOrchestrator {
     let branchName = pipeline.branch_name;
 
     if (!worktreePath) {
-      if (project.is_git_repo) {
+      const useWorktree = !!project.is_git_repo && !!project.use_worktree;
+      if (useWorktree) {
         branchName = worktreeManager.sanitizeBranchName(`pipeline-${pipeline.title}`);
         try {
           worktreePath = await worktreeManager.createWorktree(project.path, branchName);
@@ -62,10 +63,12 @@ export class PipelineOrchestrator {
         }
         queries.updatePipeline(pipelineId, { branch_name: branchName, worktree_path: worktreePath });
       } else {
-        // Non-git project: run directly in project path
+        // Non-worktree: run directly in project path
         worktreePath = project.path;
         queries.updatePipeline(pipelineId, { worktree_path: worktreePath });
-        queries.createPipelineLog(pipelineId, 'planning', 'info', 'Project is not a git repository. Running directly without worktree isolation.');
+        queries.createPipelineLog(pipelineId, 'planning', 'info', project.is_git_repo
+          ? 'Running directly on main branch without worktree isolation (use_worktree disabled).'
+          : 'Project is not a git repository. Running directly without worktree isolation.');
       }
 
       // Create all 5 phase records

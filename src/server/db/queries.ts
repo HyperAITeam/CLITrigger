@@ -31,6 +31,7 @@ export interface Project {
   default_max_turns: number | null;
   sandbox_mode: string;
   debug_logging: number;
+  use_worktree: number;
   created_at: string;
   updated_at: string;
 }
@@ -56,7 +57,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -87,6 +88,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
   if (updates.sandbox_mode !== undefined) { fields.push('sandbox_mode = ?'); values.push(updates.sandbox_mode); }
   if (updates.debug_logging !== undefined) { fields.push('debug_logging = ?'); values.push(updates.debug_logging); }
+  if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree); }
 
   if (fields.length === 0) return getProjectById(id);
 

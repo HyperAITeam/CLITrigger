@@ -31,6 +31,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
+  const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
@@ -95,12 +96,14 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     setSaving(true);
     try {
       // Save core project settings
+      const effectiveMaxConcurrent = (!useWorktree && project.is_git_repo) ? 1 : maxConcurrent;
       const updated = await projectsApi.updateProject(project.id, {
-        max_concurrent: maxConcurrent,
+        max_concurrent: effectiveMaxConcurrent,
         default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
         sandbox_mode: sandboxMode,
         debug_logging: debugLogging ? 1 : 0,
+        use_worktree: useWorktree ? 1 : 0,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
@@ -170,6 +173,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
+            {project.is_git_repo && !project.use_worktree ? (
+              <span className="badge bg-status-warning/10 text-status-warning">{t('header.noWorktreeBadge')}</span>
+            ) : null}
             {project.debug_logging ? (
               <span className="badge bg-purple-100 text-purple-700">{t('header.debugBadge')}</span>
             ) : null}
@@ -417,6 +423,42 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               </div>
             </div>
           )}
+
+          {/* Worktree Isolation */}
+          {project.is_git_repo ? (
+            <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+              <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.worktreeTitle')}</h4>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setUseWorktree(true)}
+                  className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                    useWorktree
+                      ? 'bg-status-success/10 border-status-success text-status-success'
+                      : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">{t('header.worktreeEnabled')}</div>
+                  <div className="text-[10px] mt-1 opacity-80">{t('header.worktreeEnabledDesc')}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUseWorktree(false)}
+                  className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                    !useWorktree
+                      ? 'bg-status-warning/10 border-status-warning text-status-warning'
+                      : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">{t('header.worktreeDisabled')}</div>
+                  <div className="text-[10px] mt-1 opacity-80">{t('header.worktreeDisabledDesc')}</div>
+                </button>
+              </div>
+              {!useWorktree && (
+                <p className="text-[10px] text-status-warning mt-2">{t('header.worktreeWarning')}</p>
+              )}
+            </div>
+          ) : null}
 
           {/* Debug Logging */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
