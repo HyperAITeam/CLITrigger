@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -175,7 +176,10 @@ if (process.env.TUNNEL_ENABLED === 'true') {
 // Serve frontend static files in production (skip in headless/plugin mode)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 if (process.env.HEADLESS !== 'true') {
-  const clientDist = path.resolve(__dirname, '../../src/client/dist');
+  let clientDist = path.resolve(__dirname, '../client');
+  if (!fs.existsSync(clientDist)) {
+    clientDist = path.resolve(__dirname, '../../src/client/dist');
+  }
   app.use(express.static(clientDist));
   app.get(/^\/(?!api|ws).*/, (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
