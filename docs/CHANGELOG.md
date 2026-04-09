@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-04-10 — npm CLI 패키징 + Interactive 모드 PTY 지원 + 스케줄 머지/Cleanup 버튼
+
+### 배경
+
+CLITrigger를 `npm i -g clitrigger`로 설치하여 어디서든 바로 사용할 수 있도록 CLI 패키징을 추가. Interactive 모드에서 Claude CLI가 stdin 입력을 받지 못하는 근본 원인(pipe vs TTY)을 PTY 전환으로 해결. 스케줄 실행 이력에서 바로 머지/정리할 수 있는 액션 버튼도 추가.
+
+### 주요 변경
+
+#### 1. npm 글로벌 설치용 CLI 엔트리포인트 (`05737b2`)
+
+`npm i -g clitrigger` 또는 `npx clitrigger`로 설치/실행할 수 있도록 CLI 진입점과 npm 패키징 설정 추가.
+
+- **CLI**: `bin/clitrigger.js` 신규 — 첫 실행 시 비밀번호 설정 안내, `config` 서브커맨드 (port/password 변경), `--help`
+- **패키징**: `package.json`에 `bin`, `files`, `engines`, `prepublishOnly` 필드 추가
+- **빌드**: `build` 스크립트에 클라이언트 빌드를 `dist/client/`로 복사하는 단계 추가
+- **서버**: 정적 파일 경로를 `dist/client/` 우선 탐색 + `src/client/dist/` 폴백으로 변경
+- **데이터**: 글로벌 설치 시 설정/DB가 `~/.clitrigger/`에 저장
+
+#### 2. Interactive 모드 PTY 전환 및 stdin relay (`f6d13f3`, `d0e187c`, `953c1fe`, `2311bd3`)
+
+Claude CLI가 pipe stdin에서 후속 입력을 읽지 않는 문제를 PTY(node-pty)로 전환하여 해결. 기존 streaming 모드(headless와 동일 동작)도 정리.
+
+- **서버**: `claude-manager.ts` — interactive 모드에서 child_process 대신 node-pty 사용, PTY write()를 Writable로 감싸 stdinStreams에 등록
+- **서버**: `cli-adapters.ts` — interactive 모드에서 `--print` 플래그 제외 (one-shot 방지)
+- **클라이언트**: `ProjectDetail.tsx` — WebSocket sendMessage 연결, interactiveTodos 상태 추적, optimistic Set 업데이트로 입력창 즉시 표시
+- **클라이언트**: `CliMode`에서 `streaming` 리터럴 제거 및 관련 UI/i18n 정리 (10개 파일)
+
+#### 3. 스케줄 실행 기록에 머지/Cleanup 액션 버튼 추가 (`d9ff6ef`)
+
+스케줄(cron) 실행 이력에서 완료된 태스크를 바로 머지하거나 워크트리를 정리할 수 있도록 개선.
+
+- **서버**: `schedule_runs` 쿼리에 todos LEFT JOIN 추가 (branch_name, worktree_path, status 반환)
+- **클라이언트**: `ScheduleItem.tsx` — 머지 버튼 (completed + branch 존재 시) / Cleanup 버튼 (워크트리 존재 시) 렌더링
+- **클라이언트**: `ScheduleList.tsx` → `ScheduleItem`으로 onMergeRun/onCleanupRun prop 전달
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `bin/clitrigger.js` | **신규** — CLI 엔트리포인트 (첫 실행 설정, config 서브커맨드) |
+| `package.json` | `bin`, `files`, `engines`, `prepublishOnly`, `build` 스크립트 수정 |
+| `src/server/index.ts` | 정적 파일 경로 `dist/client/` 우선 탐색 + 폴백 |
+| `src/server/services/claude-manager.ts` | interactive 모드 PTY 전환 + stdin Writable 래핑 |
+| `src/server/services/cli-adapters.ts` | interactive 모드 `--print` 제외 |
+| `src/server/db/queries.ts` | schedule_runs에 todos JOIN 추가 |
+| `src/client/src/components/ProjectDetail.tsx` | sendMessage 연결 + interactiveTodos 추적 |
+| `src/client/src/components/ScheduleItem.tsx` | 머지/Cleanup 액션 버튼 추가 |
+| `src/client/src/types.ts` | ScheduleRun에 todo 관련 필드 추가 |
+
+### 아키텍처 결정
+
+1. **CLI 데이터 격리**: 글로벌 설치 시 `~/.clitrigger/`에 config.json과 DB를 저장하여 node_modules 내부 오염 방지. `DB_PATH` env로 주입하므로 서버 코드 변경 최소화
+2. **Interactive PTY 통합**: interactive 모드와 기존 requiresTty(Codex) 모드가 동일한 PTY 경로를 사용하여 코드 중복 최소화. PTY write()를 Writable로 감싸 기존 stdinStreams 인프라 재활용
+3. **streaming 모드 제거**: headless와 동작이 완전히 동일했으므로 dead code 정리. CliMode = `headless | verbose | interactive`로 단순화
+
+---
+
 ## 2026-04-08 — 샌드박스 절대 경로 수정 + 병합 안정성 + 유효하지 않은 경로 UX + LogViewer 재디자인
 
 ### 배경
