@@ -138,6 +138,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }, [id]);
 
   const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
+    if (mode === 'interactive') {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
     const updated = await todosApi.startTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))
@@ -190,6 +193,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }, []);
 
   const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
+    if (mode === 'interactive') {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
     const updated = await todosApi.retryTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))
