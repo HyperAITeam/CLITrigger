@@ -79,7 +79,10 @@ const claudeAdapter: CliAdapter = {
     } else {
       args.push('--dangerously-skip-permissions');
     }
-    args.push('--print', '--verbose', '--output-format', 'stream-json');
+    if (mode !== 'interactive') {
+      args.push('--print');
+    }
+    args.push('--verbose', '--output-format', 'stream-json');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
