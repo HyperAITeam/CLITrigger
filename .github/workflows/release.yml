@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Install server dependencies
         run: npm ci
@@ -50,3 +51,8 @@ jobs:
         with:
           generate_release_notes: true
           files: clitrigger-${{ github.ref_name }}.tar.gz
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
