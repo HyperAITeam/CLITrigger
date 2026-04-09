@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import type { Project, Todo, Pipeline, Schedule, Discussion, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -51,6 +51,24 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  // Poll running todos as fallback in case WebSocket status events are missed
+  const todosRef = useRef(todos);
+  todosRef.current = todos;
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(() => {
+      const hasRunning = todosRef.current.some((t) => t.status === 'running');
+      if (!hasRunning) return;
+      todosApi.getTodos(id).then((fresh) => {
+        setTodos((prev) => prev.map((t) => {
+          const f = fresh.find((x) => x.id === t.id);
+          return f && f.status !== t.status ? f : t;
+        }));
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
   }, [id]);
 
   useEffect(() => {
