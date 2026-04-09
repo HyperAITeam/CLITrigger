@@ -76,7 +76,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
-  const canMerge = todo.status === 'completed' && !isChainMember;
+  const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name) && !isChainMember;
 

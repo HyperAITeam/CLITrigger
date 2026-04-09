@@ -217,6 +217,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'debug_logging', definition: 'INTEGER DEFAULT 0' },
     { table: 'discussions', column: 'auto_implement', definition: 'INTEGER DEFAULT 0' },
     { table: 'discussions', column: 'implement_agent_id', definition: 'TEXT' },
+    { table: 'projects', column: 'use_worktree', definition: 'INTEGER DEFAULT 1' },
   ];
 
   for (const { table, column, definition } of migrations) {
