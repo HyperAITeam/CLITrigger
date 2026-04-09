@@ -79,25 +79,29 @@ export class ClaudeManager {
       let stdinDelivered = false;
       let exited = false;
 
-      let trustConfirmed = false;
+      // Trust prompt tracking: block stdin delivery only while trust prompt is visible
+      let trustPending = false;
 
       ptyProcess.onData((data) => {
         const clean = stripAnsi(data);
         stdoutStream.push(clean);
 
         // Auto-confirm workspace trust prompt (shown when Claude CLI runs without --print)
-        if (!trustConfirmed && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
-          trustConfirmed = true;
+        if (!trustPending && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
+          trustPending = true;
           try { ptyProcess.write('\r'); } catch { /* PTY may have exited */ }
+        }
+        // Clear pending flag once trust is confirmed (CLI proceeds past the prompt)
+        if (trustPending && /Welcome\s*back|›|>\s*$/.test(clean) && !/trust/i.test(clean)) {
+          trustPending = false;
         }
 
         // Detect CLI ready state and deliver prompt via stdin.
         // Codex outputs '›' when ready for input. We also detect common
         // prompt characters ($, >, %) as fallback for other PTY-based CLIs.
         // A 10-second fallback timer ensures delivery even if detection fails.
-        // For interactive mode: wait until trust prompt is confirmed before
-        // detecting ready state, to avoid matching '>' in the trust selection UI.
-        if (stdinPrompt && !stdinDelivered && !exited && (!interactive || trustConfirmed)) {
+        // Skip detection while trust prompt is pending to avoid matching its '>' marker.
+        if (stdinPrompt && !stdinDelivered && !exited && !trustPending) {
           if (/[›>$%]\s*$/.test(clean)) {
             stdinDelivered = true;
             try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
