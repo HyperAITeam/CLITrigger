@@ -22,6 +22,8 @@ interface ScheduleListProps {
   onDeleteSchedule: (id: string) => Promise<void>;
   onEditSchedule: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
   onTriggerSchedule: (id: string) => Promise<void>;
+  onMergeRun?: (todoId: string) => Promise<void>;
+  onCleanupRun?: (todoId: string) => Promise<void>;
 }
 
 export default function ScheduleList({
@@ -33,6 +35,8 @@ export default function ScheduleList({
   onDeleteSchedule,
   onEditSchedule,
   onTriggerSchedule,
+  onMergeRun,
+  onCleanupRun,
 }: ScheduleListProps) {
   const [showForm, setShowForm] = useState(false);
   const { t } = useI18n();
@@ -85,6 +89,8 @@ export default function ScheduleList({
                 onDelete={onDeleteSchedule}
                 onEdit={onEditSchedule}
                 onTrigger={onTriggerSchedule}
+                onMergeRun={onMergeRun}
+                onCleanupRun={onCleanupRun}
               />
             </div>
           ))

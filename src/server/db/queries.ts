@@ -558,9 +558,15 @@ export function updateScheduleRun(id: string, updates: Partial<Pick<ScheduleRun,
   return db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun | undefined;
 }
 
-export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): ScheduleRun[] {
+export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): (ScheduleRun & { todo_branch_name: string | null; todo_worktree_path: string | null; todo_status: string | null })[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM schedule_runs WHERE schedule_id = ? ORDER BY started_at DESC LIMIT ?').all(scheduleId, limit) as ScheduleRun[];
+  return db.prepare(`
+    SELECT sr.*, t.branch_name AS todo_branch_name, t.worktree_path AS todo_worktree_path, t.status AS todo_status
+    FROM schedule_runs sr
+    LEFT JOIN todos t ON sr.todo_id = t.id
+    WHERE sr.schedule_id = ?
+    ORDER BY sr.started_at DESC LIMIT ?
+  `).all(scheduleId, limit) as (ScheduleRun & { todo_branch_name: string | null; todo_worktree_path: string | null; todo_status: string | null })[];
 }
 
 // ── CLI Models ──
