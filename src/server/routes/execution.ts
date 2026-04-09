@@ -58,7 +58,7 @@ router.post('/todos/:id/start', async (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const validModes = ['headless', 'interactive', 'streaming', 'verbose'] as const;
+    const validModes = ['headless', 'interactive', 'verbose'] as const;
     const mode = validModes.includes(req.body.mode) ? req.body.mode : 'headless';
     await orchestrator.startTodo(todo.id, mode);
 
@@ -373,7 +373,7 @@ router.post('/todos/:id/retry', async (req: Request<{ id: string }>, res: Respon
     updateTodo(todo.id, { worktree_path: null, branch_name: null, process_pid: 0 });
 
     // 4. Determine mode and start fresh
-    const validModes = ['headless', 'interactive', 'streaming', 'verbose'] as const;
+    const validModes = ['headless', 'interactive', 'verbose'] as const;
     const mode = validModes.includes(req.body.mode) ? req.body.mode : 'headless';
     await orchestrator.startTodo(todo.id, mode);
 

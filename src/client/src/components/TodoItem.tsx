@@ -12,13 +12,13 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 interface TodoItemProps {
   todo: Todo;
   allTodos?: Todo[];
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -180,7 +180,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
     }
   };
 
-  const handleRetry = async (mode: 'headless' | 'interactive' | 'streaming' | 'verbose' = 'headless') => {
+  const handleRetry = async (mode: 'headless' | 'interactive' | 'verbose' = 'headless') => {
     setRetrying(true);
     setRetryError(null);
     setLogs([]);
@@ -409,15 +409,6 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
               >
                 <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => onStart(todo.id, 'streaming')}
-                className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors"
-                title={t('todo.startStreaming')}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </button>
               <button

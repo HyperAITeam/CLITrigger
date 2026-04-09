@@ -10,7 +10,7 @@ import DiscussionDetail from './components/DiscussionDetail';
 
 function App() {
   const { authenticated, authRequired, loading, login, logout } = useAuth();
-  const { connected, onEvent } = useWebSocket(authenticated);
+  const { connected, onEvent, sendMessage } = useWebSocket(authenticated);
   const { t } = useI18n();
 
   if (loading) {
@@ -40,7 +40,7 @@ function App() {
           <Route
             path="/projects/:id"
             element={
-              <ProjectDetail onEvent={onEvent} connected={connected} />
+              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} />
             }
           />
           <Route

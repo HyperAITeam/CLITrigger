@@ -2,7 +2,7 @@ import path from 'path';
 import { isModelSupported } from '../db/queries.js';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
-export type CliMode = 'headless' | 'interactive' | 'streaming' | 'verbose';
+export type CliMode = 'headless' | 'interactive' | 'verbose';
 export type SandboxMode = 'strict' | 'permissive';
 
 // Allowed CLI option patterns (flags that are safe to pass through)

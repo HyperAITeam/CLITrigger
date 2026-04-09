@@ -14,11 +14,11 @@ interface TaskNodeDetailProps {
   allTodos: Todo[];
   onClose: () => void;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
@@ -209,9 +209,6 @@ export default function TaskNodeDetail({
             <>
               <button onClick={() => onStart(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-status-success" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}>
                 {t('todo.startHeadless')}
-              </button>
-              <button onClick={() => onStart(todo.id, 'streaming')} className="btn-ghost text-xs py-1.5 text-amber-500" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startStreaming')}>
-                {t('todo.startStreaming')}
               </button>
             </>
           )}

@@ -20,9 +20,10 @@ import { getPluginsWithTabs } from '../plugins/registry';
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
+  sendMessage: (event: object) => void;
 }
 
-export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected, sendMessage }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -37,6 +38,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }, [setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
   const { t, toggleLang } = useI18n();
 
   useEffect(() => {
@@ -84,6 +86,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             return { ...t, ...updates };
           })
         );
+        // Track interactive mode todos
+        if (event.status === 'running' && event.mode === 'interactive') {
+          setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
+        } else if (event.status !== 'running') {
+          setInteractiveTodos((prev) => {
+            const next = new Set(prev);
+            next.delete(event.todoId!);
+            return next;
+          });
+        }
       }
       if (event.type === 'pipeline:status-changed' && event.pipelineId) {
         setPipelines((prev) =>
@@ -125,7 +137,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
+  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
     const updated = await todosApi.startTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))
@@ -177,7 +189,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
-  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
+  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
     const updated = await todosApi.retryTodo(todoId, mode);
     setTodos((prev) =>
       prev.map((t) => (t.id === todoId ? updated : t))
@@ -191,6 +203,10 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     }
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
+
+  const handleSendInput = useCallback((todoId: string, input: string) => {
+    sendMessage({ type: 'todo:stdin', todoId, input });
+  }, [sendMessage]);
 
   const handleUpdateDependency = useCallback(async (todoId: string, dependsOnId: string | null) => {
     const updated = await todosApi.updateTodo(todoId, { depends_on: dependsOnId });
@@ -497,8 +513,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onUpdateDependency={handleUpdateDependency}
           onUpdatePosition={handleUpdatePosition}
           onEvent={onEvent}
-          onSendInput={() => {}}
-          interactiveTodos={new Set<string>()}
+          onSendInput={handleSendInput}
+          interactiveTodos={interactiveTodos}
           debugLogging={!!project.debug_logging}
         />
       )}
