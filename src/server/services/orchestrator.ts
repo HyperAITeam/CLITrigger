@@ -448,7 +448,8 @@ Complete the task in the current directory.`;
       }
 
       // Start streaming logs to DB (Claude uses structured JSON, others use plain text)
-      if (cliTool === 'claude') {
+      // Interactive mode outputs TUI text (not JSON), so always use plain text streaming
+      if (cliTool === 'claude' && mode !== 'interactive') {
         logStreamer.streamJsonToDb(todoId, stdout, stderr, mode === 'verbose');
       } else {
         logStreamer.streamToDb(todoId, stdout, stderr);

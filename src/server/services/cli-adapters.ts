@@ -53,7 +53,7 @@ export interface CliAdapter {
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
-  formatStdinPrompt(prompt: string): string;
+  formatStdinPrompt(prompt: string, mode?: CliMode): string;
   /** Whether this CLI requires a TTY (pseudo-terminal) to run */
   requiresTty?: boolean;
   /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
@@ -80,9 +80,8 @@ const claudeAdapter: CliAdapter = {
       args.push('--dangerously-skip-permissions');
     }
     if (mode !== 'interactive') {
-      args.push('--print');
+      args.push('--print', '--verbose', '--output-format', 'stream-json');
     }
-    args.push('--verbose', '--output-format', 'stream-json');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
@@ -94,7 +93,8 @@ const claudeAdapter: CliAdapter = {
   needsStdin(_mode) {
     return true;
   },
-  formatStdinPrompt(prompt) {
+  formatStdinPrompt(prompt, mode) {
+    if (mode === 'interactive') return prompt + '\n';
     return prompt + TASK_COMPLETION_SUFFIX + '\n';
   },
 };

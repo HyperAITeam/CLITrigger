@@ -33,7 +33,7 @@ export class ClaudeManager {
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode });
 
     if (adapter.requiresTty || mode === 'interactive') {
-      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
+      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
       const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive');
       return { ...result, command: adapter.command, args };
     }
@@ -212,7 +212,7 @@ export class ClaudeManager {
 
       // Handle stdin based on mode
       if (needsStdin && child.stdin) {
-        child.stdin.write(adapter.formatStdinPrompt(prompt));
+        child.stdin.write(adapter.formatStdinPrompt(prompt, mode));
         if (mode === 'interactive') {
           this.stdinStreams.set(pid, child.stdin);
         } else {
