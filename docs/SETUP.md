@@ -237,7 +237,19 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - **동시 실행 수**: 한번에 몇 개의 Claude를 돌릴지 (1~10, 기본 3)
 - **Claude 모델**: 사용할 모델 선택
 - **추가 CLI 옵션**: Claude CLI에 전달할 추가 플래그
+- **워크트리 격리**: 워크트리 사용 여부 토글 (아래 참조)
 - **gstack 스킬**: AI 스킬 주입 설정 (아래 참조)
+
+#### 워크트리 격리 on/off
+
+기본적으로 모든 TODO는 독립된 git worktree에서 실행됩니다. 단순 작업이나 워크트리 오버헤드가 불필요한 경우, 프로젝트 설정에서 **워크트리 격리**를 끌 수 있습니다.
+
+| 모드 | 설명 |
+|------|------|
+| **워크트리 사용** (기본) | TODO마다 독립 worktree 생성. 병렬 실행, 브랜치 머지 지원 |
+| **직접 실행** | 메인 브랜치에서 직접 작업. 동시 실행이 자동으로 1로 제한됨 |
+
+> **⚠ 주의**: 직접 실행 모드에서는 충돌 방지를 위해 서버가 동시 실행 수를 **강제로 1**로 제한합니다. 머지 버튼은 표시되지 않으며, CLI가 직접 커밋합니다.
 
 ### 7. 스케줄 (Cron 반복 실행)
 
@@ -612,7 +624,7 @@ C:\Users\me\projects\
 이 프로젝트는 GitHub Actions 기반 CI/CD 파이프라인을 사용합니다.
 
 - **PR/push → main**: 타입 체크 + 테스트 + 빌드 자동 실행
-- **`v*` 태그 push**: 빌드 + GitHub Release 자동 생성
+- **`v*` 태그 push**: 빌드 + GitHub Release 자동 생성 + npm publish 자동 실행
 - **이슈 `claude-fix` 라벨**: Claude Code가 이슈 구현 → PR 자동 생성 (Self-hosted Runner)
 - **PR 생성/업데이트**: Claude Code가 자동 코드 리뷰 → 리뷰 코멘트 생성 (Self-hosted Runner)
 
