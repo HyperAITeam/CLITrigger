@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { Readable } from 'stream';
+import { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
@@ -32,9 +32,9 @@ export class ClaudeManager {
     const adapter = getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode });
 
-    if (adapter.requiresTty) {
+    if (adapter.requiresTty || mode === 'interactive') {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
-      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt);
+      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive');
       return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
@@ -44,7 +44,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string): Promise<{
+  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string, interactive?: boolean): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -104,6 +104,17 @@ export class ClaudeManager {
         pid,
       };
       this.processes.set(pid, managedProcess);
+
+      // For interactive mode, expose PTY write as a stdin stream for relay
+      if (interactive) {
+        const ptyWritable = new Writable({
+          write(chunk: Buffer | string, _encoding: string, callback: () => void) {
+            try { ptyProcess.write(chunk.toString()); } catch { /* PTY may have exited */ }
+            callback();
+          },
+        });
+        this.stdinStreams.set(pid, ptyWritable);
+      }
 
       const exitPromise = new Promise<number>((resolveExit) => {
         ptyProcess.onExit(({ exitCode }) => {
