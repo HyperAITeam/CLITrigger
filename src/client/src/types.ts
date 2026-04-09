@@ -155,6 +155,9 @@ export interface ScheduleRun {
   skipped_reason: string | null;
   started_at: string;
   completed_at: string | null;
+  todo_branch_name?: string | null;
+  todo_worktree_path?: string | null;
+  todo_status?: string | null;
 }
 
 export interface ChangedFile {

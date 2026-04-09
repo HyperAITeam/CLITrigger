@@ -563,6 +563,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onDeleteSchedule={handleDeleteSchedule}
           onEditSchedule={handleEditSchedule}
           onTriggerSchedule={handleTriggerSchedule}
+          onMergeRun={handleMergeTodo}
+          onCleanupRun={handleCleanupTodo}
         />
       )}
     </div>
