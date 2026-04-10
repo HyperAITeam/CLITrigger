@@ -176,14 +176,20 @@ if (process.env.TUNNEL_ENABLED === 'true') {
 // Serve frontend static files in production (skip in headless/plugin mode)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 if (process.env.HEADLESS !== 'true') {
-  let clientDist = path.resolve(__dirname, '../client');
-  if (!fs.existsSync(clientDist)) {
-    clientDist = path.resolve(__dirname, '../../src/client/dist');
+  // Resolve built client directory: check for 'assets/' subdir to avoid
+  // accidentally serving the Vite source directory (src/client/) which
+  // contains index.html referencing /src/main.tsx — unusable without Vite dev server.
+  const candidates = [
+    path.resolve(__dirname, '../client'),        // npm package: dist/client/
+    path.resolve(__dirname, '../../src/client/dist'), // dev build: src/client/dist/
+  ];
+  const clientDist = candidates.find(d => fs.existsSync(path.join(d, 'assets')));
+  if (clientDist) {
+    app.use(express.static(clientDist));
+    app.get(/^\/(?!api|ws).*/, (_req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
   }
-  app.use(express.static(clientDist));
-  app.get(/^\/(?!api|ws).*/, (_req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
 }
 
 // Health check
