@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import ProjectForm from './ProjectForm';
+import ParticleBackground from './ParticleBackground';
 import { useI18n } from '../i18n';
 import type { WsEvent } from '../hooks/useWebSocket';
 
@@ -87,7 +88,13 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
     : projects;
 
   return (
-    <div className="px-6 py-6 sm:px-8 sm:py-8">
+    <div className="px-6 py-6 sm:px-8 sm:py-8 relative min-h-full">
+      {/* Interactive particle background */}
+      <ParticleBackground />
+
+      {/* Content layer */}
+      <div className="relative" style={{ zIndex: 1 }}>
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
@@ -244,6 +251,8 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           onCancel={() => setShowForm(false)}
         />
       )}
+
+      </div>{/* end content layer */}
     </div>
   );
 }
