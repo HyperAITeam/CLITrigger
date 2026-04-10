@@ -52,13 +52,12 @@ clitrigger
 첫 실행 시 비밀번호 설정 여부를 물어봅니다:
 ```
 Welcome to CLITrigger!
-비밀번호를 설정하시겠습니까? (y/N): y
-비밀번호: ********
+비밀번호를 설정해주세요: ********
 ✅ 설정 완료! (~/.clitrigger/config.json)
 🚀 CLITrigger running at http://localhost:3000
 ```
 
-비밀번호를 스킵하면 인증 없이 바로 사용됩니다.
+비밀번호는 필수이며, 설정하지 않으면 서버가 시작되지 않습니다.
 
 #### 이후 실행
 
@@ -113,7 +112,7 @@ cp .env.example .env
 
 ```env
 PORT=3000                    # 서버 포트
-AUTH_PASSWORD=your-password  # 로그인 비밀번호 (미설정 시 인증 없이 바로 사용)
+AUTH_PASSWORD=your-password  # 로그인 비밀번호 (필수)
 TUNNEL_ENABLED=false         # Cloudflare Tunnel 사용 여부
 TUNNEL_NAME=                 # Named Tunnel 이름 (선택)
 LOG_RETENTION_DAYS=30        # 로그 보관 일수

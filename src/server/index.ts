@@ -124,6 +124,13 @@ for (const p of getAllProjects()) {
   }
 }
 
+// Require AUTH_PASSWORD unless auth is explicitly disabled (plugin/headless mode)
+if (!process.env.AUTH_PASSWORD && process.env.DISABLE_AUTH !== 'true') {
+  console.error('ERROR: AUTH_PASSWORD 환경변수가 설정되지 않았습니다.');
+  console.error('  .env 파일에 AUTH_PASSWORD를 설정하거나, npm 글로벌 설치 시 clitrigger를 다시 실행하세요.');
+  process.exit(1);
+}
+
 // Auth middleware
 initAuth(app);
 app.use('/api/auth', authRouter);

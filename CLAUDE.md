@@ -66,7 +66,7 @@ npm run typecheck              # server + client
   - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
 - **WebSocket**: `src/server/websocket/` — Real-time log streaming and status broadcasts. Session-authenticated. Supports stdin relay for interactive mode.
-- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`. When `AUTH_PASSWORD` is not set, authentication is bypassed entirely (server returns `authRequired: false`, client skips login page). Also disabled when `DISABLE_AUTH=true` (plugin/headless mode).
+- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var (required). Skips `/api/auth/*` and `/api/health`. Server refuses to start without `AUTH_PASSWORD` unless `DISABLE_AUTH=true`. Also disabled when `DISABLE_AUTH=true` (plugin/headless mode).
 
 ### Client
 

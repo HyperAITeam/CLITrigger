@@ -26,10 +26,10 @@ async function startServer() {
     console.log('Welcome to CLITrigger!\n');
     const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-    const setPassword = await rl.question('비밀번호를 설정하시겠습니까? (y/N): ');
     let password = '';
-    if (setPassword.toLowerCase() === 'y') {
-      password = await rl.question('비밀번호: ');
+    while (!password) {
+      password = await rl.question('비밀번호를 설정해주세요: ');
+      if (!password) console.log('비밀번호는 필수입니다.');
     }
     rl.close();
 
@@ -40,8 +40,24 @@ async function startServer() {
 
   // config 읽고 env 설정
   const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+
+  // 기존 config에 비밀번호가 없으면 설정 강제
+  if (!config.password) {
+    console.log('⚠️  비밀번호가 설정되지 않았습니다.\n');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    let password = '';
+    while (!password) {
+      password = await rl.question('비밀번호를 설정해주세요: ');
+      if (!password) console.log('비밀번호는 필수입니다.');
+    }
+    rl.close();
+    config.password = password;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    console.log('✅ 비밀번호가 설정되었습니다.\n');
+  }
+
   process.env.PORT = String(config.port || 3000);
-  if (config.password) process.env.AUTH_PASSWORD = config.password;
+  process.env.AUTH_PASSWORD = config.password;
   process.env.DB_PATH = path.join(CONFIG_DIR, 'clitrigger.db');
 
   // 서버 시작
@@ -73,15 +89,15 @@ async function handleConfig(args) {
     console.log(`✅ 포트가 ${port}으로 변경되었습니다.`);
   } else if (args[0] === 'password') {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const password = await rl.question('새 비밀번호 (빈 값 = 비밀번호 해제): ');
+    let password = '';
+    while (!password) {
+      password = await rl.question('새 비밀번호: ');
+      if (!password) console.log('비밀번호는 필수입니다.');
+    }
     rl.close();
     config.password = password;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    if (password) {
-      console.log('✅ 비밀번호가 변경되었습니다.');
-    } else {
-      console.log('✅ 비밀번호가 해제되었습니다.');
-    }
+    console.log('✅ 비밀번호가 변경되었습니다.');
   } else if (args[0] === 'path') {
     console.log(CONFIG_DIR);
   } else {

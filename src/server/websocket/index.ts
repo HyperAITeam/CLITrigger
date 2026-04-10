@@ -33,8 +33,8 @@ export function initWebSocket(server: Server): void {
       }
     }
 
-    // Skip auth when no password is configured
-    if (!process.env.AUTH_PASSWORD) {
+    // Skip auth when DISABLE_AUTH is set (plugin/headless mode)
+    if (process.env.DISABLE_AUTH === 'true') {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
       });
