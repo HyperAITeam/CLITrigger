@@ -77,6 +77,7 @@ export interface Todo {
   max_turns: number | null;
   merged_from_branch: string | null;
   context_switch_count?: number;
+  execution_mode: string | null;
   position_x: number | null;
   position_y: number | null;
   created_at: string;

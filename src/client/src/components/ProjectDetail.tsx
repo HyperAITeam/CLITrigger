@@ -50,6 +50,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
         setPipelines(pipelineList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
+        // Restore interactive mode state for running todos
+        const interactiveIds = todoList
+          .filter((t: { status: string; execution_mode: string | null }) => t.status === 'running' && t.execution_mode === 'interactive')
+          .map((t: { id: string }) => t.id);
+        if (interactiveIds.length > 0) {
+          setInteractiveTodos(new Set(interactiveIds));
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
