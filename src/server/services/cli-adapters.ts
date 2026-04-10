@@ -105,8 +105,9 @@ const geminiAdapter: CliAdapter = {
   buildArgs({ mode, prompt, model, extraOptions }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
     // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
+    const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
-    if (model) args.push('--model', model);
+    if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
