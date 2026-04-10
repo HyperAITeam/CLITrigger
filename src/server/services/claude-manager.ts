@@ -104,7 +104,8 @@ export class ClaudeManager {
         if (stdinPrompt && !stdinDelivered && !exited && !trustPending) {
           if (/[›>$%]\s*$/.test(clean)) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+            // PTY requires \r (carriage return) to submit, not \n (line feed)
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
         }
       });
@@ -123,7 +124,8 @@ export class ClaudeManager {
       if (interactive) {
         const ptyWritable = new Writable({
           write(chunk: Buffer | string, _encoding: string, callback: () => void) {
-            try { ptyProcess.write(chunk.toString()); } catch { /* PTY may have exited */ }
+            // PTY requires \r (carriage return) to submit, not \n (line feed)
+            try { ptyProcess.write(chunk.toString().replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
             callback();
           },
         });
@@ -145,7 +147,7 @@ export class ClaudeManager {
         setTimeout(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
         }, 10000);
       }
