@@ -81,7 +81,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       {/* Logo */}
       <div className="px-5 pt-6 pb-4">
         <Link to="/" onClick={handleNav} className="block">
-          <h1 className="text-xl font-bold tracking-tight text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, letterSpacing: '-0.03em' }}>
+          <h1 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text-primary)' }}>
             CLITrigger
           </h1>
         </Link>
@@ -92,11 +92,11 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         <Link
           to="/"
           onClick={handleNav}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-            location.pathname === '/'
-              ? 'bg-white/10 text-white'
-              : 'text-neutral-400 hover:bg-white/5 hover:text-neutral-200'
-          }`}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          style={location.pathname === '/'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+            : { color: 'var(--color-text-tertiary)' }
+          }
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
@@ -106,11 +106,11 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       </nav>
 
       {/* Divider */}
-      <div className="mx-4 border-t border-white/10" />
+      <div className="mx-4 border-t" style={{ borderColor: 'var(--color-border)' }} />
 
       {/* Projects section */}
       <div className="flex-1 overflow-y-auto px-3 pt-3">
-        <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+        <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
           {t('sidebar.workspaces')}
         </div>
         <div className="space-y-0.5">
@@ -123,15 +123,15 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 key={project.id}
                 to={`/projects/${project.id}`}
                 onClick={handleNav}
-                className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-white/10 text-white'
-                    : 'text-neutral-400 hover:bg-white/5 hover:text-neutral-200'
-                }`}
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                style={isActive
+                  ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+                  : { color: 'var(--color-text-tertiary)' }
+                }
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  hasRunning ? 'bg-status-running animate-pulse' : 'bg-neutral-600'
-                }`} />
+                  hasRunning ? 'bg-status-running animate-pulse' : ''
+                }`} style={hasRunning ? undefined : { backgroundColor: 'var(--color-text-faint)' }} />
                 <span className="truncate">{project.name}</span>
               </Link>
             );
@@ -140,9 +140,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       </div>
 
       {/* Bottom section */}
-      <div className="px-3 pb-4 pt-2 border-t border-white/10 space-y-1">
+      <div className="px-3 pb-4 pt-2 space-y-1" style={{ borderTop: '1px solid var(--color-border)' }}>
         {/* Connection status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-neutral-500">
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
           <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-status-success' : 'bg-status-error'}`} />
           {connected ? t('detail.live') : 'Disconnected'}
         </div>
@@ -151,7 +151,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         <div className="flex items-center gap-1 px-1">
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200 transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+            style={{ color: 'var(--color-text-tertiary)' }}
             title={theme === 'light' ? t('theme.dark') : t('theme.light')}
           >
             {theme === 'light' ? (
@@ -166,14 +167,16 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           </button>
           <button
             onClick={toggleLang}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200 transition-colors text-xs font-medium"
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-xs font-medium"
+            style={{ color: 'var(--color-text-tertiary)' }}
           >
             {t('lang.toggle')}
           </button>
           {authRequired && (
             <button
               onClick={onLogout}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200 transition-colors ml-auto"
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors ml-auto"
+              style={{ color: 'var(--color-text-tertiary)' }}
               title={t('projects.logout')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
