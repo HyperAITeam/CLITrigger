@@ -3,6 +3,7 @@ import { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
+import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
 
@@ -81,10 +82,10 @@ export class ClaudeManager {
 
       // Trust prompt tracking: block stdin delivery only while trust prompt is visible
       let trustPending = false;
+      const filterState: PtyFilterState | null = interactive ? createPtyFilterState() : null;
 
       ptyProcess.onData((data) => {
         const clean = stripAnsi(data);
-        stdoutStream.push(clean);
 
         // Auto-confirm workspace trust prompt (shown when Claude CLI runs without --print)
         if (!trustPending && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
@@ -107,6 +108,14 @@ export class ClaudeManager {
             // PTY requires \r (carriage return) to submit, not \n (line feed)
             try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
+        }
+
+        // Push to stream — filter TUI noise for interactive mode
+        if (filterState) {
+          const filtered = filterInteractivePtyOutput(clean, filterState);
+          if (filtered) stdoutStream.push(filtered);
+        } else {
+          stdoutStream.push(clean);
         }
       });
 
@@ -135,6 +144,11 @@ export class ClaudeManager {
       const exitPromise = new Promise<number>((resolveExit) => {
         ptyProcess.onExit(({ exitCode }) => {
           exited = true;
+          // Flush remaining filter buffer before closing stream
+          if (filterState?.lineBuffer) {
+            const final = filterInteractivePtyOutput('\n', filterState);
+            if (final) stdoutStream.push(final);
+          }
           stdoutStream.push(null);
           this.processes.delete(pid);
           this.stdinStreams.delete(pid);
