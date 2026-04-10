@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60">
+  <!-- Crown body -->
+  <path d="M4 52 L16 10 L28 30 L34 4 L40 30 L52 10 L60 52 Z"
+        stroke="#E63B2E" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+  <!-- Crown dots -->
+  <circle cx="16" cy="10" r="4" fill="#E63B2E"/>
+  <circle cx="34" cy="4" r="4" fill="#E63B2E"/>
+  <circle cx="52" cy="10" r="4" fill="#E63B2E"/>
+  <!-- Crown base line -->
+  <line x1="4" y1="52" x2="60" y2="52" stroke="#E63B2E" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Inner crown accent -->
+  <path d="M14 38 L22 22 L30 34 L34 18 L38 34 L46 22 L50 38"
+        stroke="#F5D623" stroke-width="1.5" fill="none" stroke-linejoin="round" opacity="0.5"/>
+</svg>

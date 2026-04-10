@@ -23,13 +23,43 @@ const CARD_ROTATIONS = [-1.2, 0.8, -0.5, 1.0, -0.8, 0.6, -1.0, 0.4];
 
 function CrownSVG({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 60 40" fill="currentColor" className={className}>
-      <path d="M5 35 L15 8 L25 22 L30 5 L35 22 L45 8 L55 35 Z"
-            stroke="currentColor" strokeWidth="2.5" fill="none" />
-      <circle cx="15" cy="8" r="3" />
-      <circle cx="30" cy="5" r="3" />
-      <circle cx="45" cy="8" r="3" />
+    <svg viewBox="0 0 64 56" fill="none" className={className}>
+      <path d="M4 52 L16 10 L28 30 L34 4 L40 30 L52 10 L60 52 Z"
+            stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
+      <circle cx="16" cy="10" r="4" fill="currentColor" />
+      <circle cx="34" cy="4" r="4" fill="currentColor" />
+      <circle cx="52" cy="10" r="4" fill="currentColor" />
+      <line x1="4" y1="52" x2="60" y2="52" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M14 38 L22 22 L30 34 L34 18 L38 34 L46 22 L50 38"
+            stroke="#F5D623" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4" />
     </svg>
+  );
+}
+
+function LogoBanner() {
+  return (
+    <div className="bq-logo-banner">
+      {/* Crown */}
+      <svg viewBox="0 0 64 56" fill="none" className="bq-logo-crown">
+        <path d="M4 52 L16 10 L28 30 L34 4 L40 30 L52 10 L60 52 Z"
+              stroke="#E63B2E" strokeWidth="3.5" strokeLinejoin="round" />
+        <circle cx="16" cy="10" r="4" fill="#E63B2E" />
+        <circle cx="34" cy="4" r="4" fill="#E63B2E" />
+        <circle cx="52" cy="10" r="4" fill="#E63B2E" />
+        <line x1="4" y1="52" x2="60" y2="52" stroke="#E63B2E" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M14 38 L22 22 L30 34 L34 18 L38 34 L46 22 L50 38"
+              stroke="#F5D623" strokeWidth="1.5" strokeLinejoin="round" opacity="0.5" />
+      </svg>
+      {/* Text */}
+      <span className="bq-logo-text">CLITRIGGER</span>
+      {/* Red underline scrawls */}
+      <svg viewBox="0 0 390 14" fill="none" className="bq-logo-underline">
+        <path d="M2 4 Q100 2 200 5 Q300 1 388 4"
+              stroke="#E63B2E" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M6 10 Q120 12 230 9 Q330 13 384 10"
+              stroke="#E63B2E" strokeWidth="1.8" strokeLinecap="round" opacity="0.5" />
+      </svg>
+    </div>
   );
 }
 
@@ -123,21 +153,16 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
       <div className="bq-x-mark" style={{ top: '45%', right: '10%', fontSize: '1.8rem', animationDelay: '-7s' }}>X</div>
 
       <div className="mx-auto max-w-5xl relative z-10">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-10">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-7" style={{ color: 'var(--bq-accent)', filter: 'drop-shadow(1px 1px 0 var(--bq-border))' }}>
-                <CrownSVG />
-              </div>
-              <h1 className="font-marker text-3xl sm:text-4xl tracking-wide bq-underline-scrawl">
-                {t('projects.title')}
-              </h1>
-            </div>
-            <p className="font-caveat text-lg mt-2" style={{ color: 'var(--bq-text-secondary)', transform: 'rotate(-0.5deg)' }}>
-              {t('projects.subtitle')}
-            </p>
-          </div>
+        {/* Logo Banner */}
+        <div className="mb-6 sm:mb-8">
+          <LogoBanner />
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-4 mb-8 sm:mb-10">
+          <p className="font-caveat text-lg" style={{ color: 'var(--bq-text-secondary)', transform: 'rotate(-0.5deg)' }}>
+            {t('projects.subtitle')}
+          </p>
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={toggleTheme} className="lang-toggle" title={theme === 'light' ? t('theme.dark') : t('theme.light')}>
               {theme === 'light' ? (
