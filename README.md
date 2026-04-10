@@ -1,6 +1,10 @@
 <div align="center">
 
-# CLITrigger
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="src/client/public/logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="src/client/public/logo.svg">
+  <img alt="CLITrigger" src="src/client/public/logo.svg" width="360">
+</picture>
 
 **AI-Powered Parallel Worktree Automation**
 
@@ -24,6 +28,11 @@
 > AI가 코드를 짜는 시대, 개발자의 역할이 바뀌고 있다.  
 > 하지만 **이해 없는 바이브 코딩**은 결국 한계에 부딪힌다.  
 > CLITrigger는 AI를 병렬로 돌리면서도, 개발자가 맥락을 잃지 않도록 설계되었다.
+
+<div align="center">
+  <img src="docs/images/screenshot-tasks.png" alt="Tasks — 병렬 워크트리 실행" width="800">
+  <p><em>병렬 워크트리에서 AI CLI가 동시에 작업을 처리하는 모습</em></p>
+</div>
 
 ---
 
@@ -67,8 +76,18 @@ TODO를 작성하면 각 작업마다 격리된 git worktree가 자동 생성된
 ### 다중 AI 토론 (Discussion)
 아키텍트, 개발자, 리뷰어 등 역할이 다른 AI 에이전트들이 라운드 방식으로 토론한 뒤, 합의된 내용을 바탕으로 자동 구현까지 이어진다. 단일 AI의 판단보다 훨씬 검증된 설계 결과물이 나온다.
 
+<div align="center">
+  <img src="docs/images/screenshot-discussions.png" alt="Discussions — 다중 AI 토론" width="800">
+  <p><em>여러 AI 에이전트가 역할별로 토론하는 Discussion 화면</em></p>
+</div>
+
 ### 예약 실행 (Scheduler)
 토큰 한도를 피해 새벽이나 특정 시각에 작업을 예약 실행할 수 있다. cron 기반 반복 스케줄과 일회성 예약 모두 지원한다.
+
+<div align="center">
+  <img src="docs/images/screenshot-schedules.png" alt="Schedules — 예약 실행" width="800">
+  <p><em>cron 기반 반복·일회성 예약 실행 설정 화면</em></p>
+</div>
 
 ### 파이프라인 (Pipeline)
 여러 작업을 순차 또는 병렬로 묶어 다단계 실행 흐름을 구성한다. 복잡한 릴리스 절차도 자동화할 수 있다.
