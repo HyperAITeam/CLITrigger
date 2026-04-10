@@ -24,6 +24,7 @@ interface TaskNodeDetailProps {
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
 }
 
 export default function TaskNodeDetail({
@@ -41,6 +42,7 @@ export default function TaskNodeDetail({
   isInteractive,
   onSendInput,
   debugLogging,
+  showTokenUsage,
 }: TaskNodeDetailProps) {
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [logsLoaded, setLogsLoaded] = useState(false);
@@ -346,7 +348,7 @@ export default function TaskNodeDetail({
                   <span className="text-status-error ml-1">-{resultData.diff_stats.deletions}</span>
                 </span>
               )}
-              {resultData.token_usage && resultData.token_usage.input_tokens !== null && (
+              {showTokenUsage && resultData.token_usage && resultData.token_usage.input_tokens !== null && (
                 <span className="text-[10px] font-mono badge bg-purple-100 text-purple-700">
                   {formatTokenCount(resultData.token_usage.input_tokens)} in / {formatTokenCount(resultData.token_usage.output_tokens ?? 0)} out
                 </span>

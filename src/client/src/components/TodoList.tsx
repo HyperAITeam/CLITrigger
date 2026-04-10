@@ -28,6 +28,7 @@ interface TodoListProps {
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
 }
 
 function wouldCreateCycle(todos: Todo[], sourceId: string, targetId: string): boolean {
@@ -64,6 +65,7 @@ export default function TodoList({
   onSendInput,
   interactiveTodos,
   debugLogging,
+  showTokenUsage,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
@@ -275,6 +277,7 @@ export default function TodoList({
           onSendInput={onSendInput}
           interactiveTodos={interactiveTodos}
           debugLogging={debugLogging}
+          showTokenUsage={showTokenUsage}
         />
       </div>
     );
@@ -406,6 +409,7 @@ export default function TodoList({
                     onDropTarget={handleDrop}
                     onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
                     debugLogging={debugLogging}
+                    showTokenUsage={showTokenUsage}
                     isChainMember={isChainMember}
                   />
                 </div>

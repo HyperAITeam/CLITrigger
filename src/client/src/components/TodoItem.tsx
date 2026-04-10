@@ -36,10 +36,11 @@ interface TodoItemProps {
   onDropTarget?: (todoId: string) => void;
   onRemoveDependency?: (todoId: string) => void;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -733,7 +734,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     <span className="text-xs text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
                   </div>
                 )}
-                {resultData.token_usage && (() => {
+                {showTokenUsage && resultData.token_usage && (() => {
                   const tu = resultData.token_usage;
                   const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
                   const totalAll = totalInput + (tu.output_tokens ?? 0);

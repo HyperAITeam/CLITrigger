@@ -99,6 +99,7 @@ interface TaskGraphProps {
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
 }
 
 export default function TaskGraph({
@@ -120,6 +121,7 @@ export default function TaskGraph({
   onSendInput,
   interactiveTodos,
   debugLogging,
+  showTokenUsage,
 }: TaskGraphProps) {
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -329,6 +331,7 @@ export default function TaskGraph({
           isInteractive={interactiveTodos.has(selectedTodo.id)}
           onSendInput={onSendInput}
           debugLogging={debugLogging}
+          showTokenUsage={showTokenUsage}
         />
       )}
 

@@ -27,6 +27,7 @@ export interface Project {
   sandbox_mode: string;
   debug_logging: number;
   use_worktree: number;
+  show_token_usage: number;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;

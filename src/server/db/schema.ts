@@ -219,6 +219,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'discussions', column: 'implement_agent_id', definition: 'TEXT' },
     { table: 'projects', column: 'use_worktree', definition: 'INTEGER DEFAULT 1' },
     { table: 'todos', column: 'execution_mode', definition: 'TEXT' },
+    { table: 'projects', column: 'show_token_usage', definition: 'INTEGER DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of migrations) {

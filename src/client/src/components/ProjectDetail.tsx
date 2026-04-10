@@ -529,6 +529,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onSendInput={handleSendInput}
           interactiveTodos={interactiveTodos}
           debugLogging={!!project.debug_logging}
+          showTokenUsage={!!project.show_token_usage}
         />
       )}
       {activeTab === 'pipelines' && (

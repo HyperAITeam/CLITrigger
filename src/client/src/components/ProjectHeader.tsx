@@ -31,6 +31,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
+  const [showTokenUsage, setShowTokenUsage] = useState(!!project.show_token_usage);
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -104,6 +105,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         sandbox_mode: sandboxMode,
         debug_logging: debugLogging ? 1 : 0,
         use_worktree: useWorktree ? 1 : 0,
+        show_token_usage: showTokenUsage ? 1 : 0,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
@@ -459,6 +461,21 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               )}
             </div>
           ) : null}
+
+          {/* Token Usage Display */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.showTokenUsageTitle')}</h4>
+            <p className="text-[10px] text-warm-500 mb-3">{t('header.showTokenUsageDesc')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTokenUsage}
+                onChange={(e) => setShowTokenUsage(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-xs text-warm-600">{t('header.showTokenUsageEnable')}</span>
+            </label>
+          </div>
 
           {/* Debug Logging */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
