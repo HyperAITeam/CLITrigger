@@ -232,6 +232,7 @@ const translations = {
 
     // Log
     'log.awaiting': 'Awaiting output...',
+    'log.waitingResponse': 'Waiting for response...',
     'log.noChanges': 'No changes detected.',
     'log.copy': 'Copy',
     'log.copied': 'Copied!',
@@ -780,10 +781,11 @@ const translations = {
     'result.levelHeavy': '과다',
 
     // Log
-    'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
-    'log.noChanges': '\uBCC0\uACBD\uC0AC\uD56D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
-    'log.copy': '\uBCF5\uC0AC',
-    'log.copied': '\uBCF5\uC0AC\uB428!',
+    'log.awaiting': '출력 대기 중...',
+    'log.waitingResponse': '응답 대기 중...',
+    'log.noChanges': '변경사항이 없습니다.',
+    'log.copy': '복사',
+    'log.copied': '복사됨!',
 
     // Schedules
     'schedules.title': '스케줄',
