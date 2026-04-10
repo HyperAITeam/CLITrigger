@@ -30,6 +30,18 @@ export default {
           info: '#8E8E93',
           merged: '#AF52DE',
         },
+        basquiat: {
+          yellow: '#F5D623',
+          'yellow-dark': '#D4B81A',
+          red: '#E63B2E',
+          blue: '#2B5CE6',
+          'blue-dark': '#1A3A8F',
+          black: '#1A1A1A',
+          cream: '#F5E6C8',
+          orange: '#E68A2E',
+          pink: '#E64B8B',
+          white: '#FAFAF0',
+        },
         theme: {
           bg: 'var(--color-bg-primary)',
           'bg-secondary': 'var(--color-bg-secondary)',
@@ -53,6 +65,9 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+        marker: ['"Permanent Marker"', 'cursive'],
+        caveat: ['Caveat', 'cursive'],
+        hand: ['"Patrick Hand"', 'cursive'],
       },
       borderRadius: {
         'pill': '9999px',
@@ -64,6 +79,10 @@ export default {
         'fade-in': 'fadeIn 0.3s ease-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
+        'wiggle': 'wiggle 3s ease-in-out infinite',
+        'float': 'bqFloat 6s ease-in-out infinite',
+        'drip': 'drip 0.5s ease-out forwards',
+        'sketch-in': 'sketchIn 0.4s ease-out both',
       },
       keyframes: {
         fadeIn: {
@@ -77,6 +96,25 @@ export default {
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(-1deg)' },
+          '50%': { transform: 'rotate(1deg)' },
+        },
+        bqFloat: {
+          '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+          '33%': { transform: 'translateY(-8px) rotate(2deg)' },
+          '66%': { transform: 'translateY(-4px) rotate(-1deg)' },
+        },
+        drip: {
+          '0%': { transform: 'translateY(-10px)', opacity: '0' },
+          '60%': { transform: 'translateY(2px)', opacity: '1' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        sketchIn: {
+          '0%': { opacity: '0', transform: 'scale(0.9) rotate(-2deg)' },
+          '70%': { transform: 'scale(1.02) rotate(0.5deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)' },
         },
       },
       boxShadow: {

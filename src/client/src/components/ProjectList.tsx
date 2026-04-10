@@ -19,6 +19,20 @@ interface ProjectStatus {
   total: number;
 }
 
+const CARD_ROTATIONS = [-1.2, 0.8, -0.5, 1.0, -0.8, 0.6, -1.0, 0.4];
+
+function CrownSVG({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 60 40" fill="currentColor" className={className}>
+      <path d="M5 35 L15 8 L25 22 L30 5 L35 22 L45 8 L55 35 Z"
+            stroke="currentColor" strokeWidth="2.5" fill="none" />
+      <circle cx="15" cy="8" r="3" />
+      <circle cx="30" cy="5" r="3" />
+      <circle cx="45" cy="8" r="3" />
+    </svg>
+  );
+}
+
 export default function ProjectList({ onEvent, onLogout, authRequired = true }: ProjectListProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
@@ -81,156 +95,203 @@ export default function ProjectList({ onEvent, onLogout, authRequired = true }: 
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-10">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-warm-800">
-            {t('projects.title')}
-          </h1>
-          <p className="text-warm-500 text-sm mt-1">
-            {t('projects.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={toggleTheme} className="lang-toggle" title={theme === 'light' ? t('theme.dark') : t('theme.light')}>
-            {theme === 'light' ? (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-              </svg>
-            )}
-          </button>
-          <button onClick={toggleLang} className="lang-toggle">
-            {t('lang.toggle')}
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span className="hidden sm:inline">{t('projects.new')}</span>
-          </button>
-          {authRequired && (
-            <button
-              onClick={onLogout}
-              className="btn-ghost text-sm"
-            >
-              {t('projects.logout')}
-            </button>
-          )}
-        </div>
+    <div className="basquiat-home min-h-screen px-4 sm:px-6 py-6 sm:py-8 relative overflow-hidden">
+      {/* SVG filter definitions */}
+      <svg className="absolute w-0 h-0" aria-hidden="true">
+        <defs>
+          <filter id="bq-rough-filter">
+            <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="3" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" />
+          </filter>
+        </defs>
+      </svg>
+
+      {/* Floating decorative crowns */}
+      <div className="bq-crown" style={{ top: '5%', right: '8%', width: 70, height: 46 }}>
+        <CrownSVG />
+      </div>
+      <div className="bq-crown" style={{ top: '30%', left: '3%', width: 50, height: 33 }}>
+        <CrownSVG />
+      </div>
+      <div className="bq-crown" style={{ bottom: '10%', right: '5%', width: 55, height: 36 }}>
+        <CrownSVG />
       </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-warm-500 animate-fade-in">
-          {t('projects.loading')}
-        </div>
-      ) : projects.length === 0 ? (
-        <div className="card p-16 text-center animate-fade-in">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-warm-200 mb-4">
-            <svg className="w-7 h-7 text-warm-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-            </svg>
+      {/* Floating X doodles */}
+      <div className="bq-x-mark" style={{ top: '15%', left: '12%' }}>X</div>
+      <div className="bq-x-mark" style={{ bottom: '20%', left: '8%', fontSize: '1.5rem', animationDelay: '-5s' }}>X</div>
+      <div className="bq-x-mark" style={{ top: '45%', right: '10%', fontSize: '1.8rem', animationDelay: '-7s' }}>X</div>
+
+      <div className="mx-auto max-w-5xl relative z-10">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-10">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-7" style={{ color: 'var(--bq-accent)', filter: 'drop-shadow(1px 1px 0 var(--bq-border))' }}>
+                <CrownSVG />
+              </div>
+              <h1 className="font-marker text-3xl sm:text-4xl tracking-wide bq-underline-scrawl">
+                {t('projects.title')}
+              </h1>
+            </div>
+            <p className="font-caveat text-lg mt-2" style={{ color: 'var(--bq-text-secondary)', transform: 'rotate(-0.5deg)' }}>
+              {t('projects.subtitle')}
+            </p>
           </div>
-          <p className="text-warm-600 font-medium">{t('projects.empty')}</p>
-          <p className="text-warm-400 text-sm mt-1">{t('projects.emptyHint')}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project, index) => {
-            const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
-            const pathMissing = project.path_exists === false;
-            const CardWrapper = pathMissing ? 'div' : Link;
-            const cardProps = pathMissing
-              ? {
-                  onClick: (e: React.MouseEvent) => {
-                    if (confirm(t('projects.pathMissingConfirm'))) {
-                      handleDeleteProject(project.id, e, true);
-                    }
-                  },
-                  className: 'group card p-5 animate-slide-up cursor-pointer opacity-60',
-                  style: { animationDelay: `${index * 50}ms` },
-                }
-              : {
-                  to: `/projects/${project.id}`,
-                  className: 'group card p-5 animate-slide-up',
-                  style: { animationDelay: `${index * 50}ms` },
-                };
-            return (
-              <CardWrapper
-                key={project.id}
-                {...cardProps as any}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={toggleTheme} className="lang-toggle" title={theme === 'light' ? t('theme.dark') : t('theme.light')}>
+              {theme === 'light' ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                </svg>
+              )}
+            </button>
+            <button onClick={toggleLang} className="lang-toggle">
+              {t('lang.toggle')}
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn-primary text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              <span className="hidden sm:inline">{t('projects.new')}</span>
+            </button>
+            {authRequired && (
+              <button
+                onClick={onLogout}
+                className="btn-ghost text-sm"
               >
-                {/* Delete button */}
-                <button
-                  onClick={(e) => handleDeleteProject(project.id, e)}
-                  className="absolute top-3 right-3 p-1.5 text-warm-400 hover:bg-status-error/10 hover:text-status-error rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                  title={t('projects.delete')}
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-
-                <h3 className="text-base font-semibold text-warm-800 group-hover:text-accent-dark transition-colors truncate">
-                  {project.name}
-                </h3>
-                <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
-                <div className="mt-1.5 flex gap-1.5">
-                  {pathMissing ? (
-                    <span className="badge bg-status-error/10 text-status-error text-[10px]">{t('projects.pathMissing')}</span>
-                  ) : project.is_git_repo ? (
-                    <span className="badge bg-status-success/10 text-status-success text-[10px]">Git</span>
-                  ) : (
-                    <span className="badge bg-status-warning/10 text-status-warning text-[10px]">{t('projects.noGit')}</span>
-                  )}
-                </div>
-
-                {/* Stats */}
-                <div className="mt-4 flex items-center gap-3 text-xs">
-                  <span className="badge bg-warm-200 text-warm-600">
-                    {counts.total} {t('projects.tasks')}
-                  </span>
-                  {counts.running > 0 && (
-                    <span className="badge bg-status-running/10 text-status-running">
-                      <span className="h-1.5 w-1.5 rounded-full bg-status-running animate-pulse" />
-                      {counts.running} {t('projects.active')}
-                    </span>
-                  )}
-                  {counts.completed > 0 && (
-                    <span className="badge bg-status-success/10 text-status-success">
-                      {counts.completed} {t('projects.done')}
-                    </span>
-                  )}
-                </div>
-
-                {/* Progress bar */}
-                {counts.total > 0 && (
-                  <div className="mt-4 h-1.5 w-full overflow-hidden bg-warm-200 rounded-full">
-                    <div
-                      className="h-full bg-accent rounded-full transition-all duration-500"
-                      style={{ width: `${(counts.completed / counts.total) * 100}%` }}
-                    />
-                  </div>
-                )}
-              </CardWrapper>
-            );
-          })}
+                {t('projects.logout')}
+              </button>
+            )}
+          </div>
         </div>
-      )}
 
-      {showForm && (
-        <ProjectForm
-          onSubmit={(name, path) => handleAddProject(name, path)}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
+        {loading ? (
+          <div className="text-center py-20 font-marker text-xl animate-wiggle" style={{ color: 'var(--bq-text-secondary)' }}>
+            {t('projects.loading')}
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="card p-16 text-center bq-card-enter" style={{ '--bq-card-rotate': '0deg' } as React.CSSProperties}>
+            <div className="inline-block w-20 h-14 mb-4" style={{ color: 'var(--bq-accent)' }}>
+              <CrownSVG />
+            </div>
+            <p className="font-marker text-lg">{t('projects.empty')}</p>
+            <p className="font-caveat text-base mt-2" style={{ color: 'var(--bq-text-secondary)' }}>
+              {t('projects.emptyHint')}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project, index) => {
+              const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
+              const pathMissing = project.path_exists === false;
+              const rotation = CARD_ROTATIONS[index % CARD_ROTATIONS.length];
+              const CardWrapper = pathMissing ? 'div' : Link;
+              const cardProps = pathMissing
+                ? {
+                    onClick: (e: React.MouseEvent) => {
+                      if (confirm(t('projects.pathMissingConfirm'))) {
+                        handleDeleteProject(project.id, e, true);
+                      }
+                    },
+                    className: 'group card p-5 bq-card-enter cursor-pointer opacity-60',
+                    style: {
+                      animationDelay: `${index * 80}ms`,
+                      '--bq-card-rotate': `${rotation}deg`,
+                    } as React.CSSProperties,
+                  }
+                : {
+                    to: `/projects/${project.id}`,
+                    className: 'group card p-5 bq-card-enter',
+                    style: {
+                      animationDelay: `${index * 80}ms`,
+                      '--bq-card-rotate': `${rotation}deg`,
+                    } as React.CSSProperties,
+                  };
+              return (
+                <CardWrapper
+                  key={project.id}
+                  {...cardProps as any}
+                >
+                  {/* Decorative corner marks */}
+                  <div className="bq-corner-tl" />
+                  <div className="bq-corner-tr" />
+
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => handleDeleteProject(project.id, e)}
+                    className="absolute top-3 right-3 p-1.5 hover:bg-status-error/10 hover:text-status-error opacity-0 group-hover:opacity-100 transition-all"
+                    style={{ color: 'var(--bq-text-secondary)', borderRadius: 0 }}
+                    title={t('projects.delete')}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  <h3 className="text-base font-bold font-hand group-hover:text-basquiat-red transition-colors truncate">
+                    {project.name}
+                  </h3>
+                  <p className="mt-1 text-xs font-mono truncate" style={{ color: 'var(--bq-text-secondary)' }}>
+                    {project.path}
+                  </p>
+                  <div className="mt-1.5 flex gap-1.5">
+                    {pathMissing ? (
+                      <span className="badge bg-status-error/10 text-status-error text-[10px]">{t('projects.pathMissing')}</span>
+                    ) : project.is_git_repo ? (
+                      <span className="badge bg-status-success/10 text-status-success text-[10px]">Git</span>
+                    ) : (
+                      <span className="badge bg-status-warning/10 text-status-warning text-[10px]">{t('projects.noGit')}</span>
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  <div className="mt-4 flex items-center gap-3 text-xs font-hand">
+                    <span className="badge" style={{ backgroundColor: 'var(--bq-bg-secondary)' }}>
+                      {counts.total} {t('projects.tasks')}
+                    </span>
+                    {counts.running > 0 && (
+                      <span className="badge bg-status-running/10 text-status-running">
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-running animate-pulse" />
+                        {counts.running} {t('projects.active')}
+                      </span>
+                    )}
+                    {counts.completed > 0 && (
+                      <span className="badge bg-status-success/10 text-status-success">
+                        {counts.completed} {t('projects.done')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress bar — hatched pattern */}
+                  {counts.total > 0 && (
+                    <div className="mt-4 bq-progress-track">
+                      <div
+                        className="bq-progress-bar"
+                        style={{ width: `${(counts.completed / counts.total) * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </CardWrapper>
+              );
+            })}
+          </div>
+        )}
+
+        {showForm && (
+          <ProjectForm
+            onSubmit={(name, path) => handleAddProject(name, path)}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
