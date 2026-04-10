@@ -39,7 +39,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
-  const { t, toggleLang } = useI18n();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!id) return;
@@ -398,8 +398,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="text-center py-20 text-warm-500 animate-fade-in">
+      <div className="px-6 py-6 sm:px-8 sm:py-8">
+        <div className="text-center py-20 animate-fade-in" style={{ color: 'var(--color-text-muted)' }}>
           {t('detail.loading')}
         </div>
       </div>
@@ -408,7 +408,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   if (notFound || !project) {
     return (
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
+      <div className="px-6 py-6 sm:px-8 sm:py-8">
         <div className="card p-16 text-center animate-fade-in">
           <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
@@ -423,35 +423,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-      {/* Navigation */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent transition-colors"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          {t('detail.back')}
-        </Link>
-
-        <span className="text-warm-300">/</span>
-        <span className="text-sm text-warm-700 truncate font-medium">{project.name}</span>
-
-        <div className="ml-auto flex items-center gap-3">
-          {connected && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-status-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
-              {t('detail.live')}
-            </span>
-          )}
-          <button onClick={toggleLang} className="lang-toggle">
-            {t('lang.toggle')}
-          </button>
-        </div>
-      </div>
-
+    <div className="px-6 py-6 sm:px-8 sm:py-8">
       <ProjectHeader
         project={project}
         todos={todos}
@@ -463,13 +435,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
       <ProgressBar todos={todos} />
 
       {/* Tab toggle */}
-      <div className="flex gap-0 mb-4 border-b border-warm-200 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-0 mb-4 border-b border-theme-border overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('tasks')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'tasks'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.tasks')} ({todos.length})
@@ -479,7 +451,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'pipelines'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.pipelines')} ({pipelines.length})
@@ -489,7 +461,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'discussions'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.discussions')} ({discussions.length})
@@ -499,7 +471,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'schedules'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.schedules')} ({schedules.length})
@@ -511,7 +483,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === plugin.id
                 ? 'text-accent border-accent'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
+                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
             }`}
           >
             {t(`tabs.${plugin.id}`) || plugin.displayName}
@@ -523,7 +495,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === 'git'
                 ? 'text-accent border-accent'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
+                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
             }`}
           >
             {t('tabs.git')}

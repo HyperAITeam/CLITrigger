@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -38,33 +38,33 @@
 
   [data-theme="dark"] {
     color-scheme: dark;
-    --color-bg-primary: #000000;
-    --color-bg-secondary: #1C1C1E;
-    --color-bg-tertiary: #2C2C2E;
-    --color-bg-card: #1C1C1E;
-    --color-bg-input: #2C2C2E;
-    --color-bg-hover: #3A3A3C;
-    --color-bg-active: #48484A;
-    --color-text-primary: #F5F5F7;
-    --color-text-secondary: #EBEBF5;
-    --color-text-tertiary: #8E8E93;
-    --color-text-muted: #636366;
-    --color-text-faint: #48484A;
-    --color-border: #38383A;
-    --color-border-strong: #48484A;
+    --color-bg-primary: #191919;
+    --color-bg-secondary: #1E1E1E;
+    --color-bg-tertiary: #2A2A2A;
+    --color-bg-card: #242424;
+    --color-bg-input: #2A2A2A;
+    --color-bg-hover: #333333;
+    --color-bg-active: #404040;
+    --color-text-primary: #EBEBEB;
+    --color-text-secondary: #A0A0A0;
+    --color-text-tertiary: #787878;
+    --color-text-muted: #555555;
+    --color-text-faint: #3A3A3A;
+    --color-border: #2E2E2E;
+    --color-border-strong: #3E3E3E;
     --color-border-muted: rgba(255, 255, 255, 0.06);
-    --color-accent: #0A84FF;
-    --color-accent-light: #5EB5FF;
-    --color-accent-dark: #0071E3;
+    --color-accent: #4B8DFF;
+    --color-accent-light: #7BABFF;
+    --color-accent-dark: #3370E0;
     --color-accent-amber: #FF9F0A;
-    --color-scrollbar: #48484A;
-    --color-scrollbar-hover: #636366;
-    --color-selection-bg: rgba(10, 132, 255, 0.25);
-    --color-selection-text: #F5F5F7;
+    --color-scrollbar: #3A3A3A;
+    --color-scrollbar-hover: #555555;
+    --color-selection-bg: rgba(75, 141, 255, 0.25);
+    --color-selection-text: #EBEBEB;
     --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
     --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-accent: 0 4px 12px rgba(10, 132, 255, 0.2);
+    --shadow-accent: 0 4px 12px rgba(75, 141, 255, 0.2);
   }
 
   html, body {
@@ -254,324 +254,4 @@
   .markdown-content input[type="checkbox"] {
     @apply mr-1.5;
   }
-}
-
-/* ============================================
-   Basquiat Neo-Expressionist Homepage Styles
-   Scoped to .basquiat-home — does NOT affect other pages
-   ============================================ */
-
-/* Light theme */
-.basquiat-home {
-  --bq-bg: #F5D623;
-  --bq-bg-secondary: #F5E6C8;
-  --bq-bg-card: #FAFAF0;
-  --bq-text: #1A1A1A;
-  --bq-text-secondary: #3A3A3A;
-  --bq-accent: #E63B2E;
-  --bq-accent2: #2B5CE6;
-  --bq-border: #1A1A1A;
-  --bq-shadow: 3px 3px 0px #1A1A1A;
-  --bq-shadow-hover: 5px 5px 0px #1A1A1A;
-  --bq-crown-color: #1A1A1A;
-}
-
-/* Dark theme */
-[data-theme="dark"] .basquiat-home {
-  --bq-bg: #2A2208;
-  --bq-bg-secondary: #1A1A0E;
-  --bq-bg-card: #2C2C1E;
-  --bq-text: #F5D623;
-  --bq-text-secondary: #D4B81A;
-  --bq-accent: #E63B2E;
-  --bq-accent2: #5B8BFF;
-  --bq-border: #F5D623;
-  --bq-shadow: 3px 3px 0px #D4B81A;
-  --bq-shadow-hover: 5px 5px 0px #D4B81A;
-  --bq-crown-color: #F5D623;
-}
-
-/* Background */
-.basquiat-home {
-  background-color: var(--bq-bg);
-  background-image:
-    repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 35px,
-      rgba(0,0,0,0.03) 35px,
-      rgba(0,0,0,0.03) 36px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 35px,
-      rgba(0,0,0,0.02) 35px,
-      rgba(0,0,0,0.02) 36px
-    );
-  color: var(--bq-text);
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Card overrides */
-.basquiat-home .card {
-  background-color: var(--bq-bg-card);
-  border: 2.5px solid var(--bq-border);
-  border-radius: 2px;
-  box-shadow: var(--bq-shadow);
-  transform: rotate(var(--bq-card-rotate, 0deg));
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  position: relative;
-  overflow: visible;
-}
-.basquiat-home .card:hover {
-  box-shadow: var(--bq-shadow-hover);
-  transform: rotate(var(--bq-card-rotate, 0deg)) translateY(-4px);
-  border-color: var(--bq-accent);
-}
-
-/* Button overrides */
-.basquiat-home .btn-primary {
-  background-color: var(--bq-accent);
-  border: 2px solid var(--bq-border);
-  border-radius: 0;
-  box-shadow: 2px 2px 0px var(--bq-border);
-  font-family: 'Permanent Marker', cursive;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s ease;
-}
-.basquiat-home .btn-primary:hover {
-  background-color: var(--bq-accent2);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0px var(--bq-border);
-}
-.basquiat-home .btn-primary:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px var(--bq-border);
-}
-
-.basquiat-home .btn-ghost {
-  font-family: 'Patrick Hand', cursive;
-  color: var(--bq-text-secondary);
-  border: 1.5px solid transparent;
-  border-radius: 0;
-}
-.basquiat-home .btn-ghost:hover {
-  background-color: var(--bq-bg-secondary);
-  border-color: var(--bq-border);
-  color: var(--bq-text);
-}
-
-/* Badge overrides */
-.basquiat-home .badge {
-  border: 1.5px solid var(--bq-border);
-  border-radius: 0;
-  font-family: 'Patrick Hand', cursive;
-  font-size: 0.8rem;
-}
-
-/* Lang/theme toggle overrides */
-.basquiat-home .lang-toggle {
-  border: 2px solid var(--bq-border);
-  border-radius: 0;
-  font-family: 'Permanent Marker', cursive;
-  background-color: var(--bq-bg-card);
-  color: var(--bq-text);
-}
-.basquiat-home .lang-toggle:hover {
-  background-color: var(--bq-accent);
-  color: #fff;
-  border-color: var(--bq-border);
-}
-
-/* Input overrides */
-.basquiat-home .input-field {
-  border: 2px solid var(--bq-border);
-  border-radius: 0;
-  background-color: var(--bq-bg-card);
-  color: var(--bq-text);
-  font-family: 'Patrick Hand', cursive;
-  font-size: 1rem;
-}
-.basquiat-home .input-field:focus {
-  border-color: var(--bq-accent);
-  --tw-ring-color: rgba(230, 59, 46, 0.2);
-}
-
-/* Floating crown decorations */
-.bq-crown {
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  color: var(--bq-crown-color);
-  opacity: 0.08;
-  animation: bqFloat 6s ease-in-out infinite;
-}
-.bq-crown:nth-of-type(2) {
-  animation-delay: -2s;
-  animation-duration: 8s;
-}
-.bq-crown:nth-of-type(3) {
-  animation-delay: -4s;
-  animation-duration: 7s;
-}
-
-/* Decorative underline scrawl */
-.bq-underline-scrawl {
-  position: relative;
-  display: inline-block;
-}
-.bq-underline-scrawl::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: -4px;
-  right: -4px;
-  height: 3px;
-  background: var(--bq-accent);
-  transform: rotate(-0.5deg);
-}
-
-/* Progress bar — hatched pattern */
-.basquiat-home .bq-progress-track {
-  background-color: var(--bq-bg-secondary);
-  border: 1.5px solid var(--bq-border);
-  border-radius: 0;
-  height: 8px;
-  overflow: hidden;
-}
-.basquiat-home .bq-progress-bar {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--bq-accent),
-    var(--bq-accent) 4px,
-    var(--bq-accent2) 4px,
-    var(--bq-accent2) 8px
-  );
-  height: 100%;
-  transition: width 0.5s ease;
-}
-
-/* Card enter animation */
-.basquiat-home .bq-card-enter {
-  animation: sketchIn 0.4s ease-out both;
-}
-
-/* Corner marks on cards */
-.bq-corner-tl,
-.bq-corner-tr {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-}
-.bq-corner-tl {
-  top: -1px;
-  left: -1px;
-  border-top: 2.5px solid var(--bq-accent);
-  border-left: 2.5px solid var(--bq-accent);
-}
-.bq-corner-tr {
-  top: -1px;
-  right: -1px;
-  border-top: 2.5px solid var(--bq-accent2);
-  border-right: 2.5px solid var(--bq-accent2);
-}
-
-/* Doodle X marks */
-.bq-x-mark {
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.06;
-  color: var(--bq-crown-color);
-  font-family: 'Permanent Marker', cursive;
-  font-size: 2rem;
-  animation: bqFloat 9s ease-in-out infinite;
-  animation-delay: -3s;
-}
-
-/* === Logo Banner === */
-.bq-logo-banner {
-  background: #2A2010;
-  border: 2.5px solid var(--bq-border);
-  border-radius: 6px;
-  padding: 16px 28px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  position: relative;
-  box-shadow: var(--bq-shadow);
-  overflow: hidden;
-}
-.bq-logo-banner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 20px,
-      rgba(245,214,35,0.02) 20px,
-      rgba(245,214,35,0.02) 21px
-    );
-  pointer-events: none;
-}
-
-.bq-logo-crown {
-  width: 48px;
-  height: 42px;
-  flex-shrink: 0;
-}
-
-.bq-logo-text {
-  font-family: 'Permanent Marker', cursive;
-  font-size: 2.4rem;
-  color: #F5D623;
-  letter-spacing: 3px;
-  font-style: italic;
-  line-height: 1;
-  text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
-  position: relative;
-  z-index: 1;
-}
-
-.bq-logo-underline {
-  position: absolute;
-  bottom: 10px;
-  left: 92px;
-  right: 28px;
-  height: 14px;
-}
-
-@media (max-width: 640px) {
-  .bq-logo-banner {
-    padding: 12px 16px;
-    gap: 10px;
-  }
-  .bq-logo-crown {
-    width: 36px;
-    height: 32px;
-  }
-  .bq-logo-text {
-    font-size: 1.6rem;
-    letter-spacing: 2px;
-  }
-  .bq-logo-underline {
-    left: 62px;
-    right: 16px;
-    bottom: 7px;
-  }
-}
-
-/* Modal backdrop override */
-.basquiat-home .bq-modal-label {
-  font-family: 'Permanent Marker', cursive;
-  color: var(--bq-text);
-}
-.basquiat-home .bq-modal-sublabel {
-  font-family: 'Patrick Hand', cursive;
-  color: var(--bq-text-secondary);
 }
