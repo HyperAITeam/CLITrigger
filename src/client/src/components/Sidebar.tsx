@@ -79,11 +79,16 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 pt-6 pb-4">
+      <div className="px-4 pt-5 pb-3">
         <Link to="/" onClick={handleNav} className="block">
-          <h1 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text-primary)' }}>
-            CLITrigger
-          </h1>
+          <svg viewBox="0 0 200 32" fill="none" className="h-6 w-auto">
+            {/* >_ prompt */}
+            <text x="0" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-accent)" opacity="0.5">{'>'}_</text>
+            {/* CLI — bold accent */}
+            <text x="38" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="700" fill="var(--color-accent)">CLI</text>
+            {/* Trigger — lighter */}
+            <text x="96" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-text-primary)">Trigger</text>
+          </svg>
         </Link>
       </div>
 
