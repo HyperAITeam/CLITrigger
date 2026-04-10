@@ -82,6 +82,13 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
 
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
 
+  // Auto-expand when interactive mode starts
+  useEffect(() => {
+    if (isInteractive && todo.status === 'running' && !expanded) {
+      setExpanded(true);
+    }
+  }, [isInteractive, todo.status]);
+
   useEffect(() => {
     if (expanded && !logsLoaded) {
       todosApi.getTodoLogs(todo.id)

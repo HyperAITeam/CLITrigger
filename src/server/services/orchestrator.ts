@@ -189,7 +189,7 @@ export class Orchestrator {
     }
 
     queries.updateTodoStatus(todoId, 'stopped');
-    queries.updateTodo(todoId, { process_pid: 0 });
+    queries.updateTodo(todoId, { process_pid: 0, execution_mode: null });
     queries.createTaskLog(todoId, 'output', 'Task stopped by user.');
 
     broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'stopped' });
@@ -208,6 +208,7 @@ export class Orchestrator {
 
     // Mark as running BEFORE any async work to prevent deletion during setup
     queries.updateTodoStatus(todoId, 'running');
+    queries.updateTodo(todoId, { execution_mode: mode });
 
     const isGitRepo = !!project.is_git_repo;
     const useWorktree = isGitRepo && !!project.use_worktree;
