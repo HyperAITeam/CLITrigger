@@ -255,3 +255,249 @@
     @apply mr-1.5;
   }
 }
+
+/* ============================================
+   Basquiat Neo-Expressionist Homepage Styles
+   Scoped to .basquiat-home — does NOT affect other pages
+   ============================================ */
+
+/* Light theme */
+.basquiat-home {
+  --bq-bg: #F5D623;
+  --bq-bg-secondary: #F5E6C8;
+  --bq-bg-card: #FAFAF0;
+  --bq-text: #1A1A1A;
+  --bq-text-secondary: #3A3A3A;
+  --bq-accent: #E63B2E;
+  --bq-accent2: #2B5CE6;
+  --bq-border: #1A1A1A;
+  --bq-shadow: 3px 3px 0px #1A1A1A;
+  --bq-shadow-hover: 5px 5px 0px #1A1A1A;
+  --bq-crown-color: #1A1A1A;
+}
+
+/* Dark theme */
+[data-theme="dark"] .basquiat-home {
+  --bq-bg: #2A2208;
+  --bq-bg-secondary: #1A1A0E;
+  --bq-bg-card: #2C2C1E;
+  --bq-text: #F5D623;
+  --bq-text-secondary: #D4B81A;
+  --bq-accent: #E63B2E;
+  --bq-accent2: #5B8BFF;
+  --bq-border: #F5D623;
+  --bq-shadow: 3px 3px 0px #D4B81A;
+  --bq-shadow-hover: 5px 5px 0px #D4B81A;
+  --bq-crown-color: #F5D623;
+}
+
+/* Background */
+.basquiat-home {
+  background-color: var(--bq-bg);
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 35px,
+      rgba(0,0,0,0.03) 35px,
+      rgba(0,0,0,0.03) 36px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 35px,
+      rgba(0,0,0,0.02) 35px,
+      rgba(0,0,0,0.02) 36px
+    );
+  color: var(--bq-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Card overrides */
+.basquiat-home .card {
+  background-color: var(--bq-bg-card);
+  border: 2.5px solid var(--bq-border);
+  border-radius: 2px;
+  box-shadow: var(--bq-shadow);
+  transform: rotate(var(--bq-card-rotate, 0deg));
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: visible;
+}
+.basquiat-home .card:hover {
+  box-shadow: var(--bq-shadow-hover);
+  transform: rotate(var(--bq-card-rotate, 0deg)) translateY(-4px);
+  border-color: var(--bq-accent);
+}
+
+/* Button overrides */
+.basquiat-home .btn-primary {
+  background-color: var(--bq-accent);
+  border: 2px solid var(--bq-border);
+  border-radius: 0;
+  box-shadow: 2px 2px 0px var(--bq-border);
+  font-family: 'Permanent Marker', cursive;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s ease;
+}
+.basquiat-home .btn-primary:hover {
+  background-color: var(--bq-accent2);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--bq-border);
+}
+.basquiat-home .btn-primary:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px var(--bq-border);
+}
+
+.basquiat-home .btn-ghost {
+  font-family: 'Patrick Hand', cursive;
+  color: var(--bq-text-secondary);
+  border: 1.5px solid transparent;
+  border-radius: 0;
+}
+.basquiat-home .btn-ghost:hover {
+  background-color: var(--bq-bg-secondary);
+  border-color: var(--bq-border);
+  color: var(--bq-text);
+}
+
+/* Badge overrides */
+.basquiat-home .badge {
+  border: 1.5px solid var(--bq-border);
+  border-radius: 0;
+  font-family: 'Patrick Hand', cursive;
+  font-size: 0.8rem;
+}
+
+/* Lang/theme toggle overrides */
+.basquiat-home .lang-toggle {
+  border: 2px solid var(--bq-border);
+  border-radius: 0;
+  font-family: 'Permanent Marker', cursive;
+  background-color: var(--bq-bg-card);
+  color: var(--bq-text);
+}
+.basquiat-home .lang-toggle:hover {
+  background-color: var(--bq-accent);
+  color: #fff;
+  border-color: var(--bq-border);
+}
+
+/* Input overrides */
+.basquiat-home .input-field {
+  border: 2px solid var(--bq-border);
+  border-radius: 0;
+  background-color: var(--bq-bg-card);
+  color: var(--bq-text);
+  font-family: 'Patrick Hand', cursive;
+  font-size: 1rem;
+}
+.basquiat-home .input-field:focus {
+  border-color: var(--bq-accent);
+  --tw-ring-color: rgba(230, 59, 46, 0.2);
+}
+
+/* Floating crown decorations */
+.bq-crown {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--bq-crown-color);
+  opacity: 0.08;
+  animation: bqFloat 6s ease-in-out infinite;
+}
+.bq-crown:nth-of-type(2) {
+  animation-delay: -2s;
+  animation-duration: 8s;
+}
+.bq-crown:nth-of-type(3) {
+  animation-delay: -4s;
+  animation-duration: 7s;
+}
+
+/* Decorative underline scrawl */
+.bq-underline-scrawl {
+  position: relative;
+  display: inline-block;
+}
+.bq-underline-scrawl::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  right: -4px;
+  height: 3px;
+  background: var(--bq-accent);
+  transform: rotate(-0.5deg);
+}
+
+/* Progress bar — hatched pattern */
+.basquiat-home .bq-progress-track {
+  background-color: var(--bq-bg-secondary);
+  border: 1.5px solid var(--bq-border);
+  border-radius: 0;
+  height: 8px;
+  overflow: hidden;
+}
+.basquiat-home .bq-progress-bar {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bq-accent),
+    var(--bq-accent) 4px,
+    var(--bq-accent2) 4px,
+    var(--bq-accent2) 8px
+  );
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* Card enter animation */
+.basquiat-home .bq-card-enter {
+  animation: sketchIn 0.4s ease-out both;
+}
+
+/* Corner marks on cards */
+.bq-corner-tl,
+.bq-corner-tr {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.bq-corner-tl {
+  top: -1px;
+  left: -1px;
+  border-top: 2.5px solid var(--bq-accent);
+  border-left: 2.5px solid var(--bq-accent);
+}
+.bq-corner-tr {
+  top: -1px;
+  right: -1px;
+  border-top: 2.5px solid var(--bq-accent2);
+  border-right: 2.5px solid var(--bq-accent2);
+}
+
+/* Doodle X marks */
+.bq-x-mark {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.06;
+  color: var(--bq-crown-color);
+  font-family: 'Permanent Marker', cursive;
+  font-size: 2rem;
+  animation: bqFloat 9s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+/* Modal backdrop override */
+.basquiat-home .bq-modal-label {
+  font-family: 'Permanent Marker', cursive;
+  color: var(--bq-text);
+}
+.basquiat-home .bq-modal-sublabel {
+  font-family: 'Patrick Hand', cursive;
+  color: var(--bq-text-secondary);
+}
