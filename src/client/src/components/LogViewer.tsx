@@ -100,6 +100,8 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
   const containerRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [copied, setCopied] = useState(false);
+  const [waitingForResponse, setWaitingForResponse] = useState(false);
+  const waitingSinceRef = useRef<number>(0);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -108,11 +110,28 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
     }
   }, [logs]);
 
+  // Clear waiting indicator when meaningful output arrives (with minimum 1s display)
+  useEffect(() => {
+    if (!waitingForResponse || logs.length === 0) return;
+    const elapsed = Date.now() - waitingSinceRef.current;
+    const lastLog = logs[logs.length - 1];
+    if (lastLog.log_type === 'output' || lastLog.log_type === 'error' || lastLog.log_type === 'commit') {
+      if (elapsed >= 1000) {
+        setWaitingForResponse(false);
+      } else {
+        const timer = setTimeout(() => setWaitingForResponse(false), 1000 - elapsed);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [logs, waitingForResponse]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !todoId || !onSendInput) return;
     onSendInput(todoId, inputValue);
     setInputValue('');
+    setWaitingForResponse(true);
+    waitingSinceRef.current = Date.now();
   };
 
   const handleCopy = async () => {
@@ -182,7 +201,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
               );
             })
           )}
-          {interactive && logs.length > 0 && logs[logs.length - 1].log_type === 'input' && (
+          {interactive && waitingForResponse && (
             <div className="mb-0.5 leading-relaxed">
               <span className="inline-flex gap-1" style={{ color: '#569cd6' }}>
                 <span className="animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1.2s' }}>●</span>

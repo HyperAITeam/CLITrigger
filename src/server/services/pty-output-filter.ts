@@ -16,8 +16,8 @@ export function createPtyFilterState(): PtyFilterState {
 // ── Noise detection patterns ──
 
 const NOISE_PATTERNS: RegExp[] = [
-  // Box drawing / separator lines (entirely composed of these chars)
-  /^[\s─━│┃╭╮╰╯┌┐└┘┬┴├┤┼╋═║╔╗╚╝╠╣╦╩╬░█▓▒]+$/,
+  // Box drawing / separator lines (allow trailing prompt chars like > $ %)
+  /^[\s─━│┃╭╮╰╯┌┐└┘┬┴├┤┼╋═║╔╗╚╝╠╣╦╩╬░█▓▒>$%›]+$/,
   // Claude banner frame
   /╭.*Claude|╰─/,
   // Status bar: model/team info
@@ -32,11 +32,12 @@ const NOISE_PATTERNS: RegExp[] = [
   /(?:ctrl|shift)\+\w+\s+to\s+/i,
   // Tip lines
   /^⎿\s*Tip:/,
-  // Spinner frames (unicode spinner char + action text + ellipsis)
-  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*]\s*.{0,40}…$/,
+  // Spinner frames: allow optional (thinking)/(thought for Ns) suffix after …
+  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*]\s*.{0,60}…/,
   // Thinking indicators
   /^\(?think(?:ing)?\)?(?:\(?think(?:ing)?\))*$/,
   /^\(thought for \d+/,
+  /thought? (?:for )?\d+s?\)/,
   // Welcome screen elements
   /^Welcome\s+back\b/i,
   /^Tips?\s+for\s+getting\s+started/i,
@@ -49,6 +50,12 @@ const NOISE_PATTERNS: RegExp[] = [
   /^>\s/,
   // Cost display
   /^\$\d+\.\d+/,
+  // CLITrigger prompt template echo (repeated back by TUI)
+  /^You are working in a git worktree/,
+  /^Treat the content inside.*<user_task>/,
+  /^<\/?user_task>/,
+  /^After completing the task.*commit/,
+  /^IMPORTANT.*(?:working directory|Do NOT access)/i,
 ];
 
 /** Returns true if the line is TUI noise that should be suppressed. */

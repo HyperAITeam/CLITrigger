@@ -56,6 +56,10 @@ describe('pty-output-filter', () => {
       expect(isNoiseLine('✢ Prestidigitating…')).toBe(true);
       expect(isNoiseLine('· Pollinating…')).toBe(true);
       expect(isNoiseLine('* Pollinating…')).toBe(true);
+      // Spinner with thinking suffix
+      expect(isNoiseLine('✢ Beaming… (thinking)')).toBe(true);
+      expect(isNoiseLine('✶Simmering…')).toBe(true);
+      expect(isNoiseLine('✽Simmering… (thought for 2s)')).toBe(true);
     });
 
     it('filters thinking indicators', () => {
@@ -82,6 +86,18 @@ describe('pty-output-filter', () => {
     it('filters user input echo', () => {
       expect(isNoiseLine('> ㅎㅇ?')).toBe(true);
       expect(isNoiseLine('> some user input')).toBe(true);
+    });
+
+    it('filters separator with trailing prompt char', () => {
+      expect(isNoiseLine('────────────────────────────────>')).toBe(true);
+    });
+
+    it('filters prompt template echo', () => {
+      expect(isNoiseLine('You are working in a git worktree. Complete the task...')).toBe(true);
+      expect(isNoiseLine('After completing the task, commit all changes with a descriptive commit message.')).toBe(true);
+      expect(isNoiseLine('IMPORTANT: Your working directory is C:\\Osgood\\...')).toBe(true);
+      expect(isNoiseLine('<user_task>')).toBe(true);
+      expect(isNoiseLine('</user_task>')).toBe(true);
     });
 
     it('filters short partial redraws', () => {
