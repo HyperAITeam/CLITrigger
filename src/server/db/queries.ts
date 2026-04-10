@@ -160,6 +160,7 @@ export interface Todo {
   token_usage: string | null;
   merged_from_branch: string | null;
   context_switch_count: number;
+  execution_mode: string | null;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -187,7 +188,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -208,6 +209,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.position_y !== undefined) { fields.push('position_y = ?'); values.push(updates.position_y); }
   if (updates.merged_from_branch !== undefined) { fields.push('merged_from_branch = ?'); values.push(updates.merged_from_branch); }
   if (updates.context_switch_count !== undefined) { fields.push('context_switch_count = ?'); values.push(updates.context_switch_count); }
+  if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
 
   if (fields.length === 0) return getTodoById(id);
 
