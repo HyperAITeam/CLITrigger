@@ -15,8 +15,12 @@ const translations = {
     'login.footer': 'Secure Access',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Sidebar
+    'sidebar.home': 'Home',
+    'sidebar.workspaces': 'Workspaces',
+
     // Project List
-    'projects.title': 'CLITrigger',
+    'projects.title': 'All Projects',
     'projects.subtitle': 'Project Console',
     'projects.new': 'New Project',
     'projects.logout': 'Sign Out',
@@ -26,6 +30,7 @@ const translations = {
     'projects.tasks': 'tasks',
     'projects.active': 'active',
     'projects.done': 'done',
+    'projects.search': 'Search projects...',
     'projects.delete': 'Delete project',
     'projects.deleteConfirm': 'Are you sure you want to delete this project?',
     'projects.pathMissing': 'Path not found',
@@ -568,8 +573,12 @@ const translations = {
     'login.footer': '\uBCF4\uC548 \uC811\uC18D',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Sidebar
+    'sidebar.home': '홈',
+    'sidebar.workspaces': '워크스페이스',
+
     // Project List
-    'projects.title': 'CLITrigger',
+    'projects.title': '전체 프로젝트',
     'projects.subtitle': '\uD504\uB85C\uC81D\uD2B8 \uCF58\uC194',
     'projects.new': '\uC0C8 \uD504\uB85C\uC81D\uD2B8',
     'projects.logout': '\uB85C\uADF8\uC544\uC6C3',
@@ -579,6 +588,7 @@ const translations = {
     'projects.tasks': '\uC791\uC5C5',
     'projects.active': '\uC2E4\uD589 \uC911',
     'projects.done': '\uC644\uB8CC',
+    'projects.search': '프로젝트 검색...',
     'projects.delete': '프로젝트 삭제',
     'projects.deleteConfirm': '이 프로젝트를 삭제하시겠습니까?',
     'projects.pathMissing': '경로 없음',

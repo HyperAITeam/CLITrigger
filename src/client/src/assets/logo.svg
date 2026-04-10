@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 100">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="520" height="100" rx="6" fill="#2A2010"/>
+
+  <!-- Crown icon -->
+  <g transform="translate(24, 18)">
+    <!-- Crown body -->
+    <path d="M4 52 L16 10 L28 30 L34 4 L40 30 L52 10 L60 52 Z"
+          stroke="#E63B2E" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+    <!-- Crown dots -->
+    <circle cx="16" cy="10" r="4" fill="#E63B2E"/>
+    <circle cx="34" cy="4" r="4" fill="#E63B2E"/>
+    <circle cx="52" cy="10" r="4" fill="#E63B2E"/>
+    <!-- Crown base line -->
+    <line x1="4" y1="52" x2="60" y2="52" stroke="#E63B2E" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- Inner crown accent -->
+    <path d="M14 38 L22 22 L30 34 L34 18 L38 34 L46 22 L50 38"
+          stroke="#F5D623" stroke-width="1.5" fill="none" stroke-linejoin="round" opacity="0.5"/>
+  </g>
+
+  <!-- CLITRIGGER text -->
+  <text x="105" y="64" font-family="'Permanent Marker', cursive" font-size="52" fill="#F5D623"
+        letter-spacing="3" font-style="italic">CLITRIGGER</text>
+
+  <!-- Red underline scrawl -->
+  <path d="M105 74 Q200 72 310 75 Q400 71 490 74"
+        stroke="#E63B2E" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- Second thinner underline for depth -->
+  <path d="M110 79 Q220 81 330 78 Q420 82 485 79"
+        stroke="#E63B2E" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/>
+</svg>
