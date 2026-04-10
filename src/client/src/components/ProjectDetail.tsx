@@ -145,13 +145,25 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }, [id]);
 
   const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
-    if (mode === 'interactive') {
+    const shouldTrackInteractive = mode === 'interactive';
+    if (shouldTrackInteractive) {
       setInteractiveTodos((prev) => new Set(prev).add(todoId));
     }
-    const updated = await todosApi.startTodo(todoId, mode);
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? updated : t))
-    );
+    try {
+      const updated = await todosApi.startTodo(todoId, mode);
+      setTodos((prev) =>
+        prev.map((t) => (t.id === todoId ? updated : t))
+      );
+    } catch (err) {
+      if (shouldTrackInteractive) {
+        setInteractiveTodos((prev) => {
+          const next = new Set(prev);
+          next.delete(todoId);
+          return next;
+        });
+      }
+      throw err;
+    }
   }, []);
 
   const handleStopTodo = useCallback(async (todoId: string) => {
@@ -200,13 +212,25 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }, []);
 
   const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
-    if (mode === 'interactive') {
+    const shouldTrackInteractive = mode === 'interactive';
+    if (shouldTrackInteractive) {
       setInteractiveTodos((prev) => new Set(prev).add(todoId));
     }
-    const updated = await todosApi.retryTodo(todoId, mode);
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? updated : t))
-    );
+    try {
+      const updated = await todosApi.retryTodo(todoId, mode);
+      setTodos((prev) =>
+        prev.map((t) => (t.id === todoId ? updated : t))
+      );
+    } catch (err) {
+      if (shouldTrackInteractive) {
+        setInteractiveTodos((prev) => {
+          const next = new Set(prev);
+          next.delete(todoId);
+          return next;
+        });
+      }
+      throw err;
+    }
   }, []);
 
   const handleScheduleTodo = useCallback(async (todoId: string, runAt: string, keepOriginal?: boolean) => {

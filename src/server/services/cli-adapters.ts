@@ -48,6 +48,8 @@ export interface CliAdapter {
   command: string;
   /** Display name for logs */
   displayName: string;
+  /** Whether this CLI supports long-lived interactive sessions */
+  supportsInteractive?: boolean;
   /** Build the args array for spawning */
   buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode }): string[];
   /** Whether this mode needs stdin pipe */
@@ -70,6 +72,7 @@ IMPORTANT: Work efficiently and stop when done.
 const claudeAdapter: CliAdapter = {
   command: 'claude',
   displayName: 'Claude CLI',
+  supportsInteractive: true,
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode }) {
     const normalizedModel = normalizeModel(model, 'claude');
@@ -107,6 +110,7 @@ const geminiAdapter: CliAdapter = {
     // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
     const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
+    if (mode !== 'interactive') args.push('-p');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
@@ -160,4 +164,8 @@ const adapters: Record<CliTool, CliAdapter> = {
 
 export function getAdapter(tool: CliTool): CliAdapter {
   return adapters[tool] ?? adapters.claude;
+}
+
+export function supportsInteractiveMode(tool: CliTool): boolean {
+  return !!getAdapter(tool).supportsInteractive;
 }

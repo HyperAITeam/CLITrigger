@@ -383,6 +383,7 @@ export default function TodoList({
                   <TodoItem
                     todo={todo}
                     allTodos={todos}
+                    projectCliTool={projectCliTool}
                     onStart={onStartTodo}
                     onStop={onStopTodo}
                     onDelete={onDeleteTodo}

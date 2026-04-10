@@ -12,6 +12,7 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 interface TodoItemProps {
   todo: Todo;
   allTodos?: Todo[];
+  projectCliTool?: string;
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -39,7 +40,7 @@ interface TodoItemProps {
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -245,6 +246,8 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
   const childTodo = allTodos.find(t => t.depends_on === todo.id && t.merged_from_branch);
+  const todoCliTool = ((todo.cli_tool || projectCliTool || 'claude') as CliTool);
+  const supportsInteractive = getToolConfig(todoCliTool).supportsInteractive;
 
   if (editing) {
     return (
@@ -418,15 +421,17 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </button>
-              <button
-                onClick={() => onStart(todo.id, 'interactive')}
-                className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                title={t('todo.startInteractive')}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
+              {supportsInteractive && (
+                <button
+                  onClick={() => onStart(todo.id, 'interactive')}
+                  className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                  title={t('todo.startInteractive')}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => onStart(todo.id, 'verbose')}
                 className="p-1.5 text-purple-500/60 hover:text-purple-500 hover:bg-purple-500/10 rounded-lg transition-colors"
