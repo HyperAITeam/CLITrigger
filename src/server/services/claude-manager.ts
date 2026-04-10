@@ -35,7 +35,9 @@ export class ClaudeManager {
 
     if (adapter.requiresTty || mode === 'interactive') {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
-      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive');
+      // Only Claude has a TUI that requires delayed stdin delivery (wait for ready indicator)
+      const delayStdin = tool === 'claude';
+      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive', delayStdin);
       return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
@@ -45,7 +47,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string, interactive?: boolean): Promise<{
+  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string, interactive?: boolean, delayStdin: boolean = true): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -97,12 +99,9 @@ export class ClaudeManager {
           trustPending = false;
         }
 
-        // Detect CLI ready state and deliver prompt via stdin.
-        // Codex outputs '›' when ready for input. We also detect common
-        // prompt characters ($, >, %) as fallback for other PTY-based CLIs.
-        // A 10-second fallback timer ensures delivery even if detection fails.
-        // Skip detection while trust prompt is pending to avoid matching its '>' marker.
-        if (stdinPrompt && !stdinDelivered && !exited && !trustPending) {
+        // Detect CLI ready state and deliver prompt via stdin (Claude TUI only).
+        // Non-Claude CLIs get immediate delivery (see below), so this only runs with delayStdin.
+        if (delayStdin && stdinPrompt && !stdinDelivered && !exited && !trustPending) {
           if (/[›>$%]\s*$/.test(clean)) {
             stdinDelivered = true;
             // PTY requires \r (carriage return) to submit, not \n (line feed)
@@ -156,8 +155,16 @@ export class ClaudeManager {
         });
       });
 
-      // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
-      if (stdinPrompt) {
+      // Stdin delivery: immediate for non-Claude CLIs, delayed for Claude TUI
+      if (stdinPrompt && !delayStdin) {
+        setImmediate(() => {
+          if (!stdinDelivered && !exited) {
+            stdinDelivered = true;
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+          }
+        });
+      } else if (stdinPrompt && delayStdin) {
+        // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
         setTimeout(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
