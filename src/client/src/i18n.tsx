@@ -122,6 +122,13 @@ const translations = {
     'form.cancel': 'Cancel',
     'form.create': 'Create',
 
+    // Folder Browser
+    'browse.title': 'Browse Folder',
+    'browse.select': 'Select',
+    'browse.loading': 'Loading...',
+    'browse.error': 'Failed to load directory',
+    'browse.empty': 'No folders found',
+
     // Todo List
     'todos.title': 'Tasks',
     'todos.add': 'Add Task',
@@ -679,6 +686,13 @@ const translations = {
     'form.folderPath': '\uD3F4\uB354 \uACBD\uB85C',
     'form.cancel': '\uCDE8\uC18C',
     'form.create': '\uC0DD\uC131',
+
+    // Folder Browser
+    'browse.title': '폴더 찾아보기',
+    'browse.select': '선택',
+    'browse.loading': '불러오는 중...',
+    'browse.error': '디렉토리를 불러올 수 없습니다',
+    'browse.empty': '폴더가 없습니다',
 
     // Todo List
     'todos.title': '작업 목록',
