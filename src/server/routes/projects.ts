@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import nodePath from 'path';
 import fs from 'fs';
+import { execFileSync } from 'child_process';
+import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 
@@ -43,38 +45,56 @@ function validateProjectPath(inputPath: string): { valid: boolean; error?: strin
 
 // POST /api/projects/browse - open native OS folder picker dialog
 router.post('/browse', (req: Request, res: Response) => {
-  const { execSync } = require('child_process');
   const initialDir = req.body.initialPath || '';
 
   try {
     let selected = '';
 
     if (process.platform === 'win32') {
-      const psScript = initialDir
-        ? `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.SelectedPath = '${initialDir.replace(/'/g, "''")}'; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }`
-        : `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }`;
-      selected = execSync(`powershell -NoProfile -Command "${psScript.replace(/"/g, '\\"')}"`, {
+      // Write a temp .ps1 script to avoid shell escaping issues
+      const scriptLines = [
+        'Add-Type -AssemblyName System.Windows.Forms',
+        '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
+        '$d.ShowNewFolderButton = $true',
+      ];
+      if (initialDir) {
+        scriptLines.push(`$d.SelectedPath = '${initialDir.replace(/'/g, "''")}'`);
+      }
+      scriptLines.push(
+        'if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
+      );
+
+      const tmpScript = nodePath.join(os.tmpdir(), `clitrigger-browse-${Date.now()}.ps1`);
+      fs.writeFileSync(tmpScript, scriptLines.join('\r\n'), 'utf-8');
+
+      try {
+        selected = execFileSync('powershell', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', tmpScript], {
+          encoding: 'utf-8',
+          timeout: 120000,
+          windowsHide: false,
+        }).trim();
+      } finally {
+        try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
+      }
+    } else if (process.platform === 'darwin') {
+      const script = initialDir
+        ? `POSIX path of (choose folder default location "${initialDir}")`
+        : 'POSIX path of (choose folder)';
+      selected = execFileSync('osascript', ['-e', script], {
         encoding: 'utf-8',
         timeout: 120000,
-        windowsHide: false,
       }).trim();
-    } else if (process.platform === 'darwin') {
-      selected = execSync(
-        `osascript -e 'POSIX path of (choose folder${initialDir ? ` default location "${initialDir}"` : ''})'`,
-        { encoding: 'utf-8', timeout: 120000 },
-      ).trim();
     } else {
       // Linux: try zenity, then kdialog
+      const args = ['--file-selection', '--directory'];
+      if (initialDir) args.push(`--filename=${initialDir}/`);
       try {
-        selected = execSync(
-          `zenity --file-selection --directory${initialDir ? ` --filename="${initialDir}/"` : ''}`,
-          { encoding: 'utf-8', timeout: 120000 },
-        ).trim();
+        selected = execFileSync('zenity', args, { encoding: 'utf-8', timeout: 120000 }).trim();
       } catch {
-        selected = execSync(
-          `kdialog --getexistingdirectory ${initialDir ? `"${initialDir}"` : '"~"'}`,
-          { encoding: 'utf-8', timeout: 120000 },
-        ).trim();
+        selected = execFileSync('kdialog', ['--getexistingdirectory', initialDir || '~'], {
+          encoding: 'utf-8',
+          timeout: 120000,
+        }).trim();
       }
     }
 
