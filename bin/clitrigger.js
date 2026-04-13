@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { createInterface } from 'readline/promises';
+import { execSync, spawn } from 'child_process';
 
 const CONFIG_DIR = path.join(os.homedir(), '.clitrigger');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -15,7 +16,10 @@ if (args[0] === 'config') {
 } else if (args[0] === '--help' || args[0] === '-h') {
   printHelp();
 } else {
-  await startServer();
+  const updated = await checkAutoUpdate();
+  if (!updated) {
+    await startServer();
+  }
 }
 
 async function startServer() {
@@ -33,7 +37,7 @@ async function startServer() {
     }
     rl.close();
 
-    const config = { port: 3000, password };
+    const config = { port: 3000, password, tunnel: true };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
     console.log(`\n✅ 설정 완료! (${CONFIG_FILE})`);
   }
@@ -59,7 +63,8 @@ async function startServer() {
   process.env.PORT = String(config.port || 3000);
   process.env.AUTH_PASSWORD = config.password;
   process.env.DB_PATH = path.join(CONFIG_DIR, 'clitrigger.db');
-  if (config.tunnel) {
+  // tunnel defaults to true (auto-enable for new and existing users)
+  if (config.tunnel !== false) {
     process.env.TUNNEL_ENABLED = 'true';
   }
   if (config.tunnelName) {
@@ -71,6 +76,23 @@ async function startServer() {
 }
 
 async function handleConfig(args) {
+  if (args[0] === 'clear') {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      console.log('삭제할 설정이 없습니다.');
+      return;
+    }
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await rl.question(`⚠️  ${CONFIG_DIR} 의 모든 설정과 데이터가 삭제됩니다. 계속하시겠습니까? (y/N) `);
+    rl.close();
+    if (answer.toLowerCase() === 'y') {
+      fs.rmSync(CONFIG_DIR, { recursive: true, force: true });
+      console.log('✅ 설정 및 데이터가 삭제되었습니다.');
+    } else {
+      console.log('취소되었습니다.');
+    }
+    return;
+  }
+
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
   if (!fs.existsSync(CONFIG_FILE)) {
@@ -132,6 +154,73 @@ async function handleConfig(args) {
   }
 }
 
+function isNewerVersion(latest, current) {
+  const a = latest.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
+async function checkAutoUpdate() {
+  // 업데이트 직후 재시작된 프로세스면 스킵
+  if (process.env.CLITRIGGER_UPDATED === '1') {
+    delete process.env.CLITRIGGER_UPDATED;
+    return false;
+  }
+
+  try {
+    if (!fs.existsSync(CONFIG_FILE)) return false;
+
+    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+
+    // 24시간 이내에 체크했으면 스킵
+    const now = Date.now();
+    const lastCheck = config.lastUpdateCheck || 0;
+    if (now - lastCheck < 24 * 60 * 60 * 1000) return false;
+
+    // 체크 시간 저장 (네트워크 실패 시에도 반복 체크 방지)
+    config.lastUpdateCheck = now;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+
+    // 현재 버전 읽기
+    const pkgPath = new URL('../package.json', import.meta.url);
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    const currentVersion = pkg.version;
+
+    // npm registry에서 최신 버전 조회 (5초 타임아웃)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch('https://registry.npmjs.org/clitrigger/latest', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    const latestVersion = data.version;
+
+    if (!isNewerVersion(latestVersion, currentVersion)) return false;
+
+    console.log(`\n🔄 새 버전 발견: v${currentVersion} → v${latestVersion}, 업데이트 중...`);
+    execSync('npm i -g clitrigger@latest', { stdio: 'inherit' });
+    console.log(`✅ v${latestVersion} 업데이트 완료! 재시작합니다...\n`);
+
+    // 업데이트된 코드로 재시작
+    const child = spawn(process.argv[0], process.argv.slice(1), {
+      stdio: 'inherit',
+      env: { ...process.env, CLITRIGGER_UPDATED: '1' },
+    });
+    child.on('exit', (code) => process.exit(code ?? 0));
+    return true;
+  } catch {
+    // 네트워크 오류, 타임아웃 등 — 무시하고 현재 버전으로 계속
+    return false;
+  }
+}
+
 function printHelp() {
   console.log(`
 CLITrigger - AI-powered task execution tool
@@ -145,6 +234,7 @@ Usage:
   clitrigger config tunnel on <name>  Named 터널 활성화
   clitrigger config tunnel off  터널 비활성화
   clitrigger config path        설정 디렉토리 경로 출력
+  clitrigger config clear       설정 및 데이터 완전 삭제
   clitrigger --help             이 도움말 표시
 `.trim());
 }

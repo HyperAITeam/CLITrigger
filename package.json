@@ -31,10 +31,12 @@
     "typecheck": "tsc -p tsconfig.server.json --noEmit && cd src/client && npx tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
     "typecheck:client": "cd src/client && npx tsc --noEmit",
-    "build:plugin": "npm run build && npx esbuild dist/server/index.js --bundle --platform=node --format=esm --outfile=plugin-build/server/server.js --external:better-sqlite3 --external:node-pty"
+    "build:plugin": "npm run build && npx esbuild dist/server/index.js --bundle --platform=node --format=esm --outfile=plugin-build/server/server.js --external:better-sqlite3 --external:node-pty",
+    "postuninstall": "node bin/postuninstall.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "cloudflared": "^0.7.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

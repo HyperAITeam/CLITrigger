@@ -2,12 +2,13 @@ import { spawn, execFile, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { bin as cloudflaredBin } from 'cloudflared';
 
 export class TunnelManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private url: string | null = null;
   private status: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
-  private cloudflaredPath: string = 'cloudflared';
+  private cloudflaredPath: string = cloudflaredBin;
 
   /**
    * Start a quick (unnamed) cloudflared tunnel.
@@ -22,7 +23,7 @@ export class TunnelManager extends EventEmitter {
     const installed = await this.isCloudflaredInstalled();
     if (!installed) {
       throw new Error(
-        'cloudflared is not installed. Install it with: winget install cloudflare.cloudflared (Windows) or brew install cloudflared (macOS)'
+        'cloudflared binary not found. Try reinstalling clitrigger: npm i -g clitrigger'
       );
     }
 
@@ -108,7 +109,7 @@ export class TunnelManager extends EventEmitter {
     const installed = await this.isCloudflaredInstalled();
     if (!installed) {
       throw new Error(
-        'cloudflared is not installed. Install it with: winget install cloudflare.cloudflared (Windows) or brew install cloudflared (macOS)'
+        'cloudflared binary not found. Try reinstalling clitrigger: npm i -g clitrigger'
       );
     }
 
@@ -267,11 +268,24 @@ export class TunnelManager extends EventEmitter {
   }
 
   /**
-   * Check if cloudflared is installed by running 'cloudflared --version'.
-   * Falls back to known installation paths on Windows if not found in PATH.
+   * Check if cloudflared is installed.
+   * Priority: 1) npm cloudflared package binary, 2) system PATH, 3) known Windows paths.
    */
   async isCloudflaredInstalled(): Promise<boolean> {
-    // First try the current cloudflaredPath (default: 'cloudflared' = from PATH)
+    // 1) Try npm cloudflared package binary (bundled with clitrigger)
+    if (existsSync(cloudflaredBin)) {
+      const works = await new Promise<boolean>((resolve) => {
+        execFile(cloudflaredBin, ['--version'], (error) => {
+          resolve(!error);
+        });
+      });
+      if (works) {
+        this.cloudflaredPath = cloudflaredBin;
+        return true;
+      }
+    }
+
+    // 2) Try system PATH
     const inPath = await new Promise<boolean>((resolve) => {
       execFile('cloudflared', ['--version'], { shell: true }, (error) => {
         resolve(!error);
@@ -283,7 +297,7 @@ export class TunnelManager extends EventEmitter {
       return true;
     }
 
-    // Fallback: try known installation paths
+    // 3) Fallback: try known installation paths (Windows)
     const resolved = this.resolveCloudflaredPath();
     if (resolved) {
       const works = await new Promise<boolean>((resolve) => {
