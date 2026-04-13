@@ -3,16 +3,8 @@ import type { Project } from '../types';
 
 // --- Folder Browser ---
 
-export interface BrowseResult {
-  current: string;
-  parent: string | null;
-  dirs: { name: string; path: string }[];
-  isGitRepo?: boolean;
-}
-
-export function browseFolders(path?: string): Promise<BrowseResult> {
-  const qs = path ? `?path=${encodeURIComponent(path)}` : '';
-  return get(`/api/projects/browse${qs}`);
+export function browseNativeFolder(initialPath?: string): Promise<{ path: string | null }> {
+  return post('/api/projects/browse', { initialPath });
 }
 
 export function getProjects(): Promise<Project[]> {
