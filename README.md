@@ -137,6 +137,9 @@ clitrigger config password     # 비밀번호 변경
 ```
 
 > **사전 요구사항**: Node.js 20+, Git, 사용할 AI CLI (Claude / Gemini / Codex 중 하나 이상)
+>
+> **지원 플랫폼**: Windows · macOS · Linux — 모든 핵심 코드가 크로스 플랫폼 대응되어 있다.
+> macOS에서는 네이티브 모듈 빌드를 위해 `xcode-select --install`이 필요할 수 있다.
 
 ### 소스에서 직접 실행 (개발용)
 
@@ -172,6 +175,17 @@ npm run dev
 | `start.bat` | 프로덕션 서버 실행 |
 | `start-tunnel.bat` | 터널 모드 실행 |
 | `test.bat` | 전체 테스트 |
+
+#### macOS / Linux
+
+`npm run` 명령어가 모든 플랫폼에서 동일하게 동작한다. `.bat` 스크립트 대신 터미널에서 직접 실행하면 된다.
+
+```bash
+npm run dev        # 개발 모드
+npm run build      # 빌드
+npm run start      # 프로덕션 실행
+npm test           # 테스트
+```
 
 </details>
 

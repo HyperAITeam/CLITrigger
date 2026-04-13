@@ -1,5 +1,15 @@
 # CLITrigger 설치 및 실행 가이드
 
+## 지원 플랫폼
+
+| 플랫폼 | 지원 | 비고 |
+|--------|------|------|
+| **Windows** 10/11 | ✅ | `scripts/*.bat` 원클릭 실행 지원 |
+| **macOS** (Intel / Apple Silicon) | ✅ | Xcode CLI tools 필요 (`xcode-select --install`) |
+| **Linux** (x64) | ✅ | build-essential 필요 (`apt install build-essential`) |
+
+모든 핵심 코드(프로세스 생성, 경로 처리, 파일 다이얼로그, 터널 등)가 플랫폼별 분기 처리되어 있어 추가 설정 없이 동작합니다.
+
 ## 사전 요구사항
 
 | 항목 | 최소 버전 | 확인 명령어 |
@@ -9,6 +19,21 @@
 | Git | v2.20+ | `git --version` |
 | Claude CLI | 최신 | `claude --version` |
 | cloudflared (선택) | 최신 | `cloudflared --version` |
+
+#### macOS 추가 요구사항
+
+네이티브 모듈(`better-sqlite3`, `node-pty`) 컴파일을 위해 Xcode Command Line Tools가 필요합니다:
+
+```bash
+xcode-select --install
+```
+
+#### Linux 추가 요구사항
+
+```bash
+sudo apt install build-essential python3   # Debian/Ubuntu
+sudo dnf groupinstall "Development Tools"  # Fedora/RHEL
+```
 
 ### Claude CLI 설치
 
@@ -122,7 +147,7 @@ DISABLE_AUTH=false           # true면 인증 비활성화 (로컬 플러그인 
 
 #### 3단계: 실행
 
-##### 원클릭 실행 (Windows)
+##### 원클릭 실행 (Windows 전용)
 
 `scripts/` 폴더의 bat 파일을 더블클릭하면 터미널 명령어 입력 없이 바로 실행할 수 있습니다.
 
@@ -140,7 +165,11 @@ DISABLE_AUTH=false           # true면 인증 비활성화 (로컬 플러그인 
 
 > 처음 설치할 때: `install.bat` → `dev.bat` 순서로 더블클릭하면 끝!
 
-##### 터미널에서 직접 실행
+##### macOS / Linux
+
+`.bat` 스크립트는 Windows 전용입니다. macOS/Linux에서는 아래 `npm run` 명령어를 사용하세요. 모든 `package.json` 스크립트는 크로스 플랫폼 호환됩니다.
+
+##### 터미널에서 직접 실행 (모든 플랫폼)
 
 ###### 개발 모드 (로컬에서 사용)
 
@@ -189,7 +218,7 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 
 1. 메인 페이지에서 **"New Project"** 클릭
 2. 프로젝트 이름 입력 (예: `my-web-app`)
-3. 로컬 프로젝트 폴더 경로 입력 (예: `C:\Users\me\projects\my-web-app`)
+3. 로컬 프로젝트 폴더 경로 입력 (예: Windows `C:\Users\me\projects\my-web-app`, macOS `/Users/me/projects/my-web-app`)
    - 이 폴더는 **git 저장소**여야 함
 4. 저장
 
@@ -513,7 +542,10 @@ scripts\build-plugin.bat
 #### 설치
 
 1. `clitrigger-plugin.zip` 압축 해제
-2. `%LOCALAPPDATA%\.hecaton\plugins\clitrigger\` 에 복사
+2. 플러그인 디렉토리에 복사:
+   - **Windows**: `%LOCALAPPDATA%\.hecaton\plugins\clitrigger\`
+   - **macOS**: `~/Library/Application Support/.hecaton/plugins/clitrigger/`
+   - **Linux**: `~/.local/share/.hecaton/plugins/clitrigger/`
 3. Hecaton 재시작
 4. 탭 메뉴에서 CLITrigger 플러그인 열기
 
@@ -608,12 +640,22 @@ gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세
 ## 폴더 구조 (실행 시)
 
 ```
+# Windows
 C:\Users\me\projects\
 ├── my-web-app/              ← 원본 프로젝트 (main 브랜치)
 └── worktrees/               ← 자동 생성됨
     ├── feature-login/       ← TODO 1의 작업 공간
     ├── feature-signup/      ← TODO 2의 작업 공간
     └── feature-dashboard/   ← TODO 3의 작업 공간
+
+# macOS / Linux
+/Users/me/projects/          # macOS
+/home/me/projects/           # Linux
+├── my-web-app/
+└── worktrees/
+    ├── feature-login/
+    ├── feature-signup/
+    └── feature-dashboard/
 ```
 
 ---
@@ -672,6 +714,20 @@ PR이 생성되거나 업데이트되면 Claude Code가 자동으로 diff를 분
 ---
 
 ## 문제 해결
+
+### macOS: `npm install` 시 네이티브 모듈 빌드 실패
+`better-sqlite3`나 `node-pty` 컴파일 오류가 발생하면 Xcode Command Line Tools가 없는 것임.
+```bash
+xcode-select --install
+npm install   # 다시 시도
+```
+
+### Linux: `npm install` 시 네이티브 모듈 빌드 실패
+빌드 도구가 없는 경우 발생함.
+```bash
+sudo apt install build-essential python3   # Debian/Ubuntu
+npm install   # 다시 시도
+```
 
 ### "claude: command not found"
 Claude CLI가 설치되지 않았거나 PATH에 없음.

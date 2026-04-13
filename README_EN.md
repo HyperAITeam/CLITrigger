@@ -137,6 +137,9 @@ clitrigger config password     # Change password
 ```
 
 > **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
+>
+> **Supported Platforms**: Windows · macOS · Linux — all core code is cross-platform compatible.
+> On macOS, you may need `xcode-select --install` for native module compilation.
 
 ### Run from Source (for development)
 
@@ -172,6 +175,17 @@ Double-click any bat file in `scripts/` — no terminal needed.
 | `start.bat` | Start production server |
 | `start-tunnel.bat` | Start with Cloudflare Tunnel |
 | `test.bat` | Run all tests |
+
+#### macOS / Linux
+
+`npm run` commands work identically on all platforms. Use the terminal instead of `.bat` scripts.
+
+```bash
+npm run dev        # Development mode
+npm run build      # Build
+npm run start      # Production server
+npm test           # Run tests
+```
 
 </details>
 
