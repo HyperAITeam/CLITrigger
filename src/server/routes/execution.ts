@@ -5,7 +5,6 @@ import { getProjectById } from '../db/queries.js';
 import { orchestrator } from '../services/orchestrator.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { supportsInteractiveMode, type CliTool } from '../services/cli-adapters.js';
-import { validateTaskIntent } from '../services/task-intent.js';
 
 const router = Router();
 
@@ -71,13 +70,6 @@ router.post('/todos/:id/start', async (req: Request<{ id: string }>, res: Respon
     const cliTool = ((todo.cli_tool || project.cli_tool || 'claude') as CliTool);
     if (mode === 'interactive' && !supportsInteractiveMode(cliTool)) {
       res.status(400).json({ error: `${cliTool} does not support interactive mode in CLITrigger. Use headless or verbose mode.` });
-      return;
-    }
-
-    const taskContent = (todo.description || todo.title || '').trim();
-    const validation = validateTaskIntent(taskContent);
-    if (!validation.valid) {
-      res.status(400).json({ error: validation.reason });
       return;
     }
 
@@ -378,13 +370,6 @@ router.post('/todos/:id/retry', async (req: Request<{ id: string }>, res: Respon
     const cliTool = ((todo.cli_tool || project.cli_tool || 'claude') as CliTool);
     if (mode === 'interactive' && !supportsInteractiveMode(cliTool)) {
       res.status(400).json({ error: `${cliTool} does not support interactive mode in CLITrigger. Use headless or verbose mode.` });
-      return;
-    }
-
-    const taskContent = (todo.description || todo.title || '').trim();
-    const validation = validateTaskIntent(taskContent);
-    if (!validation.valid) {
-      res.status(400).json({ error: validation.reason });
       return;
     }
 

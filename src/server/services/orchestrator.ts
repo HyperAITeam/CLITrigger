@@ -9,7 +9,6 @@ import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
-import { validateTaskIntent } from './task-intent.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -276,16 +275,6 @@ export class Orchestrator {
         queries.updateTodoStatus(todoId, 'failed');
         queries.updateTodo(todoId, { execution_mode: null, process_pid: 0 });
         queries.createTaskLog(todoId, 'error', 'Follow-up prompt is empty.', roundNumber);
-        broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
-        this.broadcastProjectStatus(projectId);
-        return;
-      }
-    } else {
-      const taskValidation = validateTaskIntent(taskContent);
-      if (!taskValidation.valid) {
-        queries.updateTodoStatus(todoId, 'failed');
-        queries.updateTodo(todoId, { execution_mode: null, process_pid: 0 });
-        queries.createTaskLog(todoId, 'error', taskValidation.reason || 'Task description is not actionable.', roundNumber);
         broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
         this.broadcastProjectStatus(projectId);
         return;
