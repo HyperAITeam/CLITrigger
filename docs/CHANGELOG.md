@@ -1,5 +1,114 @@
 # Changelog
 
+## 2026-04-13 — v0.1.3: 후속 프롬프트(Continue) + 네이티브 폴더 피커 + Cloudflared 번들 + 자동 업데이트 + DX 개선
+
+### 배경
+
+완료된 태스크에 추가 지시를 보내는 "Continue" 기능 추가로 다회차 작업이 가능해짐. 프로젝트 생성 시 폴더 경로를 OS 네이티브 대화상자로 선택할 수 있도록 개선. npm 패키지에 cloudflared를 번들하여 별도 설치 없이 터널 사용 가능. CLI 시작 시 자동 업데이트 체크와 포트 충돌 자동 회피 기능 추가. Git 패널 버그 8건 수정 및 전체 CLI 메시지 영어 번역.
+
+### 주요 변경
+
+#### 1. 태스크 후속 프롬프트 — Continue in Worktree (`e4e316e`, `6629e33`, `aaf4fca`)
+
+완료된 TODO에 후속 프롬프트를 보내 동일 워크트리에서 추가 작업을 수행하는 멀티 라운드 실행 기능.
+
+- **서버**: `POST /api/todos/:id/continue` 라우트 추가 — 완료 상태 검증 후 `orchestrator.continueTodo()` 호출
+- **서버**: `orchestrator.ts` — `continueTodo()` 메서드 추가. 기존 워크트리 재사용, Claude CLI `--continue` 플래그로 세션 이어받기
+- **서버**: `log-streamer.ts` — `setRound()` 메서드로 라운드별 로그 태깅
+- **DB**: `todos.round_count` + `task_logs.round_number` 컬럼 추가
+- **클라이언트**: `TodoItem.tsx`, `TaskNodeDetail.tsx` — Continue 버튼 + 인라인 프롬프트 입력 UI
+- **서버**: 태스크 의도 검증(task-intent) 비활성화 — 모든 입력 허용으로 변경
+- **i18n**: 한/영 Continue 관련 번역 키 추가
+
+#### 2. 네이티브 OS 폴더 피커 (`c2c9a0c` → `858421b`)
+
+프로젝트 생성 시 경로 입력란에 폴더 찾아보기 버튼 추가. OS 네이티브 대화상자(Windows: FolderBrowserDialog, macOS: osascript, Linux: zenity) 호출.
+
+- **서버**: `POST /api/projects/browse` — 플랫폼별 네이티브 폴더 선택 대화상자 호출. `execFileSync` + 임시 `.ps1` 스크립트로 셸 인젝션 방지. Windows에서 숨겨진 TopMost Form을 owner로 전달해 다이얼로그 포그라운드 표시
+- **클라이언트**: `ProjectForm.tsx` — Browse 버튼 + 로딩 스피너 + `browseNativeFolder()` API 호출
+
+#### 3. Cloudflared npm 번들 + 터널 기본 활성화 (`3c3f82e`)
+
+cloudflared를 npm 의존성으로 번들하여 별도 설치 없이 터널 사용 가능. 신규 설치 시 터널이 기본 활성화.
+
+- **서버**: `tunnel-manager.ts` — npm 패키지 바이너리 경로 우선 사용, 시스템 PATH/Windows 경로 폴백
+- **CLI**: `bin/clitrigger.js` — 신규 config에 `tunnel: true` 기본값, 기존 config에서 tunnel 키 없으면 활성화로 취급
+- **패키지**: `cloudflared` (^0.7.1) 프로덕션 의존성 추가
+
+#### 4. CLI 자동 업데이트 체크 (`e655dfc`)
+
+`clitrigger` 실행 시 npm registry에서 최신 버전 확인 후 자동 업데이트 및 재시작. 24시간 쿨다운, 5초 타임아웃, 네트워크 오류 시 무시.
+
+- **CLI**: `bin/clitrigger.js` — semver 비교 + `npm i -g clitrigger@latest` 자동 실행 + `CLITRIGGER_UPDATED` env로 무한루프 방지
+- **config**: `lastUpdateCheck` 타임스탬프 저장
+
+#### 5. 서버 포트 자동 재시도 (`8feeb36`)
+
+설정 포트가 점유 중이면 자동으로 다음 포트를 시도 (최대 10회). 원래 포트와 다른 포트로 시작 시 안내 메시지 출력.
+
+- **서버**: `index.ts` — `EADDRINUSE` 에러 핸들러로 포트+1 재시도
+
+#### 6. Git 패널 버그 8건 수정 (`6ae3a85`)
+
+- `.worktrees`와 `.debug-logs`를 프로젝트 `.gitignore`에 자동 추가
+- WebSocket으로 태스크 완료/머지/실패 시 Git 패널 자동 새로고침
+- `gitUnstage` 복수 파일 인자 오류 수정 (flat → spread)
+- `gitPull`/`gitPush` 배열 대신 개별 인자 전달
+- Pull 결과 summary null-safety 추가
+- `squashMergeBranch` 충돌 시 자동 `merge --abort`
+- 워크트리 경로 검증 path traversal 수정 (`startsWith` → `sep` 체크)
+- `FileStatusSection` 에러 피드백 표시 (기존 silent catch)
+
+#### 7. CLI 메시지 영어 번역 + 시작 배너 리디자인 (`f94ea99`)
+
+- 서버 시작 출력을 Local/Remote URL 라벨 레이아웃으로 리디자인
+- 폴백 포트 사용 시 "(port N was in use)" 맥락 메시지 추가
+- `bin/clitrigger.js`의 모든 사용자 메시지 (비밀번호 설정, config, 업데이트, 도움말, 오류) 영어 번역
+- `src/server/index.ts`의 `AUTH_PASSWORD` 오류, 포트 재시도 로그, 종료 메시지 영어 번역
+
+#### 8. npm uninstall 정리 + config clear 명령 (`eaedd80`)
+
+- `postuninstall` 스크립트로 `~/.clitrigger/` 잔여 데이터 안내
+- `clitrigger config clear` 명령 추가 (확인 후 설정/DB 삭제)
+
+#### 9. 기타 개선
+
+- **v0.1.3 릴리스** (`f0ee80d`)
+- **크로스 플랫폼 문서 추가** (`e2e901d`): README/SETUP에 macOS/Linux 지원 테이블, 플랫폼별 요구사항, 트러블슈팅 섹션 추가
+- **`.gitignore` 워크트리 디버그 로그 추가** (`b9658e7`)
+- **Vite dev proxy 포트 수정** (`184e879`): 하드코딩된 3001 → `process.env.PORT || 3000`
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `bin/clitrigger.js` | 자동 업데이트, config clear, 전체 영어 번역, 터널 기본 활성화, 시작 배너 리디자인 |
+| `bin/postuninstall.js` | **신규** — uninstall 잔여 데이터 안내 스크립트 |
+| `src/server/index.ts` | 포트 자동 재시도 (EADDRINUSE), 영어 번역 |
+| `src/server/routes/execution.ts` | `POST /api/todos/:id/continue` 라우트, 의도 검증 제거 |
+| `src/server/routes/projects.ts` | `POST /api/projects/browse` 네이티브 폴더 피커 |
+| `src/server/services/orchestrator.ts` | `continueTodo()` 메서드, 라운드 관리, 의도 검증 제거 |
+| `src/server/services/log-streamer.ts` | `setRound()` 라운드별 로그 태깅 |
+| `src/server/services/worktree-manager.ts` | `.gitignore` 자동 추가, unstage/pull/push 인자 수정, squash merge 충돌 방어 |
+| `src/server/services/debug-logger.ts` | `.debug-logs` `.gitignore` 자동 추가 |
+| `src/server/services/tunnel-manager.ts` | npm 패키지 바이너리 경로 우선 탐색 |
+| `src/server/services/task-intent.ts` | 의도 검증 무력화 (항상 valid) |
+| `src/server/db/schema.ts` | `round_count`, `round_number` 컬럼 추가 |
+| `src/client/src/components/TodoItem.tsx` | Continue 버튼 + 프롬프트 입력 UI |
+| `src/client/src/components/TaskNodeDetail.tsx` | Continue 버튼 + 프롬프트 입력 UI |
+| `src/client/src/components/ProjectForm.tsx` | 네이티브 폴더 Browse 버튼 |
+| `src/client/src/components/GitStatusPanel.tsx` | 에러 피드백 표시, WebSocket 자동 새로고침 |
+| `src/client/vite.config.ts` | 프록시 타겟 `process.env.PORT` 동적 적용 |
+
+### 아키텍처 결정
+
+1. **라운드 기반 Continue**: 새 워크트리/브랜치를 만들지 않고 기존 워크트리를 재사용. Claude CLI `--continue`로 세션 컨텍스트 유지. `round_count`/`round_number`로 로그 구분
+2. **네이티브 대화상자 선택**: 커스텀 FolderBrowser 컴포넌트 대신 OS 네이티브 대화상자를 채택. `execFileSync` + 임시 스크립트 파일로 셸 인젝션 방지
+3. **Cloudflared 번들**: npm 패키지의 `cloudflared`가 설치 시 바이너리를 자동 다운로드하므로 사용자 수동 설치 불필요. 기존 시스템 설치와의 호환을 위해 폴백 경로 유지
+4. **의도 검증 비활성화**: Continue 프롬프트 등 다양한 입력 형태를 수용하기 위해 task-intent 검증을 전면 비활성화. 함수 인터페이스는 유지하되 항상 `{ valid: true }` 반환
+
+---
+
 ## 2026-04-10 — npm CLI 패키징 + Interactive PTY + 워크트리 격리 토글 + 스케줄 액션 + CI 자동화
 
 ### 배경
