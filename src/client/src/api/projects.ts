@@ -1,6 +1,12 @@
 import { get, post, put, del } from './client';
 import type { Project } from '../types';
 
+// --- Folder Browser ---
+
+export function browseNativeFolder(initialPath?: string): Promise<{ path: string | null }> {
+  return post('/api/projects/browse', { initialPath });
+}
+
 export function getProjects(): Promise<Project[]> {
   return get('/api/projects');
 }

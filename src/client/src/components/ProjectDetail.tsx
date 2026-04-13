@@ -62,6 +62,24 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Poll running todos as fallback in case WebSocket status events are missed
+  const todosRef = useRef(todos);
+  todosRef.current = todos;
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(() => {
+      const hasRunning = todosRef.current.some((t) => t.status === 'running');
+      if (!hasRunning) return;
+      todosApi.getTodos(id).then((fresh) => {
+        setTodos((prev) => prev.map((t) => {
+          const f = fresh.find((x) => x.id === t.id);
+          return f && f.status !== t.status ? f : t;
+        }));
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [id]);
+
   // Re-fetch data on WebSocket reconnection to catch missed status updates
   const prevConnectedRef = useRef(connected);
   useEffect(() => {

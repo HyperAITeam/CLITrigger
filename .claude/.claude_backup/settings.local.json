@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Bash(mv D:/CLITrigger/.claude /tmp/.claude_backup)",
+      "Bash(mv /tmp/.claude_backup D:/CLITrigger/.claude)"
+    ]
+  }
+}

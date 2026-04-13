@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
+import { browseNativeFolder } from '../api/projects';
 
 interface ProjectFormProps {
   onSubmit: (name: string, path: string) => void;
@@ -9,12 +10,22 @@ interface ProjectFormProps {
 export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
+  const [browsing, setBrowsing] = useState(false);
   const { t } = useI18n();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !path.trim()) return;
     onSubmit(name.trim(), path.trim());
+  };
+
+  const handleBrowse = async () => {
+    setBrowsing(true);
+    try {
+      const result = await browseNativeFolder(path || undefined);
+      if (result.path) setPath(result.path);
+    } catch { /* user cancelled */ }
+    setBrowsing(false);
   };
 
   return (
@@ -43,13 +54,33 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
               <label className="block text-sm font-medium text-warm-600 mb-2">
                 {t('form.folderPath')}
               </label>
-              <input
-                type="text"
-                placeholder="C:/Projects/my-project"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                className="input-field text-sm"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="C:/Projects/my-project"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  className="input-field text-sm flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowse}
+                  disabled={browsing}
+                  className="btn-ghost text-sm px-3 shrink-0"
+                  title={t('browse.title')}
+                >
+                  {browsing ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
             <div className="flex justify-end gap-3">
               <button
