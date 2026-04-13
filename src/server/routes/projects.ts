@@ -41,78 +41,51 @@ function validateProjectPath(inputPath: string): { valid: boolean; error?: strin
   return { valid: true, resolved };
 }
 
-// GET /api/projects/browse?path= - browse directories for folder picker
-router.get('/browse', (req: Request, res: Response) => {
+// POST /api/projects/browse - open native OS folder picker dialog
+router.post('/browse', (req: Request, res: Response) => {
+  const { execSync } = require('child_process');
+  const initialDir = req.body.initialPath || '';
+
   try {
-    const requestedPath = (req.query.path as string) || '';
+    let selected = '';
 
-    // Determine base path: use requested path or list drive roots on Windows
-    if (!requestedPath) {
-      // Return common root paths
-      if (process.platform === 'win32') {
-        // List available drive letters
-        const drives: { name: string; path: string }[] = [];
-        for (let i = 65; i <= 90; i++) {
-          const drive = `${String.fromCharCode(i)}:\\`;
-          try {
-            fs.accessSync(drive);
-            drives.push({ name: drive, path: drive });
-          } catch { /* drive not available */ }
-        }
-        res.json({ current: '', parent: null, dirs: drives });
-      } else {
-        res.json({ current: '/', parent: null, dirs: [{ name: '/', path: '/' }] });
+    if (process.platform === 'win32') {
+      const psScript = initialDir
+        ? `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.SelectedPath = '${initialDir.replace(/'/g, "''")}'; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }`
+        : `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }`;
+      selected = execSync(`powershell -NoProfile -Command "${psScript.replace(/"/g, '\\"')}"`, {
+        encoding: 'utf-8',
+        timeout: 120000,
+        windowsHide: false,
+      }).trim();
+    } else if (process.platform === 'darwin') {
+      selected = execSync(
+        `osascript -e 'POSIX path of (choose folder${initialDir ? ` default location "${initialDir}"` : ''})'`,
+        { encoding: 'utf-8', timeout: 120000 },
+      ).trim();
+    } else {
+      // Linux: try zenity, then kdialog
+      try {
+        selected = execSync(
+          `zenity --file-selection --directory${initialDir ? ` --filename="${initialDir}/"` : ''}`,
+          { encoding: 'utf-8', timeout: 120000 },
+        ).trim();
+      } catch {
+        selected = execSync(
+          `kdialog --getexistingdirectory ${initialDir ? `"${initialDir}"` : '"~"'}`,
+          { encoding: 'utf-8', timeout: 120000 },
+        ).trim();
       }
-      return;
     }
 
-    const resolved = nodePath.resolve(requestedPath);
-
-    // Block path traversal
-    if (requestedPath.includes('..')) {
-      res.status(400).json({ error: 'Path traversal is not allowed' });
-      return;
+    if (selected) {
+      res.json({ path: selected.replace(/\\/g, '/') });
+    } else {
+      res.json({ path: null });
     }
-
-    // Check exists and is directory
-    try {
-      const stat = fs.statSync(resolved);
-      if (!stat.isDirectory()) {
-        res.status(400).json({ error: 'Not a directory' });
-        return;
-      }
-    } catch {
-      res.status(400).json({ error: 'Path does not exist' });
-      return;
-    }
-
-    // Read subdirectories (skip hidden/system dirs)
-    const entries = fs.readdirSync(resolved, { withFileTypes: true });
-    const dirs = entries
-      .filter((e) => {
-        if (!e.isDirectory()) return false;
-        if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === '$RECYCLE.BIN' || e.name === 'System Volume Information') return false;
-        // Check readable
-        try {
-          fs.accessSync(nodePath.join(resolved, e.name), fs.constants.R_OK);
-          return true;
-        } catch { return false; }
-      })
-      .map((e) => ({
-        name: e.name,
-        path: nodePath.join(resolved, e.name).replace(/\\/g, '/'),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const parent = nodePath.dirname(resolved);
-    res.json({
-      current: resolved.replace(/\\/g, '/'),
-      parent: parent !== resolved ? parent.replace(/\\/g, '/') : null,
-      dirs,
-      isGitRepo: fs.existsSync(nodePath.join(resolved, '.git')),
-    });
-  } catch (err: unknown) {
-    res.status(500).json({ error: 'Failed to browse directory' });
+  } catch {
+    // User cancelled or dialog closed
+    res.json({ path: null });
   }
 });
 
