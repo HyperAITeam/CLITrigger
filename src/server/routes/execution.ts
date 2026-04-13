@@ -445,10 +445,10 @@ router.post('/todos/:id/continue', async (req: Request<{ id: string }>, res: Res
       res.status(400).json({ error: 'Follow-up prompt is required' });
       return;
     }
-
-    const promptValidation = validateTaskIntent(prompt);
-    if (!promptValidation.valid) {
-      res.status(400).json({ error: promptValidation.reason });
+    // Follow-up prompts are contextual (user is already in a running worktree),
+    // so skip the strict action-keyword validation used for new tasks.
+    if (prompt.length < 2) {
+      res.status(400).json({ error: 'Follow-up prompt is too short.' });
       return;
     }
 
