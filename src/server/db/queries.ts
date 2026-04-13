@@ -163,6 +163,7 @@ export interface Todo {
   merged_from_branch: string | null;
   context_switch_count: number;
   execution_mode: string | null;
+  round_count: number;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -190,7 +191,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -212,6 +213,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.merged_from_branch !== undefined) { fields.push('merged_from_branch = ?'); values.push(updates.merged_from_branch); }
   if (updates.context_switch_count !== undefined) { fields.push('context_switch_count = ?'); values.push(updates.context_switch_count); }
   if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
+  if (updates.round_count !== undefined) { fields.push('round_count = ?'); values.push(updates.round_count); }
 
   if (fields.length === 0) return getTodoById(id);
 
@@ -247,17 +249,18 @@ export interface TaskLog {
   todo_id: string;
   log_type: string;
   message: string;
+  round_number: number;
   created_at: string;
 }
 
-export function createTaskLog(todoId: string, logType: string, message: string): TaskLog {
+export function createTaskLog(todoId: string, logType: string, message: string, roundNumber = 1): TaskLog {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO task_logs (id, todo_id, log_type, message, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(id, todoId, logType, message, now);
+    `INSERT INTO task_logs (id, todo_id, log_type, message, round_number, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, todoId, logType, message, roundNumber, now);
   return db.prepare('SELECT * FROM task_logs WHERE id = ?').get(id) as TaskLog;
 }
 

@@ -92,6 +92,7 @@ interface TaskGraphProps {
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
+  onContinueTodo?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
@@ -114,6 +115,7 @@ export default function TaskGraph({
   onMergeTodo,
   onCleanupTodo,
   onRetryTodo,
+  onContinueTodo,
   onFixTodo,
   onUpdateDependency,
   onUpdatePosition,
@@ -326,6 +328,7 @@ export default function TaskGraph({
           onMerge={onMergeTodo}
           onCleanup={onCleanupTodo}
           onRetry={onRetryTodo}
+          onContinue={onContinueTodo}
           onFix={onFixTodo}
           onEvent={onEvent}
           isInteractive={interactiveTodos.has(selectedTodo.id)}
