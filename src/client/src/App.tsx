@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useI18n } from './i18n';
 import LoginPage from './components/LoginPage';
+import Layout from './components/Layout';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import PipelineDetail from './components/PipelineDetail';
@@ -10,13 +11,13 @@ import DiscussionDetail from './components/DiscussionDetail';
 
 function App() {
   const { authenticated, authRequired, loading, login, logout } = useAuth();
-  const { connected, onEvent } = useWebSocket(authenticated);
+  const { connected, onEvent, sendMessage } = useWebSocket(authenticated);
   const { t } = useI18n();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-warm-100 flex items-center justify-center">
-        <div className="text-warm-500 font-medium text-lg animate-fade-in">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+        <div className="font-medium text-lg animate-fade-in" style={{ color: 'var(--color-text-muted)' }}>
           {t('detail.loading')}
         </div>
       </div>
@@ -29,18 +30,23 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-warm-100 text-warm-800 font-sans">
+      <Layout
+        onLogout={logout}
+        authRequired={authRequired}
+        connected={connected}
+        onEvent={onEvent}
+      >
         <Routes>
           <Route
             path="/"
             element={
-              <ProjectList onEvent={onEvent} onLogout={logout} authRequired={authRequired} />
+              <ProjectList onEvent={onEvent} />
             }
           />
           <Route
             path="/projects/:id"
             element={
-              <ProjectDetail onEvent={onEvent} connected={connected} />
+              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} />
             }
           />
           <Route
@@ -56,7 +62,7 @@ function App() {
             }
           />
         </Routes>
-      </div>
+      </Layout>
     </BrowserRouter>
   );
 }

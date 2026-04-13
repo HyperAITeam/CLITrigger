@@ -85,13 +85,13 @@ interface TaskGraphProps {
   projectCliTool?: string;
   projectCliModel?: string;
   onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number) => Promise<void>;
-  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
-  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
@@ -99,6 +99,7 @@ interface TaskGraphProps {
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
 }
 
 export default function TaskGraph({
@@ -120,6 +121,7 @@ export default function TaskGraph({
   onSendInput,
   interactiveTodos,
   debugLogging,
+  showTokenUsage,
 }: TaskGraphProps) {
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -329,6 +331,7 @@ export default function TaskGraph({
           isInteractive={interactiveTodos.has(selectedTodo.id)}
           onSendInput={onSendInput}
           debugLogging={debugLogging}
+          showTokenUsage={showTokenUsage}
         />
       )}
 

@@ -28,6 +28,15 @@ if [ -n "$RECENT_COMMITS" ]; then
   CONTEXT="${CONTEXT}Recent commits:\n$RECENT_COMMITS"
 fi
 
+# Load project lessons
+LESSONS_FILE="$REPO_ROOT/.claude/lessons.md"
+if [ -f "$LESSONS_FILE" ]; then
+  LESSONS=$(cat "$LESSONS_FILE" 2>/dev/null || true)
+  if [ -n "$LESSONS" ]; then
+    CONTEXT="${CONTEXT}\n\nProject Lessons:\n$LESSONS"
+  fi
+fi
+
 # Output as JSON for Claude Code hook system
 if [ -n "$CONTEXT" ]; then
   # Escape for JSON

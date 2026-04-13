@@ -2,7 +2,7 @@ import path from 'path';
 import { isModelSupported } from '../db/queries.js';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
-export type CliMode = 'headless' | 'interactive' | 'streaming' | 'verbose';
+export type CliMode = 'headless' | 'interactive' | 'verbose';
 export type SandboxMode = 'strict' | 'permissive';
 
 // Allowed CLI option patterns (flags that are safe to pass through)
@@ -48,12 +48,14 @@ export interface CliAdapter {
   command: string;
   /** Display name for logs */
   displayName: string;
+  /** Whether this CLI supports long-lived interactive sessions */
+  supportsInteractive?: boolean;
   /** Build the args array for spawning */
   buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode }): string[];
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
-  formatStdinPrompt(prompt: string): string;
+  formatStdinPrompt(prompt: string, mode?: CliMode): string;
   /** Whether this CLI requires a TTY (pseudo-terminal) to run */
   requiresTty?: boolean;
   /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
@@ -70,6 +72,7 @@ IMPORTANT: Work efficiently and stop when done.
 const claudeAdapter: CliAdapter = {
   command: 'claude',
   displayName: 'Claude CLI',
+  supportsInteractive: true,
   outputFormat: 'stream-json',
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode }) {
     const normalizedModel = normalizeModel(model, 'claude');
@@ -79,7 +82,9 @@ const claudeAdapter: CliAdapter = {
     } else {
       args.push('--dangerously-skip-permissions');
     }
-    args.push('--print', '--verbose', '--output-format', 'stream-json');
+    if (mode !== 'interactive') {
+      args.push('--print', '--verbose', '--output-format', 'stream-json');
+    }
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
@@ -91,7 +96,8 @@ const claudeAdapter: CliAdapter = {
   needsStdin(_mode) {
     return true;
   },
-  formatStdinPrompt(prompt) {
+  formatStdinPrompt(prompt, mode) {
+    if (mode === 'interactive') return prompt + '\n';
     return prompt + TASK_COMPLETION_SUFFIX + '\n';
   },
 };
@@ -102,8 +108,10 @@ const geminiAdapter: CliAdapter = {
   buildArgs({ mode, prompt, model, extraOptions }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
     // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
+    const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
-    if (model) args.push('--model', model);
+    if (mode !== 'interactive') args.push('-p');
+    if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
@@ -156,4 +164,8 @@ const adapters: Record<CliTool, CliAdapter> = {
 
 export function getAdapter(tool: CliTool): CliAdapter {
   return adapters[tool] ?? adapters.claude;
+}
+
+export function supportsInteractiveMode(tool: CliTool): boolean {
+  return !!getAdapter(tool).supportsInteractive;
 }

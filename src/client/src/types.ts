@@ -26,6 +26,8 @@ export interface Project {
   default_max_turns: number | null;
   sandbox_mode: string;
   debug_logging: number;
+  use_worktree: number;
+  show_token_usage: number;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;
@@ -76,6 +78,7 @@ export interface Todo {
   max_turns: number | null;
   merged_from_branch: string | null;
   context_switch_count?: number;
+  execution_mode: string | null;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -155,6 +158,9 @@ export interface ScheduleRun {
   skipped_reason: string | null;
   started_at: string;
   completed_at: string | null;
+  todo_branch_name?: string | null;
+  todo_worktree_path?: string | null;
+  todo_status?: string | null;
 }
 
 export interface ChangedFile {

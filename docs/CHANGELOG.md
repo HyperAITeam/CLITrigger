@@ -1,5 +1,95 @@
 # Changelog
 
+## 2026-04-10 — npm CLI 패키징 + Interactive PTY + 워크트리 격리 토글 + 스케줄 액션 + CI 자동화
+
+### 배경
+
+CLITrigger를 `npm i -g clitrigger`로 설치하여 어디서든 바로 사용할 수 있도록 CLI 패키징을 추가. Interactive 모드에서 Claude CLI가 stdin 입력을 받지 못하는 근본 원인(pipe vs TTY)을 PTY 전환으로 해결. 워크트리 오버헤드가 불필요한 단순 작업을 위해 프로젝트별 워크트리 격리 on/off 설정 추가. 스케줄 실행 이력에서 바로 머지/정리할 수 있는 액션 버튼, npm publish CI 자동화도 추가.
+
+### 주요 변경
+
+#### 1. npm 글로벌 설치용 CLI 엔트리포인트 (`05737b2`)
+
+`npm i -g clitrigger` 또는 `npx clitrigger`로 설치/실행할 수 있도록 CLI 진입점과 npm 패키징 설정 추가.
+
+- **CLI**: `bin/clitrigger.js` 신규 — 첫 실행 시 비밀번호 설정 안내, `config` 서브커맨드 (port/password 변경), `--help`
+- **패키징**: `package.json`에 `bin`, `files`, `engines`, `prepublishOnly` 필드 추가
+- **빌드**: `build` 스크립트에 클라이언트 빌드를 `dist/client/`로 복사하는 단계 추가
+- **서버**: 정적 파일 경로를 `dist/client/` 우선 탐색 + `src/client/dist/` 폴백으로 변경
+- **데이터**: 글로벌 설치 시 설정/DB가 `~/.clitrigger/`에 저장
+
+#### 2. Interactive 모드 PTY 전환 및 stdin relay (`f6d13f3`, `d0e187c`, `953c1fe`, `2311bd3`)
+
+Claude CLI가 pipe stdin에서 후속 입력을 읽지 않는 문제를 PTY(node-pty)로 전환하여 해결. 기존 streaming 모드(headless와 동일 동작)도 정리.
+
+- **서버**: `claude-manager.ts` — interactive 모드에서 child_process 대신 node-pty 사용, PTY write()를 Writable로 감싸 stdinStreams에 등록
+- **서버**: `cli-adapters.ts` — interactive 모드에서 `--print` 플래그 제외 (one-shot 방지)
+- **클라이언트**: `ProjectDetail.tsx` — WebSocket sendMessage 연결, interactiveTodos 상태 추적, optimistic Set 업데이트로 입력창 즉시 표시
+- **클라이언트**: `CliMode`에서 `streaming` 리터럴 제거 및 관련 UI/i18n 정리 (10개 파일)
+
+#### 3. 스케줄 실행 기록에 머지/Cleanup 액션 버튼 추가 (`d9ff6ef`)
+
+스케줄(cron) 실행 이력에서 완료된 태스크를 바로 머지하거나 워크트리를 정리할 수 있도록 개선.
+
+- **서버**: `schedule_runs` 쿼리에 todos LEFT JOIN 추가 (branch_name, worktree_path, status 반환)
+- **클라이언트**: `ScheduleItem.tsx` — 머지 버튼 (completed + branch 존재 시) / Cleanup 버튼 (워크트리 존재 시) 렌더링
+- **클라이언트**: `ScheduleList.tsx` → `ScheduleItem`으로 onMergeRun/onCleanupRun prop 전달
+
+#### 4. 프로젝트별 워크트리 격리 on/off 설정 (`d204542`)
+
+Git 저장소 프로젝트에서 워크트리 없이 메인 브랜치에서 직접 작업할 수 있는 옵션 추가.
+
+- **DB**: `projects` 테이블에 `use_worktree` 컬럼 추가 (기본값 1, 하위호환)
+- **서버**: 오케스트레이터 3개(todo/discussion/pipeline)에서 `useWorktree` 플래그로 워크트리 생성 여부 결정
+- **서버**: `use_worktree=0`일 때 동시 실행을 서버에서 강제로 1로 제한 (충돌 방지)
+- **서버**: 직접 실행 모드용 프롬프트 분기 (커밋 지시 포함)
+- **클라이언트**: `ProjectHeader.tsx`에 워크트리 토글 UI + "워크트리 없음" 뱃지 추가
+- **클라이언트**: `TodoItem.tsx` 머지 버튼에 `branch_name` 존재 여부 가드 추가
+- **i18n**: 한/영 번역 7개 키 추가
+
+#### 5. Interactive 모드 trust 프롬프트 및 출력 안정화 (`852fa99`, `a708d6d`, `581aec0`)
+
+PTY interactive 모드에서 workspace trust 프롬프트 처리 및 출력 파싱 문제를 연속 수정.
+
+- **trust 프롬프트 가드** (`852fa99`): trust 선택 화면의 `>` 문자가 CLI ready regex에 매칭되어 초기 프롬프트가 전달되는 문제 수정. `trustConfirmed` 조건 가드 추가
+- **trust pending 로직** (`a708d6d`): `trustConfirmed` → `trustPending` 반전 로직으로 변경. trust 프롬프트가 나타나지 않는 경우(이미 신뢰된 workspace) stdin 전달이 즉시 가능하도록 개선
+- **출력 파싱 수정** (`581aec0`): interactive 모드에서 JSON 파서 대신 plain text 파서 사용, `--output-format stream-json`과 `TASK_COMPLETION_SUFFIX`를 headless/verbose 전용으로 이동
+
+#### 6. npm publish CI 자동화 (`946ec44`)
+
+- `.github/workflows/release.yml`에 npm publish 스텝 추가
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `bin/clitrigger.js` | **신규** — CLI 엔트리포인트 (첫 실행 설정, config 서브커맨드) |
+| `package.json` | `bin`, `files`, `engines`, `prepublishOnly`, `build` 스크립트 수정 |
+| `src/server/index.ts` | 정적 파일 경로 `dist/client/` 우선 탐색 + 폴백 |
+| `src/server/services/orchestrator.ts` | `useWorktree` 플래그로 워크트리 생성 분기 + 직접 실행 프롬프트 |
+| `src/server/services/discussion-orchestrator.ts` | `useWorktree` 조건부 워크트리 생성 |
+| `src/server/services/pipeline-orchestrator.ts` | `useWorktree` 조건부 워크트리 생성 |
+| `src/server/services/claude-manager.ts` | interactive PTY 전환 + trust pending 로직 + stdin Writable 래핑 |
+| `src/server/services/cli-adapters.ts` | interactive 모드 `--print` 제외 + 출력 플래그 분리 |
+| `src/server/db/schema.ts` | `use_worktree` 컬럼 추가 |
+| `src/server/db/queries.ts` | schedule_runs에 todos JOIN 추가 + use_worktree 처리 |
+| `src/client/src/components/ProjectHeader.tsx` | 워크트리 토글 UI 추가 |
+| `src/client/src/components/ProjectDetail.tsx` | sendMessage 연결 + interactiveTodos 추적 |
+| `src/client/src/components/TodoItem.tsx` | 머지 버튼 branch_name 가드 |
+| `src/client/src/components/ScheduleItem.tsx` | 머지/Cleanup 액션 버튼 추가 |
+| `src/client/src/types.ts` | `Project.use_worktree` + `ScheduleRun` todo 필드 추가 |
+| `.github/workflows/release.yml` | npm publish 스텝 추가 |
+
+### 아키텍처 결정
+
+1. **CLI 데이터 격리**: 글로벌 설치 시 `~/.clitrigger/`에 config.json과 DB를 저장하여 node_modules 내부 오염 방지. `DB_PATH` env로 주입하므로 서버 코드 변경 최소화
+2. **Interactive PTY 통합**: interactive 모드와 기존 requiresTty(Codex) 모드가 동일한 PTY 경로를 사용하여 코드 중복 최소화. PTY write()를 Writable로 감싸 기존 stdinStreams 인프라 재활용
+3. **streaming 모드 제거**: headless와 동작이 완전히 동일했으므로 dead code 정리. CliMode = `headless | verbose | interactive`로 단순화
+4. **워크트리 토글 안전 장치**: `use_worktree=0`일 때 서버가 `max_concurrent`를 강제로 1로 제한. 같은 디렉토리에서 여러 CLI가 동시에 실행되는 충돌을 구조적으로 방지
+5. **trust pending 반전 로직**: trust 프롬프트가 나타나지 않는 환경(이미 신뢰된 workspace)에서 stdin이 영구 차단되는 문제를 해결하기 위해 `trustConfirmed`(true 대기) → `trustPending`(false 기본) 반전
+
+---
+
 ## 2026-04-08 — 샌드박스 절대 경로 수정 + 병합 안정성 + 유효하지 않은 경로 UX + LogViewer 재디자인
 
 ### 배경

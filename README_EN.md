@@ -1,6 +1,10 @@
 <div align="center">
 
-# CLITrigger
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="src/client/public/logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="src/client/public/logo.svg">
+  <img alt="CLITrigger" src="src/client/public/logo.svg" width="360">
+</picture>
 
 **AI-Powered Parallel Worktree Automation**
 
@@ -12,7 +16,8 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
+[![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 
@@ -23,6 +28,11 @@
 > In the age of AI-generated code, the developer's role is shifting toward supervision and review.  
 > But **vibe coding without understanding** eventually hits a wall.  
 > CLITrigger lets you run AI in parallel — while keeping you in full context of what's happening.
+
+<div align="center">
+  <img src="docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
+  <p><em>AI CLIs working simultaneously across isolated git worktrees</em></p>
+</div>
 
 ---
 
@@ -66,8 +76,18 @@ Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs 
 ### Multi-Agent Discussion
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation.
 
+<div align="center">
+  <img src="docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
+  <p><em>Multiple AI agents with different roles debating in the Discussion view</em></p>
+</div>
+
 ### Scheduled Execution
 Schedule tasks for off-peak hours to avoid rate limits. Supports both recurring cron schedules and one-time scheduled runs.
+
+<div align="center">
+  <img src="docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
+  <p><em>Cron-based recurring and one-time scheduled task execution</em></p>
+</div>
 
 ### Pipeline Execution
 Chain tasks into multi-phase sequential or parallel pipelines. Automate complex release workflows end-to-end.
@@ -103,6 +123,27 @@ Access and control from anywhere via Cloudflare Tunnel.
 ## Quick Start
 
 ```bash
+npm i -g clitrigger
+clitrigger
+```
+
+On first run, you'll be prompted to set a password. Then the server starts immediately.  
+Open `http://localhost:3000` → Register a project → Write TODOs → Click Start.
+
+```bash
+# Change settings
+clitrigger config port 8080    # Change port
+clitrigger config password     # Change password
+```
+
+> **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
+
+### Run from Source (for development)
+
+<details>
+<summary>Click to expand</summary>
+
+```bash
 # 1. Clone & install
 git clone https://github.com/OSgoodYZ/CLITrigger.git
 cd CLITrigger
@@ -117,9 +158,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:5173` → Register a project → Write TODOs → Click Start.
+Open `http://localhost:5173`.
 
-### Windows One-Click Scripts
+#### Windows One-Click Scripts
 
 Double-click any bat file in `scripts/` — no terminal needed.
 
@@ -131,6 +172,8 @@ Double-click any bat file in `scripts/` — no terminal needed.
 | `start.bat` | Start production server |
 | `start-tunnel.bat` | Start with Cloudflare Tunnel |
 | `test.bat` | Run all tests |
+
+</details>
 
 ### Remote Access (Cloudflare Tunnel)
 

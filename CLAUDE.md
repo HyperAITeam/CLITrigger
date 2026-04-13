@@ -9,11 +9,16 @@ CLITrigger is a full-stack app that automates AI-powered task execution. Users w
 ## Commands
 
 ```bash
+# CLI (npm global install)
+npm i -g clitrigger            # global install
+clitrigger                     # start server (first run prompts for password)
+clitrigger config              # view/change settings (port, password)
+
 # Development (runs server + client concurrently)
 npm run dev
 
 # Build
-npm run build                  # both client and server
+npm run build                  # both client and server (copies client to dist/client/)
 npm run build:server           # server only (outputs to dist/server/)
 npm run build:client           # client only (outputs to src/client/dist/)
 
@@ -36,8 +41,9 @@ npm run typecheck              # server + client
 
 ### Monorepo Layout
 
+- **`bin/`** — CLI entry point (`clitrigger.js`). Handles first-run setup (password prompt), reads `~/.clitrigger/config.json`, sets env vars, and imports the compiled server. Supports `config` subcommand for port/password changes.
 - **`src/server/`** — Express backend (TypeScript, ESM). Compiled via `tsconfig.server.json` → `dist/server/`.
-- **`src/client/`** — React frontend (Vite + TailwindCSS). Has its own `package.json` with separate `npm install`. Dev server proxies API calls to `:3000`.
+- **`src/client/`** — React frontend (Vite + TailwindCSS). Has its own `package.json` with separate `npm install`. Dev server proxies API calls to `:3000`. Build output copied to `dist/client/` for npm packaging.
 - **`plugin/`** — Hecaton TUI plugin (CommonJS, Deno-compatible). Connects to CLITrigger server as a sidecar client. Built/packaged via `scripts/build-plugin.bat`.
 
 ### Server
@@ -47,8 +53,8 @@ npm run typecheck              # server + client
 - **Routes**: `src/server/routes/` — REST endpoints under `/api/`. Auth, projects, todos, execution, logs, images, pipelines, schedules, plugins, models, tunnel, discussions, debug-logs. Integration routes (Jira, GitHub, Notion, gstack) are mounted via the plugin system.
 - **Plugins**: `src/server/plugins/` — Modular integration system. Each plugin (jira, github, notion, gstack) is a self-contained module with its own `PluginManifest`, router, and config. Registered in `index.ts` via `registerPlugin()` and auto-mounted via `mountPluginRoutes()`. Two categories: `external-service` (REST proxy + UI panel) and `execution-hook` (orchestrator pre-execution hook). Config stored in generic `plugin_configs` table (key-value per project+plugin). Legacy `projects` table columns maintained for backward compatibility.
 - **Services**: `src/server/services/` — Core business logic:
-  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup, CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, dependency chain batch merge (leaf branch → main), CLI fallback on context exhaustion, plugin execution hooks (e.g. gstack skill injection), and sandbox mode (strict: directory-scoped permissions, permissive: full access).
-  - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex, child_process for Claude/Gemini). Windows cmd.exe wrapper for .cmd shims.
+  - `orchestrator.ts` — Task execution engine. Manages concurrency limits, dependency chains, worktree setup (optional per-project `use_worktree` toggle), CLI invocation, auto-chaining of dependent children, squash merge on dependency completion, dependency chain batch merge (leaf branch → main), CLI fallback on context exhaustion, plugin execution hooks (e.g. gstack skill injection), sandbox mode (strict: directory-scoped permissions, permissive: full access), and stale process liveness checker (30s interval).
+  - `claude-manager.ts` — Spawns/manages child processes (node-pty for TTY-requiring tools like Codex and interactive mode, child_process for headless/verbose). Windows cmd.exe wrapper for .cmd shims. Interactive mode uses PTY with stdin wrapped as Writable for WebSocket relay. Auto-confirms workspace trust prompts in PTY mode via `trustPending` flag (pending-based detection to avoid blocking stdin when workspace is already trusted).
   - `cli-adapters.ts` — Adapter pattern abstracting Claude/Gemini/Codex CLI differences (args, stdin format, output format). Supports `SandboxMode` (strict/permissive) per CLI tool.
   - `log-streamer.ts` — Streams stdout/stderr to DB. Two modes: JSON lines (Claude structured output) and plain text (Gemini/Codex). Parses token usage and commit hashes. Detects context exhaustion for CLI fallback chain.
   - `worktree-manager.ts` — Git worktree lifecycle via `simple-git`. Branch name sanitization (Korean → slug, `feature/` prefix, 40 char max, duplicate suffix `-2`/`-3`). Auto-runs `npm install` in background on worktree creation when `package.json` exists. Also provides 16 Git action methods (stage, unstage, commit, pull, push, fetch, branch, checkout, merge, stash, discard, tag, diff) for the web Git client.
@@ -60,7 +66,7 @@ npm run typecheck              # server + client
   - `prompt-guard.ts` — Prompt injection detection and sanitization for external inputs (Notion/GitHub/Jira imports).
   - `tunnel-manager.ts` — Cloudflare Tunnel management via `cloudflared` subprocess.
 - **WebSocket**: `src/server/websocket/` — Real-time log streaming and status broadcasts. Session-authenticated. Supports stdin relay for interactive mode.
-- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var. Skips `/api/auth/*` and `/api/health`. When `AUTH_PASSWORD` is not set, authentication is bypassed entirely (server returns `authRequired: false`, client skips login page). Also disabled when `DISABLE_AUTH=true` (plugin/headless mode).
+- **Auth**: Session-based (`express-session`), password from `AUTH_PASSWORD` env var (required). Skips `/api/auth/*` and `/api/health`. Server refuses to start without `AUTH_PASSWORD` unless `DISABLE_AUTH=true`. Also disabled when `DISABLE_AUTH=true` (plugin/headless mode).
 
 ### Client
 
@@ -76,17 +82,18 @@ npm run typecheck              # server + client
 
 - **CLI Adapter Pattern**: All CLI tool differences are isolated in `cli-adapters.ts`. Adding a new CLI means implementing the `CliAdapter` interface.
 - **Integration Plugin Pattern**: External service integrations (Jira, GitHub, Notion) and execution hooks (gstack) are self-contained plugins in `src/server/plugins/` and `src/client/src/plugins/`. Each plugin exports a `PluginManifest` (server) and `ClientPluginManifest` (client). Adding a new integration means: create a plugin directory, implement the manifest, and call `registerPlugin()` — no core code changes needed. Config stored in `plugin_configs` table (generic key-value). Two plugin categories: `external-service` (REST proxy routes + panel tab) and `execution-hook` (pre-execution hook in orchestrator).
-- **Worktree Isolation**: Each task gets its own git worktree in `.worktrees/`. Child tasks can inherit parent worktrees.
+- **Worktree Isolation**: Each task gets its own git worktree in `.worktrees/`. Child tasks can inherit parent worktrees. Per-project `use_worktree` toggle (default: on) allows running directly on main branch without worktree overhead; when disabled, server forces `max_concurrent=1` to prevent conflicts.
 - **Graceful Shutdown**: Server handles SIGTERM/SIGINT — kills running CLI processes, stops scheduler, closes tunnel. Also shuts down on stdin EOF (plugin sidecar mode).
 - **Headless Mode**: `HEADLESS=true` skips static file serving (API-only mode for plugin/embedded use). `DISABLE_AUTH=true` removes auth middleware (local-only plugin scenarios).
 - **DB Migrations**: Schema changes add columns with `ALTER TABLE ... ADD COLUMN` guarded by try/catch, so the app works with both old and new DB files. Plugin configs use a separate `plugin_configs` table with automatic migration from legacy project columns.
 - **Sandbox Mode**: Per-project `sandbox_mode` (strict/permissive). Strict mode uses each CLI's native sandboxing to restrict file access to the worktree directory. Claude: auto-generated `.claude/settings.json` with absolute-path patterns (`${workDir}/**`) for Read/Edit/Write — relative paths like `./` are ineffective because Claude resolves paths to absolute internally; Codex: `--full-auto` + `--add-dir .git`; Gemini: prompt-level path restriction.
 - **Agent Discussion**: Multiple AI agents with different roles (architect, developer, reviewer, etc.) discuss a feature in rounds before implementation. Each agent speaks sequentially with full history context. After discussion completes, a designated agent implements the consensus. Uses same worktree isolation and CLI adapter patterns as todos.
 - **Failure Tolerance**: On startup, stale "running" todos are reset to "failed", stale "running" discussions are reset to "paused". Plugin execution hook failures are logged but don't block CLI execution.
+- **npm CLI Packaging**: Published as `clitrigger` on npm. `bin/clitrigger.js` handles first-run setup, reads config from `~/.clitrigger/config.json`, sets `PORT`/`AUTH_PASSWORD`/`DB_PATH` env vars, then dynamically imports `dist/server/index.js`. Build copies client output to `dist/client/`; server resolves static files from `../client` (npm install) or `../../src/client/dist` (dev) via fallback.
 
 ## Environment
 
-Config via `.env` (see `.env.example`). Key vars: `AUTH_PASSWORD`, `PORT` (default 3000), `TUNNEL_ENABLED`, `LOG_RETENTION_DAYS`, `HEADLESS` (skip frontend serving), `DISABLE_AUTH` (skip auth middleware).
+Config via `.env` (see `.env.example`) or `~/.clitrigger/config.json` (npm global install). Key vars: `AUTH_PASSWORD`, `PORT` (default 3000), `DB_PATH` (database location), `TUNNEL_ENABLED`, `LOG_RETENTION_DAYS`, `HEADLESS` (skip frontend serving), `DISABLE_AUTH` (skip auth middleware).
 
 ## Language
 

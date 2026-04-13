@@ -12,14 +12,14 @@ interface TodoListProps {
   projectCliTool?: string;
   projectCliModel?: string;
   onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number) => Promise<void>;
-  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
   onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
-  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onScheduleTodo?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
@@ -28,6 +28,7 @@ interface TodoListProps {
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
 }
 
 function wouldCreateCycle(todos: Todo[], sourceId: string, targetId: string): boolean {
@@ -64,6 +65,7 @@ export default function TodoList({
   onSendInput,
   interactiveTodos,
   debugLogging,
+  showTokenUsage,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
@@ -275,6 +277,7 @@ export default function TodoList({
           onSendInput={onSendInput}
           interactiveTodos={interactiveTodos}
           debugLogging={debugLogging}
+          showTokenUsage={showTokenUsage}
         />
       </div>
     );
@@ -383,6 +386,7 @@ export default function TodoList({
                   <TodoItem
                     todo={todo}
                     allTodos={todos}
+                    projectCliTool={projectCliTool}
                     onStart={onStartTodo}
                     onStop={onStopTodo}
                     onDelete={onDeleteTodo}
@@ -406,6 +410,7 @@ export default function TodoList({
                     onDropTarget={handleDrop}
                     onRemoveDependency={onUpdateDependency ? handleRemoveDependency : undefined}
                     debugLogging={debugLogging}
+                    showTokenUsage={showTokenUsage}
                     isChainMember={isChainMember}
                   />
                 </div>
