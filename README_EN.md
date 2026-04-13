@@ -11,8 +11,8 @@
 *Write tasks. Let AI execute them in parallel. Review and merge.*
 
 <p align="center">
-  <a href="README.md">한국어</a> ·
-  <a href="README_EN.md">English</a>
+  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README.md">한국어</a> ·
+  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README_EN.md">English</a>
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
