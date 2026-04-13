@@ -229,9 +229,31 @@ if (process.env.HEADLESS === 'true') {
   process.stdin.resume();
 }
 
-server.listen(PORT, () => {
-  console.log(`CLITrigger server running on http://localhost:${PORT}`);
-  orchestrator.startStaleProcessChecker();
-});
+const MAX_PORT_RETRIES = 10;
+const requestedPort = Number(PORT);
+
+function tryListen(port: number, attempt: number) {
+  server.listen(port, () => {
+    if (port !== requestedPort) {
+      console.log(`⚠️  포트 ${requestedPort}이(가) 사용 중이어서 ${port}에서 시작합니다.`);
+    }
+    console.log(`CLITrigger server running on http://localhost:${port}`);
+    orchestrator.startStaleProcessChecker();
+  });
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_RETRIES) {
+      server.removeAllListeners('error');
+      const nextPort = port + 1;
+      console.log(`포트 ${port} 사용 중, ${nextPort} 시도...`);
+      tryListen(nextPort, attempt + 1);
+    } else {
+      console.error('서버 시작 실패:', err.message);
+      process.exit(1);
+    }
+  });
+}
+
+tryListen(requestedPort, 0);
 
 export { app, server };
