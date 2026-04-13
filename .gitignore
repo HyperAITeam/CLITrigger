@@ -40,3 +40,5 @@ worktrees/
 plugin-build/
 clitrigger-plugin.zip
 data/
+.worktrees
+.debug-logs
