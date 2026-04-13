@@ -59,6 +59,10 @@ export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'verbos
   return post(`/api/todos/${id}/retry`, { mode });
 }
 
+export function continueTodo(id: string, prompt: string, mode: 'headless' | 'interactive' | 'verbose' = 'headless'): Promise<Todo> {
+  return post(`/api/todos/${id}/continue`, { prompt, mode });
+}
+
 export function uploadTodoImages(id: string, images: Array<{ name: string; data: string }>): Promise<{ images: ImageMeta[] }> {
   return post(`/api/todos/${id}/images`, { images });
 }

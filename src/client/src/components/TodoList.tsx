@@ -20,6 +20,7 @@ interface TodoListProps {
   onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
+  onContinueTodo?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onScheduleTodo?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
@@ -57,6 +58,7 @@ export default function TodoList({
   onMergeChain,
   onCleanupTodo,
   onRetryTodo,
+  onContinueTodo,
   onFixTodo,
   onScheduleTodo,
   onUpdateDependency,
@@ -270,6 +272,7 @@ export default function TodoList({
           onMergeTodo={onMergeTodo}
           onCleanupTodo={onCleanupTodo}
           onRetryTodo={onRetryTodo}
+          onContinueTodo={onContinueTodo}
           onFixTodo={onFixTodo}
           onUpdateDependency={onUpdateDependency}
           onUpdatePosition={onUpdatePosition}
@@ -394,6 +397,7 @@ export default function TodoList({
                     onMerge={onMergeTodo}
                     onCleanup={onCleanupTodo}
                     onRetry={onRetryTodo}
+                    onContinue={onContinueTodo}
                     onFix={onFixTodo}
                     onSchedule={onScheduleTodo}
                     onEvent={onEvent}
