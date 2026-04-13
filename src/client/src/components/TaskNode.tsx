@@ -10,12 +10,12 @@ export interface TaskNodeData {
   todo: Todo;
   allTodos: Todo[];
   selected: boolean;
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSelect: (todoId: string) => void;
 }
@@ -105,17 +105,6 @@ function TaskNodeComponent({ data }: NodeProps) {
             title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}
           >
             <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-          </button>
-        )}
-        {canStart && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onStart(todo.id, 'streaming'); }}
-            className="p-1 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors"
-            title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startStreaming')}
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
           </button>
         )}
         {canStop && (

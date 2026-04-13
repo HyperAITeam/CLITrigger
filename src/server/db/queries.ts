@@ -31,6 +31,8 @@ export interface Project {
   default_max_turns: number | null;
   sandbox_mode: string;
   debug_logging: number;
+  use_worktree: number;
+  show_token_usage: number;
   created_at: string;
   updated_at: string;
 }
@@ -56,7 +58,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -87,6 +89,8 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
   if (updates.sandbox_mode !== undefined) { fields.push('sandbox_mode = ?'); values.push(updates.sandbox_mode); }
   if (updates.debug_logging !== undefined) { fields.push('debug_logging = ?'); values.push(updates.debug_logging); }
+  if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree); }
+  if (updates.show_token_usage !== undefined) { fields.push('show_token_usage = ?'); values.push(updates.show_token_usage); }
 
   if (fields.length === 0) return getProjectById(id);
 
@@ -158,6 +162,7 @@ export interface Todo {
   token_usage: string | null;
   merged_from_branch: string | null;
   context_switch_count: number;
+  execution_mode: string | null;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -185,7 +190,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -206,6 +211,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.position_y !== undefined) { fields.push('position_y = ?'); values.push(updates.position_y); }
   if (updates.merged_from_branch !== undefined) { fields.push('merged_from_branch = ?'); values.push(updates.merged_from_branch); }
   if (updates.context_switch_count !== undefined) { fields.push('context_switch_count = ?'); values.push(updates.context_switch_count); }
+  if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
 
   if (fields.length === 0) return getTodoById(id);
 
@@ -558,9 +564,15 @@ export function updateScheduleRun(id: string, updates: Partial<Pick<ScheduleRun,
   return db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun | undefined;
 }
 
-export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): ScheduleRun[] {
+export function getScheduleRunsByScheduleId(scheduleId: string, limit = 50): (ScheduleRun & { todo_branch_name: string | null; todo_worktree_path: string | null; todo_status: string | null })[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM schedule_runs WHERE schedule_id = ? ORDER BY started_at DESC LIMIT ?').all(scheduleId, limit) as ScheduleRun[];
+  return db.prepare(`
+    SELECT sr.*, t.branch_name AS todo_branch_name, t.worktree_path AS todo_worktree_path, t.status AS todo_status
+    FROM schedule_runs sr
+    LEFT JOIN todos t ON sr.todo_id = t.id
+    WHERE sr.schedule_id = ?
+    ORDER BY sr.started_at DESC LIMIT ?
+  `).all(scheduleId, limit) as (ScheduleRun & { todo_branch_name: string | null; todo_worktree_path: string | null; todo_status: string | null })[];
 }
 
 // ── CLI Models ──

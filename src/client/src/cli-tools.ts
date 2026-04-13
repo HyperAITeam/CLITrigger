@@ -6,6 +6,7 @@ export interface CliToolConfig {
   value: CliTool;
   label: string;
   models: { value: string; label: string }[];
+  supportsInteractive: boolean;
 }
 
 // Static fallback used when server is unreachable
@@ -13,6 +14,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'claude',
     label: 'Claude Code',
+    supportsInteractive: true,
     models: [
       { value: '', label: 'Default' },
       { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
@@ -23,6 +25,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'gemini',
     label: 'Gemini CLI',
+    supportsInteractive: false,
     models: [
       { value: '', label: 'Default (Gemini 2.5 Pro)' },
     ],
@@ -30,6 +33,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'codex',
     label: 'Codex CLI',
+    supportsInteractive: false,
     models: [
       { value: '', label: 'Default' },
       { value: 'gpt-4.1', label: 'GPT-4.1' },

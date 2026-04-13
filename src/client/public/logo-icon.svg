@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&amp;display=swap');
+    </style>
+  </defs>
+  <!-- Background -->
+  <rect width="48" height="48" rx="10" fill="#1E1E1E"/>
+  <!-- >_ prompt -->
+  <text x="7" y="33" font-family="'JetBrains Mono', monospace" font-size="22" font-weight="700" fill="#4B8DFF">&gt;_</text>
+  <!-- Cursor -->
+  <rect x="38" y="16" width="2.5" height="20" rx="1" fill="#4B8DFF" opacity="0.6">
+    <animate attributeName="opacity" values="0.6;0;0.6" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+</svg>

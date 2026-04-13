@@ -10,15 +10,47 @@ interface ScheduleItemProps {
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
   onTrigger: (id: string) => Promise<void>;
+  onMergeRun?: (todoId: string) => Promise<void>;
+  onCleanupRun?: (todoId: string) => Promise<void>;
 }
 
-export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onTrigger }: ScheduleItemProps) {
+export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onTrigger, onMergeRun, onCleanupRun }: ScheduleItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [runsLoaded, setRunsLoaded] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [actionRunId, setActionRunId] = useState<string | null>(null);
   const { t } = useI18n();
+
+  const reloadRuns = async () => {
+    try {
+      const data = await schedulesApi.getScheduleRuns(schedule.id);
+      setRuns(data);
+    } catch { /* ignore */ }
+  };
+
+  const handleMergeRun = async (run: ScheduleRun) => {
+    if (!run.todo_id || !onMergeRun) return;
+    setActionRunId(run.id);
+    try {
+      await onMergeRun(run.todo_id);
+      await reloadRuns();
+    } finally {
+      setActionRunId(null);
+    }
+  };
+
+  const handleCleanupRun = async (run: ScheduleRun) => {
+    if (!run.todo_id || !onCleanupRun) return;
+    setActionRunId(run.id);
+    try {
+      await onCleanupRun(run.todo_id);
+      await reloadRuns();
+    } finally {
+      setActionRunId(null);
+    }
+  };
 
   const isOnce = schedule.schedule_type === 'once';
 
@@ -258,19 +290,52 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
               <p className="text-xs text-warm-400 italic">{t('schedule.noRuns')}</p>
             ) : (
               <div className="max-h-48 overflow-auto space-y-1">
-                {runs.map((run) => (
-                  <div key={run.id} className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-lg bg-theme-hover">
-                    <span className={`font-medium ${runStatusColor[run.status] || 'text-warm-500'}`}>
-                      {runStatusLabel[run.status] || run.status}
-                    </span>
-                    {run.skipped_reason && (
-                      <span className="text-warm-400">({run.skipped_reason})</span>
-                    )}
-                    <span className="text-warm-400 ml-auto font-mono">
-                      {new Date(run.started_at).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+                {runs.map((run) => {
+                  const canMerge = run.todo_id && run.todo_status === 'completed' && !!run.todo_branch_name;
+                  const canCleanup = run.todo_id && run.todo_status !== 'running' && run.todo_status !== 'pending' && (run.todo_worktree_path || run.todo_branch_name);
+                  const isActing = actionRunId === run.id;
+
+                  return (
+                    <div key={run.id} className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-lg bg-theme-hover">
+                      <span className={`font-medium ${runStatusColor[run.status] || 'text-warm-500'}`}>
+                        {runStatusLabel[run.status] || run.status}
+                      </span>
+                      {run.skipped_reason && (
+                        <span className="text-warm-400">({run.skipped_reason})</span>
+                      )}
+                      {/* Git action buttons */}
+                      <div className="flex items-center gap-0.5 ml-auto">
+                        {canMerge && onMergeRun && (
+                          <button
+                            onClick={() => handleMergeRun(run)}
+                            disabled={isActing}
+                            className="p-1 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded transition-colors disabled:opacity-30"
+                            title={t('todo.merge')}
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                          </button>
+                        )}
+                        {canCleanup && onCleanupRun && (
+                          <button
+                            onClick={() => handleCleanupRun(run)}
+                            disabled={isActing}
+                            className="p-1 text-status-warning/60 hover:text-status-warning hover:bg-status-warning/10 rounded transition-colors disabled:opacity-30"
+                            title={t('todo.cleanup')}
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-warm-400 font-mono flex-shrink-0">
+                        {new Date(run.started_at).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

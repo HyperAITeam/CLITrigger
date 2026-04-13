@@ -26,7 +26,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-warm-100 flex items-center justify-center px-4 relative">
+    <div className="min-h-screen bg-theme-bg flex items-center justify-center px-4 relative">
       {/* Language toggle */}
       <button
         onClick={toggleLang}
@@ -43,10 +43,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold text-warm-800">
+          <h1 className="text-2xl font-semibold text-theme-text">
             {t('login.title')}
           </h1>
-          <p className="text-warm-500 text-sm mt-2">
+          <p className="text-theme-muted text-sm mt-2">
             {t('login.subtitle')}
           </p>
         </div>
@@ -54,7 +54,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         {/* Login form */}
         <form onSubmit={handleSubmit}>
           <div className="card p-8">
-            <label className="block text-sm font-medium text-warm-600 mb-2">
+            <label className="block text-sm font-medium text-theme-text-secondary mb-2">
               {t('login.password')}
             </label>
             <input
@@ -82,11 +82,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
         </form>
 
-        <div className="mt-6 text-center text-xs text-warm-400">
+        <div className="mt-6 text-center text-xs text-theme-text-tertiary">
           {t('login.footer')}
         </div>
 
-        <div className="mt-4 px-2 py-3 bg-warm-200/60 border border-warm-300/50 rounded-xl text-xs text-warm-500 leading-relaxed text-center">
+        <div className="mt-4 px-2 py-3 rounded-xl text-xs text-theme-text-tertiary border leading-relaxed text-center">
           {t('login.disclaimer')}
         </div>
       </div>

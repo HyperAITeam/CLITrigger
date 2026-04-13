@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -38,33 +38,33 @@
 
   [data-theme="dark"] {
     color-scheme: dark;
-    --color-bg-primary: #000000;
-    --color-bg-secondary: #1C1C1E;
-    --color-bg-tertiary: #2C2C2E;
-    --color-bg-card: #1C1C1E;
-    --color-bg-input: #2C2C2E;
-    --color-bg-hover: #3A3A3C;
-    --color-bg-active: #48484A;
-    --color-text-primary: #F5F5F7;
-    --color-text-secondary: #EBEBF5;
-    --color-text-tertiary: #8E8E93;
-    --color-text-muted: #636366;
-    --color-text-faint: #48484A;
-    --color-border: #38383A;
-    --color-border-strong: #48484A;
+    --color-bg-primary: #191919;
+    --color-bg-secondary: #1E1E1E;
+    --color-bg-tertiary: #2A2A2A;
+    --color-bg-card: #242424;
+    --color-bg-input: #2A2A2A;
+    --color-bg-hover: #333333;
+    --color-bg-active: #404040;
+    --color-text-primary: #EBEBEB;
+    --color-text-secondary: #A0A0A0;
+    --color-text-tertiary: #787878;
+    --color-text-muted: #555555;
+    --color-text-faint: #3A3A3A;
+    --color-border: #2E2E2E;
+    --color-border-strong: #3E3E3E;
     --color-border-muted: rgba(255, 255, 255, 0.06);
-    --color-accent: #0A84FF;
-    --color-accent-light: #5EB5FF;
-    --color-accent-dark: #0071E3;
+    --color-accent: #4B8DFF;
+    --color-accent-light: #7BABFF;
+    --color-accent-dark: #3370E0;
     --color-accent-amber: #FF9F0A;
-    --color-scrollbar: #48484A;
-    --color-scrollbar-hover: #636366;
-    --color-selection-bg: rgba(10, 132, 255, 0.25);
-    --color-selection-text: #F5F5F7;
+    --color-scrollbar: #3A3A3A;
+    --color-scrollbar-hover: #555555;
+    --color-selection-bg: rgba(75, 141, 255, 0.25);
+    --color-selection-text: #EBEBEB;
     --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
     --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-accent: 0 4px 12px rgba(10, 132, 255, 0.2);
+    --shadow-accent: 0 4px 12px rgba(75, 141, 255, 0.2);
   }
 
   html, body {

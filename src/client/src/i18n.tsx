@@ -15,8 +15,12 @@ const translations = {
     'login.footer': 'Secure Access',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Sidebar
+    'sidebar.home': 'Home',
+    'sidebar.workspaces': 'Workspaces',
+
     // Project List
-    'projects.title': 'CLITrigger',
+    'projects.title': 'All Projects',
     'projects.subtitle': 'Project Console',
     'projects.new': 'New Project',
     'projects.logout': 'Sign Out',
@@ -26,6 +30,7 @@ const translations = {
     'projects.tasks': 'tasks',
     'projects.active': 'active',
     'projects.done': 'done',
+    'projects.search': 'Search projects...',
     'projects.delete': 'Delete project',
     'projects.deleteConfirm': 'Are you sure you want to delete this project?',
     'projects.pathMissing': 'Path not found',
@@ -69,7 +74,17 @@ const translations = {
     'header.sandboxPermissive': 'Permissive',
     'header.sandboxPermissiveDesc': 'CLI tools can access any file on the system.',
     'header.sandboxWarning': 'Warning: In permissive mode, CLI tools can access files outside the worktree. Use with caution.',
+    'header.worktreeTitle': 'Worktree Isolation',
+    'header.worktreeEnabled': 'Worktree (Recommended)',
+    'header.worktreeEnabledDesc': 'Each task runs in its own branch. Safe for parallel tasks.',
+    'header.worktreeDisabled': 'Direct (Main Branch)',
+    'header.worktreeDisabledDesc': 'Tasks run on the main branch. Max workers forced to 1.',
+    'header.worktreeWarning': 'Warning: Tasks will modify the main branch directly. Concurrent execution is disabled.',
+    'header.noWorktreeBadge': 'No Worktree',
     'header.debugBadge': 'Debug Logs',
+    'header.showTokenUsageTitle': 'Token Usage Display',
+    'header.showTokenUsageDesc': 'Show token usage (input/output) after task completion.',
+    'header.showTokenUsageEnable': 'Show token usage',
     'header.debugLoggingTitle': 'Debug Logging',
     'header.debugLoggingDesc': 'Save full CLI input/output to .debug-logs/ for each task execution.',
     'header.debugLoggingEnable': 'Enable debug log files',
@@ -127,7 +142,6 @@ const translations = {
     'todo.systemLog': 'Activity Log',
     'todo.start': 'Start',
     'todo.startHeadless': 'Headless: Runs autonomously. All permissions auto-approved. No user input needed.',
-    'todo.startStreaming': 'Streaming: Sends prompt via stdin then runs autonomously. All permissions auto-approved. Good for long prompts with special characters.',
     'todo.startInteractive': 'Interactive: Keeps stdin open so you can send messages during execution. All permissions auto-approved.',
     'todo.startVerbose': 'Verbose: Auto-approved with full raw log output. Shows all tool calls, inputs, results, and system events in real-time.',
     'todo.sendPlaceholder': 'Type a message...',
@@ -226,6 +240,7 @@ const translations = {
 
     // Log
     'log.awaiting': 'Awaiting output...',
+    'log.waitingResponse': 'Waiting for response...',
     'log.noChanges': 'No changes detected.',
     'log.copy': 'Copy',
     'log.copied': 'Copied!',
@@ -558,8 +573,12 @@ const translations = {
     'login.footer': '\uBCF4\uC548 \uC811\uC18D',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Sidebar
+    'sidebar.home': '홈',
+    'sidebar.workspaces': '워크스페이스',
+
     // Project List
-    'projects.title': 'CLITrigger',
+    'projects.title': '전체 프로젝트',
     'projects.subtitle': '\uD504\uB85C\uC81D\uD2B8 \uCF58\uC194',
     'projects.new': '\uC0C8 \uD504\uB85C\uC81D\uD2B8',
     'projects.logout': '\uB85C\uADF8\uC544\uC6C3',
@@ -569,6 +588,7 @@ const translations = {
     'projects.tasks': '\uC791\uC5C5',
     'projects.active': '\uC2E4\uD589 \uC911',
     'projects.done': '\uC644\uB8CC',
+    'projects.search': '프로젝트 검색...',
     'projects.delete': '프로젝트 삭제',
     'projects.deleteConfirm': '이 프로젝트를 삭제하시겠습니까?',
     'projects.pathMissing': '경로 없음',
@@ -612,7 +632,17 @@ const translations = {
     'header.sandboxPermissive': '\ud5c8\uc6a9',
     'header.sandboxPermissiveDesc': 'CLI \ub3c4\uad6c\uac00 \uc2dc\uc2a4\ud15c\uc758 \ubaa8\ub4e0 \ud30c\uc77c\uc5d0 \uc811\uadfc\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.',
     'header.sandboxWarning': '\uacbd\uace0: \ud5c8\uc6a9 \ubaa8\ub4dc\uc5d0\uc11c\ub294 CLI \ub3c4\uad6c\uac00 \uc6cc\ud06c\ud2b8\ub9ac \ubc16 \ud30c\uc77c\uc5d0\ub3c4 \uc811\uadfc\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc8fc\uc758\ud574\uc11c \uc0ac\uc6a9\ud558\uc138\uc694.',
+    'header.worktreeTitle': '\uc6cc\ud06c\ud2b8\ub9ac \uaca9\ub9ac',
+    'header.worktreeEnabled': '\uc6cc\ud06c\ud2b8\ub9ac (\uad8c\uc7a5)',
+    'header.worktreeEnabledDesc': '\uac01 \uc791\uc5c5\uc774 \ub3c5\ub9bd \ube0c\ub79c\uce58\uc5d0\uc11c \uc2e4\ud589\ub429\ub2c8\ub2e4. \ubcd1\ub82c \uc791\uc5c5\uc5d0 \uc548\uc804\ud569\ub2c8\ub2e4.',
+    'header.worktreeDisabled': '\uc9c1\uc811 \uc2e4\ud589 (\uba54\uc778 \ube0c\ub79c\uce58)',
+    'header.worktreeDisabledDesc': '\uba54\uc778 \ube0c\ub79c\uce58\uc5d0\uc11c \uc9c1\uc811 \uc2e4\ud589\ud569\ub2c8\ub2e4. \ucd5c\ub300 \uc6cc\ucee4 1\uac1c\ub85c \uc81c\ud55c\ub429\ub2c8\ub2e4.',
+    'header.worktreeWarning': '\uacbd\uace0: \uba54\uc778 \ube0c\ub79c\uce58\ub97c \uc9c1\uc811 \uc218\uc815\ud569\ub2c8\ub2e4. \ub3d9\uc2dc \uc2e4\ud589\uc774 \ube44\ud65c\uc131\ud654\ub429\ub2c8\ub2e4.',
+    'header.noWorktreeBadge': '\uc6cc\ud06c\ud2b8\ub9ac \uc5c6\uc74c',
     'header.debugBadge': '\uB514\uBC84\uADF8 \uB85C\uADF8',
+    'header.showTokenUsageTitle': '토큰 사용량 표시',
+    'header.showTokenUsageDesc': '작업 완료 후 토큰 사용량(입력/출력)을 표시합니다.',
+    'header.showTokenUsageEnable': '토큰 사용량 표시',
     'header.debugLoggingTitle': '\uB514\uBC84\uADF8 \uB85C\uAE45',
     'header.debugLoggingDesc': '\uAC01 \uD0DC\uC2A4\uD06C \uC2E4\uD589 \uC2DC CLI \uC785\uCD9C\uB825 \uC804\uCCB4\uB97C .debug-logs/ \uD30C\uC77C\uB85C \uC800\uC7A5\uD569\uB2C8\uB2E4.',
     'header.debugLoggingEnable': '\uB514\uBC84\uADF8 \uB85C\uADF8 \uD30C\uC77C \uD65C\uC131\uD654',
@@ -670,7 +700,6 @@ const translations = {
     'todo.systemLog': '\uD65C\uB3D9 \uB85C\uADF8',
     'todo.start': '\uC2DC\uC791',
     'todo.startHeadless': 'Headless: \uC790\uC728 \uC2E4\uD589. \uBAA8\uB4E0 \uAD8C\uD55C \uC790\uB3D9 \uC2B9\uC778. \uC0AC\uC6A9\uC790 \uC785\uB825 \uBD88\uD544\uC694.',
-    'todo.startStreaming': 'Streaming: stdin\uC73C\uB85C \uD504\uB86C\uD504\uD2B8 \uC804\uB2EC \uD6C4 \uC790\uC728 \uC2E4\uD589. \uBAA8\uB4E0 \uAD8C\uD55C \uC790\uB3D9 \uC2B9\uC778. \uAE34 \uD504\uB86C\uD504\uD2B8\uB098 \uD2B9\uC218\uBB38\uC790\uC5D0 \uC801\uD569.',
     'todo.startInteractive': 'Interactive: stdin\uC744 \uC5F4\uC5B4\uB450\uACE0 \uC2E4\uD589 \uC911 AI\uC5D0\uAC8C \uBA54\uC2DC\uC9C0 \uC804\uC1A1 \uAC00\uB2A5. \uBAA8\uB4E0 \uAD8C\uD55C \uC790\uB3D9 \uC2B9\uC778.',
     'todo.startVerbose': 'Verbose: \uC790\uB3D9 \uC2B9\uC778 + \uBAA8\uB4E0 \uB85C\uADF8 \uCD9C\uB825. \uB3C4\uAD6C \uD638\uCD9C, \uC785\uB825\uAC12, \uACB0\uACFC, \uC2DC\uC2A4\uD15C \uC774\uBCA4\uD2B8\uB97C \uC2E4\uC2DC\uAC04\uC73C\uB85C \uD45C\uC2DC.',
     'todo.sendPlaceholder': '\uBA54\uC2DC\uC9C0 \uC785\uB825...',
@@ -768,10 +797,11 @@ const translations = {
     'result.levelHeavy': '과다',
 
     // Log
-    'log.awaiting': '\uCD9C\uB825 \uB300\uAE30 \uC911...',
-    'log.noChanges': '\uBCC0\uACBD\uC0AC\uD56D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
-    'log.copy': '\uBCF5\uC0AC',
-    'log.copied': '\uBCF5\uC0AC\uB428!',
+    'log.awaiting': '출력 대기 중...',
+    'log.waitingResponse': '응답 대기 중...',
+    'log.noChanges': '변경사항이 없습니다.',
+    'log.copy': '복사',
+    'log.copied': '복사됨!',
 
     // Schedules
     'schedules.title': '스케줄',

@@ -10,6 +10,8 @@ export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
   // Handle upgrade manually to validate session auth
+  const isDev = process.env.NODE_ENV !== 'production';
+
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     // Only handle /ws path
     if (req.url !== '/ws') {
@@ -19,12 +21,23 @@ export function initWebSocket(server: Server): void {
 
     // Validate Origin header to prevent cross-origin WebSocket hijacking
     const origin = req.headers.origin;
-    const allowedOrigins = process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : ['http://localhost:5173', 'http://localhost:3000'];
-    if (origin && !allowedOrigins.includes(origin)) {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-      socket.destroy();
+    if (origin && !isDev) {
+      const allowedOrigins = process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+        : ['http://localhost:5173', 'http://localhost:3000'];
+      const isTrycloudflare = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin);
+      if (!allowedOrigins.includes(origin) && !isTrycloudflare) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+    }
+
+    // Skip auth when DISABLE_AUTH is set (plugin/headless mode)
+    if (process.env.DISABLE_AUTH === 'true') {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
       return;
     }
 

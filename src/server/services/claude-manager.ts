@@ -1,8 +1,9 @@
 import { spawn, ChildProcess } from 'child_process';
-import { Readable } from 'stream';
+import { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
+import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
 
@@ -32,9 +33,11 @@ export class ClaudeManager {
     const adapter = getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode });
 
-    if (adapter.requiresTty) {
-      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt) : undefined;
-      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt);
+    if (adapter.requiresTty || (mode === 'interactive' && tool === 'claude')) {
+      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
+      // Only Claude has a TUI that requires delayed stdin delivery (wait for ready indicator)
+      const delayStdin = tool === 'claude';
+      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive', delayStdin);
       return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
@@ -44,7 +47,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string): Promise<{
+  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string, interactive?: boolean, delayStdin: boolean = true): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -79,19 +82,39 @@ export class ClaudeManager {
       let stdinDelivered = false;
       let exited = false;
 
+      // Trust prompt tracking: block stdin delivery only while trust prompt is visible
+      let trustPending = false;
+      const filterState: PtyFilterState | null = interactive ? createPtyFilterState() : null;
+
       ptyProcess.onData((data) => {
         const clean = stripAnsi(data);
-        stdoutStream.push(clean);
 
-        // Detect CLI ready state and deliver prompt via stdin.
-        // Codex outputs '›' when ready for input. We also detect common
-        // prompt characters ($, >, %) as fallback for other PTY-based CLIs.
-        // A 10-second fallback timer ensures delivery even if detection fails.
-        if (stdinPrompt && !stdinDelivered && !exited) {
+        // Auto-confirm workspace trust prompt (shown when Claude CLI runs without --print)
+        if (!trustPending && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
+          trustPending = true;
+          try { ptyProcess.write('\r'); } catch { /* PTY may have exited */ }
+        }
+        // Clear pending flag once trust is confirmed (CLI proceeds past the prompt)
+        if (trustPending && /Welcome\s*back|›|>\s*$/.test(clean) && !/trust/i.test(clean)) {
+          trustPending = false;
+        }
+
+        // Detect CLI ready state and deliver prompt via stdin (Claude TUI only).
+        // Non-Claude CLIs get immediate delivery (see below), so this only runs with delayStdin.
+        if (delayStdin && stdinPrompt && !stdinDelivered && !exited && !trustPending) {
           if (/[›>$%]\s*$/.test(clean)) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+            // PTY requires \r (carriage return) to submit, not \n (line feed)
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
+        }
+
+        // Push to stream — filter TUI noise for interactive mode
+        if (filterState) {
+          const filtered = filterInteractivePtyOutput(clean, filterState);
+          if (filtered) stdoutStream.push(filtered);
+        } else {
+          stdoutStream.push(clean);
         }
       });
 
@@ -105,9 +128,26 @@ export class ClaudeManager {
       };
       this.processes.set(pid, managedProcess);
 
+      // For interactive mode, expose PTY write as a stdin stream for relay
+      if (interactive) {
+        const ptyWritable = new Writable({
+          write(chunk: Buffer | string, _encoding: string, callback: () => void) {
+            // PTY requires \r (carriage return) to submit, not \n (line feed)
+            try { ptyProcess.write(chunk.toString().replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+            callback();
+          },
+        });
+        this.stdinStreams.set(pid, ptyWritable);
+      }
+
       const exitPromise = new Promise<number>((resolveExit) => {
         ptyProcess.onExit(({ exitCode }) => {
           exited = true;
+          // Flush remaining filter buffer before closing stream
+          if (filterState?.lineBuffer) {
+            const final = filterInteractivePtyOutput('\n', filterState);
+            if (final) stdoutStream.push(final);
+          }
           stdoutStream.push(null);
           this.processes.delete(pid);
           this.stdinStreams.delete(pid);
@@ -115,12 +155,20 @@ export class ClaudeManager {
         });
       });
 
-      // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
-      if (stdinPrompt) {
+      // Stdin delivery: immediate for non-Claude CLIs, delayed for Claude TUI
+      if (stdinPrompt && !delayStdin) {
+        setImmediate(() => {
+          if (!stdinDelivered && !exited) {
+            stdinDelivered = true;
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+          }
+        });
+      } else if (stdinPrompt && delayStdin) {
+        // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
         setTimeout(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
         }, 10000);
       }
@@ -187,7 +235,7 @@ export class ClaudeManager {
 
       // Handle stdin based on mode
       if (needsStdin && child.stdin) {
-        child.stdin.write(adapter.formatStdinPrompt(prompt));
+        child.stdin.write(adapter.formatStdinPrompt(prompt, mode));
         if (mode === 'interactive') {
           this.stdinStreams.set(pid, child.stdin);
         } else {

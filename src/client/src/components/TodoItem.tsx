@@ -12,13 +12,14 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 interface TodoItemProps {
   todo: Todo;
   allTodos?: Todo[];
-  onStart: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  projectCliTool?: string;
+  onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
-  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => Promise<void>;
+  onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -36,10 +37,11 @@ interface TodoItemProps {
   onDropTarget?: (todoId: string) => void;
   onRemoveDependency?: (todoId: string) => void;
   debugLogging?: boolean;
+  showTokenUsage?: boolean;
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -76,11 +78,18 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
-  const canMerge = todo.status === 'completed' && !isChainMember;
+  const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name) && !isChainMember;
 
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
+
+  // Auto-expand when interactive mode starts
+  useEffect(() => {
+    if (isInteractive && todo.status === 'running' && !expanded) {
+      setExpanded(true);
+    }
+  }, [isInteractive, todo.status]);
 
   useEffect(() => {
     if (expanded && !logsLoaded) {
@@ -180,7 +189,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
     }
   };
 
-  const handleRetry = async (mode: 'headless' | 'interactive' | 'streaming' | 'verbose' = 'headless') => {
+  const handleRetry = async (mode: 'headless' | 'interactive' | 'verbose' = 'headless') => {
     setRetrying(true);
     setRetryError(null);
     setLogs([]);
@@ -238,6 +247,8 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
   const childTodo = allTodos.find(t => t.depends_on === todo.id && t.merged_from_branch);
+  const todoCliTool = ((todo.cli_tool || projectCliTool || 'claude') as CliTool);
+  const supportsInteractive = getToolConfig(todoCliTool).supportsInteractive;
 
   if (editing) {
     return (
@@ -411,24 +422,17 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </button>
-              <button
-                onClick={() => onStart(todo.id, 'streaming')}
-                className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors"
-                title={t('todo.startStreaming')}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => onStart(todo.id, 'interactive')}
-                className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                title={t('todo.startInteractive')}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
+              {supportsInteractive && (
+                <button
+                  onClick={() => onStart(todo.id, 'interactive')}
+                  className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                  title={t('todo.startInteractive')}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => onStart(todo.id, 'verbose')}
                 className="p-1.5 text-purple-500/60 hover:text-purple-500 hover:bg-purple-500/10 rounded-lg transition-colors"
@@ -735,7 +739,7 @@ export default function TodoItem({ todo, allTodos = [], onStart, onStop, onDelet
                     <span className="text-xs text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
                   </div>
                 )}
-                {resultData.token_usage && (() => {
+                {showTokenUsage && resultData.token_usage && (() => {
                   const tu = resultData.token_usage;
                   const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
                   const totalAll = totalInput + (tu.output_tokens ?? 0);

@@ -20,9 +20,10 @@ import { getPluginsWithTabs } from '../plugins/registry';
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
+  sendMessage: (event: object) => void;
 }
 
-export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected, sendMessage }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -37,7 +38,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }, [setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const { t, toggleLang } = useI18n();
+  const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!id) return;
@@ -48,6 +50,13 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
         setPipelines(pipelineList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
+        // Restore interactive mode state for running todos
+        const interactiveIds = todoList
+          .filter((t: { status: string; execution_mode: string | null }) => t.status === 'running' && t.execution_mode === 'interactive')
+          .map((t: { id: string }) => t.id);
+        if (interactiveIds.length > 0) {
+          setInteractiveTodos(new Set(interactiveIds));
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -71,6 +80,22 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     return () => clearInterval(interval);
   }, [id]);
 
+  // Re-fetch data on WebSocket reconnection to catch missed status updates
+  const prevConnectedRef = useRef(connected);
+  useEffect(() => {
+    if (connected && !prevConnectedRef.current && id) {
+      Promise.all([todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
+        .then(([todoList, pipelineList, scheduleList, discussionList]) => {
+          setTodos(todoList);
+          setPipelines(pipelineList);
+          setSchedules(scheduleList);
+          setDiscussions(discussionList);
+        })
+        .catch(() => {});
+    }
+    prevConnectedRef.current = connected;
+  }, [connected, id]);
+
   useEffect(() => {
     return onEvent((event) => {
       if (event.type === 'todo:status-changed' && event.todoId && event.status) {
@@ -86,6 +111,16 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             return { ...t, ...updates };
           })
         );
+        // Track interactive mode todos
+        if (event.status === 'running' && event.mode === 'interactive') {
+          setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
+        } else if (event.status !== 'running') {
+          setInteractiveTodos((prev) => {
+            const next = new Set(prev);
+            next.delete(event.todoId!);
+            return next;
+          });
+        }
       }
       if (event.type === 'pipeline:status-changed' && event.pipelineId) {
         setPipelines((prev) =>
@@ -127,11 +162,26 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
-  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
-    const updated = await todosApi.startTodo(todoId, mode);
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? updated : t))
-    );
+  const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
+    const shouldTrackInteractive = mode === 'interactive';
+    if (shouldTrackInteractive) {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
+    try {
+      const updated = await todosApi.startTodo(todoId, mode);
+      setTodos((prev) =>
+        prev.map((t) => (t.id === todoId ? updated : t))
+      );
+    } catch (err) {
+      if (shouldTrackInteractive) {
+        setInteractiveTodos((prev) => {
+          const next = new Set(prev);
+          next.delete(todoId);
+          return next;
+        });
+      }
+      throw err;
+    }
   }, []);
 
   const handleStopTodo = useCallback(async (todoId: string) => {
@@ -179,11 +229,26 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     );
   }, []);
 
-  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'streaming' | 'verbose') => {
-    const updated = await todosApi.retryTodo(todoId, mode);
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? updated : t))
-    );
+  const handleRetryTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
+    const shouldTrackInteractive = mode === 'interactive';
+    if (shouldTrackInteractive) {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
+    try {
+      const updated = await todosApi.retryTodo(todoId, mode);
+      setTodos((prev) =>
+        prev.map((t) => (t.id === todoId ? updated : t))
+      );
+    } catch (err) {
+      if (shouldTrackInteractive) {
+        setInteractiveTodos((prev) => {
+          const next = new Set(prev);
+          next.delete(todoId);
+          return next;
+        });
+      }
+      throw err;
+    }
   }, []);
 
   const handleScheduleTodo = useCallback(async (todoId: string, runAt: string, keepOriginal?: boolean) => {
@@ -193,6 +258,10 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
     }
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
+
+  const handleSendInput = useCallback((todoId: string, input: string) => {
+    sendMessage({ type: 'todo:stdin', todoId, input });
+  }, [sendMessage]);
 
   const handleUpdateDependency = useCallback(async (todoId: string, dependsOnId: string | null) => {
     const updated = await todosApi.updateTodo(todoId, { depends_on: dependsOnId });
@@ -347,8 +416,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="text-center py-20 text-warm-500 animate-fade-in">
+      <div className="px-6 py-6 sm:px-8 sm:py-8">
+        <div className="text-center py-20 animate-fade-in" style={{ color: 'var(--color-text-muted)' }}>
           {t('detail.loading')}
         </div>
       </div>
@@ -357,7 +426,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
 
   if (notFound || !project) {
     return (
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
+      <div className="px-6 py-6 sm:px-8 sm:py-8">
         <div className="card p-16 text-center animate-fade-in">
           <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
@@ -372,35 +441,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-      {/* Navigation */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-warm-500 hover:text-accent transition-colors"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          {t('detail.back')}
-        </Link>
-
-        <span className="text-warm-300">/</span>
-        <span className="text-sm text-warm-700 truncate font-medium">{project.name}</span>
-
-        <div className="ml-auto flex items-center gap-3">
-          {connected && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-status-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
-              {t('detail.live')}
-            </span>
-          )}
-          <button onClick={toggleLang} className="lang-toggle">
-            {t('lang.toggle')}
-          </button>
-        </div>
-      </div>
-
+    <div className="px-6 py-6 sm:px-8 sm:py-8">
       <ProjectHeader
         project={project}
         todos={todos}
@@ -412,13 +453,13 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
       <ProgressBar todos={todos} />
 
       {/* Tab toggle */}
-      <div className="flex gap-0 mb-4 border-b border-warm-200 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-0 mb-4 border-b border-theme-border overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('tasks')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'tasks'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.tasks')} ({todos.length})
@@ -428,7 +469,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'pipelines'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.pipelines')} ({pipelines.length})
@@ -438,7 +479,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'discussions'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.discussions')} ({discussions.length})
@@ -448,7 +489,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'schedules'
               ? 'text-accent border-accent'
-              : 'text-warm-400 border-transparent hover:text-warm-600'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
           }`}
         >
           {t('tabs.schedules')} ({schedules.length})
@@ -460,7 +501,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === plugin.id
                 ? 'text-accent border-accent'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
+                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
             }`}
           >
             {t(`tabs.${plugin.id}`) || plugin.displayName}
@@ -472,7 +513,7 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
             className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
               activeTab === 'git'
                 ? 'text-accent border-accent'
-                : 'text-warm-400 border-transparent hover:text-warm-600'
+                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
             }`}
           >
             {t('tabs.git')}
@@ -499,9 +540,10 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onUpdateDependency={handleUpdateDependency}
           onUpdatePosition={handleUpdatePosition}
           onEvent={onEvent}
-          onSendInput={() => {}}
-          interactiveTodos={new Set<string>()}
+          onSendInput={handleSendInput}
+          interactiveTodos={interactiveTodos}
           debugLogging={!!project.debug_logging}
+          showTokenUsage={!!project.show_token_usage}
         />
       )}
       {activeTab === 'pipelines' && (
@@ -549,6 +591,8 @@ export default function ProjectDetail({ onEvent, connected }: ProjectDetailProps
           onDeleteSchedule={handleDeleteSchedule}
           onEditSchedule={handleEditSchedule}
           onTriggerSchedule={handleTriggerSchedule}
+          onMergeRun={handleMergeTodo}
+          onCleanupRun={handleCleanupTodo}
         />
       )}
     </div>

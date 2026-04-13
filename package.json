@@ -1,13 +1,24 @@
 {
   "name": "clitrigger",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
+  "bin": {
+    "clitrigger": "bin/clitrigger.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "cd src/client && npx vite",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server && node -e \"const fs=require('fs');fs.cpSync('src/client/dist','dist/client',{recursive:true})\"",
+    "prepublishOnly": "cd src/client && npm ci && cd ../.. && npm run build",
     "build:server": "tsc -p tsconfig.server.json && node -e \"const fs=require('fs');fs.cpSync('src/server/resources','dist/server/resources',{recursive:true})\"",
     "build:client": "cd src/client && npx vite build",
     "start": "node dist/server/index.js",
@@ -49,7 +60,7 @@
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^4.1.1",
     "concurrently": "^9.1.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.27.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.1"
