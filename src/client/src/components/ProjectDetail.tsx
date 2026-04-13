@@ -251,6 +251,26 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     }
   }, []);
 
+  const handleContinueTodo = useCallback(async (todoId: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => {
+    const shouldTrackInteractive = mode === 'interactive';
+    if (shouldTrackInteractive) {
+      setInteractiveTodos((prev) => new Set(prev).add(todoId));
+    }
+    try {
+      const updated = await todosApi.continueTodo(todoId, prompt, mode);
+      setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
+    } catch (err) {
+      if (shouldTrackInteractive) {
+        setInteractiveTodos((prev) => {
+          const next = new Set(prev);
+          next.delete(todoId);
+          return next;
+        });
+      }
+      throw err;
+    }
+  }, []);
+
   const handleScheduleTodo = useCallback(async (todoId: string, runAt: string, keepOriginal?: boolean) => {
     const result = await schedulesApi.scheduleFromTodo(todoId, runAt, keepOriginal);
     if (result.original_deleted) {
@@ -535,6 +555,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onMergeChain={handleMergeChain}
           onCleanupTodo={handleCleanupTodo}
           onRetryTodo={handleRetryTodo}
+          onContinueTodo={handleContinueTodo}
           onFixTodo={handleFixTodo}
           onScheduleTodo={handleScheduleTodo}
           onUpdateDependency={handleUpdateDependency}

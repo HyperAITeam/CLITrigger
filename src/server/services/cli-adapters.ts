@@ -51,7 +51,7 @@ export interface CliAdapter {
   /** Whether this CLI supports long-lived interactive sessions */
   supportsInteractive?: boolean;
   /** Build the args array for spawning */
-  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode }): string[];
+  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode; continueSession?: boolean }): string[];
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
@@ -74,7 +74,7 @@ const claudeAdapter: CliAdapter = {
   displayName: 'Claude CLI',
   supportsInteractive: true,
   outputFormat: 'stream-json',
-  buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode }) {
+  buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession }) {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
     if (sandboxMode === 'strict') {
@@ -85,6 +85,7 @@ const claudeAdapter: CliAdapter = {
     if (mode !== 'interactive') {
       args.push('--print', '--verbose', '--output-format', 'stream-json');
     }
+    if (continueSession) args.push('--continue');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
