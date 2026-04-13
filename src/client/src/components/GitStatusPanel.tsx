@@ -6,6 +6,7 @@ import { useI18n } from '../i18n';
 
 interface GitStatusPanelProps {
   project: Project;
+  refreshTrigger?: number;
 }
 
 // --- Lane assignment algorithm ---
@@ -539,9 +540,11 @@ function FileStatusSection({
   const unstaged = files.filter(f => f.working_dir !== ' ' && f.working_dir !== '?' && (f.index === ' ' || f.index === '?'));
   const untracked = files.filter(f => f.index === '?' && f.working_dir === '?');
 
+  const [execError, setExecError] = useState<string | null>(null);
   const exec = async (fn: () => Promise<unknown>) => {
     setBusy(true);
-    try { await fn(); onRefresh(); } catch { /* ignore */ } finally { setBusy(false); }
+    setExecError(null);
+    try { await fn(); onRefresh(); } catch (err) { setExecError(err instanceof Error ? err.message : 'Operation failed'); } finally { setBusy(false); }
   };
 
   if (files.length === 0) {
@@ -551,6 +554,13 @@ function FileStatusSection({
       </div>
     );
   }
+
+  const ErrorBanner = execError ? (
+    <div className="px-2 py-1 bg-red-50 text-red-600 text-xs flex items-center justify-between">
+      <span className="truncate">{execError}</span>
+      <button onClick={() => setExecError(null)} className="ml-2 shrink-0 text-red-400 hover:text-red-600">&times;</button>
+    </div>
+  ) : null;
 
   const FileRow = ({ file, type }: { file: GitStatusFile; type: 'staged' | 'unstaged' | 'untracked' }) => {
     const status = type === 'staged'
@@ -597,6 +607,7 @@ function FileStatusSection({
 
   return (
     <div className="space-y-1">
+      {ErrorBanner}
       {/* Staged */}
       {staged.length > 0 && (
         <div>
@@ -773,7 +784,7 @@ function relativeTime(dateStr: string): string {
 
 // --- Main component ---
 
-export default function GitStatusPanel({ project }: GitStatusPanelProps) {
+export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPanelProps) {
   const { t } = useI18n();
   const [commits, setCommits] = useState<GitLogEntry[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -841,6 +852,13 @@ export default function GitStatusPanel({ project }: GitStatusPanelProps) {
     fetchRefs();
     fetchStatus();
   }, [fetchLog, fetchRefs, fetchStatus]);
+
+  // Auto-refresh when tasks complete (refreshTrigger changes)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      refresh();
+    }
+  }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll
   useEffect(() => {
