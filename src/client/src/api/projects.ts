@@ -1,6 +1,20 @@
 import { get, post, put, del } from './client';
 import type { Project } from '../types';
 
+// --- Folder Browser ---
+
+export interface BrowseResult {
+  current: string;
+  parent: string | null;
+  dirs: { name: string; path: string }[];
+  isGitRepo?: boolean;
+}
+
+export function browseFolders(path?: string): Promise<BrowseResult> {
+  const qs = path ? `?path=${encodeURIComponent(path)}` : '';
+  return get(`/api/projects/browse${qs}`);
+}
+
 export function getProjects(): Promise<Project[]> {
   return get('/api/projects');
 }
