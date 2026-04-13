@@ -535,9 +535,10 @@ Complete the task in the current directory.`;
           }
 
           // Normal failure path
+          const failMsg = `${adapter.displayName} exited with code ${exitCode}.`;
           try {
             queries.updateTodoStatus(todoId, 'failed');
-            queries.createTaskLog(todoId, 'error', `${adapter.displayName} exited with code ${exitCode}.`);
+            queries.createTaskLog(todoId, 'error', failMsg);
             queries.updateTodo(todoId, {
               process_pid: 0,
               ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
@@ -546,13 +547,15 @@ Complete the task in the current directory.`;
             try { queries.updateTodoStatus(todoId, 'failed'); } catch { /* ignore */ }
           }
 
+          broadcaster.broadcast({ type: 'todo:log', todoId, message: failMsg, logType: 'error' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
           this.broadcastProjectStatus(projectId);
         } else {
           // Success path
+          const doneMsg = `${adapter.displayName} completed successfully.`;
           try {
             queries.updateTodoStatus(todoId, 'completed');
-            queries.createTaskLog(todoId, 'output', `${adapter.displayName} completed successfully.`);
+            queries.createTaskLog(todoId, 'output', doneMsg);
             const tokenUsage = logStreamer.getTokenUsage(todoId);
             queries.updateTodo(todoId, {
               process_pid: 0,
@@ -562,6 +565,7 @@ Complete the task in the current directory.`;
             try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }
           }
 
+          broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
           this.broadcastProjectStatus(projectId);
         }
