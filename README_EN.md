@@ -1,9 +1,9 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="src/client/public/logo.svg">
-  <source media="(prefers-color-scheme: light)" srcset="src/client/public/logo.svg">
-  <img alt="CLITrigger" src="src/client/public/logo.svg" width="360">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/src/client/public/logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/src/client/public/logo.svg">
+  <img alt="CLITrigger" src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/src/client/public/logo.svg" width="360">
 </picture>
 
 **AI-Powered Parallel Worktree Automation**
@@ -30,7 +30,7 @@
 > CLITrigger lets you run AI in parallel — while keeping you in full context of what's happening.
 
 <div align="center">
-  <img src="docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
   <p><em>AI CLIs working simultaneously across isolated git worktrees</em></p>
 </div>
 
@@ -77,7 +77,7 @@ Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs 
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation.
 
 <div align="center">
-  <img src="docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
   <p><em>Multiple AI agents with different roles debating in the Discussion view</em></p>
 </div>
 
@@ -85,7 +85,7 @@ AI agents with different roles — architect, developer, reviewer — debate in 
 Schedule tasks for off-peak hours to avoid rate limits. Supports both recurring cron schedules and one-time scheduled runs.
 
 <div align="center">
-  <img src="docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
   <p><em>Cron-based recurring and one-time scheduled task execution</em></p>
 </div>
 
