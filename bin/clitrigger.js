@@ -71,6 +71,23 @@ async function startServer() {
 }
 
 async function handleConfig(args) {
+  if (args[0] === 'clear') {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      console.log('삭제할 설정이 없습니다.');
+      return;
+    }
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await rl.question(`⚠️  ${CONFIG_DIR} 의 모든 설정과 데이터가 삭제됩니다. 계속하시겠습니까? (y/N) `);
+    rl.close();
+    if (answer.toLowerCase() === 'y') {
+      fs.rmSync(CONFIG_DIR, { recursive: true, force: true });
+      console.log('✅ 설정 및 데이터가 삭제되었습니다.');
+    } else {
+      console.log('취소되었습니다.');
+    }
+    return;
+  }
+
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
   if (!fs.existsSync(CONFIG_FILE)) {
@@ -145,6 +162,7 @@ Usage:
   clitrigger config tunnel on <name>  Named 터널 활성화
   clitrigger config tunnel off  터널 비활성화
   clitrigger config path        설정 디렉토리 경로 출력
+  clitrigger config clear       설정 및 데이터 완전 삭제
   clitrigger --help             이 도움말 표시
 `.trim());
 }
