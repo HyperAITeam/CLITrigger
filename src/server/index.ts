@@ -126,8 +126,8 @@ for (const p of getAllProjects()) {
 
 // Require AUTH_PASSWORD unless auth is explicitly disabled (plugin/headless mode)
 if (!process.env.AUTH_PASSWORD && process.env.DISABLE_AUTH !== 'true') {
-  console.error('ERROR: AUTH_PASSWORD 환경변수가 설정되지 않았습니다.');
-  console.error('  .env 파일에 AUTH_PASSWORD를 설정하거나, npm 글로벌 설치 시 clitrigger를 다시 실행하세요.');
+  console.error('ERROR: AUTH_PASSWORD is not set.');
+  console.error('  Set AUTH_PASSWORD in .env file, or run clitrigger again if installed globally.');
   process.exit(1);
 }
 
@@ -173,7 +173,7 @@ if (process.env.TUNNEL_ENABLED === 'true') {
     console.error('Failed to start tunnel:', err.message);
   });
   tunnelManager.on('url', (url: string) => {
-    console.log(`Cloudflare Tunnel URL: ${url}`);
+    console.log(`  Remote:  ${url}`);
   });
   tunnelManager.on('error', (err: Error) => {
     console.error('Tunnel error:', err.message);
@@ -234,10 +234,15 @@ const requestedPort = Number(PORT);
 
 function tryListen(port: number, attempt: number) {
   server.listen(port, () => {
+    console.log('');
+    console.log('  CLITrigger is running!');
+    console.log('');
+    console.log(`  Local:   http://localhost:${port}`);
     if (port !== requestedPort) {
-      console.log(`⚠️  포트 ${requestedPort}이(가) 사용 중이어서 ${port}에서 시작합니다.`);
+      console.log(`           (port ${requestedPort} was in use, using ${port} instead)`);
     }
-    console.log(`CLITrigger server running on http://localhost:${port}`);
+    // Tunnel URL is printed by tunnelManager 'url' event as "  Remote:  ..."
+    console.log('');
     orchestrator.startStaleProcessChecker();
   });
 
@@ -245,10 +250,10 @@ function tryListen(port: number, attempt: number) {
     if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_RETRIES) {
       server.removeAllListeners('error');
       const nextPort = port + 1;
-      console.log(`포트 ${port} 사용 중, ${nextPort} 시도...`);
+      console.log(`  Port ${port} in use, trying ${nextPort}...`);
       tryListen(nextPort, attempt + 1);
     } else {
-      console.error('서버 시작 실패:', err.message);
+      console.error('Failed to start server:', err.message);
       process.exit(1);
     }
   });

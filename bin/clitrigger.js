@@ -32,14 +32,14 @@ async function startServer() {
 
     let password = '';
     while (!password) {
-      password = await rl.question('비밀번호를 설정해주세요: ');
-      if (!password) console.log('비밀번호는 필수입니다.');
+      password = await rl.question('Set a password: ');
+      if (!password) console.log('Password is required.');
     }
     rl.close();
 
     const config = { port: 3000, password, tunnel: true };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log(`\n✅ 설정 완료! (${CONFIG_FILE})`);
+    console.log(`\nSetup complete! (${CONFIG_FILE})`);
   }
 
   // config 읽고 env 설정
@@ -47,17 +47,17 @@ async function startServer() {
 
   // 기존 config에 비밀번호가 없으면 설정 강제
   if (!config.password) {
-    console.log('⚠️  비밀번호가 설정되지 않았습니다.\n');
+    console.log('Password is not set.\n');
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     let password = '';
     while (!password) {
-      password = await rl.question('비밀번호를 설정해주세요: ');
-      if (!password) console.log('비밀번호는 필수입니다.');
+      password = await rl.question('Set a password: ');
+      if (!password) console.log('Password is required.');
     }
     rl.close();
     config.password = password;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log('✅ 비밀번호가 설정되었습니다.\n');
+    console.log('Password saved.\n');
   }
 
   process.env.PORT = String(config.port || 3000);
@@ -78,17 +78,17 @@ async function startServer() {
 async function handleConfig(args) {
   if (args[0] === 'clear') {
     if (!fs.existsSync(CONFIG_DIR)) {
-      console.log('삭제할 설정이 없습니다.');
+      console.log('No config to delete.');
       return;
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question(`⚠️  ${CONFIG_DIR} 의 모든 설정과 데이터가 삭제됩니다. 계속하시겠습니까? (y/N) `);
+    const answer = await rl.question(`All config and data in ${CONFIG_DIR} will be deleted. Continue? (y/N) `);
     rl.close();
     if (answer.toLowerCase() === 'y') {
       fs.rmSync(CONFIG_DIR, { recursive: true, force: true });
-      console.log('✅ 설정 및 데이터가 삭제되었습니다.');
+      console.log('Config and data deleted.');
     } else {
-      console.log('취소되었습니다.');
+      console.log('Cancelled.');
     }
     return;
   }
@@ -96,7 +96,7 @@ async function handleConfig(args) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
   if (!fs.existsSync(CONFIG_FILE)) {
-    console.log('설정 파일이 없습니다. clitrigger를 먼저 실행해주세요.');
+    console.log('No config file found. Run clitrigger first.');
     process.exit(1);
   }
 
@@ -104,53 +104,53 @@ async function handleConfig(args) {
 
   if (args[0] === 'port') {
     if (!args[1]) {
-      console.log(`현재 포트: ${config.port || 3000}`);
+      console.log(`Current port: ${config.port || 3000}`);
       return;
     }
     const port = parseInt(args[1], 10);
     if (isNaN(port) || port < 1 || port > 65535) {
-      console.log('유효한 포트 번호를 입력해주세요. (1-65535)');
+      console.log('Please enter a valid port number. (1-65535)');
       process.exit(1);
     }
     config.port = port;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log(`✅ 포트가 ${port}으로 변경되었습니다.`);
+    console.log(`Port changed to ${port}.`);
   } else if (args[0] === 'password') {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     let password = '';
     while (!password) {
-      password = await rl.question('새 비밀번호: ');
-      if (!password) console.log('비밀번호는 필수입니다.');
+      password = await rl.question('New password: ');
+      if (!password) console.log('Password is required.');
     }
     rl.close();
     config.password = password;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log('✅ 비밀번호가 변경되었습니다.');
+    console.log('Password changed.');
   } else if (args[0] === 'path') {
     console.log(CONFIG_DIR);
   } else if (args[0] === 'tunnel') {
     if (!args[1]) {
-      console.log(`터널: ${config.tunnel ? '활성화' : '비활성화'}${config.tunnelName ? ` (이름: ${config.tunnelName})` : ''}`);
+      console.log(`Tunnel: ${config.tunnel ? 'enabled' : 'disabled'}${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
       return;
     }
     if (args[1] === 'on') {
       config.tunnel = true;
       if (args[2]) config.tunnelName = args[2];
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-      console.log(`✅ 터널이 활성화되었습니다.${config.tunnelName ? ` (이름: ${config.tunnelName})` : ''}`);
+      console.log(`Tunnel enabled.${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
     } else if (args[1] === 'off') {
       config.tunnel = false;
       delete config.tunnelName;
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-      console.log('✅ 터널이 비활성화되었습니다.');
+      console.log('Tunnel disabled.');
     } else {
-      console.log('사용법: clitrigger config tunnel [on [이름] | off]');
+      console.log('Usage: clitrigger config tunnel [on [name] | off]');
     }
   } else {
-    console.log(`현재 설정 (${CONFIG_FILE}):`);
-    console.log(`  포트: ${config.port || 3000}`);
-    console.log(`  비밀번호: ${config.password ? '설정됨' : '없음'}`);
-    console.log(`  터널: ${config.tunnel ? '활성화' : '비활성화'}${config.tunnelName ? ` (이름: ${config.tunnelName})` : ''}`);
+    console.log(`Config (${CONFIG_FILE}):`);
+    console.log(`  Port:     ${config.port || 3000}`);
+    console.log(`  Password: ${config.password ? 'set' : 'not set'}`);
+    console.log(`  Tunnel:   ${config.tunnel ? 'enabled' : 'disabled'}${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
   }
 }
 
@@ -204,9 +204,9 @@ async function checkAutoUpdate() {
 
     if (!isNewerVersion(latestVersion, currentVersion)) return false;
 
-    console.log(`\n🔄 새 버전 발견: v${currentVersion} → v${latestVersion}, 업데이트 중...`);
+    console.log(`\nUpdate available: v${currentVersion} -> v${latestVersion}, updating...`);
     execSync('npm i -g clitrigger@latest', { stdio: 'inherit' });
-    console.log(`✅ v${latestVersion} 업데이트 완료! 재시작합니다...\n`);
+    console.log(`Updated to v${latestVersion}. Restarting...\n`);
 
     // 업데이트된 코드로 재시작
     const child = spawn(process.argv[0], process.argv.slice(1), {
@@ -226,15 +226,15 @@ function printHelp() {
 CLITrigger - AI-powered task execution tool
 
 Usage:
-  clitrigger                    서버 시작
-  clitrigger config             현재 설정 보기
-  clitrigger config port <n>    포트 변경
-  clitrigger config password    비밀번호 변경
-  clitrigger config tunnel on   Cloudflare 터널 활성화
-  clitrigger config tunnel on <name>  Named 터널 활성화
-  clitrigger config tunnel off  터널 비활성화
-  clitrigger config path        설정 디렉토리 경로 출력
-  clitrigger config clear       설정 및 데이터 완전 삭제
-  clitrigger --help             이 도움말 표시
+  clitrigger                          Start the server
+  clitrigger config                   Show current config
+  clitrigger config port <n>          Change port
+  clitrigger config password          Change password
+  clitrigger config tunnel on         Enable Cloudflare tunnel
+  clitrigger config tunnel on <name>  Enable named tunnel
+  clitrigger config tunnel off        Disable tunnel
+  clitrigger config path              Print config directory path
+  clitrigger config clear             Delete all config and data
+  clitrigger --help                   Show this help
 `.trim());
 }
