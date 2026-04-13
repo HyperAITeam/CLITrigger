@@ -30,6 +30,20 @@ class DebugLogger {
     }
   }
 
+  private ensureGitignore(projectPath: string, entry: string): void {
+    const gitignorePath = path.join(projectPath, '.gitignore');
+    try {
+      const content = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+      const lines = content.split(/\r?\n/);
+      if (!lines.some(l => l.trim() === entry)) {
+        const newline = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+        fs.appendFileSync(gitignorePath, `${newline}${entry}\n`);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   startSession(opts: {
     todoId: string;
     projectPath: string;
@@ -42,6 +56,7 @@ class DebugLogger {
   }): DebugSession {
     const debugDir = this.getDebugDir(opts.projectPath);
     this.ensureDir(debugDir);
+    this.ensureGitignore(opts.projectPath, '.debug-logs');
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${opts.todoId}_${ts}.log`;

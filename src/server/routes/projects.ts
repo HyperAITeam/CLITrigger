@@ -264,7 +264,7 @@ router.get('/:id/git-status', async (req: Request<{ id: string }>, res: Response
       // Validate worktree path: must be under project's .worktrees directory
       const resolved = nodePath.resolve(worktreePath);
       const worktreeBase = nodePath.resolve(project.path, '.worktrees');
-      if (!resolved.startsWith(worktreeBase)) {
+      if (!resolved.startsWith(worktreeBase + nodePath.sep) && resolved !== worktreeBase) {
         res.status(400).json({ error: 'Invalid worktree path' });
         return;
       }
@@ -302,7 +302,7 @@ router.get('/:id/git-log', async (req: Request<{ id: string }>, res: Response) =
     if (worktreePath) {
       const resolved = nodePath.resolve(worktreePath);
       const worktreeBase = nodePath.resolve(project.path, '.worktrees');
-      if (!resolved.startsWith(worktreeBase)) {
+      if (!resolved.startsWith(worktreeBase + nodePath.sep) && resolved !== worktreeBase) {
         res.status(400).json({ error: 'Invalid worktree path' });
         return;
       }
@@ -342,7 +342,7 @@ router.get('/:id/git-refs', async (req: Request<{ id: string }>, res: Response) 
     if (worktreePath) {
       const resolved = nodePath.resolve(worktreePath);
       const worktreeBase = nodePath.resolve(project.path, '.worktrees');
-      if (!resolved.startsWith(worktreeBase)) {
+      if (!resolved.startsWith(worktreeBase + nodePath.sep) && resolved !== worktreeBase) {
         res.status(400).json({ error: 'Invalid worktree path' });
         return;
       }

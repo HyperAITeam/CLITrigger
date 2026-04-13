@@ -56,6 +56,24 @@ export class WorktreeManager {
    * Worktree path: <projectPath>/../worktrees/<branchName>
    * Returns the absolute worktree path.
    */
+  /**
+   * Ensure an entry exists in the project's .gitignore.
+   * Appends the entry if not already present.
+   */
+  private ensureGitignore(projectPath: string, entry: string): void {
+    const gitignorePath = path.join(projectPath, '.gitignore');
+    try {
+      const content = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+      const lines = content.split(/\r?\n/);
+      if (!lines.some(l => l.trim() === entry)) {
+        const newline = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+        fs.appendFileSync(gitignorePath, `${newline}${entry}\n`);
+      }
+    } catch {
+      // Non-fatal: .gitignore update failure shouldn't block operations
+    }
+  }
+
   async createWorktree(projectPath: string, branchName: string): Promise<string> {
     const git = simpleGit(projectPath);
 
@@ -68,6 +86,9 @@ export class WorktreeManager {
     if (!fs.existsSync(worktreeBase)) {
       fs.mkdirSync(worktreeBase, { recursive: true });
     }
+
+    // Ensure .worktrees is in .gitignore
+    this.ensureGitignore(projectPath, '.worktrees');
 
     // Find a unique directory name (append -2, -3, etc. if already exists)
     let dirName = baseDirName;
@@ -190,8 +211,14 @@ export class WorktreeManager {
    */
   async squashMergeBranch(targetWorktreePath: string, sourceBranch: string): Promise<void> {
     const git = simpleGit(targetWorktreePath);
-    await git.raw(['merge', '--squash', sourceBranch]);
-    await git.commit(`Squash merge from ${sourceBranch}`);
+    try {
+      await git.raw(['merge', '--squash', sourceBranch]);
+      await git.commit(`Squash merge from ${sourceBranch}`);
+    } catch (err) {
+      // Abort merge to avoid leaving worktree in dirty state
+      try { await git.raw(['merge', '--abort']); } catch { /* may not be in merge state */ }
+      throw err;
+    }
   }
 
   /**
@@ -313,7 +340,7 @@ export class WorktreeManager {
 
   async gitUnstage(dirPath: string, files: string[]): Promise<void> {
     const git = simpleGit(dirPath);
-    await git.reset(files.map(f => ['--', f]).flat());
+    await git.reset(['--', ...files]);
   }
 
   async gitCommit(dirPath: string, message: string): Promise<string> {
@@ -324,20 +351,18 @@ export class WorktreeManager {
 
   async gitPull(dirPath: string, remote = 'origin', branch?: string): Promise<string> {
     const git = simpleGit(dirPath);
-    const args = [remote];
-    if (branch) args.push(branch);
-    const result = await git.pull(args);
-    return `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions`;
+    const result = await git.pull(remote, branch);
+    return `${result.summary?.changes ?? 0} changes, ${result.summary?.insertions ?? 0} insertions, ${result.summary?.deletions ?? 0} deletions`;
   }
 
   async gitPush(dirPath: string, remote = 'origin', branch?: string, setUpstream = false): Promise<string> {
     const git = simpleGit(dirPath);
-    const args: string[] = [remote];
-    if (branch) args.push(branch);
     if (setUpstream) {
-      await git.raw(['push', '-u', ...args]);
+      const args = ['push', '-u', remote];
+      if (branch) args.push(branch);
+      await git.raw(args);
     } else {
-      await git.push(args);
+      await git.push(remote, branch);
     }
     return 'ok';
   }

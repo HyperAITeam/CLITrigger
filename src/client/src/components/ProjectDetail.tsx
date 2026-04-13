@@ -39,6 +39,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
+  const [gitRefreshTrigger, setGitRefreshTrigger] = useState(0);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -111,6 +112,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             return { ...t, ...updates };
           })
         );
+        // Trigger git panel refresh when tasks complete
+        if (event.status === 'completed' || event.status === 'merged' || event.status === 'failed') {
+          setGitRefreshTrigger(prev => prev + 1);
+        }
         // Track interactive mode todos
         if (event.status === 'running' && event.mode === 'interactive') {
           setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
@@ -600,7 +605,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
         ) : null
       )}
       {activeTab === 'git' && project.is_git_repo ? (
-        <GitStatusPanel project={project} />
+        <GitStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'schedules' && (
         <ScheduleList
