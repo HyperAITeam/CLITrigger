@@ -52,8 +52,15 @@ router.post('/browse', (req: Request, res: Response) => {
 
     if (process.platform === 'win32') {
       // Write a temp .ps1 script to avoid shell escaping issues
+      // Use a hidden topmost Form as owner so the dialog appears in front
       const scriptLines = [
         'Add-Type -AssemblyName System.Windows.Forms',
+        '$owner = New-Object System.Windows.Forms.Form',
+        '$owner.TopMost = $true',
+        '$owner.ShowInTaskbar = $false',
+        '$owner.WindowState = [System.Windows.Forms.FormWindowState]::Minimized',
+        '$owner.Show()',
+        '$owner.Hide()',
         '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
         '$d.ShowNewFolderButton = $true',
       ];
@@ -61,7 +68,8 @@ router.post('/browse', (req: Request, res: Response) => {
         scriptLines.push(`$d.SelectedPath = '${initialDir.replace(/'/g, "''")}'`);
       }
       scriptLines.push(
-        'if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
+        'if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
+        '$owner.Dispose()',
       );
 
       const tmpScript = nodePath.join(os.tmpdir(), `clitrigger-browse-${Date.now()}.ps1`);
