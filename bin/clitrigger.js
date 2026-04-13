@@ -33,7 +33,7 @@ async function startServer() {
     }
     rl.close();
 
-    const config = { port: 3000, password };
+    const config = { port: 3000, password, tunnel: true };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
     console.log(`\n✅ 설정 완료! (${CONFIG_FILE})`);
   }
@@ -59,7 +59,8 @@ async function startServer() {
   process.env.PORT = String(config.port || 3000);
   process.env.AUTH_PASSWORD = config.password;
   process.env.DB_PATH = path.join(CONFIG_DIR, 'clitrigger.db');
-  if (config.tunnel) {
+  // tunnel defaults to true (auto-enable for new and existing users)
+  if (config.tunnel !== false) {
     process.env.TUNNEL_ENABLED = 'true';
   }
   if (config.tunnelName) {

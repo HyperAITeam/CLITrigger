@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "cloudflared": "^0.7.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
