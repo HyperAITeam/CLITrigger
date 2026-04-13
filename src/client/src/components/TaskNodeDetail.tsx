@@ -19,6 +19,7 @@ interface TaskNodeDetailProps {
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
+  onContinue?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
@@ -37,6 +38,7 @@ export default function TaskNodeDetail({
   onMerge,
   onCleanup,
   onRetry,
+  onContinue,
   onFix,
   onEvent,
   isInteractive,
@@ -52,6 +54,10 @@ export default function TaskNodeDetail({
   const [diffLoading, setDiffLoading] = useState(false);
   const [resultData, setResultData] = useState<TaskResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
+  const [showContinueInput, setShowContinueInput] = useState(false);
+  const [continuePrompt, setContinuePrompt] = useState('');
+  const [continuing, setContinuing] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
@@ -59,6 +65,7 @@ export default function TaskNodeDetail({
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed';
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
+  const canContinue = !!onContinue && todo.status === 'completed' && !!todo.worktree_path;
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name);
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
 
@@ -239,12 +246,67 @@ export default function TaskNodeDetail({
               {t('todo.cleanup')}
             </button>
           )}
+          {canContinue && (
+            <button
+              onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
+              disabled={continuing}
+              className="btn-ghost text-xs py-1.5 text-emerald-500"
+            >
+              {t('todo.continue')}
+            </button>
+          )}
           {canRetry && (
             <button onClick={() => onRetry(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-cyan-500">
               {t('todo.retry')}
             </button>
           )}
         </div>
+
+        {showContinueInput && onContinue && (
+          <div className="border border-emerald-200 rounded-lg px-3 py-2 bg-emerald-50/50 space-y-2">
+            <label className="text-xs font-medium text-emerald-600">
+              {t('todo.continuePromptLabel')}
+              {(todo.round_count ?? 1) > 1 && (
+                <span className="ml-2 text-emerald-500/70">({t('todo.roundLabel')} {todo.round_count})</span>
+              )}
+            </label>
+            <textarea
+              value={continuePrompt}
+              onChange={(e) => setContinuePrompt(e.target.value)}
+              placeholder={t('todo.continuePromptPlaceholder')}
+              rows={3}
+              disabled={continuing}
+              className="w-full bg-theme-card border border-emerald-200 rounded-lg px-2 py-1.5 text-xs text-warm-800 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 resize-y"
+            />
+            {continueError && <p className="text-xs text-status-error">{continueError}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const prompt = continuePrompt.trim();
+                  if (!prompt) { setContinueError(t('todo.continuePromptRequired')); return; }
+                  setContinuing(true); setContinueError(null);
+                  try {
+                    await onContinue(todo.id, prompt, 'headless');
+                    setShowContinueInput(false); setContinuePrompt('');
+                  } catch (err) {
+                    setContinueError(err instanceof Error ? err.message : 'Continue failed');
+                  } finally { setContinuing(false); }
+                }}
+                disabled={continuing || !continuePrompt.trim()}
+                className="btn-primary text-xs py-1.5 !bg-emerald-500 hover:!bg-emerald-600 disabled:opacity-30"
+              >
+                {continuing ? t('todo.continuing') : t('todo.confirmContinue')}
+              </button>
+              <button
+                onClick={() => { setShowContinueInput(false); setContinueError(null); }}
+                disabled={continuing}
+                className="btn-ghost text-xs py-1.5"
+              >
+                {t('scheduleForm.cancel')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         <div>

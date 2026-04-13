@@ -404,14 +404,64 @@ router.post('/todos/:id/retry', async (req: Request<{ id: string }>, res: Respon
     // 2. Clear previous logs
     deleteTaskLogsByTodoId(todo.id);
 
-    // 3. Reset todo state
+    // 3. Reset todo state (including round count)
     updateTodoStatus(todo.id, 'pending');
-    updateTodo(todo.id, { worktree_path: null, branch_name: null, process_pid: 0 });
+    updateTodo(todo.id, { worktree_path: null, branch_name: null, process_pid: 0, round_count: 1 });
 
     // 4. Start fresh
     await orchestrator.startTodo(todo.id, mode);
 
     // Re-fetch to return current state
+    const updated = getTodoById(todo.id);
+    res.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/todos/:id/continue - run a follow-up prompt in the same worktree (new round)
+router.post('/todos/:id/continue', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    if (todo.status !== 'completed') {
+      res.status(400).json({ error: 'Only completed todos can be continued' });
+      return;
+    }
+
+    const project = getProjectById(todo.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+    if (!prompt) {
+      res.status(400).json({ error: 'Follow-up prompt is required' });
+      return;
+    }
+    // Follow-up prompts are contextual (user is already in a running worktree),
+    // so skip the strict action-keyword validation used for new tasks.
+    if (prompt.length < 2) {
+      res.status(400).json({ error: 'Follow-up prompt is too short.' });
+      return;
+    }
+
+    const validModes = ['headless', 'interactive', 'verbose'] as const;
+    const mode = validModes.includes(req.body.mode) ? req.body.mode : 'headless';
+    const cliTool = ((todo.cli_tool || project.cli_tool || 'claude') as CliTool);
+    if (mode === 'interactive' && !supportsInteractiveMode(cliTool)) {
+      res.status(400).json({ error: `${cliTool} does not support interactive mode in CLITrigger. Use headless or verbose mode.` });
+      return;
+    }
+
+    await orchestrator.continueTodo(todo.id, prompt, mode);
+
     const updated = getTodoById(todo.id);
     res.json(updated);
   } catch (err: unknown) {

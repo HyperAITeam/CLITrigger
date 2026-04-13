@@ -79,6 +79,7 @@ export interface Todo {
   merged_from_branch: string | null;
   context_switch_count?: number;
   execution_mode: string | null;
+  round_count?: number;
   position_x: number | null;
   position_y: number | null;
   created_at: string;
@@ -203,6 +204,7 @@ export interface TaskLog {
   todo_id: string;
   log_type: 'info' | 'error' | 'output' | 'commit' | 'input' | 'prompt' | 'warning';
   message: string;
+  round_number?: number;
   created_at: string;
 }
 

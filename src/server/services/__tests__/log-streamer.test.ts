@@ -39,7 +39,7 @@ describe('LogStreamer', () => {
     streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
     mockStdout.emit('data', 'Hello world\n');
 
-    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'Hello world');
+    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'Hello world', 1);
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'todo:log', todoId: 'todo-1', logType: 'output' })
     );
@@ -50,7 +50,7 @@ describe('LogStreamer', () => {
     mockStdout.emit('data', 'commit abc1234567 fix: something\n');
 
     expect(queries.createTaskLog).toHaveBeenCalledWith(
-      'todo-1', 'commit', 'commit abc1234567 fix: something'
+      'todo-1', 'commit', 'commit abc1234567 fix: something', 1
     );
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'todo:commit', todoId: 'todo-1' })
@@ -61,7 +61,7 @@ describe('LogStreamer', () => {
     streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
     mockStderr.emit('data', 'Error occurred\n');
 
-    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'error', 'Error occurred');
+    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'error', 'Error occurred', 1);
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'todo:log', logType: 'error' })
     );
@@ -75,7 +75,7 @@ describe('LogStreamer', () => {
     expect(queries.createTaskLog).not.toHaveBeenCalled();
 
     mockStdout.emit('data', ' line\n');
-    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'partial line');
+    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'partial line', 1);
   });
 
   it('should flush buffer on stream end', () => {
@@ -83,7 +83,7 @@ describe('LogStreamer', () => {
     mockStdout.emit('data', 'final output');
     mockStdout.emit('end');
 
-    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'final output');
+    expect(queries.createTaskLog).toHaveBeenCalledWith('todo-1', 'output', 'final output', 1);
   });
 
   it('should skip empty lines', () => {

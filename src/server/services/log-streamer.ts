@@ -27,6 +27,22 @@ export class LogStreamer {
   private tokenUsageMap: Map<string, TokenUsage> = new Map();
   /** Tracks whether context exhaustion was detected for a task */
   private contextExhaustedMap: Map<string, boolean> = new Map();
+  /** Current round number per task (for multi-round "continue" feature) */
+  private roundMap: Map<string, number> = new Map();
+
+  /** Set the current round number for a task. Subsequent streamed logs will use this round. */
+  setRound(todoId: string, roundNumber: number): void {
+    this.roundMap.set(todoId, roundNumber);
+  }
+
+  private getRound(todoId: string): number {
+    return this.roundMap.get(todoId) ?? 1;
+  }
+
+  /** Internal: create a task log tagged with the current round number. */
+  private log(todoId: string, logType: string, message: string): ReturnType<typeof queries.createTaskLog> {
+    return queries.createTaskLog(todoId, logType, message, this.getRound(todoId));
+  }
 
   /**
    * Attach to a CLI process stdout/stderr and save logs to DB.
@@ -51,7 +67,7 @@ export class LogStreamer {
         if (!line.trim()) continue;
         try {
           if (commitPattern.test(line)) {
-            queries.createTaskLog(todoId, 'commit', line.trim());
+            this.log(todoId, 'commit', line.trim());
             const hashMatch = line.match(/[0-9a-f]{7,40}/i);
             broadcaster.broadcast({
               type: 'todo:commit',
@@ -60,7 +76,7 @@ export class LogStreamer {
               message: line.trim(),
             });
           } else {
-            queries.createTaskLog(todoId, 'output', line.trim());
+            this.log(todoId, 'output', line.trim());
             broadcaster.broadcast({
               type: 'todo:log',
               todoId,
@@ -78,7 +94,7 @@ export class LogStreamer {
       if (stdoutBuffer.trim()) {
         try {
           if (commitPattern.test(stdoutBuffer)) {
-            queries.createTaskLog(todoId, 'commit', stdoutBuffer.trim());
+            this.log(todoId, 'commit', stdoutBuffer.trim());
             const hashMatch = stdoutBuffer.match(/[0-9a-f]{7,40}/i);
             broadcaster.broadcast({
               type: 'todo:commit',
@@ -87,7 +103,7 @@ export class LogStreamer {
               message: stdoutBuffer.trim(),
             });
           } else {
-            queries.createTaskLog(todoId, 'output', stdoutBuffer.trim());
+            this.log(todoId, 'output', stdoutBuffer.trim());
             broadcaster.broadcast({
               type: 'todo:log',
               todoId,
@@ -114,7 +130,7 @@ export class LogStreamer {
         }
         const logType = classifyStderrLine(line.trim());
         try {
-          queries.createTaskLog(todoId, logType, line.trim());
+          this.log(todoId, logType, line.trim());
           broadcaster.broadcast({
             type: 'todo:log',
             todoId,
@@ -134,7 +150,7 @@ export class LogStreamer {
         }
         const logType = classifyStderrLine(stderrBuffer.trim());
         try {
-          queries.createTaskLog(todoId, logType, stderrBuffer.trim());
+          this.log(todoId, logType, stderrBuffer.trim());
           broadcaster.broadcast({
             type: 'todo:log',
             todoId,
@@ -204,7 +220,7 @@ export class LogStreamer {
         this.contextExhaustedMap.set(todoId, true);
       }
       try {
-        queries.createTaskLog(todoId, 'error', line);
+        this.log(todoId, 'error', line);
         broadcaster.broadcast({ type: 'todo:log', todoId, message: line, logType: 'error' });
       } catch { /* ignore */ }
       return;
@@ -227,7 +243,7 @@ export class LogStreamer {
                 for (const textLine of textLines) {
                   if (!textLine.trim()) continue;
                   if (commitPattern.test(textLine)) {
-                    queries.createTaskLog(todoId, 'commit', textLine.trim());
+                    this.log(todoId, 'commit', textLine.trim());
                     const hashMatch = textLine.match(/[0-9a-f]{7,40}/i);
                     broadcaster.broadcast({
                       type: 'todo:commit',
@@ -236,7 +252,7 @@ export class LogStreamer {
                       message: textLine.trim(),
                     });
                   } else {
-                    queries.createTaskLog(todoId, 'output', textLine.trim());
+                    this.log(todoId, 'output', textLine.trim());
                     broadcaster.broadcast({
                       type: 'todo:log',
                       todoId,
@@ -253,12 +269,12 @@ export class LogStreamer {
                   const inputStr = JSON.stringify(block.input, null, 2);
                   logMsg += ` input: ${inputStr.length > 2000 ? inputStr.slice(0, 2000) + '...' : inputStr}`;
                 }
-                queries.createTaskLog(todoId, 'output', logMsg);
+                this.log(todoId, 'output', logMsg);
                 broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
               } else if (verbose && block.type === 'tool_result') {
                 const content = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
                 const logMsg = `[Result] ${content.length > 2000 ? content.slice(0, 2000) + '...' : content}`;
-                queries.createTaskLog(todoId, 'output', logMsg);
+                this.log(todoId, 'output', logMsg);
                 broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
               }
             }
@@ -275,7 +291,7 @@ export class LogStreamer {
             this.contextExhaustedMap.set(todoId, true);
           }
           try {
-            queries.createTaskLog(todoId, 'error', errorMsg);
+            this.log(todoId, 'error', errorMsg);
             broadcaster.broadcast({ type: 'todo:log', todoId, message: errorMsg, logType: 'error' });
           } catch { /* ignore */ }
           break;
@@ -326,7 +342,7 @@ export class LogStreamer {
               const summary = JSON.stringify(event);
               logMsg = `[${eventType}] ${summary.length > 2000 ? summary.slice(0, 2000) + '...' : summary}`;
             }
-            queries.createTaskLog(todoId, 'output', logMsg);
+            this.log(todoId, 'output', logMsg);
             broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
           }
           break;

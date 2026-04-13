@@ -20,6 +20,7 @@ interface TodoItemProps {
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
+  onContinue?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -41,7 +42,7 @@ interface TodoItemProps {
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -56,6 +57,10 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
   const [cleanError, setCleanError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [showContinueInput, setShowContinueInput] = useState(false);
+  const [continuePrompt, setContinuePrompt] = useState('');
+  const [continuing, setContinuing] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<TaskResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
@@ -80,6 +85,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
+  const canContinue = !!onContinue && todo.status === 'completed' && !!todo.worktree_path;
   const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name) && !isChainMember;
 
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
@@ -204,6 +210,29 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
       setRetryError(err instanceof Error ? err.message : 'Retry failed');
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const handleContinue = async (mode: 'headless' | 'interactive' | 'verbose' = 'headless') => {
+    if (!onContinue) return;
+    const prompt = continuePrompt.trim();
+    if (!prompt) {
+      setContinueError(t('todo.continuePromptRequired'));
+      return;
+    }
+    setContinuing(true);
+    setContinueError(null);
+    try {
+      await onContinue(todo.id, prompt, mode);
+      setShowContinueInput(false);
+      setContinuePrompt('');
+      // Clear log cache so the next expand will re-fetch including new round
+      setLogs([]);
+      setLogsLoaded(false);
+    } catch (err) {
+      setContinueError(err instanceof Error ? err.message : 'Continue failed');
+    } finally {
+      setContinuing(false);
     }
   };
 
@@ -514,6 +543,18 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               </svg>
             </button>
           )}
+          {canContinue && (
+            <button
+              onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
+              disabled={continuing}
+              className="p-1.5 text-emerald-500/60 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-30"
+              title={t('todo.continue')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
           {canRetry && (
             <button
               onClick={() => handleRetry('headless')}
@@ -581,6 +622,47 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               />
               {t('todo.scheduleKeepOriginal')}
             </label>
+          </div>
+        </div>
+      )}
+
+      {/* Continue Input (inline, below header) */}
+      {showContinueInput && (
+        <div className="border-t border-emerald-200 px-5 py-3 bg-emerald-50/50 animate-fade-in">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-emerald-600">
+              {t('todo.continuePromptLabel')}
+              {(todo.round_count ?? 1) > 1 && (
+                <span className="ml-2 text-emerald-500/70">({t('todo.roundLabel')} {todo.round_count})</span>
+              )}
+            </label>
+            <textarea
+              value={continuePrompt}
+              onChange={(e) => setContinuePrompt(e.target.value)}
+              placeholder={t('todo.continuePromptPlaceholder')}
+              rows={3}
+              className="w-full bg-theme-card border border-emerald-200 rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 resize-y"
+              disabled={continuing}
+            />
+            {continueError && (
+              <p className="text-xs text-status-error">{continueError}</p>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleContinue('headless')}
+                disabled={continuing || !continuePrompt.trim()}
+                className="btn-primary text-xs py-1.5 !bg-emerald-500 hover:!bg-emerald-600 disabled:opacity-30"
+              >
+                {continuing ? t('todo.continuing') : t('todo.confirmContinue')}
+              </button>
+              <button
+                onClick={() => { setShowContinueInput(false); setContinueError(null); }}
+                disabled={continuing}
+                className="btn-ghost text-xs py-1.5"
+              >
+                {t('scheduleForm.cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}
