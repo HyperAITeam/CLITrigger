@@ -10,6 +10,7 @@ import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
+import { useNotification } from '../hooks/useNotification';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
 import DiscussionList from './DiscussionList';
@@ -39,6 +40,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
   const [gitRefreshTrigger, setGitRefreshTrigger] = useState(0);
   const { t } = useI18n();
+  const { sendNotification } = useNotification();
+  const discussionsRef = useRef<Discussion[]>([]);
+  useEffect(() => { discussionsRef.current = discussions; }, [discussions]);
 
   useEffect(() => {
     if (!id) return;
@@ -112,6 +116,16 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
         if (event.status === 'completed' || event.status === 'merged' || event.status === 'failed') {
           setGitRefreshTrigger(prev => prev + 1);
         }
+        // Browser notification
+        if (event.status === 'completed' || event.status === 'failed') {
+          const todo = todosRef.current.find(t => t.id === event.todoId);
+          if (todo) {
+            sendNotification(
+              event.status === 'completed' ? t('notification.taskCompleted') : t('notification.taskFailed'),
+              todo.title
+            );
+          }
+        }
         // Track interactive mode todos
         if (event.status === 'running' && event.mode === 'interactive') {
           setInteractiveTodos((prev) => new Set(prev).add(event.todoId!));
@@ -140,9 +154,18 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
               : d
           )
         );
+        if (event.status === 'completed' || event.status === 'failed') {
+          const disc = discussionsRef.current.find(d => d.id === event.discussionId);
+          if (disc) {
+            sendNotification(
+              event.status === 'completed' ? t('notification.discussionCompleted') : t('notification.discussionFailed'),
+              disc.title
+            );
+          }
+        }
       }
     });
-  }, [onEvent]);
+  }, [onEvent, sendNotification, t]);
 
   const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number) => {
     if (!id) return;
