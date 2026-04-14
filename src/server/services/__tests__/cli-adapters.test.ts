@@ -22,7 +22,7 @@ describe('cli-adapters', () => {
       prompt: 'Fix the login disclaimer',
     });
 
-    expect(args).toEqual(['--yolo', '-p', '']);
+    expect(args).toEqual(['--yolo', '--prompt=']);
   });
 
   it('sends Codex prompts over stdin', () => {
