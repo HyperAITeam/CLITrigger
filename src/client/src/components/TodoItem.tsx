@@ -87,7 +87,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
-  const canScheduleOnReset = todo.status === 'completed' && !!onScheduleOnReset && !!resetsAt && resetsAt > Math.floor(Date.now() / 1000);
+  const canScheduleOnReset = (todo.status === 'pending' || todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped') && !!onScheduleOnReset && !!resetsAt && resetsAt > Math.floor(Date.now() / 1000);
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
