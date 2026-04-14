@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
+import { getCliStatus, refreshCliStatus, type CliToolStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
@@ -36,6 +37,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
+  const [cliStatuses, setCliStatuses] = useState<CliToolStatus[]>([]);
+  const [cliStatusLoaded, setCliStatusLoaded] = useState(false);
 
   // Plugin configs (replaces per-integration useState)
   const [pluginConfigs, setPluginConfigs] = useState<Record<string, Record<string, any>>>({});
@@ -67,6 +70,25 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
       setPluginConfigs(configs);
     });
   }, [project.id]);
+
+  // Fetch CLI tool installation status when settings panel opens
+  useEffect(() => {
+    if (!showSettings) return;
+    getCliStatus()
+      .then(setCliStatuses)
+      .catch(() => {})
+      .finally(() => setCliStatusLoaded(true));
+  }, [showSettings]);
+
+  const currentCliStatus = cliStatuses.find((s) => s.tool === cliTool);
+
+  const handleRefreshCliStatus = useCallback(() => {
+    setCliStatusLoaded(false);
+    refreshCliStatus()
+      .then(setCliStatuses)
+      .catch(() => {})
+      .finally(() => setCliStatusLoaded(true));
+  }, []);
 
   const { getToolConfig } = useModels();
 
@@ -288,6 +310,45 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                   </svg>
                   {t('header.usageLimit')}
                 </a>
+              )}
+              {/* CLI installation status indicator */}
+              {cliStatusLoaded && currentCliStatus && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className={`inline-block w-2 h-2 rounded-full ${currentCliStatus.installed ? 'bg-status-success' : 'bg-status-error'}`} />
+                  <span className="text-[10px] text-warm-400">
+                    {currentCliStatus.installed
+                      ? (currentCliStatus.version || t('header.cliInstalled'))
+                      : t('header.cliNotFound')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRefreshCliStatus}
+                    className="text-warm-400 hover:text-warm-600 transition-colors ml-1"
+                    title={t('header.cliRefresh')}
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.182" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {/* CLI not installed warning banner */}
+              {cliStatusLoaded && currentCliStatus && !currentCliStatus.installed && (
+                <div className="mt-2 p-2.5 bg-status-warning/5 border border-status-warning/20 rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-4 h-4 text-status-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-medium text-status-warning">
+                        {t('header.cliNotInstalled').replace('{tool}', CLI_TOOLS.find((c) => c.value === cliTool)?.label || cliTool)}
+                      </p>
+                      <code className="block mt-1 text-[10px] text-warm-500 bg-warm-100 px-2 py-1 rounded select-all">
+                        {t(`header.cliInstallHint.${cliTool}`)}
+                      </code>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
