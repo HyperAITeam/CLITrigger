@@ -538,6 +538,12 @@ const translations = {
     'git.newBranchName': 'New branch name...',
     'git.rename': 'Rename',
     'git.checkoutRemote': 'Checkout as local branch',
+    'git.commitDetail': 'Commit Detail',
+    'git.changedFiles': 'Changed Files',
+    'git.selectFileToViewDiff': 'Select a file to view diff',
+    'git.noFilesChanged': 'No files changed',
+    'git.loadingFiles': 'Loading files...',
+    'git.loadingDiff': 'Loading diff...',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -1078,6 +1084,12 @@ const translations = {
     'git.newBranchName': '새 브랜치 이름...',
     'git.rename': '이름 변경',
     'git.checkoutRemote': '로컬 브랜치로 체크아웃',
+    'git.commitDetail': '커밋 상세',
+    'git.changedFiles': '변경된 파일',
+    'git.selectFileToViewDiff': '파일을 선택하면 차이를 볼 수 있습니다',
+    'git.noFilesChanged': '변경된 파일 없음',
+    'git.loadingFiles': '파일 불러오는 중...',
+    'git.loadingDiff': '차이 불러오는 중...',
 
     // Language & Theme
     'lang.toggle': 'EN',

@@ -624,6 +624,37 @@ router.post('/:id/git-tag-delete', async (req: Request<{ id: string }>, res: Res
   }
 });
 
+// GET /api/projects/:id/git-commit-files - get files changed in a specific commit
+router.get('/:id/git-commit-files', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const hash = req.query.hash as string | undefined;
+    if (!hash || !/^[0-9a-f]{4,40}$/i.test(hash)) {
+      res.status(400).json({ error: 'Valid commit hash is required' }); return;
+    }
+    const files = await worktreeManager.getCommitFiles(dirPath, hash);
+    res.json({ files });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/projects/:id/git-commit-diff - get diff for a specific commit
+router.get('/:id/git-commit-diff', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const hash = req.query.hash as string | undefined;
+    if (!hash || !/^[0-9a-f]{4,40}$/i.test(hash)) {
+      res.status(400).json({ error: 'Valid commit hash is required' }); return;
+    }
+    const file = req.query.file as string | undefined;
+    const diff = await worktreeManager.getCommitDiff(dirPath, hash, file);
+    res.json({ diff });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // GET /api/projects/:id/git-diff
 router.get('/:id/git-diff', async (req: Request<{ id: string }>, res: Response) => {
   try {

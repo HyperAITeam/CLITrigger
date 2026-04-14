@@ -212,3 +212,23 @@ export function gitDiff(id: string, file?: string, staged?: boolean): Promise<{ 
   if (staged) params.set('staged', 'true');
   return get(`/api/projects/${id}/git-diff?${params}`);
 }
+
+// Commit detail
+export interface CommitFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  oldPath?: string;
+}
+
+export function getCommitFiles(id: string, hash: string): Promise<{ files: CommitFile[] }> {
+  const params = new URLSearchParams({ hash });
+  return get(`/api/projects/${id}/git-commit-files?${params}`);
+}
+
+export function getCommitDiff(id: string, hash: string, file?: string): Promise<{ diff: string }> {
+  const params = new URLSearchParams({ hash });
+  if (file) params.set('file', file);
+  return get(`/api/projects/${id}/git-commit-diff?${params}`);
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
-import type { GitLogEntry, GitRef, GitStatusFile } from '../api/projects';
+import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
 
 interface GitStatusPanelProps {
@@ -200,6 +200,133 @@ function fileStatusLabel(index: string, workingDir: string): { label: string; co
   if (index === 'R' || workingDir === 'R') return { label: 'R', color: 'text-purple-500' };
   if (index === 'C' || workingDir === 'C') return { label: 'C', color: 'text-blue-500' };
   return { label: 'M', color: 'text-accent' };
+}
+
+function commitFileStatusLabel(status: string): { label: string; color: string } {
+  switch (status) {
+    case 'A': return { label: 'A', color: 'text-status-success' };
+    case 'D': return { label: 'D', color: 'text-status-error' };
+    case 'R': return { label: 'R', color: 'text-purple-500' };
+    case 'C': return { label: 'C', color: 'text-blue-500' };
+    default:  return { label: 'M', color: 'text-accent' };
+  }
+}
+
+// --- Commit File List ---
+
+function CommitFileList({
+  files,
+  loading,
+  selectedFile,
+  onFileClick,
+  commitHash,
+}: {
+  files: CommitFile[];
+  loading: boolean;
+  selectedFile: string | null;
+  onFileClick: (path: string) => void;
+  commitHash: string;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="px-3 py-2 border-b border-warm-100 flex items-center justify-between shrink-0">
+        <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
+          {t('git.changedFiles')}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-warm-400">{files.length} {t('git.files')}</span>
+          <span className="text-[10px] font-mono text-warm-400">{commitHash.substring(0, 7)}</span>
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-xs text-warm-400">{t('git.loadingFiles')}</span>
+        </div>
+      ) : files.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-xs text-warm-400">{t('git.noFilesChanged')}</span>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          {files.map((f) => {
+            const st = commitFileStatusLabel(f.status);
+            const isSelected = selectedFile === f.path;
+            return (
+              <div
+                key={f.path}
+                onClick={() => onFileClick(f.path)}
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 transition-colors ${
+                  isSelected ? 'bg-accent/10 border-l-2 border-accent' : ''
+                }`}
+              >
+                <span className={`font-mono font-bold text-[10px] w-3 shrink-0 ${st.color}`}>{st.label}</span>
+                <span className="truncate flex-1 text-warm-600" title={f.path}>
+                  {f.path.split('/').pop()}
+                  <span className="text-warm-400 ml-1 text-[10px]">
+                    {f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : ''}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[10px] text-status-success">+{f.additions}</span>
+                <span className="shrink-0 text-[10px] text-status-error">-{f.deletions}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Commit Diff Viewer ---
+
+function CommitDiffViewer({
+  diff,
+  loading,
+  selectedFile,
+}: {
+  diff: string;
+  loading: boolean;
+  selectedFile: string | null;
+}) {
+  const { t } = useI18n();
+
+  if (!selectedFile) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <span className="text-sm text-warm-400">{t('git.selectFileToViewDiff')}</span>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <span className="text-xs text-warm-400">{t('git.loadingDiff')}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="px-3 py-2 border-b border-warm-100 shrink-0">
+        <span className="text-xs font-mono text-warm-600">{selectedFile}</span>
+      </div>
+      <div className="flex-1 overflow-auto">
+        <pre className="p-3 font-mono text-xs leading-relaxed">
+          {diff ? diff.split('\n').map((line, i) => {
+            let className = 'text-warm-400';
+            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';
+            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-red-400';
+            else if (line.startsWith('@@')) className = 'text-blue-400';
+            else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
+            return <div key={i} className={className}>{line || '\u00A0'}</div>;
+          }) : <span className="text-warm-500 italic">No changes</span>}
+        </pre>
+      </div>
+    </div>
+  );
 }
 
 // --- Action Toolbar ---
@@ -1006,6 +1133,12 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const [stashCount, setStashCount] = useState(0);
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
   const [busy, setBusy] = useState(false);
+  const [selectedCommit, setSelectedCommit] = useState<GitLogEntry | null>(null);
+  const [commitFiles, setCommitFiles] = useState<CommitFile[]>([]);
+  const [commitFilesLoading, setCommitFilesLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<string>('');
+  const [fileDiffLoading, setFileDiffLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -1052,10 +1185,60 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
     setCommits([]);
     setHasMore(true);
     setInitialLoading(true);
+    setSelectedCommit(null);
+    setCommitFiles([]);
+    setSelectedFile(null);
+    setFileDiff('');
     fetchLog(0, true);
     fetchRefs();
     fetchStatus();
   }, [fetchLog, fetchRefs, fetchStatus]);
+
+  const handleCommitClick = useCallback(async (commit: GitLogEntry) => {
+    if (selectedCommit?.hash === commit.hash) {
+      setSelectedCommit(null);
+      setCommitFiles([]);
+      setSelectedFile(null);
+      setFileDiff('');
+      return;
+    }
+    setSelectedCommit(commit);
+    setSelectedFile(null);
+    setFileDiff('');
+    setCommitFilesLoading(true);
+    try {
+      const result = await projectsApi.getCommitFiles(project.id, commit.hash);
+      setCommitFiles(result.files);
+      if (result.files.length > 0) {
+        const firstFile = result.files[0].path;
+        setSelectedFile(firstFile);
+        setFileDiffLoading(true);
+        try {
+          const diffResult = await projectsApi.getCommitDiff(project.id, commit.hash, firstFile);
+          setFileDiff(diffResult.diff);
+        } catch { setFileDiff(''); }
+        finally { setFileDiffLoading(false); }
+      }
+    } catch {
+      setCommitFiles([]);
+    } finally {
+      setCommitFilesLoading(false);
+    }
+  }, [project.id, selectedCommit?.hash]);
+
+  const handleFileClick = useCallback(async (filePath: string) => {
+    if (!selectedCommit) return;
+    setSelectedFile(filePath);
+    setFileDiffLoading(true);
+    try {
+      const result = await projectsApi.getCommitDiff(project.id, selectedCommit.hash, filePath);
+      setFileDiff(result.diff);
+    } catch {
+      setFileDiff('');
+    } finally {
+      setFileDiffLoading(false);
+    }
+  }, [project.id, selectedCommit]);
 
   useEffect(() => {
     fetchLog(0, true);
@@ -1169,53 +1352,59 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
           )}
 
           {commits.length > 0 && (
-            <div className="flex-1 overflow-y-auto" ref={scrollRef}>
+            <div className={`overflow-y-auto ${selectedCommit ? '' : 'flex-1'}`} ref={scrollRef} style={selectedCommit ? { height: '50%' } : undefined}>
               <div className="relative flex">
                 <div className="shrink-0 sticky left-0">
                   <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  {commits.map((commit) => (
-                    <div
-                      key={commit.hash}
-                      className="flex items-center px-3 hover:bg-warm-50/50 transition-colors border-b border-warm-50/50"
-                      style={{ height: ROW_HEIGHT }}
-                    >
-                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                        {commit.refs.length > 0 && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            {commit.refs.map((ref, ri) => (
-                              <RefBadge key={ri} refStr={ref} />
-                            ))}
-                          </div>
-                        )}
-                        <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
-                      </div>
+                  {commits.map((commit) => {
+                    const isSelected = selectedCommit?.hash === commit.hash;
+                    return (
+                      <div
+                        key={commit.hash}
+                        onClick={() => handleCommitClick(commit)}
+                        className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/50 ${
+                          isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
+                        }`}
+                        style={{ height: ROW_HEIGHT }}
+                      >
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          {commit.refs.length > 0 && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              {commit.refs.map((ref, ri) => (
+                                <RefBadge key={ri} refStr={ref} />
+                              ))}
+                            </div>
+                          )}
+                          <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
+                        </div>
 
-                      <div className="w-14 text-right shrink-0">
-                        <span className="text-[11px] text-warm-400" title={commit.date}>
-                          {relativeTime(commit.date)}
-                        </span>
-                      </div>
+                        <div className="w-14 text-right shrink-0">
+                          <span className="text-[11px] text-warm-400" title={commit.date}>
+                            {relativeTime(commit.date)}
+                          </span>
+                        </div>
 
-                      <div className="shrink-0 ml-2">
-                        <span className="text-[11px] text-warm-500">
-                          {commit.author}
-                        </span>
-                      </div>
+                        <div className="shrink-0 ml-2">
+                          <span className="text-[11px] text-warm-500">
+                            {commit.author}
+                          </span>
+                        </div>
 
-                      <div className="w-16 text-right shrink-0">
-                        <span
-                          className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
-                          title={commit.hash}
-                          onClick={() => navigator.clipboard.writeText(commit.hash)}
-                        >
-                          {commit.hash.substring(0, 7)}
-                        </span>
+                        <div className="w-16 text-right shrink-0">
+                          <span
+                            className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
+                            title={commit.hash}
+                            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(commit.hash); }}
+                          >
+                            {commit.hash.substring(0, 7)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1223,6 +1412,28 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                 {loading && (
                   <span className="text-xs text-warm-400">{t('git.loadMore')}</span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Commit detail panel */}
+          {selectedCommit && (
+            <div className="flex min-h-0 border-t border-warm-200" style={{ height: '50%' }}>
+              <div className="w-60 shrink-0 border-r border-warm-100 overflow-hidden">
+                <CommitFileList
+                  files={commitFiles}
+                  loading={commitFilesLoading}
+                  selectedFile={selectedFile}
+                  onFileClick={handleFileClick}
+                  commitHash={selectedCommit.hash}
+                />
+              </div>
+              <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
+                <CommitDiffViewer
+                  diff={fileDiff}
+                  loading={fileDiffLoading}
+                  selectedFile={selectedFile}
+                />
               </div>
             </div>
           )}

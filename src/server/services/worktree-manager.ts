@@ -464,6 +464,113 @@ export class WorktreeManager {
     return await git.diff(args);
   }
 
+  async getCommitFiles(dirPath: string, commitHash: string): Promise<Array<{
+    path: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    oldPath?: string;
+  }>> {
+    if (!/^[0-9a-f]{4,40}$/i.test(commitHash)) {
+      throw new Error('Invalid commit hash');
+    }
+    const git = simpleGit(dirPath);
+
+    // Check if root commit (no parents)
+    let isRoot = false;
+    try {
+      await git.raw(['rev-parse', `${commitHash}^`]);
+    } catch {
+      isRoot = true;
+    }
+
+    const rootFlag = isRoot ? ['--root'] : [];
+
+    // Get name-status (status + path)
+    const nameStatusRaw = await git.raw([
+      'diff-tree', '-r', '--no-commit-id', ...rootFlag, '--name-status', commitHash,
+    ]);
+    // Get numstat (additions/deletions)
+    const numstatRaw = await git.raw([
+      'diff-tree', '-r', '--no-commit-id', ...rootFlag, '--numstat', commitHash,
+    ]);
+
+    // Parse name-status: "M\tpath" or "R100\toldPath\tnewPath"
+    const statusMap = new Map<string, { status: string; oldPath?: string }>();
+    for (const line of nameStatusRaw.trim().split('\n').filter(Boolean)) {
+      const parts = line.split('\t');
+      const statusCode = parts[0].charAt(0); // R100 → R
+      if (statusCode === 'R' || statusCode === 'C') {
+        statusMap.set(parts[2], { status: statusCode, oldPath: parts[1] });
+      } else {
+        statusMap.set(parts[1], { status: statusCode });
+      }
+    }
+
+    // Parse numstat: "10\t5\tpath" or "10\t5\t{old => new}" for renames
+    const statMap = new Map<string, { additions: number; deletions: number }>();
+    for (const line of numstatRaw.trim().split('\n').filter(Boolean)) {
+      const parts = line.split('\t');
+      const additions = parts[0] === '-' ? 0 : parseInt(parts[0], 10);
+      const deletions = parts[1] === '-' ? 0 : parseInt(parts[1], 10);
+      // For renames, numstat shows the new path
+      statMap.set(parts[2], { additions, deletions });
+    }
+
+    // Combine
+    const files: Array<{
+      path: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      oldPath?: string;
+    }> = [];
+
+    for (const [filePath, info] of statusMap) {
+      const stats = statMap.get(filePath) ?? { additions: 0, deletions: 0 };
+      files.push({
+        path: filePath,
+        status: info.status,
+        additions: stats.additions,
+        deletions: stats.deletions,
+        ...(info.oldPath ? { oldPath: info.oldPath } : {}),
+      });
+    }
+
+    return files;
+  }
+
+  async getCommitDiff(dirPath: string, commitHash: string, file?: string): Promise<string> {
+    if (!/^[0-9a-f]{4,40}$/i.test(commitHash)) {
+      throw new Error('Invalid commit hash');
+    }
+    const git = simpleGit(dirPath);
+
+    // Check if merge commit (multiple parents)
+    let parentCount = 0;
+    let firstParent = '';
+    try {
+      const parentsRaw = await git.raw(['rev-parse', `${commitHash}^@`]);
+      const parents = parentsRaw.trim().split('\n').filter(Boolean);
+      parentCount = parents.length;
+      firstParent = parents[0] ?? '';
+    } catch {
+      // Root commit — no parents
+    }
+
+    if (parentCount >= 2 && firstParent) {
+      // Merge commit: diff against first parent
+      const args = ['diff', firstParent, commitHash];
+      if (file) args.push('--', file);
+      return await git.raw(args);
+    }
+
+    // Regular or root commit: git show
+    const args = ['show', '--format=', '-p', commitHash];
+    if (file) args.push('--', file);
+    return await git.raw(args);
+  }
+
   async getGitStatus(dirPath: string): Promise<{
     branch: string;
     tracking: string | null;
