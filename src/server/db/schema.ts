@@ -187,6 +187,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'show_token_usage', definition: 'INTEGER DEFAULT 0' },
     { table: 'todos', column: 'round_count', definition: 'INTEGER DEFAULT 1' },
     { table: 'task_logs', column: 'round_number', definition: 'INTEGER DEFAULT 1' },
+    { table: 'todos', column: 'total_cost_usd', definition: 'REAL' },
+    { table: 'todos', column: 'total_tokens', definition: 'INTEGER' },
   ];
 
   for (const { table, column, definition } of migrations) {

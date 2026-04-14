@@ -641,7 +641,11 @@ Complete the task in the current directory.`;
             queries.createTaskLog(todoId, 'error', failMsg, roundNumber);
             queries.updateTodo(todoId, {
               process_pid: 0,
-              ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+              ...(tokenUsage ? {
+                token_usage: JSON.stringify(tokenUsage),
+                total_cost_usd: tokenUsage.total_cost ?? null,
+                total_tokens: ((tokenUsage.input_tokens ?? 0) + (tokenUsage.output_tokens ?? 0)) || null,
+              } : {}),
             });
           } catch {
             try { queries.updateTodoStatus(todoId, 'failed'); } catch { /* ignore */ }
@@ -659,7 +663,11 @@ Complete the task in the current directory.`;
             const tokenUsage = logStreamer.getTokenUsage(todoId);
             queries.updateTodo(todoId, {
               process_pid: 0,
-              ...(tokenUsage ? { token_usage: JSON.stringify(tokenUsage) } : {}),
+              ...(tokenUsage ? {
+                token_usage: JSON.stringify(tokenUsage),
+                total_cost_usd: tokenUsage.total_cost ?? null,
+                total_tokens: ((tokenUsage.input_tokens ?? 0) + (tokenUsage.output_tokens ?? 0)) || null,
+              } : {}),
             });
           } catch {
             try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }

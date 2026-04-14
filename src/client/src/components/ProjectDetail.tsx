@@ -13,6 +13,7 @@ import { useI18n } from '../i18n';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
 import DiscussionList from './DiscussionList';
+import AnalyticsPanel from './AnalyticsPanel';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -482,6 +483,16 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             {t(`tabs.${plugin.id}`) || plugin.displayName}
           </button>
         ))}
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
+            activeTab === 'analytics'
+              ? 'text-accent border-accent'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
+          }`}
+        >
+          {t('tabs.analytics')}
+        </button>
         {project.is_git_repo ? (
           <button
             onClick={() => setActiveTab('git')}
@@ -544,6 +555,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             }}
           />
         ) : null
+      )}
+      {activeTab === 'analytics' && id && (
+        <AnalyticsPanel projectId={id} />
       )}
       {activeTab === 'git' && project.is_git_repo ? (
         <GitStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />

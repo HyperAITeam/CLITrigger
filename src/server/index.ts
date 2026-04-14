@@ -26,6 +26,7 @@ import modelsRouter from './routes/models.js';
 import cliStatusRouter from './routes/cli-status.js';
 import debugLogsRouter from './routes/debug-logs.js';
 import discussionsRouter from './routes/discussions.js';
+import analyticsRouter from './routes/analytics.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
@@ -143,6 +144,7 @@ app.use('/api', modelsRouter);
 app.use('/api/cli', cliStatusRouter);
 app.use('/api', debugLogsRouter);
 app.use('/api', discussionsRouter);
+app.use('/api', analyticsRouter);
 mountPluginRoutes(app);
 
 // --- Scheduler ---
