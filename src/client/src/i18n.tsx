@@ -571,6 +571,12 @@ const translations = {
     'lang.toggle': 'KO',
     'theme.light': 'Light',
     'theme.dark': 'Dark',
+    'notification.taskCompleted': 'Task Completed',
+    'notification.taskFailed': 'Task Failed',
+    'notification.discussionCompleted': 'Discussion Completed',
+    'notification.discussionFailed': 'Discussion Failed',
+    'notification.toggle': 'Toggle notifications',
+    'notification.blocked': 'Notifications blocked by browser',
   },
   ko: {
     // Login
@@ -1139,6 +1145,12 @@ const translations = {
     'lang.toggle': 'EN',
     'theme.light': '라이트',
     'theme.dark': '다크',
+    'notification.taskCompleted': '작업 완료',
+    'notification.taskFailed': '작업 실패',
+    'notification.discussionCompleted': '토론 완료',
+    'notification.discussionFailed': '토론 실패',
+    'notification.toggle': '알림 토글',
+    'notification.blocked': '브라우저에서 알림이 차단되었습니다',
   },
 } as const;
 

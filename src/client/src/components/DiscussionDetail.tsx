@@ -4,6 +4,7 @@ import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, Discus
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
 import { useI18n } from '../i18n';
+import { useNotification } from '../hooks/useNotification';
 import DiscussionForm, { type DiscussionFormValues } from './DiscussionForm';
 import MarkdownContent from './MarkdownContent';
 
@@ -45,6 +46,7 @@ function getEditableDiscussionConfig(status: DiscussionWithMessages['status']) {
 export default function DiscussionDetail({ onEvent, connected }: DiscussionDetailProps) {
   const { id, discussionId } = useParams<{ id: string; discussionId: string }>();
   const { t, lang } = useI18n();
+  const { sendNotification } = useNotification();
   const [discussion, setDiscussion] = useState<DiscussionWithMessages | null>(null);
   const [projectAgents, setProjectAgents] = useState<DiscussionAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +102,12 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       if (!discussionId) return;
 
       if (event.type === 'discussion:status-changed' && event.discussionId === discussionId) {
+        if (event.status === 'completed' || event.status === 'failed') {
+          sendNotification(
+            event.status === 'completed' ? t('notification.discussionCompleted') : t('notification.discussionFailed'),
+            discussion?.title ?? ''
+          );
+        }
         setDiscussion((prev) => prev ? {
           ...prev,
           status: event.status as DiscussionWithMessages['status'],
@@ -134,7 +142,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         });
       }
     });
-  }, [onEvent, discussionId]);
+  }, [onEvent, discussionId, sendNotification, t, discussion?.title]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });

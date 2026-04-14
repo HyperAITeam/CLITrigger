@@ -4,6 +4,7 @@ import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
+import { useNotification } from '../hooks/useNotification';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const location = useLocation();
   const { t, toggleLang } = useI18n();
   const { theme, toggleTheme } = useTheme();
+  const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
@@ -177,6 +179,24 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           >
             {t('lang.toggle')}
           </button>
+          {notifSupported && (
+            <button
+              onClick={toggleNotification}
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+              style={{ color: notifEnabled ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+              title={'Notification' in window && Notification.permission === 'denied' ? t('notification.blocked') : t('notification.toggle')}
+            >
+              {notifEnabled ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.25 9a6.75 6.75 0 0113.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 01-.573 1.23H3.705a.75.75 0 01-.573-1.23A8.69 8.69 0 005.25 9.75V9zm4.508 8.25a2.159 2.159 0 004.484 0H9.758z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 005.714 0m-7.607-3.832A8.69 8.69 0 005.25 9.75v-.75a6.75 6.75 0 0113.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 01-.573 1.23H3.705a.75.75 0 01-.573-1.23z" />
+                </svg>
+              )}
+            </button>
+          )}
           {authRequired && (
             <button
               onClick={onLogout}
