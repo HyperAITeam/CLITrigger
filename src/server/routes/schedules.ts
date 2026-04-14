@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import cron from 'node-cron';
 import * as queries from '../db/queries.js';
 import { scheduler } from '../services/scheduler.js';
+import { logStreamer } from '../services/log-streamer.js';
 
 const router = Router();
 
@@ -266,6 +267,57 @@ router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response)
     scheduler.registerOnceJob(schedule);
 
     res.status(201).json({ schedule, original_deleted: originalDeleted });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/rate-limit - get current rate limit reset time
+router.get('/rate-limit', (_req: Request, res: Response) => {
+  const resetsAt = logStreamer.getResetsAt();
+  res.json({ resetsAt });
+});
+
+// POST /api/todos/:id/schedule-on-reset - schedule a task to run when rate limit resets
+router.post('/todos/:id/schedule-on-reset', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const todo = queries.getTodoById(req.params.id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+
+    const resetsAt = logStreamer.getResetsAt();
+    if (!resetsAt) {
+      res.status(400).json({ error: 'No rate limit reset time available. Run a task first.' });
+      return;
+    }
+
+    const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+    if (prompt.length < 2) {
+      res.status(400).json({ error: 'Prompt is required' });
+      return;
+    }
+
+    const runAt = new Date(resetsAt * 1000).toISOString();
+    const title = `[Reset] ${prompt.slice(0, 80)}`;
+
+    const schedule = queries.createSchedule(
+      todo.project_id,
+      title,
+      prompt,
+      '* * * * *',  // placeholder cron (not used for once type)
+      todo.cli_tool ?? undefined,
+      todo.cli_model ?? undefined,
+      1,  // skip_if_running
+      'once',
+      runAt,
+    );
+
+    scheduler.registerOnceJob(schedule);
+
+    res.status(201).json({ schedule, resetsAt, runAt });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

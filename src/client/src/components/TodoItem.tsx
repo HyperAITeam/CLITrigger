@@ -23,6 +23,8 @@ interface TodoItemProps {
   onContinue?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onSchedule?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
+  onScheduleOnReset?: (todoId: string, prompt: string) => Promise<void>;
+  resetsAt?: number | null;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   isInteractive?: boolean;
   onSendInput?: (todoId: string, input: string) => void;
@@ -42,7 +44,7 @@ interface TodoItemProps {
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onScheduleOnReset, resetsAt, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -61,6 +63,10 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
   const [continuePrompt, setContinuePrompt] = useState('');
   const [continuing, setContinuing] = useState(false);
   const [continueError, setContinueError] = useState<string | null>(null);
+  const [showResetSchedule, setShowResetSchedule] = useState(false);
+  const [resetPrompt, setResetPrompt] = useState('');
+  const [schedulingReset, setSchedulingReset] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<TaskResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
@@ -81,6 +87,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
+  const canScheduleOnReset = todo.status === 'completed' && !!onScheduleOnReset && !!resetsAt && resetsAt > Math.floor(Date.now() / 1000);
   const canStop = todo.status === 'running';
   const canViewDiff = todo.status === 'completed' || todo.status === 'stopped' || todo.status === 'merged';
   const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
@@ -233,6 +240,21 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
       setContinueError(err instanceof Error ? err.message : 'Continue failed');
     } finally {
       setContinuing(false);
+    }
+  };
+
+  const handleScheduleOnReset = async () => {
+    if (!onScheduleOnReset || !resetPrompt.trim()) return;
+    setSchedulingReset(true);
+    setResetError(null);
+    try {
+      await onScheduleOnReset(todo.id, resetPrompt.trim());
+      setShowResetSchedule(false);
+      setResetPrompt('');
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSchedulingReset(false);
     }
   };
 
@@ -485,6 +507,17 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               </svg>
             </button>
           )}
+          {canScheduleOnReset && (
+            <button
+              onClick={() => { setShowResetSchedule(v => !v); setResetError(null); }}
+              className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors"
+              title={t('todo.scheduleOnReset')}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          )}
           {canStop && (
             <button
               onClick={() => onStop(todo.id)}
@@ -658,6 +691,45 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               <button
                 onClick={() => { setShowContinueInput(false); setContinueError(null); }}
                 disabled={continuing}
+                className="btn-ghost text-xs py-1.5"
+              >
+                {t('scheduleForm.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Schedule Input (inline, below header) */}
+      {showResetSchedule && resetsAt && (
+        <div className="border-t border-amber-200 px-5 py-3 bg-amber-50/50 animate-fade-in">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-amber-600">{t('todo.scheduleOnResetLabel')}</label>
+              <span className="text-xs text-amber-500/80 font-mono">
+                {new Date(resetsAt * 1000).toLocaleString()}
+              </span>
+            </div>
+            <textarea
+              value={resetPrompt}
+              onChange={(e) => setResetPrompt(e.target.value)}
+              placeholder={t('todo.resetPromptPlaceholder')}
+              rows={3}
+              className="w-full bg-theme-card border border-amber-200 rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 resize-y"
+              disabled={schedulingReset}
+            />
+            {resetError && <p className="text-xs text-status-error">{resetError}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleScheduleOnReset}
+                disabled={schedulingReset || !resetPrompt.trim()}
+                className="btn-primary text-xs py-1.5 !bg-amber-500 hover:!bg-amber-600 disabled:opacity-30"
+              >
+                {schedulingReset ? t('todo.scheduling') : t('todo.confirmResetSchedule')}
+              </button>
+              <button
+                onClick={() => { setShowResetSchedule(false); setResetError(null); }}
+                disabled={schedulingReset}
                 className="btn-ghost text-xs py-1.5"
               >
                 {t('scheduleForm.cancel')}

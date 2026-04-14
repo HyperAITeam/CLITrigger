@@ -25,6 +25,8 @@ export interface WsEvent {
   agentName?: string;
   currentRound?: number;
   currentAgentId?: string | null;
+  // Rate limit events
+  resetsAt?: number;
 }
 
 type EventCallback = (event: WsEvent) => void;

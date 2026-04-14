@@ -47,3 +47,11 @@ export function getScheduleRuns(id: string): Promise<ScheduleRun[]> {
 export function triggerSchedule(id: string): Promise<ScheduleRun> {
   return post(`/api/schedules/${id}/trigger`);
 }
+
+export function getRateLimit(): Promise<{ resetsAt: number | null }> {
+  return get('/api/rate-limit');
+}
+
+export function scheduleOnReset(todoId: string, prompt: string): Promise<{ schedule: Schedule; resetsAt: number; runAt: string }> {
+  return post(`/api/todos/${todoId}/schedule-on-reset`, { prompt });
+}

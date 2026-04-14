@@ -29,6 +29,9 @@ export class LogStreamer {
   private contextExhaustedMap: Map<string, boolean> = new Map();
   /** Current round number per task (for multi-round "continue" feature) */
   private roundMap: Map<string, number> = new Map();
+  /** Latest rate limit reset time (Unix epoch seconds), shared across all tasks */
+  private _resetsAt: number | null = null;
+  private _rateLimitUsedPct: number | null = null;
 
   /** Set the current round number for a task. Subsequent streamed logs will use this round. */
   setRound(todoId: string, roundNumber: number): void {
@@ -331,6 +334,22 @@ export class LogStreamer {
           break;
         }
 
+        case 'rate_limit_event': {
+          const info = event.rate_limit_info as Record<string, unknown> | undefined;
+          if (info) {
+            const resetsAt = typeof info.resetsAt === 'number' ? info.resetsAt : null;
+            if (resetsAt) {
+              this._resetsAt = resetsAt;
+              broadcaster.broadcast({
+                type: 'rate-limit:updated',
+                resetsAt,
+                status: typeof info.status === 'string' ? info.status : null,
+              });
+            }
+          }
+          break;
+        }
+
         default:
           if (verbose) {
             const eventType = String(event.type || 'unknown');
@@ -350,6 +369,11 @@ export class LogStreamer {
     } catch {
       // Parsing failure — ignore to keep streaming
     }
+  }
+
+  /** Get the latest known rate limit reset time (Unix epoch seconds). */
+  getResetsAt(): number | null {
+    return this._resetsAt;
   }
 
   /**
