@@ -171,7 +171,17 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           <h1 className="text-xl sm:text-2xl font-semibold text-warm-800 truncate">
             {project.name}
           </h1>
-          <p className="mt-1 text-xs text-warm-400 font-mono truncate">{project.path}</p>
+          <button
+            type="button"
+            className="mt-1 text-xs text-warm-400 font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"
+            title={t('header.openFolder')}
+            onClick={() => projectsApi.openFolder(project.path)}
+          >
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+            </svg>
+            <span className="truncate">{project.path}</span>
+          </button>
           <div className="mt-3 flex flex-wrap gap-2">
             {project.is_git_repo ? (
               <>

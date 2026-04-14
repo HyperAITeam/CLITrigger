@@ -7,6 +7,10 @@ export function browseNativeFolder(initialPath?: string): Promise<{ path: string
   return post('/api/projects/browse', { initialPath });
 }
 
+export function openFolder(path: string): Promise<{ ok: boolean }> {
+  return post('/api/projects/open-folder', { path });
+}
+
 export function getProjects(): Promise<Project[]> {
   return get('/api/projects');
 }

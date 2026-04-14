@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import nodePath from 'path';
 import fs from 'fs';
-import { execFileSync } from 'child_process';
+import { execFileSync, exec } from 'child_process';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
@@ -114,6 +114,34 @@ router.post('/browse', (req: Request, res: Response) => {
   } catch {
     // User cancelled or dialog closed
     res.json({ path: null });
+  }
+});
+
+// POST /api/projects/open-folder - open folder in OS file explorer
+router.post('/open-folder', (req: Request, res: Response) => {
+  const { path: folderPath } = req.body;
+  if (!folderPath || typeof folderPath !== 'string') {
+    res.status(400).json({ error: 'path is required' });
+    return;
+  }
+
+  const resolved = nodePath.resolve(folderPath);
+  if (!fs.existsSync(resolved)) {
+    res.status(404).json({ error: 'path does not exist' });
+    return;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      exec(`explorer.exe "${resolved}"`);
+    } else if (process.platform === 'darwin') {
+      exec(`open "${resolved}"`);
+    } else {
+      exec(`xdg-open "${resolved}"`);
+    }
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'failed to open folder' });
   }
 });
 

@@ -46,6 +46,7 @@ const translations = {
 
     // Project Header
     'header.branch': 'Branch',
+    'header.openFolder': 'Open folder',
     'header.workers': 'Workers',
     'header.model': 'Model',
     'header.settings': 'Settings',
@@ -592,6 +593,7 @@ const translations = {
 
     // Project Header
     'header.branch': '\uBE0C\uB79C\uCE58',
+    'header.openFolder': '\uD3F4\uB354 \uC5F4\uAE30',
     'header.workers': '\uC6CC\uCEE4',
     'header.model': '\uBAA8\uB378',
     'header.settings': '\uC124\uC815',
