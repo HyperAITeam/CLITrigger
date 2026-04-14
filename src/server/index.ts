@@ -29,6 +29,7 @@ import discussionsRouter from './routes/discussions.js';
 import analyticsRouter from './routes/analytics.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
+import { logStreamer } from './services/log-streamer.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
 import { jiraPlugin } from './plugins/jira/index.js';
 import { githubPlugin } from './plugins/github/index.js';
@@ -235,6 +236,9 @@ function tryListen(port: number, attempt: number) {
     // Tunnel URL is printed by tunnelManager 'url' event as "  Remote:  ..."
     console.log('');
     orchestrator.startStaleProcessChecker();
+
+    // Fetch rate limit reset time in background (lightweight Claude CLI call)
+    logStreamer.fetchRateLimitOnStartup();
   });
 
   server.on('error', (err: NodeJS.ErrnoException) => {
