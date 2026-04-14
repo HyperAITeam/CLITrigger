@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-04-14 — 파이프라인 기능 제거 + 커밋 상세 패널 추가
+
+### 배경
+
+사용하지 않는 파이프라인(다단계 순차/병렬 실행) 기능을 전면 제거하여 코드베이스를 경량화. Git 패널에서 커밋을 클릭하면 변경 파일 목록과 diff를 볼 수 있는 커밋 상세 패널 추가.
+
+### 주요 변경
+
+#### 1. 파이프라인 기능 전면 제거 (`28a9e9d`)
+
+파이프라인(다단계 순차/병렬 실행) 관련 코드를 서버·클라이언트·DB에서 완전히 삭제. 2,278줄 감소.
+
+- **서버**: `pipeline-orchestrator.ts`, `routes/pipelines.ts` 삭제
+- **서버**: `index.ts`에서 파이프라인 라우터 마운트 및 stale recovery 로직 제거
+- **서버**: `discussion-orchestrator.ts` — 동시 실행 카운트에서 파이프라인 제외 (todos + discussions만 계산)
+- **DB**: `pipelines`, `pipeline_phases`, `pipeline_logs` 3개 테이블 제거 (14 → 11 테이블)
+- **클라이언트**: `PipelineDetail`, `PipelineForm`, `PipelineItem`, `PipelineList`, `PhaseTimeline` 5개 컴포넌트 삭제
+- **클라이언트**: `App.tsx` 파이프라인 라우트 제거, `ProjectDetail.tsx` 파이프라인 탭 제거
+- **클라이언트**: `api/pipelines.ts` 삭제, `types.ts` 파이프라인 타입 제거
+- **i18n**: 파이프라인 관련 번역 키 94개 제거
+- **WebSocket**: 파이프라인 이벤트 타입 제거
+
+#### 2. 커밋 상세 패널 — 파일 목록 + Diff 뷰어 (`1828a7b`)
+
+Git 패널의 커밋 로그에서 커밋을 클릭하면 변경 파일 목록과 파일별 diff를 표시하는 분할 뷰 추가.
+
+- **서버**: `GET /api/projects/:id/git-commit-files` — 커밋의 변경 파일 목록 (status, additions, deletions)
+- **서버**: `GET /api/projects/:id/git-commit-diff` — 커밋의 파일별 diff 조회
+- **서버**: `worktree-manager.ts` — `getCommitFiles()`, `getCommitDiff()` 메서드 추가. `git diff-tree` 기반, root 커밋/merge 커밋 자동 감지 처리
+- **클라이언트**: `GitStatusPanel.tsx` — `CommitFileList` (파일 사이드바) + `CommitDiffViewer` (diff 메인 영역) 내부 컴포넌트 추가. 커밋 클릭 시 토글, 파일 선택 시 diff 표시, 첫 파일 자동 선택
+- **클라이언트**: `api/projects.ts` — `getCommitFiles()`, `getCommitDiff()` API 함수 + `CommitFile` 인터페이스 추가
+- **i18n**: 커밋 상세 관련 번역 키 추가 (changedFiles, loadingFiles, noFilesChanged, selectFileToViewDiff, loadingDiff 등)
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/pipeline-orchestrator.ts` | **삭제** — 파이프라인 오케스트레이터 |
+| `src/server/routes/pipelines.ts` | **삭제** — 파이프라인 REST 라우트 |
+| `src/server/index.ts` | 파이프라인 라우터/recovery 제거 |
+| `src/server/db/schema.ts` | pipelines, pipeline_phases, pipeline_logs 테이블 제거 |
+| `src/server/db/queries.ts` | 파이프라인 쿼리 함수 제거 |
+| `src/server/services/discussion-orchestrator.ts` | 동시 실행 카운트에서 파이프라인 제외 |
+| `src/server/routes/projects.ts` | `git-commit-files`, `git-commit-diff` 엔드포인트 추가 |
+| `src/server/services/worktree-manager.ts` | `getCommitFiles()`, `getCommitDiff()` 메서드 추가 |
+| `src/client/src/components/GitStatusPanel.tsx` | 커밋 상세 패널 (CommitFileList + CommitDiffViewer) 추가 |
+| `src/client/src/api/projects.ts` | 커밋 상세 API 함수 + CommitFile 타입 추가 |
+| `src/client/src/i18n.tsx` | 파이프라인 키 제거, 커밋 상세 키 추가 |
+
+### 아키텍처 결정
+
+1. **파이프라인 완전 제거**: 파이프라인은 TODO의 의존성 체인 기능과 역할이 중복되어 활용도가 낮았으므로 전면 제거. DB 테이블 3개, 서비스 1개, 라우트 1개, 컴포넌트 5개가 삭제되어 유지보수 부담 감소
+2. **커밋 diff-tree 기반 조회**: `git show` 대신 `git diff-tree`를 사용하여 name-status와 numstat를 별도 파싱. root 커밋(부모 없음)은 `--root` 플래그, merge 커밋은 first-parent 대비 diff로 처리
+3. **내부 컴포넌트 패턴**: CommitFileList/CommitDiffViewer를 별도 파일이 아닌 `GitStatusPanel.tsx` 내부 컴포넌트로 구현. Git 패널에서만 사용되므로 파일 분리 불필요
+
+---
+
 ## 2026-04-13 — v0.1.3: 후속 프롬프트(Continue) + 네이티브 폴더 피커 + Cloudflared 번들 + 자동 업데이트 + DX 개선
 
 ### 배경

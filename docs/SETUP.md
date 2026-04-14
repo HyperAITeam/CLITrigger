@@ -847,6 +847,8 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/projects/:id/git-tag | 태그 생성 |
 | POST | /api/projects/:id/git-diff-file | 파일 Diff 조회 |
 | GET | /api/projects/:id/git-file-status | 파일 상태 조회 |
+| GET | /api/projects/:id/git-commit-files | 커밋 변경 파일 목록 |
+| GET | /api/projects/:id/git-commit-diff | 커밋 파일별 Diff 조회 |
 | POST | /api/projects/browse | 네이티브 폴더 피커 |
 | POST | /api/projects/:id/agents | 토론 에이전트 생성 |
 | GET | /api/projects/:id/agents | 토론 에이전트 목록 |
