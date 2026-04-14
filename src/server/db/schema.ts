@@ -38,41 +38,6 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS pipelines (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      current_phase TEXT,
-      branch_name TEXT,
-      worktree_path TEXT,
-      process_pid INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS pipeline_phases (
-      id TEXT PRIMARY KEY,
-      pipeline_id TEXT NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-      phase_type TEXT NOT NULL,
-      phase_order INTEGER NOT NULL,
-      status TEXT DEFAULT 'pending',
-      output TEXT,
-      started_at DATETIME,
-      completed_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS pipeline_logs (
-      id TEXT PRIMARY KEY,
-      pipeline_id TEXT NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-      phase_type TEXT NOT NULL,
-      log_type TEXT NOT NULL,
-      message TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
     CREATE TABLE IF NOT EXISTS schedules (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

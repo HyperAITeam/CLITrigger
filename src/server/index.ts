@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getPipelinesByStatus, updatePipelineStatus, updatePipeline, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -20,7 +20,6 @@ import { orchestrator } from './services/orchestrator.js';
 import { tunnelManager } from './services/tunnel-manager.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
-import pipelinesRouter from './routes/pipelines.js';
 import schedulesRouter from './routes/schedules.js';
 import pluginsRouter from './routes/plugins.js';
 import modelsRouter from './routes/models.js';
@@ -85,17 +84,6 @@ if (staleTodos.length > 0) {
   }
 }
 
-// Startup recovery: reset stale 'running' pipelines to 'paused'
-const stalePipelines = getPipelinesByStatus('running');
-if (stalePipelines.length > 0) {
-  console.log(`Recovering ${stalePipelines.length} stale running pipeline(s)...`);
-  for (const pipeline of stalePipelines) {
-    updatePipelineStatus(pipeline.id, 'paused');
-    updatePipeline(pipeline.id, { process_pid: 0 });
-    console.log(`  Reset pipeline "${pipeline.title}" (${pipeline.id}) from running to paused`);
-  }
-}
-
 // Startup recovery: reset stale 'running' discussions to 'paused'
 const staleDiscussions = getDiscussionsByStatus('running');
 if (staleDiscussions.length > 0) {
@@ -147,7 +135,6 @@ app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);
 app.use('/api', imagesRouter);
-app.use('/api', pipelinesRouter);
 app.use('/api', schedulesRouter);
 app.use('/api/plugins', pluginsRouter);
 app.use('/api/tunnel', tunnelRouter);
