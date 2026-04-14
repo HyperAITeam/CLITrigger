@@ -658,15 +658,72 @@ function FileStatusSection({
 
 // --- Refs Sidebar ---
 
-function RefsSidebar({ branches, tags, stashCount }: {
+interface BranchMenuState {
+  branch: string;
+  isRemote: boolean;
+  isCurrent: boolean;
+  x: number;
+  y: number;
+}
+
+function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onRefresh }: {
   branches: GitRef[];
   tags: string[];
   stashCount: number;
+  projectId: string;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  onRefresh: () => void;
 }) {
   const { t } = useI18n();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['local', 'remote'])
   );
+  const [contextMenu, setContextMenu] = useState<BranchMenuState | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close context menu on outside click or scroll
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    document.addEventListener('scroll', close, true);
+    return () => { document.removeEventListener('click', close); document.removeEventListener('scroll', close, true); };
+  }, [contextMenu]);
+
+  // Adjust menu position to stay within viewport
+  useEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    let { x, y } = contextMenu;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+    if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ ...contextMenu, x, y });
+  }, [contextMenu]);
+
+  const exec = async (fn: () => Promise<unknown>, onSuccess?: () => void) => {
+    setBusy(true);
+    setActionError(null);
+    setContextMenu(null);
+    try {
+      await fn();
+      onRefresh();
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, branch: string, isRemote: boolean, isCurrent: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ branch, isRemote, isCurrent, x: e.clientX, y: e.clientY });
+  };
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
@@ -696,17 +753,35 @@ function RefsSidebar({ branches, tags, stashCount }: {
     </button>
   );
 
+  const MenuItem = ({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) => (
+    <button
+      className={`w-full text-left px-3 py-1.5 hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors ${danger ? 'text-status-error' : 'text-warm-700 dark:text-warm-300'}`}
+      disabled={busy}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-1">
+      {actionError && (
+        <div className="px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] flex items-center justify-between rounded">
+          <span className="truncate">{actionError}</span>
+          <button onClick={() => setActionError(null)} className="ml-1 shrink-0">&times;</button>
+        </div>
+      )}
+
       <SectionHeader id="local" label={t('git.branches')} count={localBranches.length} />
       {expandedSections.has('local') && (
         <div className="pl-1 space-y-px">
           {localBranches.map(b => (
             <div
               key={b.name}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate cursor-context-menu select-none ${
                 b.current ? 'text-accent font-semibold bg-accent/10' : 'text-warm-600 hover:bg-warm-50'
               }`}
+              onContextMenu={e => handleContextMenu(e, b.name, false, !!b.current)}
             >
               {b.current && (
                 <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -725,7 +800,11 @@ function RefsSidebar({ branches, tags, stashCount }: {
           {expandedSections.has('remote') && (
             <div className="pl-1 space-y-px">
               {remoteBranches.map(b => (
-                <div key={b.name} className="px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded">
+                <div
+                  key={b.name}
+                  className="px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded cursor-context-menu select-none"
+                  onContextMenu={e => handleContextMenu(e, b.name, true, false)}
+                >
                   {b.name.replace('remotes/', '')}
                 </div>
               ))}
@@ -757,6 +836,137 @@ function RefsSidebar({ branches, tags, stashCount }: {
         <div className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
           {t('git.stashes')}
           <span className="text-warm-400 font-normal ml-auto">{stashCount}</span>
+        </div>
+      )}
+
+      {/* Branch context menu */}
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-[60] bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-xl py-1 min-w-[220px] text-xs"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Checkout */}
+          {!contextMenu.isCurrent && !contextMenu.isRemote && (
+            <MenuItem
+              label={`${t('git.checkout')} ${contextMenu.branch}`}
+              onClick={() => exec(() => projectsApi.gitCheckout(projectId, contextMenu.branch))}
+            />
+          )}
+          {!contextMenu.isCurrent && contextMenu.isRemote && (
+            <MenuItem
+              label={`${t('git.checkoutRemote')} ${contextMenu.branch.replace(/^(remotes\/)?origin\//, '')}`}
+              onClick={() => {
+                const localName = contextMenu.branch.replace(/^(remotes\/)?origin\//, '');
+                exec(() => projectsApi.gitCheckout(projectId, localName));
+              }}
+            />
+          )}
+
+          {/* Merge / Rebase */}
+          {!contextMenu.isCurrent && (
+            <MenuItem
+              label={`${t('git.mergeInto')} ${contextMenu.branch}`}
+              onClick={() => exec(() => projectsApi.gitMerge(projectId, contextMenu.branch))}
+            />
+          )}
+          {!contextMenu.isCurrent && !contextMenu.isRemote && (
+            <MenuItem
+              label={`${t('git.rebaseOnto')} ${contextMenu.branch}`}
+              onClick={() => exec(() => projectsApi.gitRebase(projectId, contextMenu.branch))}
+            />
+          )}
+
+          <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+
+          {/* Fetch / Pull / Push */}
+          <MenuItem
+            label={`${t('git.fetch')}`}
+            onClick={() => exec(() => projectsApi.gitFetch(projectId))}
+          />
+          {!contextMenu.isRemote && (
+            <>
+              <MenuItem
+                label={`${t('git.pull')}`}
+                onClick={() => exec(() => projectsApi.gitPull(projectId))}
+              />
+              <MenuItem
+                label={`${t('git.push')}`}
+                onClick={() => exec(() => projectsApi.gitPush(projectId))}
+              />
+            </>
+          )}
+
+          {/* Rename / Delete (local only) */}
+          {!contextMenu.isRemote && (
+            <>
+              <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+              <MenuItem
+                label={`${t('git.renameBranch')} ${contextMenu.branch}...`}
+                onClick={() => {
+                  setRenaming(contextMenu.branch);
+                  setRenameValue(contextMenu.branch);
+                  setContextMenu(null);
+                }}
+              />
+              {!contextMenu.isCurrent && (
+                <MenuItem
+                  danger
+                  label={`${t('git.delete')} ${contextMenu.branch}`}
+                  onClick={() => {
+                    if (confirm(t('git.confirmDelete').replace('{name}', contextMenu.branch))) {
+                      exec(() => projectsApi.gitDeleteBranch(projectId, contextMenu.branch));
+                    } else {
+                      setContextMenu(null);
+                    }
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Rename branch modal */}
+      {renaming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setRenaming(null)}>
+          <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
+              <span className="text-sm font-semibold text-warm-700">{t('git.renameBranch')}</span>
+              <button onClick={() => setRenaming(null)} className="text-warm-400 hover:text-warm-600">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-warm-500">{renaming} →</p>
+              <input
+                className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent bg-transparent"
+                placeholder={t('git.newBranchName')}
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && renameValue.trim() && renameValue.trim() !== renaming) {
+                    const oldName = renaming;
+                    exec(() => projectsApi.gitRenameBranch(projectId, oldName, renameValue.trim()), () => setRenaming(null));
+                  }
+                }}
+                autoFocus
+              />
+              <button
+                className="w-full btn-primary text-sm py-2"
+                disabled={busy || !renameValue.trim() || renameValue.trim() === renaming}
+                onClick={() => {
+                  const oldName = renaming;
+                  exec(() => projectsApi.gitRenameBranch(projectId, oldName, renameValue.trim()), () => setRenaming(null));
+                }}
+              >
+                {t('git.rename')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -898,7 +1108,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
         {/* Left sidebar: Refs + File Status */}
         <div className="w-56 shrink-0 flex flex-col gap-2 min-h-0">
           <div className="card overflow-y-auto p-3 flex-shrink-0" style={{ maxHeight: '45%' }}>
-            <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} />
+            <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} />
           </div>
           <div className="card overflow-y-auto p-2 flex-1 min-h-0">
             <div className="px-2 py-1 text-[11px] font-semibold text-warm-500 uppercase tracking-wider border-b border-warm-100 mb-1">

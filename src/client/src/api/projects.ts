@@ -198,6 +198,14 @@ export function gitDeleteTag(id: string, name: string): Promise<{ ok: boolean }>
   return post(`/api/projects/${id}/git-tag-delete`, { name });
 }
 
+export function gitRenameBranch(id: string, oldName: string, newName: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-branch-rename`, { oldName, newName });
+}
+
+export function gitRebase(id: string, onto: string): Promise<{ ok: boolean; result: string }> {
+  return post(`/api/projects/${id}/git-rebase`, { onto });
+}
+
 export function gitDiff(id: string, file?: string, staged?: boolean): Promise<{ diff: string }> {
   const params = new URLSearchParams();
   if (file) params.set('file', file);

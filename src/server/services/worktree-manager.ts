@@ -445,6 +445,17 @@ export class WorktreeManager {
     await git.raw(['tag', '-d', tagName]);
   }
 
+  async gitRenameBranch(dirPath: string, oldName: string, newName: string): Promise<void> {
+    const git = simpleGit(dirPath);
+    await git.branch(['-m', oldName, newName]);
+  }
+
+  async gitRebase(dirPath: string, onto: string): Promise<string> {
+    const git = simpleGit(dirPath);
+    const result = await git.rebase([onto]);
+    return typeof result === 'string' ? result : 'ok';
+  }
+
   async gitDiff(dirPath: string, file?: string, staged = false): Promise<string> {
     const git = simpleGit(dirPath);
     const args: string[] = [];

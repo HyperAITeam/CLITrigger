@@ -511,6 +511,36 @@ router.post('/:id/git-merge', async (req: Request<{ id: string }>, res: Response
   }
 });
 
+// POST /api/projects/:id/git-branch-rename
+router.post('/:id/git-branch-rename', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { oldName, newName } = req.body;
+    if (!oldName || typeof oldName !== 'string' || !newName || typeof newName !== 'string') {
+      res.status(400).json({ error: 'oldName and newName are required' }); return;
+    }
+    await worktreeManager.gitRenameBranch(dirPath, oldName.trim(), newName.trim());
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-rebase
+router.post('/:id/git-rebase', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { onto } = req.body;
+    if (!onto || typeof onto !== 'string') {
+      res.status(400).json({ error: 'onto is required' }); return;
+    }
+    const result = await worktreeManager.gitRebase(dirPath, onto.trim());
+    res.json({ ok: true, result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // POST /api/projects/:id/git-stash
 router.post('/:id/git-stash', async (req: Request<{ id: string }>, res: Response) => {
   try {

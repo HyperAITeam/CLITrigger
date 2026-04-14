@@ -570,6 +570,14 @@ const translations = {
     'git.deleted': 'Deleted',
     'git.renamed': 'Renamed',
     'git.copied': 'Copied',
+    'git.checkout': 'Checkout',
+    'git.mergeInto': 'Merge into current branch',
+    'git.rebaseOnto': 'Rebase current onto',
+    'git.renameBranch': 'Rename branch',
+    'git.confirmDelete': 'Delete branch {name}?',
+    'git.newBranchName': 'New branch name...',
+    'git.rename': 'Rename',
+    'git.checkoutRemote': 'Checkout as local branch',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -1142,6 +1150,14 @@ const translations = {
     'git.deleted': '삭제됨',
     'git.renamed': '이름변경',
     'git.copied': '복사됨',
+    'git.checkout': '체크아웃',
+    'git.mergeInto': '현재 브랜치로 병합',
+    'git.rebaseOnto': '현재 변경사항을 재배치',
+    'git.renameBranch': '브랜치 이름 변경',
+    'git.confirmDelete': '브랜치 {name}을(를) 삭제하시겠습니까?',
+    'git.newBranchName': '새 브랜치 이름...',
+    'git.rename': '이름 변경',
+    'git.checkoutRemote': '로컬 브랜치로 체크아웃',
 
     // Language & Theme
     'lang.toggle': 'EN',
