@@ -1,17 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import type { Project, Todo, Pipeline, Schedule, Discussion, TaskLog } from '../types';
+import type { Project, Todo, Schedule, Discussion, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
-import * as pipelinesApi from '../api/pipelines';
 import * as schedulesApi from '../api/schedules';
 import * as discussionsApi from '../api/discussions';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
-import PipelineList from './PipelineList';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
 import DiscussionList from './DiscussionList';
@@ -27,7 +25,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,11 +41,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
-      .then(([proj, todoList, pipelineList, scheduleList, discussionList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
+      .then(([proj, todoList, scheduleList, discussionList]) => {
         setProject(proj);
         setTodos(todoList);
-        setPipelines(pipelineList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
         // Restore interactive mode state for running todos
@@ -85,10 +81,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const prevConnectedRef = useRef(connected);
   useEffect(() => {
     if (connected && !prevConnectedRef.current && id) {
-      Promise.all([todosApi.getTodos(id), pipelinesApi.getPipelines(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
-        .then(([todoList, pipelineList, scheduleList, discussionList]) => {
+      Promise.all([todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
+        .then(([todoList, scheduleList, discussionList]) => {
           setTodos(todoList);
-          setPipelines(pipelineList);
           setSchedules(scheduleList);
           setDiscussions(discussionList);
         })
@@ -126,15 +121,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             return next;
           });
         }
-      }
-      if (event.type === 'pipeline:status-changed' && event.pipelineId) {
-        setPipelines((prev) =>
-          prev.map((p) =>
-            p.id === event.pipelineId
-              ? { ...p, status: event.status as Pipeline['status'], current_phase: event.currentPhase ?? null, updated_at: new Date().toISOString() }
-              : p
-          )
-        );
       }
       if (event.type === 'schedule:status-changed' && event.scheduleId) {
         setSchedules((prev) =>
@@ -319,32 +305,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     }
   }, [id]);
 
-  // Pipeline handlers
-  const handleAddPipeline = useCallback(async (title: string, description: string) => {
-    if (!id) return;
-    const newPipeline = await pipelinesApi.createPipeline(id, { title, description });
-    setPipelines((prev) => [newPipeline, ...prev]);
-  }, [id]);
-
-  const handleStartPipeline = useCallback(async (pipelineId: string) => {
-    await pipelinesApi.startPipeline(pipelineId);
-    setPipelines((prev) =>
-      prev.map((p) => p.id === pipelineId ? { ...p, status: 'running' as const, updated_at: new Date().toISOString() } : p)
-    );
-  }, []);
-
-  const handleStopPipeline = useCallback(async (pipelineId: string) => {
-    await pipelinesApi.stopPipeline(pipelineId);
-    setPipelines((prev) =>
-      prev.map((p) => p.id === pipelineId ? { ...p, status: 'paused' as const, updated_at: new Date().toISOString() } : p)
-    );
-  }, []);
-
-  const handleDeletePipeline = useCallback(async (pipelineId: string) => {
-    await pipelinesApi.deletePipeline(pipelineId);
-    setPipelines((prev) => prev.filter((p) => p.id !== pipelineId));
-  }, []);
-
   // Schedule handlers
   const handleAddSchedule = useCallback(async (data: {
     title: string;
@@ -490,16 +450,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           {t('tabs.tasks')} ({todos.length})
         </button>
         <button
-          onClick={() => setActiveTab('pipelines')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'pipelines'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.pipelines')} ({pipelines.length})
-        </button>
-        <button
           onClick={() => setActiveTab('discussions')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'discussions'
@@ -570,15 +520,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           interactiveTodos={interactiveTodos}
           debugLogging={!!project.debug_logging}
           showTokenUsage={!!project.show_token_usage}
-        />
-      )}
-      {activeTab === 'pipelines' && (
-        <PipelineList
-          pipelines={pipelines}
-          onAddPipeline={handleAddPipeline}
-          onStartPipeline={handleStartPipeline}
-          onStopPipeline={handleStopPipeline}
-          onDeletePipeline={handleDeletePipeline}
         />
       )}
       {activeTab === 'discussions' && id && (

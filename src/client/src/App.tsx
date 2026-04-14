@@ -6,7 +6,6 @@ import LoginPage from './components/LoginPage';
 import Layout from './components/Layout';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
-import PipelineDetail from './components/PipelineDetail';
 import DiscussionDetail from './components/DiscussionDetail';
 
 function App() {
@@ -47,12 +46,6 @@ function App() {
             path="/projects/:id"
             element={
               <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} />
-            }
-          />
-          <Route
-            path="/projects/:id/pipelines/:pipelineId"
-            element={
-              <PipelineDetail onEvent={onEvent} connected={connected} />
             }
           />
           <Route

@@ -21,13 +21,11 @@ export class DiscussionOrchestrator {
     const project = queries.getProjectById(discussion.project_id);
     if (!project) throw new Error('Project not found');
 
-    // Check concurrent limit (todos + pipelines + discussions combined)
+    // Check concurrent limit (todos + discussions combined)
     const todos = queries.getTodosByProjectId(project.id);
-    const pipelines = queries.getPipelinesByProjectId(project.id);
     const discussions = queries.getDiscussionsByProjectId(project.id);
     const runningCount =
       todos.filter((t) => t.status === 'running').length +
-      pipelines.filter((p) => p.status === 'running').length +
       discussions.filter((d) => d.status === 'running').length;
     const maxConcurrent = project.max_concurrent ?? 3;
 

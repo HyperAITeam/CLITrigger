@@ -4,9 +4,6 @@ export interface WsEvent {
   type: string;
   todoId?: string;
   projectId?: string;
-  pipelineId?: string;
-  phaseType?: string;
-  currentPhase?: string | null;
   status?: string;
   message?: string;
   logType?: string;

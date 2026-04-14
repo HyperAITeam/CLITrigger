@@ -95,44 +95,6 @@ export interface DiffResult {
   };
 }
 
-export interface Pipeline {
-  id: string;
-  project_id: string;
-  title: string;
-  description: string;
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'stopped' | 'merged';
-  current_phase: string | null;
-  branch_name: string | null;
-  worktree_path: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PipelinePhase {
-  id: string;
-  pipeline_id: string;
-  phase_type: 'planning' | 'implementation' | 'review' | 'feedback_impl' | 'documentation';
-  phase_order: number;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
-  output: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-}
-
-export interface PipelineLog {
-  id: string;
-  pipeline_id: string;
-  phase_type: string;
-  log_type: 'info' | 'error' | 'output' | 'commit';
-  message: string;
-  created_at: string;
-}
-
-export interface PipelineWithPhases extends Pipeline {
-  phases: PipelinePhase[];
-}
-
 export interface Schedule {
   id: string;
   project_id: string;
