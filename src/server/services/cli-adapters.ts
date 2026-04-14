@@ -111,7 +111,7 @@ const geminiAdapter: CliAdapter = {
     // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
     const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
-    if (mode !== 'interactive') args.push('-p');
+    if (mode !== 'interactive') args.push('-p', '');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
