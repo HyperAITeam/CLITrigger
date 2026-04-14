@@ -108,10 +108,11 @@ const geminiAdapter: CliAdapter = {
   displayName: 'Gemini CLI',
   buildArgs({ mode, prompt, model, extraOptions }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
-    // -p enables headless (non-interactive) mode; prompt text is delivered via stdin pipe
+    // --prompt= enables headless mode with empty value; actual prompt delivered via stdin pipe.
+    // Must use --prompt= (single arg) instead of -p '' because Windows cmd.exe drops empty string args.
     const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
-    if (mode !== 'interactive') args.push('-p', '');
+    if (mode !== 'interactive') args.push('--prompt=');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
