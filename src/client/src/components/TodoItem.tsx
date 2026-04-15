@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
@@ -11,24 +12,42 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: r.right });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    updatePos();
     const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || dropRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open, updatePos]);
 
   // Filter out null/false children
   const items = (Array.isArray(children) ? children : [children]).filter(Boolean);
   if (items.length === 0) return null;
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors"
         title="More"
@@ -37,16 +56,24 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
           <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
         </svg>
       </button>
-      {open && (
+      {open && createPortal(
         <div
-          className="absolute right-0 top-full mt-1 z-20 min-w-[160px] rounded-xl py-1 shadow-elevated animate-scale-in"
-          style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+          ref={dropRef}
+          className="fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated animate-scale-in"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            transform: 'translateX(-100%)',
+            backgroundColor: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+          }}
           onClick={() => setOpen(false)}
         >
           {items}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
