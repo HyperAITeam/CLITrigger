@@ -28,6 +28,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [resetsAt, setResetsAt] = useState<number | null>(null);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
@@ -46,12 +47,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id)])
-      .then(([proj, todoList, scheduleList, discussionList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id), schedulesApi.getRateLimit()])
+      .then(([proj, todoList, scheduleList, discussionList, rateLimitData]) => {
         setProject(proj);
         setTodos(todoList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
+        if (rateLimitData.resetsAt) setResetsAt(rateLimitData.resetsAt);
         // Restore interactive mode state for running todos
         const interactiveIds = todoList
           .filter((t: { status: string; execution_mode: string | null }) => t.status === 'running' && t.execution_mode === 'interactive')
@@ -145,6 +147,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
               : s
           )
         );
+      }
+      if (event.type === 'rate-limit:updated' && event.resetsAt) {
+        setResetsAt(event.resetsAt as number);
       }
       if (event.type === 'discussion:status-changed' && event.discussionId) {
         setDiscussions((prev) =>
@@ -291,6 +296,11 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     if (result.original_deleted) {
       setTodos((prev) => prev.filter((t) => t.id !== todoId));
     }
+    setSchedules((prev) => [result.schedule, ...prev]);
+  }, []);
+
+  const handleScheduleOnReset = useCallback(async (todoId: string, prompt: string) => {
+    const result = await schedulesApi.scheduleOnReset(todoId, prompt);
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
 
@@ -547,6 +557,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onContinueTodo={handleContinueTodo}
           onFixTodo={handleFixTodo}
           onScheduleTodo={handleScheduleTodo}
+          onScheduleOnResetTodo={handleScheduleOnReset}
+          resetsAt={resetsAt}
           onUpdateDependency={handleUpdateDependency}
           onUpdatePosition={handleUpdatePosition}
           onEvent={onEvent}

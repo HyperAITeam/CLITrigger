@@ -23,6 +23,8 @@ interface TodoListProps {
   onContinueTodo?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFixTodo?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
   onScheduleTodo?: (todoId: string, runAt: string, keepOriginal?: boolean) => Promise<void>;
+  onScheduleOnResetTodo?: (todoId: string, prompt: string) => Promise<void>;
+  resetsAt?: number | null;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -61,6 +63,8 @@ export default function TodoList({
   onContinueTodo,
   onFixTodo,
   onScheduleTodo,
+  onScheduleOnResetTodo,
+  resetsAt,
   onUpdateDependency,
   onUpdatePosition,
   onEvent,
@@ -400,6 +404,8 @@ export default function TodoList({
                     onContinue={onContinueTodo}
                     onFix={onFixTodo}
                     onSchedule={onScheduleTodo}
+                    onScheduleOnReset={onScheduleOnResetTodo}
+                    resetsAt={resetsAt}
                     onEvent={onEvent}
                     isInteractive={interactiveTodos.has(todo.id)}
                     onSendInput={onSendInput}

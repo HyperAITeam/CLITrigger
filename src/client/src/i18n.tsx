@@ -190,6 +190,10 @@ const translations = {
     'todo.scheduling': 'Scheduling...',
     'todo.confirmSchedule': 'Schedule',
     'todo.scheduleKeepOriginal': 'Keep original task',
+    'todo.scheduleOnReset': 'Run on Reset: Schedule a new task to auto-run when the rate limit window resets.',
+    'todo.scheduleOnResetLabel': 'Rate limit resets at',
+    'todo.resetPromptPlaceholder': 'Enter the prompt to run after rate limit resets...',
+    'todo.confirmResetSchedule': 'Schedule on Reset',
 
     // Todo Form
     'todoForm.titlePlaceholder': 'Task title...',
@@ -764,6 +768,10 @@ const translations = {
     'todo.scheduling': '예약 중...',
     'todo.confirmSchedule': '예약',
     'todo.scheduleKeepOriginal': '원본 작업 유지',
+    'todo.scheduleOnReset': '리셋 시 실행: 토큰 한도가 리셋될 때 자동으로 새 작업을 실행합니다.',
+    'todo.scheduleOnResetLabel': '리셋 시각',
+    'todo.resetPromptPlaceholder': '리셋 후 실행할 프롬프트를 입력하세요...',
+    'todo.confirmResetSchedule': '리셋 시 실행 예약',
 
     // Todo Form
     'todoForm.titlePlaceholder': '\uC791\uC5C5 \uC81C\uBAA9...',

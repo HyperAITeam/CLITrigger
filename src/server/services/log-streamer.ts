@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import * as queries from '../db/queries.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 
@@ -29,6 +30,9 @@ export class LogStreamer {
   private contextExhaustedMap: Map<string, boolean> = new Map();
   /** Current round number per task (for multi-round "continue" feature) */
   private roundMap: Map<string, number> = new Map();
+  /** Latest rate limit reset time (Unix epoch seconds), shared across all tasks */
+  private _resetsAt: number | null = null;
+  private _rateLimitUsedPct: number | null = null;
 
   /** Set the current round number for a task. Subsequent streamed logs will use this round. */
   setRound(todoId: string, roundNumber: number): void {
@@ -331,6 +335,22 @@ export class LogStreamer {
           break;
         }
 
+        case 'rate_limit_event': {
+          const info = event.rate_limit_info as Record<string, unknown> | undefined;
+          if (info) {
+            const resetsAt = typeof info.resetsAt === 'number' ? info.resetsAt : null;
+            if (resetsAt) {
+              this._resetsAt = resetsAt;
+              broadcaster.broadcast({
+                type: 'rate-limit:updated',
+                resetsAt,
+                status: typeof info.status === 'string' ? info.status : null,
+              });
+            }
+          }
+          break;
+        }
+
         default:
           if (verbose) {
             const eventType = String(event.type || 'unknown');
@@ -350,6 +370,52 @@ export class LogStreamer {
     } catch {
       // Parsing failure — ignore to keep streaming
     }
+  }
+
+  /** Get the latest known rate limit reset time (Unix epoch seconds). */
+  getResetsAt(): number | null {
+    return this._resetsAt;
+  }
+
+  /**
+   * Fetch rate limit info by running a minimal Claude CLI call in the background.
+   * Called once on server startup to populate resetsAt before any real task runs.
+   */
+  fetchRateLimitOnStartup(): void {
+    if (this._resetsAt) return; // already known
+    try {
+      const proc = spawn(
+        process.platform === 'win32' ? 'cmd.exe' : 'claude',
+        process.platform === 'win32'
+          ? ['/c', 'claude', '--print', '--verbose', '--output-format', 'stream-json', '-p', 'respond with ok']
+          : ['--print', '--verbose', '--output-format', 'stream-json', '-p', 'respond with ok'],
+        { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env }, cwd: process.env.HOME || process.env.USERPROFILE || '.' },
+      );
+      let buffer = '';
+      const onData = (chunk: Buffer) => {
+        buffer += chunk.toString('utf8');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line.trim());
+            if (event.type === 'rate_limit_event' && event.rate_limit_info?.resetsAt) {
+              this._resetsAt = event.rate_limit_info.resetsAt;
+              broadcaster.broadcast({
+                type: 'rate-limit:updated',
+                resetsAt: this._resetsAt!,
+                status: event.rate_limit_info.status ?? null,
+              });
+              console.log(`Rate limit info fetched: resets at ${new Date(this._resetsAt! * 1000).toLocaleString()}`);
+            }
+          } catch { /* not JSON, skip */ }
+        }
+      };
+      proc.stdout.on('data', onData);
+      proc.stderr.on('data', onData);
+      proc.on('error', () => { /* claude not installed — ignore */ });
+    } catch { /* spawn failed — ignore */ }
   }
 
   /**
