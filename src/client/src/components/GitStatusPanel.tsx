@@ -815,10 +815,15 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   // Close context menu on outside click or scroll
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    document.addEventListener('click', close);
-    document.addEventListener('scroll', close, true);
-    return () => { document.removeEventListener('click', close); document.removeEventListener('scroll', close, true); };
+    const handleOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    const closeOnScroll = () => setContextMenu(null);
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('scroll', closeOnScroll, true);
+    return () => { document.removeEventListener('mousedown', handleOutside); document.removeEventListener('scroll', closeOnScroll, true); };
   }, [contextMenu]);
 
   // Adjust menu position to stay within viewport
@@ -972,7 +977,6 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
           ref={menuRef}
           className="fixed z-[60] bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-xl py-1 min-w-[220px] text-xs"
           style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={e => e.stopPropagation()}
         >
           {/* Checkout */}
           {!contextMenu.isCurrent && !contextMenu.isRemote && (
