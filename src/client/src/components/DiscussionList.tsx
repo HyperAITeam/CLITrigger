@@ -105,8 +105,8 @@ export default function DiscussionList({
           <p className="text-warm-300 text-xs mt-1">{t('discussions.emptyHint')}</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {discussions.map((discussion) => {
+        <div className="space-y-3">
+          {discussions.map((discussion, index) => {
             const discussionAgents = getAgentNames(discussion.agent_ids);
             const canStart = discussion.status === 'pending' || discussion.status === 'paused' || discussion.status === 'failed';
             const canStop = discussion.status === 'running';
@@ -114,8 +114,9 @@ export default function DiscussionList({
             return (
               <div
                 key={discussion.id}
-                className="card p-4 hover:shadow-md transition-shadow cursor-pointer"
+                className="card p-4 hover:shadow-md transition-all cursor-pointer animate-slide-up"
                 onClick={() => navigate(`/projects/${projectId}/discussions/${discussion.id}`)}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">

@@ -147,7 +147,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((project) => {
+          {filtered.map((project, index) => {
             const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
             const pathMissing = project.path_exists === false;
             const CardWrapper = pathMissing ? 'div' : Link;
@@ -158,16 +158,17 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },
-                  className: 'card group block p-5 opacity-50 relative cursor-pointer',
+                  className: 'card group block p-5 opacity-50 relative cursor-pointer animate-slide-up',
                 }
               : {
                   to: `/projects/${project.id}`,
-                  className: 'card group block p-5 relative hover:border-accent/30',
+                  className: 'card group block p-5 relative hover:border-accent/30 animate-slide-up',
                 };
             return (
               <CardWrapper
                 key={project.id}
                 {...cardProps as any}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 {/* Delete button */}
                 <button

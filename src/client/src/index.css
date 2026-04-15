@@ -76,7 +76,12 @@
     @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Global smooth transitions for all interactive elements */
+  a, button, input, select, textarea, .card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   ::selection {
