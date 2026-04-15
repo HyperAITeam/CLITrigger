@@ -280,7 +280,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               <>
                 <span className="badge bg-status-success/10 text-status-success">Git</span>
                 <span className="badge bg-status-running/10 text-status-running">
-                  {project.default_branch}
+                  {t('header.branch')}: {project.default_branch}
                 </span>
               </>
             ) : (
