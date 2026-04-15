@@ -552,85 +552,33 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
         onProjectUpdate={(updated) => setProject(updated)}
       />
 
-      <ProgressBar todos={todos} />
-
-      {/* Tab toggle */}
-      <div className="flex gap-0 mb-4 border-b border-theme-border overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'tasks'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.tasks')} ({todos.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('sessions')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'sessions'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.sessions')} ({sessions.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('discussions')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'discussions'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.discussions')} ({discussions.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('schedules')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'schedules'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.schedules')} ({schedules.length})
-        </button>
-        {getPluginsWithTabs(project).map((plugin) => (
+      {/* Segmented tab control */}
+      <div className="flex gap-1 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+        {[
+          { key: 'tasks', label: `${t('tabs.tasks')} (${todos.length})` },
+          { key: 'sessions', label: `${t('tabs.sessions')} (${sessions.length})` },
+          { key: 'discussions', label: `${t('tabs.discussions')} (${discussions.length})` },
+          { key: 'schedules', label: `${t('tabs.schedules')} (${schedules.length})` },
+          ...getPluginsWithTabs(project).map((plugin) => ({
+            key: plugin.id,
+            label: t(`tabs.${plugin.id}`) || plugin.displayName,
+          })),
+          { key: 'analytics', label: t('tabs.analytics') },
+          ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git') }] : []),
+        ].map((tab) => (
           <button
-            key={plugin.id}
-            onClick={() => setActiveTab(plugin.id)}
-            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-              activeTab === plugin.id
-                ? 'text-accent border-accent'
-                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold whitespace-nowrap rounded-lg transition-all duration-200 ${
+              activeTab === tab.key
+                ? 'text-warm-800 shadow-soft'
+                : 'text-warm-500 hover:text-warm-700'
             }`}
+            style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
           >
-            {t(`tabs.${plugin.id}`) || plugin.displayName}
+            {tab.label}
           </button>
         ))}
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-            activeTab === 'analytics'
-              ? 'text-accent border-accent'
-              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-          }`}
-        >
-          {t('tabs.analytics')}
-        </button>
-        {project.is_git_repo ? (
-          <button
-            onClick={() => setActiveTab('git')}
-            className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
-              activeTab === 'git'
-                ? 'text-accent border-accent'
-                : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
-            }`}
-          >
-            {t('tabs.git')}
-          </button>
-        ) : null}
       </div>
 
       {activeTab === 'tasks' && (

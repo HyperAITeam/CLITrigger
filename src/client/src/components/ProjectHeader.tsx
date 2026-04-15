@@ -183,120 +183,129 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     setEditingName(false);
   };
 
+  const totalTodos = todos.length;
+  const completedTodos = todos.filter(t => t.status === 'completed' || t.status === 'merged').length;
+  const runningTodos = todos.filter(t => t.status === 'running').length;
+  const progressPct = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0;
+
   return (
-    <div className="mb-8">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="min-w-0">
-          {editingName ? (
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              onBlur={handleNameSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleNameSave();
-                if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); }
-              }}
-              className="text-xl sm:text-2xl font-semibold text-warm-800 bg-transparent border-b-2 border-accent outline-none w-full max-w-md"
-              autoFocus
-            />
-          ) : (
-            <h1
-              className="text-xl sm:text-2xl font-semibold text-warm-800 truncate cursor-pointer hover:text-accent transition-colors group flex items-center gap-2"
-              onClick={() => { setEditingName(true); setNameValue(project.name); }}
-              title={t('header.editName')}
+    <div className="mb-6">
+      {/* Hero Header Card */}
+      <div className="card p-5 sm:p-6">
+        {/* Top row: name + actions */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleNameSave();
+                  if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); }
+                }}
+                className="text-lg sm:text-xl font-semibold text-warm-800 bg-transparent border-b-2 border-accent outline-none w-full max-w-md"
+                autoFocus
+              />
+            ) : (
+              <h1
+                className="text-lg sm:text-xl font-semibold text-warm-800 truncate cursor-pointer hover:text-accent transition-colors group flex items-center gap-2"
+                onClick={() => { setEditingName(true); setNameValue(project.name); }}
+                title={t('header.editName')}
+              >
+                {project.name}
+                <svg className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </h1>
+            )}
+            <button
+              type="button"
+              className="mt-0.5 text-[11px] text-warm-400 font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"
+              title={t('header.openFolder')}
+              onClick={() => projectsApi.openFolder(project.path)}
             >
-              {project.name}
-              <svg className="w-4 h-4 opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
               </svg>
-            </h1>
-          )}
-          <button
-            type="button"
-            className="mt-1 text-xs text-warm-400 font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"
-            title={t('header.openFolder')}
-            onClick={() => projectsApi.openFolder(project.path)}
-          >
-            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-            </svg>
-            <span className="truncate">{project.path}</span>
-          </button>
-          <div className="mt-3 flex flex-wrap gap-2">
+              <span className="truncate">{project.path}</span>
+            </button>
+          </div>
+
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="btn-ghost text-sm"
+              title={t('header.settings')}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
+            <button
+              onClick={onStartAll}
+              disabled={!hasStartable}
+              className="btn-primary text-sm"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              {t('header.runAll')}
+            </button>
+
+            <button
+              onClick={onStopAll}
+              disabled={!hasRunning}
+              className="btn-danger text-sm"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 6h12v12H6z" />
+              </svg>
+              {t('header.stopAll')}
+            </button>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="my-4 border-t" style={{ borderColor: 'var(--color-border)' }} />
+
+        {/* Bottom row: meta badges + progress */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex flex-wrap gap-1.5 flex-1">
             {project.is_git_repo ? (
               <>
                 <span className="badge bg-status-success/10 text-status-success">Git</span>
                 <span className="badge bg-status-running/10 text-status-running">
-                  {t('header.branch')}: {project.default_branch}
+                  {project.default_branch}
                 </span>
               </>
             ) : (
               <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
             )}
-            <span className="badge bg-accent/10 text-accent-dark">
-              {t('header.workers')}: {project.max_concurrent ?? 3}
-            </span>
             <span className="badge bg-status-merged/10 text-status-merged">
               {getToolConfig((project.cli_tool as CliTool) || 'claude').label}
             </span>
-            {project.claude_model && (
-              <span className="badge bg-status-merged/10 text-status-merged">
-                {t('header.model')}: {project.claude_model}
-              </span>
-            )}
             <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
-            {project.is_git_repo && !project.use_worktree ? (
-              <span className="badge bg-status-warning/10 text-status-warning">{t('header.noWorktreeBadge')}</span>
-            ) : null}
-            {project.debug_logging ? (
-              <span className="badge bg-purple-100 text-purple-700">{t('header.debugBadge')}</span>
-            ) : null}
-            {project.gstack_enabled ? (
-              <span className="badge bg-status-success/10 text-status-success">gstack</span>
-            ) : null}
-            {project.jira_enabled ? (
-              <span className="badge bg-blue-100 text-blue-700">Jira</span>
-            ) : null}
           </div>
-        </div>
 
-        <div className="flex gap-2 flex-shrink-0">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="btn-ghost text-sm"
-            title={t('header.settings')}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-
-          <button
-            onClick={onStartAll}
-            disabled={!hasStartable}
-            className="btn-primary text-sm"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            {t('header.runAll')}
-          </button>
-
-          <button
-            onClick={onStopAll}
-            disabled={!hasRunning}
-            className="btn-danger text-sm"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 6h12v12H6z" />
-            </svg>
-            {t('header.stopAll')}
-          </button>
+          {/* Compact progress */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {runningTodos > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-status-running font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-status-running animate-aurora-glow" />
+                {runningTodos} {t('projects.active')}
+              </span>
+            )}
+            <span className="text-xs font-medium text-warm-500">
+              {progressPct}% <span className="text-warm-400">{completedTodos}/{totalTodos}</span>
+            </span>
+          </div>
         </div>
       </div>
 

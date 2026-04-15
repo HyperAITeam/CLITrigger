@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
@@ -8,6 +8,47 @@ import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
 import { useI18n } from '../i18n';
 import { getToolConfig, type CliTool } from '../cli-tools';
+
+function MoreMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  // Filter out null/false children
+  const items = (Array.isArray(children) ? children : [children]).filter(Boolean);
+  if (items.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors"
+        title="More"
+      >
+        <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-20 min-w-[160px] rounded-xl py-1 shadow-elevated animate-scale-in"
+          style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+          onClick={() => setOpen(false)}
+        >
+          {items}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface TodoItemProps {
   todo: Todo;
@@ -462,59 +503,15 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-auto md:ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* Primary actions: start / stop - always visible */}
           {canStart && (
-            <>
-              <button
-                onClick={() => onStart(todo.id, 'headless')}
-                className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors"
-                title={t('todo.startHeadless')}
-              >
-                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-              {supportsInteractive && (
-                <button
-                  onClick={() => onStart(todo.id, 'interactive')}
-                  className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                  title={t('todo.startInteractive')}
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              )}
-              <button
-                onClick={() => onStart(todo.id, 'verbose')}
-                className="p-1.5 text-purple-500/60 hover:text-purple-500 hover:bg-purple-500/10 rounded-lg transition-colors"
-                title={t('todo.startVerbose')}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </button>
-            </>
-          )}
-          {canSchedule && (
             <button
-              onClick={() => setShowSchedulePicker(!showSchedulePicker)}
-              className="p-1.5 text-blue-500/60 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-              title={t('todo.schedule')}
+              onClick={() => onStart(todo.id, 'headless')}
+              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors"
+              title={t('todo.startHeadless')}
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </button>
-          )}
-          {canScheduleOnReset && (
-            <button
-              onClick={() => { setShowResetSchedule(v => !v); setResetError(null); }}
-              className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors"
-              title={t('todo.scheduleOnReset')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
               </svg>
             </button>
           )}
@@ -526,29 +523,6 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             >
               <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z" />
-              </svg>
-            </button>
-          )}
-          {canViewDiff && (
-            <button
-              onClick={handleViewDiff}
-              disabled={diffLoading}
-              className="p-1.5 text-status-info/60 hover:text-status-info hover:bg-status-info/10 rounded-lg transition-colors disabled:opacity-30"
-              title={t('todo.viewDiff')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </button>
-          )}
-          {debugLogging && hasResult && (
-            <button
-              onClick={handleViewDebugLog}
-              className="p-1.5 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-              title={t('todo.viewDebugLog')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
             </button>
           )}
@@ -564,23 +538,11 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               </svg>
             </button>
           )}
-          {canCleanup && (
-            <button
-              onClick={handleCleanup}
-              disabled={cleaning}
-              className="p-1.5 text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10 rounded-lg transition-colors disabled:opacity-30"
-              title={t('todo.cleanup')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-              </svg>
-            </button>
-          )}
           {canContinue && (
             <button
               onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
               disabled={continuing}
-              className="p-1.5 text-emerald-500/60 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.continue')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -592,7 +554,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             <button
               onClick={() => handleRetry('headless')}
               disabled={retrying}
-              className="p-1.5 text-cyan-500/60 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.retry')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -600,24 +562,89 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               </svg>
             </button>
           )}
-          <button
-            onClick={() => setEditing(true)}
-            className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
-            title={t('todo.edit')}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => onDelete(todo.id)}
-            className="p-1.5 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded-lg transition-colors"
-            title={t('todo.delete')}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+
+          {/* More menu: secondary actions */}
+          <MoreMenu>
+            {canStart && supportsInteractive && (
+              <button
+                onClick={() => onStart(todo.id, 'interactive')}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {t('todo.startInteractive')}
+              </button>
+            )}
+            {canStart && (
+              <button
+                onClick={() => onStart(todo.id, 'verbose')}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                {t('todo.startVerbose')}
+              </button>
+            )}
+            {canSchedule && (
+              <button
+                onClick={() => setShowSchedulePicker(!showSchedulePicker)}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {t('todo.schedule')}
+              </button>
+            )}
+            {canScheduleOnReset && (
+              <button
+                onClick={() => { setShowResetSchedule(v => !v); setResetError(null); }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {t('todo.scheduleOnReset')}
+              </button>
+            )}
+            {canViewDiff && (
+              <button
+                onClick={handleViewDiff}
+                disabled={diffLoading}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left disabled:opacity-30"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                {t('todo.viewDiff')}
+              </button>
+            )}
+            {debugLogging && hasResult && (
+              <button
+                onClick={handleViewDebugLog}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                {t('todo.viewDebugLog')}
+              </button>
+            )}
+            {canCleanup && (
+              <button
+                onClick={handleCleanup}
+                disabled={cleaning}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left disabled:opacity-30"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                {t('todo.cleanup')}
+              </button>
+            )}
+            <button
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              {t('todo.edit')}
+            </button>
+            <button
+              onClick={() => onDelete(todo.id)}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-status-error hover:bg-status-error/10 rounded-md transition-colors text-left"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              {t('todo.delete')}
+            </button>
+          </MoreMenu>
         </div>
       </div>
 
