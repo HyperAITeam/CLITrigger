@@ -4,7 +4,7 @@ import type { IncomingMessage } from 'http';
 import { broadcaster } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
-import { getTodoById, createTaskLog } from '../db/queries.js';
+import { getTodoById, createTaskLog, getSessionById, createSessionLog } from '../db/queries.js';
 
 export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -88,6 +88,22 @@ export function initWebSocket(server: Server): void {
               broadcaster.broadcast({
                 type: 'todo:log',
                 todoId: msg.todoId,
+                message: msg.input,
+                logType: 'input',
+              });
+            }
+          }
+        }
+        // Session stdin relay
+        if (msg.type === 'session:stdin' && msg.sessionId && typeof msg.input === 'string') {
+          const session = getSessionById(msg.sessionId);
+          if (session && session.process_pid && session.status === 'running') {
+            const written = claudeManager.writeToStdin(session.process_pid, msg.input + '\n');
+            if (written) {
+              createSessionLog(msg.sessionId, 'input', msg.input);
+              broadcaster.broadcast({
+                type: 'session:log',
+                sessionId: msg.sessionId,
                 message: msg.input,
                 logType: 'input',
               });

@@ -140,6 +140,32 @@ export function initDatabase(db: Database.Database): void {
       message TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'pending',
+      cli_tool TEXT,
+      cli_model TEXT,
+      process_pid INTEGER,
+      branch_name TEXT,
+      worktree_path TEXT,
+      token_usage TEXT,
+      total_cost_usd REAL,
+      total_tokens INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS session_logs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      log_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs

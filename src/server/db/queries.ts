@@ -805,6 +805,122 @@ export function deleteDiscussionLogs(discussionId: string): number {
   return result.changes;
 }
 
+// ── Sessions ──
+
+export interface Session {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  cli_tool: string | null;
+  cli_model: string | null;
+  process_pid: number | null;
+  branch_name: string | null;
+  worktree_path: string | null;
+  token_usage: string | null;
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createSession(projectId: string, title: string, description?: string, cliTool?: string, cliModel?: string): Session {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, cliTool ?? null, cliModel ?? null, now, now);
+  return getSessionById(id)!;
+}
+
+export function getSessionsByProjectId(projectId: string): Session[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Session[];
+}
+
+export function getSessionById(id: string): Session | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
+}
+
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'token_usage' | 'total_cost_usd' | 'total_tokens'>>): Session | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
+  if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
+  if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
+  if (updates.branch_name !== undefined) { fields.push('branch_name = ?'); values.push(updates.branch_name); }
+  if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
+  if (updates.token_usage !== undefined) { fields.push('token_usage = ?'); values.push(updates.token_usage); }
+  if (updates.total_cost_usd !== undefined) { fields.push('total_cost_usd = ?'); values.push(updates.total_cost_usd); }
+  if (updates.total_tokens !== undefined) { fields.push('total_tokens = ?'); values.push(updates.total_tokens); }
+
+  if (fields.length === 0) return getSessionById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getSessionById(id);
+}
+
+export function updateSessionStatus(id: string, status: string): Session | undefined {
+  const db = getDatabase();
+  db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), id);
+  return getSessionById(id);
+}
+
+export function getSessionsByStatus(status: string): Session[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM sessions WHERE status = ? ORDER BY created_at DESC').all(status) as Session[];
+}
+
+export function deleteSession(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Session Logs ──
+
+export interface SessionLog {
+  id: string;
+  session_id: string;
+  log_type: string;
+  message: string;
+  created_at: string;
+}
+
+export function createSessionLog(sessionId: string, logType: string, message: string): SessionLog {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO session_logs (id, session_id, log_type, message, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(id, sessionId, logType, message, now);
+  return db.prepare('SELECT * FROM session_logs WHERE id = ?').get(id) as SessionLog;
+}
+
+export function getSessionLogsBySessionId(sessionId: string): SessionLog[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM session_logs WHERE session_id = ? ORDER BY created_at ASC').all(sessionId) as SessionLog[];
+}
+
+export function deleteSessionLogsBySessionId(sessionId: string): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM session_logs WHERE session_id = ?').run(sessionId);
+  return result.changes;
+}
+
 // ── Cleanup ──
 
 export function cleanOldLogs(daysToKeep: number): number {
@@ -812,5 +928,6 @@ export function cleanOldLogs(daysToKeep: number): number {
   const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString();
   const taskResult = db.prepare('DELETE FROM task_logs WHERE created_at < ?').run(cutoff);
   const discussionResult = db.prepare('DELETE FROM discussion_logs WHERE created_at < ?').run(cutoff);
-  return taskResult.changes + discussionResult.changes;
+  const sessionResult = db.prepare('DELETE FROM session_logs WHERE created_at < ?').run(cutoff);
+  return taskResult.changes + discussionResult.changes + sessionResult.changes;
 }

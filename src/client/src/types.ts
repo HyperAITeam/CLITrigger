@@ -233,6 +233,34 @@ export interface DiscussionWithMessages extends Discussion {
   agents: DiscussionAgent[];
 }
 
+// ── Sessions ──
+
+export interface Session {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  cli_tool: string | null;
+  cli_model: string | null;
+  process_pid: number | null;
+  branch_name: string | null;
+  worktree_path: string | null;
+  token_usage: string | null;
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionLog {
+  id: string;
+  session_id: string;
+  log_type: 'info' | 'error' | 'output' | 'input';
+  message: string;
+  created_at: string;
+}
+
 export interface JiraIssue {
   key: string;
   fields: {

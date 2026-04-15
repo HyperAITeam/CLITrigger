@@ -18,6 +18,8 @@ export interface WsEvent {
   runId?: string;
   isActive?: boolean;
   reason?: string;
+  // Session events
+  sessionId?: string;
   // Discussion events
   discussionId?: string;
   messageId?: string;

@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { getDatabase } from './db/connection.js';
-import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion } from './db/queries.js';
+import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion, getSessionsByStatus, updateSessionStatus, updateSession } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -27,6 +27,7 @@ import cliStatusRouter from './routes/cli-status.js';
 import debugLogsRouter from './routes/debug-logs.js';
 import discussionsRouter from './routes/discussions.js';
 import analyticsRouter from './routes/analytics.js';
+import sessionsRouter from './routes/sessions.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
 import { logStreamer } from './services/log-streamer.js';
@@ -98,6 +99,17 @@ if (staleDiscussions.length > 0) {
   }
 }
 
+// Startup recovery: reset stale 'running' sessions to 'failed'
+const staleSessions = getSessionsByStatus('running');
+if (staleSessions.length > 0) {
+  console.log(`Recovering ${staleSessions.length} stale running session(s)...`);
+  for (const session of staleSessions) {
+    updateSessionStatus(session.id, 'failed');
+    updateSession(session.id, { process_pid: 0 });
+    console.log(`  Reset session "${session.title}" (${session.id}) from running to failed`);
+  }
+}
+
 // Auto-cleanup old logs (default 30 days)
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
 const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
@@ -146,6 +158,7 @@ app.use('/api/cli', cliStatusRouter);
 app.use('/api', debugLogsRouter);
 app.use('/api', discussionsRouter);
 app.use('/api', analyticsRouter);
+app.use('/api', sessionsRouter);
 mountPluginRoutes(app);
 
 // --- Scheduler ---

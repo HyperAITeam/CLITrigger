@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import type { Project, Todo, Schedule, Discussion, TaskLog } from '../types';
+import type { Project, Todo, Schedule, Discussion, Session, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
 import * as schedulesApi from '../api/schedules';
 import * as discussionsApi from '../api/discussions';
+import * as sessionsApi from '../api/sessions';
 import { Skeleton } from './Skeleton';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
@@ -15,6 +16,7 @@ import { useNotification } from '../hooks/useNotification';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
 import DiscussionList from './DiscussionList';
+import SessionList from './SessionList';
 import AnalyticsPanel from './AnalyticsPanel';
 import { getPluginsWithTabs } from '../plugins/registry';
 
@@ -31,6 +33,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [resetsAt, setResetsAt] = useState<number | null>(null);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
   const setActiveTab = useCallback((tab: string) => {
@@ -48,12 +51,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id), schedulesApi.getRateLimit()])
-      .then(([proj, todoList, scheduleList, discussionList, rateLimitData]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id), schedulesApi.getRateLimit(), sessionsApi.getSessions(id)])
+      .then(([proj, todoList, scheduleList, discussionList, rateLimitData, sessionList]) => {
         setProject(proj);
         setTodos(todoList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
+        setSessions(sessionList);
         if (rateLimitData.resetsAt) setResetsAt(rateLimitData.resetsAt);
         // Restore interactive mode state for running todos
         const interactiveIds = todoList
@@ -169,6 +173,15 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             );
           }
         }
+      }
+      if (event.type === 'session:status-changed' && event.sessionId) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === event.sessionId
+              ? { ...s, status: event.status as Session['status'], updated_at: new Date().toISOString() }
+              : s
+          )
+        );
       }
     });
   }, [onEvent, sendNotification, t]);
@@ -410,6 +423,34 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setDiscussions((prev) => prev.filter((d) => d.id !== discussionId));
   }, []);
 
+  // Session handlers
+  const handleAddSession = useCallback((session: Session) => {
+    setSessions((prev) => [session, ...prev]);
+  }, []);
+
+  const handleStartSession = useCallback(async (sessionId: string) => {
+    await sessionsApi.startSession(sessionId);
+    setSessions((prev) =>
+      prev.map((s) => s.id === sessionId ? { ...s, status: 'running' as const, updated_at: new Date().toISOString() } : s)
+    );
+  }, []);
+
+  const handleStopSession = useCallback(async (sessionId: string) => {
+    await sessionsApi.stopSession(sessionId);
+    setSessions((prev) =>
+      prev.map((s) => s.id === sessionId ? { ...s, status: 'stopped' as const, updated_at: new Date().toISOString() } : s)
+    );
+  }, []);
+
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    await sessionsApi.deleteSession(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  }, []);
+
+  const handleSendSessionInput = useCallback((sessionId: string, input: string) => {
+    sendMessage({ type: 'session:stdin', sessionId, input });
+  }, [sendMessage]);
+
   const handleStartAll = useCallback(async () => {
     if (!id) return;
     await projectsApi.startProject(id);
@@ -526,6 +567,16 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           {t('tabs.tasks')} ({todos.length})
         </button>
         <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
+            activeTab === 'sessions'
+              ? 'text-accent border-accent'
+              : 'text-theme-muted border-transparent hover:text-theme-text-secondary'
+          }`}
+        >
+          {t('tabs.sessions')} ({sessions.length})
+        </button>
+        <button
           onClick={() => setActiveTab('discussions')}
           className={`px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase border-b-2 whitespace-nowrap -mb-px transition-colors ${
             activeTab === 'discussions'
@@ -608,6 +659,20 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           interactiveTodos={interactiveTodos}
           debugLogging={!!project.debug_logging}
           showTokenUsage={!!project.show_token_usage}
+        />
+      )}
+      {activeTab === 'sessions' && id && (
+        <SessionList
+          projectId={id}
+          sessions={sessions}
+          projectCliTool={project.cli_tool}
+          projectCliModel={project.claude_model ?? undefined}
+          onAddSession={handleAddSession}
+          onStartSession={handleStartSession}
+          onStopSession={handleStopSession}
+          onDeleteSession={handleDeleteSession}
+          onSendInput={handleSendSessionInput}
+          onEvent={onEvent}
         />
       )}
       {activeTab === 'discussions' && id && (

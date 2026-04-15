@@ -420,7 +420,8 @@ const translations = {
     'header.githubTokenHint': 'Create a token at github.com/settings/tokens with repo scope',
 
     // Tabs
-    'tabs.tasks': 'Tasks',
+    'tabs.tasks': 'Auto Tasks',
+    'tabs.sessions': 'Sessions',
     'tabs.discussions': 'Discussions',
     'tabs.schedules': 'Schedules',
     'tabs.jira': 'Jira',
@@ -428,6 +429,19 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
     'tabs.analytics': 'Analytics',
+
+    // Sessions
+    'session.new': 'New Session',
+    'session.title': 'Session Title',
+    'session.description': 'Initial Prompt (Optional)',
+    'session.start': 'Start',
+    'session.stop': 'Stop',
+    'session.delete': 'Delete',
+    'session.empty': 'No sessions yet',
+    'session.emptyHint': 'Start an interactive AI conversation.',
+    'session.create': 'Create Session',
+    'session.cliTool': 'CLI Tool',
+    'session.model': 'Model',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -999,7 +1013,8 @@ const translations = {
     'header.githubTokenHint': 'github.com/settings/tokens에서 repo 권한으로 토큰을 생성하세요',
 
     // Tabs
-    'tabs.tasks': '작업',
+    'tabs.tasks': '자동 작업',
+    'tabs.sessions': '세션',
     'tabs.discussions': '토론',
     'tabs.schedules': '스케줄',
     'tabs.jira': 'Jira',
@@ -1007,6 +1022,19 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
     'tabs.analytics': '통계',
+
+    // Sessions
+    'session.new': '새 세션',
+    'session.title': '세션 제목',
+    'session.description': '초기 프롬프트 (선택)',
+    'session.start': '시작',
+    'session.stop': '중지',
+    'session.delete': '삭제',
+    'session.empty': '세션이 없습니다',
+    'session.emptyHint': '대화형 AI 세션을 시작하세요.',
+    'session.create': '세션 생성',
+    'session.cliTool': 'CLI 도구',
+    'session.model': '모델',
 
     // Analytics
     'analytics.title': '실행 통계',
