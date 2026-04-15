@@ -153,15 +153,10 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       </div>
 
       {/* Bottom section */}
-      <div className="px-3 pb-4 pt-2 space-y-1" style={{ borderTop: '1px solid var(--color-border)' }}>
-        {/* Connection status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-status-success' : 'bg-status-error'}`} />
-          {connected ? t('detail.live') : 'Disconnected'}
-        </div>
-
-        {/* Controls row */}
+      <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+        {/* Controls row with connection status */}
         <div className="flex items-center gap-1 px-1">
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1 ${connected ? 'bg-status-success' : 'bg-status-error'}`} title={connected ? t('detail.live') : 'Disconnected'} />
           <button
             onClick={toggleTheme}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"

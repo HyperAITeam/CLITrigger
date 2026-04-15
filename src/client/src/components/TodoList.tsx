@@ -389,7 +389,10 @@ export default function TodoList({
                     </div>
                   </div>
                 )}
-                <div className="animate-slide-up" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
+                <div className="relative animate-fade-in" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
+                  {depth > 0 && (
+                    <div className="absolute top-0 bottom-0 w-px" style={{ left: '-13px', backgroundColor: 'var(--color-border)' }} />
+                  )}
                   <TodoItem
                     todo={todo}
                     allTodos={todos}
