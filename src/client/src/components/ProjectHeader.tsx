@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
@@ -25,6 +25,9 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const { t } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(project.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
   const [defaultMaxTurns, setDefaultMaxTurns] = useState(project.default_max_turns ?? 30);
   const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
@@ -164,13 +167,52 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     }
   };
 
+  const handleNameSave = async () => {
+    const trimmed = nameValue.trim();
+    if (!trimmed || trimmed === project.name) {
+      setNameValue(project.name);
+      setEditingName(false);
+      return;
+    }
+    try {
+      const updated = await projectsApi.updateProject(project.id, { name: trimmed });
+      onProjectUpdate(updated);
+    } catch {
+      setNameValue(project.name);
+    }
+    setEditingName(false);
+  };
+
   return (
     <div className="mb-8">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-warm-800 truncate">
-            {project.name}
-          </h1>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSave();
+                if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); }
+              }}
+              className="text-xl sm:text-2xl font-semibold text-warm-800 bg-transparent border-b-2 border-accent outline-none w-full max-w-md"
+              autoFocus
+            />
+          ) : (
+            <h1
+              className="text-xl sm:text-2xl font-semibold text-warm-800 truncate cursor-pointer hover:text-accent transition-colors group flex items-center gap-2"
+              onClick={() => { setEditingName(true); setNameValue(project.name); }}
+              title={t('header.editName')}
+            >
+              {project.name}
+              <svg className="w-4 h-4 opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </h1>
+          )}
           <button
             type="button"
             className="mt-1 text-xs text-warm-400 font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"

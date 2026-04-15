@@ -46,6 +46,7 @@ const translations = {
 
     // Project Header
     'header.branch': 'Branch',
+    'header.editName': 'Click to rename project',
     'header.openFolder': 'Open folder',
     'header.workers': 'Workers',
     'header.model': 'Model',
@@ -624,6 +625,7 @@ const translations = {
 
     // Project Header
     'header.branch': '\uBE0C\uB79C\uCE58',
+    'header.editName': '\uD074\uB9AD\uD558\uC5EC \uD504\uB85C\uC81D\uD2B8 \uC774\uB984 \uBCC0\uACBD',
     'header.openFolder': '\uD3F4\uB354 \uC5F4\uAE30',
     'header.workers': '\uC6CC\uCEE4',
     'header.model': '\uBAA8\uB378',
