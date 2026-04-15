@@ -311,10 +311,21 @@
   }
 
   .glass {
-    @apply backdrop-blur-md bg-white/70 dark:bg-warm-900/70 border border-white/20 dark:border-white/10;
+    @apply backdrop-blur-md border border-white/20;
+    background: rgba(255, 255, 255, 0.7);
   }
-  
+  :is([data-theme="dark"] .glass) {
+    @apply border-white/10;
+    background: color-mix(in srgb, var(--color-selection-text) 70%, transparent);
+  }
+
   .glass-card {
-    @apply backdrop-blur-xl bg-warm-50/80 dark:bg-warm-900/80 border border-warm-200/50 dark:border-white/10 shadow-glass;
+    @apply backdrop-blur-xl border shadow-glass;
+    background: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
+    border-color: color-mix(in srgb, var(--color-bg-tertiary) 50%, transparent);
+  }
+  :is([data-theme="dark"] .glass-card) {
+    @apply border-white/10;
+    background: color-mix(in srgb, var(--color-selection-text) 80%, transparent);
   }
 }
