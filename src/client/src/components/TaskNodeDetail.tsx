@@ -232,7 +232,7 @@ export default function TaskNodeDetail({
             </button>
           )}
           {debugLogging && hasResult && (
-            <button onClick={handleViewDebugLog} className="btn-ghost text-xs py-1.5 text-purple-600">
+            <button onClick={handleViewDebugLog} className="btn-ghost text-xs py-1.5">
               {t('todo.viewDebugLog')}
             </button>
           )}
@@ -340,13 +340,13 @@ export default function TaskNodeDetail({
         <div className="flex flex-wrap gap-1.5">
           <span className="text-[10px] font-mono text-warm-400 badge bg-warm-100">#{todo.priority}</span>
           {todo.cli_tool && (
-            <span className="badge text-[10px] font-mono bg-status-merged/10 text-status-merged">
+            <span className="badge text-[10px] font-mono bg-warm-200/60 text-warm-600">
               {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
               {todo.cli_model && <span className="text-warm-400 ml-1">/ {todo.cli_model}</span>}
             </span>
           )}
           {parentTodo && (
-            <span className="badge text-[10px] font-mono bg-cyan-500/10 text-cyan-600">
+            <span className="badge text-[10px] font-mono bg-warm-200/60 text-warm-600">
               {t('todo.dependsOn')}: {parentTodo.title.length > 20 ? parentTodo.title.slice(0, 20) + '...' : parentTodo.title}
             </span>
           )}
