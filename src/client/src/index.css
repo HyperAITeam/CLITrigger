@@ -70,13 +70,38 @@
   html, body {
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
+    @apply font-sans antialiased;
+    font-size: 15px; /* Slightly larger base for better readability on desktop */
+    line-height: 1.6;
   }
 
-  body {
-    @apply font-sans;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+    color: var(--color-text-primary);
+    line-height: 1.25;
+  }
+
+  p {
+    @apply leading-relaxed;
+    color: var(--color-text-secondary);
+  }
+
+  /* Semantic Typography Utilities */
+  .text-primary {
+    color: var(--color-text-primary);
+    @apply font-semibold;
+  }
+  .text-secondary {
+    color: var(--color-text-secondary);
+    @apply font-medium;
+  }
+  .text-tertiary {
+    color: var(--color-text-tertiary);
+    @apply font-normal;
+  }
+  .text-muted {
+    color: var(--color-text-muted);
+    @apply font-normal;
   }
 
   /* Global smooth transitions for all interactive elements */
@@ -90,15 +115,15 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
     background-color: var(--color-scrollbar);
-    @apply rounded-full;
+    @apply rounded-full border-2 border-transparent bg-clip-padding transition-colors;
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-scrollbar-hover);
@@ -283,5 +308,13 @@
   }
   .markdown-content input[type="checkbox"] {
     @apply mr-1.5;
+  }
+
+  .glass {
+    @apply backdrop-blur-md bg-white/70 dark:bg-warm-900/70 border border-white/20 dark:border-white/10;
+  }
+  
+  .glass-card {
+    @apply backdrop-blur-xl bg-warm-50/80 dark:bg-warm-900/80 border border-warm-200/50 dark:border-white/10 shadow-glass;
   }
 }

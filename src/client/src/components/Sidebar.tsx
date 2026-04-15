@@ -79,7 +79,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full glass border-none">
       {/* Logo */}
       <div className="px-4 pt-5 pb-3">
         <Link to="/" onClick={handleNav} className="block">
@@ -137,7 +137,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 }
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  hasRunning ? 'bg-status-running animate-pulse' : ''
+                  hasRunning ? 'bg-status-running animate-aurora-glow' : ''
                 }`} style={hasRunning ? undefined : { backgroundColor: 'var(--color-text-faint)' }} />
                 <span className="truncate">{project.name}</span>
               </Link>

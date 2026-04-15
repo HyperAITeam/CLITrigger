@@ -23,7 +23,6 @@ export default function Layout({ children, onLogout, authRequired, connected, on
           md:translate-x-0 md:static md:z-auto
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
-        style={{ backgroundColor: 'var(--color-bg-secondary)' }}
       >
         <Sidebar
           onLogout={onLogout}
@@ -37,7 +36,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -45,10 +44,10 @@ export default function Layout({ children, onLogout, authRequired, connected, on
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger */}
-        <div className="md:hidden flex items-center px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="md:hidden flex items-center px-4 py-3 border-b glass z-20" style={{ borderColor: 'var(--color-border)' }}>
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-theme-hover transition-colors"
             style={{ color: 'var(--color-text-secondary)' }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
