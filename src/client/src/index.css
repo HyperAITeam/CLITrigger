@@ -316,7 +316,7 @@
   }
   :is([data-theme="dark"] .glass) {
     @apply border-white/10;
-    background: color-mix(in srgb, var(--color-selection-text) 70%, transparent);
+    background: color-mix(in srgb, var(--color-bg-secondary) 85%, transparent);
   }
 
   .glass-card {
@@ -326,6 +326,6 @@
   }
   :is([data-theme="dark"] .glass-card) {
     @apply border-white/10;
-    background: color-mix(in srgb, var(--color-selection-text) 80%, transparent);
+    background: color-mix(in srgb, var(--color-bg-card) 85%, transparent);
   }
 }
