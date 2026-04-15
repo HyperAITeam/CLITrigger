@@ -576,7 +576,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             <button
               onClick={handleMerge}
               disabled={merging}
-              className="p-1.5 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.merge')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -588,7 +588,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             <button
               onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
               disabled={continuing}
-              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.continue')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -600,7 +600,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             <button
               onClick={() => handleRetry('headless')}
               disabled={retrying}
-              className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.retry')}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
