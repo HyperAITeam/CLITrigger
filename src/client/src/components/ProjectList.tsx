@@ -126,13 +126,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('projects.search')}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2"
-          style={{
-            backgroundColor: 'var(--color-bg-input)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text-primary)',
-            border: '1px solid var(--color-border)',
-          }}
+          className="input-field pl-10 py-2.5"
         />
       </div>
 
@@ -164,19 +158,11 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },
-                  className: 'group block rounded-xl border p-5 transition-all duration-200 cursor-pointer opacity-50 relative',
-                  style: {
-                    backgroundColor: 'var(--color-bg-card)',
-                    borderColor: 'var(--color-border-muted)',
-                  },
+                  className: 'card group block p-5 opacity-50 relative cursor-pointer',
                 }
               : {
                   to: `/projects/${project.id}`,
-                  className: 'group block rounded-xl border p-5 transition-all duration-200 relative hover:border-[var(--color-border-strong)]',
-                  style: {
-                    backgroundColor: 'var(--color-bg-card)',
-                    borderColor: 'var(--color-border-muted)',
-                  },
+                  className: 'card group block p-5 relative hover:border-accent/30',
                 };
             return (
               <CardWrapper
