@@ -99,9 +99,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         <Link
           to="/"
           onClick={handleNav}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 hover:-translate-x-0.5 active:scale-95"
           style={location.pathname === '/'
-            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
             : { color: 'var(--color-text-tertiary)' }
           }
         >
@@ -130,9 +130,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 key={project.id}
                 to={`/projects/${project.id}`}
                 onClick={handleNav}
-                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover hover:-translate-x-0.5 active:scale-95 group"
                 style={isActive
-                  ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+                  ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
                   : { color: 'var(--color-text-tertiary)' }
                 }
               >

@@ -137,10 +137,10 @@
     box-shadow: 0 4px 12px -2px rgba(0, 113, 227, 0.2);
     @apply inline-flex items-center justify-center gap-2 text-white font-semibold
            px-6 py-2.5 rounded-xl transition-all duration-300
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none
-           hover:brightness-110 active:scale-[0.98];
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:transform-none
+           hover:brightness-110 active:scale-[0.97] active:brightness-95;
   }
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     box-shadow: var(--shadow-accent);
     transform: translateY(-1px);
   }
@@ -151,59 +151,59 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     @apply inline-flex items-center justify-center gap-2 font-semibold
            px-6 py-2.5 rounded-xl transition-all duration-300
-           hover:bg-theme-active hover:text-theme-text
-           active:scale-[0.98];
-  }
-  .btn-secondary:hover {
-    box-shadow: var(--shadow-soft);
+           hover:bg-theme-active hover:text-theme-text hover:shadow-soft hover:-translate-y-0.5
+           active:scale-[0.97] active:brightness-90
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 bg-status-error/10 text-status-error font-medium
-           px-5 py-2.5 rounded-xl transition-all duration-200
-           hover:bg-status-error/20
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 bg-status-error/10 text-status-error font-semibold
+           px-6 py-2.5 rounded-xl transition-all duration-300
+           hover:bg-status-error hover:text-white hover:shadow-lg hover:shadow-status-error/20 hover:-translate-y-0.5
+           active:scale-[0.97] active:brightness-90
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
   }
 
   .btn-ghost {
-    color: var(--color-text-muted);
+    color: var(--color-text-tertiary);
     @apply inline-flex items-center justify-center gap-2 font-medium
-           px-3 py-2 rounded-xl transition-all duration-200;
-  }
-  .btn-ghost:hover {
-    background-color: var(--color-bg-tertiary);
-    color: var(--color-text-secondary);
+           px-3 py-2 rounded-xl transition-all duration-300
+           hover:bg-theme-bg-tertiary hover:text-theme-text hover:-translate-y-0.5
+           active:scale-[0.95] active:bg-theme-active
+           disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:transform-none;
   }
 
   .input-field {
     background-color: var(--color-bg-input);
-    border-color: var(--color-border-strong);
+    border: 1px solid var(--color-border-strong);
     color: var(--color-text-primary);
-    @apply w-full border rounded-xl px-4 py-3
-           transition-all duration-200
-           focus:outline-none focus:ring-2;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    @apply w-full rounded-xl px-4 py-3 text-sm
+           transition-all duration-300
+           focus:outline-none focus:ring-4 focus:bg-white dark:focus:bg-black/20;
   }
   .input-field::placeholder {
     color: var(--color-text-faint);
   }
   .input-field:focus {
     border-color: var(--color-accent);
-    --tw-ring-color: var(--color-selection-bg);
+    box-shadow: 0 0 0 4px var(--color-selection-bg), inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    --tw-ring-color: transparent;
+    transform: translateY(-1px);
   }
 
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0
+           transition-all duration-200 hover:scale-105 cursor-default;
   }
 
   .lang-toggle {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-tertiary);
-    @apply flex items-center justify-center w-9 h-9 rounded-full
-           font-medium text-xs transition-all duration-200;
-  }
-  .lang-toggle:hover {
-    background-color: var(--color-accent);
-    @apply text-white;
+    @apply flex items-center justify-center w-9 h-9 rounded-xl
+           font-bold text-[10px] transition-all duration-300
+           hover:bg-accent hover:text-white hover:shadow-accent hover:-translate-y-0.5
+           active:scale-[0.9] active:brightness-90;
   }
 
   /* Markdown content styles for discussion messages */
