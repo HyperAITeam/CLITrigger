@@ -768,9 +768,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
       {/* Expanded content */}
       {expanded && (
         <div className="border-t px-3 sm:px-5 py-4 sm:py-5 space-y-3 animate-fade-in" style={{ borderColor: 'var(--color-border)' }}>
-          {/* Meta row: priority, CLI, dependency, branch */}
+          {/* Meta row: CLI, dependency, branch */}
           <div className="flex flex-wrap gap-1.5">
-            <span className="text-[10px] font-mono text-warm-400">#{todo.priority}</span>
             {todo.cli_tool && (
               <span className="badge bg-warm-200/60 text-warm-600 text-[10px] font-mono">
                 {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
