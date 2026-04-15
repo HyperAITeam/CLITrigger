@@ -26,7 +26,12 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(res.status, text);
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      if (json.error) message = json.error;
+    } catch { /* not JSON, use raw text */ }
+    throw new ApiError(res.status, message);
   }
 
   // Handle 204 No Content
