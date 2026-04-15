@@ -23,15 +23,20 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     let top = r.bottom + 4;
-    let left = r.right;
-    const drop = dropRef.current?.getBoundingClientRect();
+    const drop = dropRef.current;
     if (drop) {
-      if (left > vw - 8) left = vw - 8;
-      if (left - drop.width < 8) left = drop.width + 8;
-      if (top + drop.height > vh - 8) top = r.top - drop.height - 4;
+      const dw = drop.offsetWidth;
+      const dh = drop.offsetHeight;
+      // Right-align to button, then clamp within viewport
+      let left = r.right - dw;
+      if (left < 8) left = 8;
+      if (left + dw > vw - 8) left = vw - 8 - dw;
+      if (top + dh > vh - 8) top = r.top - dh - 4;
+      setPos({ top, left });
       setPositioned(true);
+    } else {
+      setPos({ top, left: Math.max(8, r.right - 180) });
     }
-    setPos({ top, left });
   }, []);
 
   useEffect(() => {
@@ -73,11 +78,10 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       {open && createPortal(
         <div
           ref={dropRef}
-          className={`fixed z-[9999] min-w-[160px] max-w-[220px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+          className={`fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
           style={{
             top: pos.top,
             left: pos.left,
-            transform: 'translateX(-100%)',
             opacity: positioned ? 1 : 0,
             backgroundColor: 'var(--color-bg-card)',
             border: '1px solid var(--color-border)',
@@ -512,7 +516,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-warm-200/60 text-warm-600 flex-shrink-0 group/dep"
+            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -535,7 +539,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-warm-200/60 text-warm-600 flex-shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
             {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
           </span>
@@ -610,49 +614,41 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             {canStart && supportsInteractive && (
               <button
                 onClick={() => onStart(todo.id, 'interactive')}
-                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                title={t('todo.startInteractiveDesc')}
               >
-                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span>
-                  <span className="font-medium">{t('todo.startInteractive')}</span>
-                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.startInteractiveDesc')}</span>
-                </span>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {t('todo.startInteractive')}
               </button>
             )}
             {canStart && (
               <button
                 onClick={() => onStart(todo.id, 'verbose')}
-                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                title={t('todo.startVerboseDesc')}
               >
-                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                <span>
-                  <span className="font-medium">{t('todo.startVerbose')}</span>
-                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.startVerboseDesc')}</span>
-                </span>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                {t('todo.startVerbose')}
               </button>
             )}
             {canSchedule && (
               <button
                 onClick={() => setShowSchedulePicker(!showSchedulePicker)}
-                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                title={t('todo.scheduleDesc')}
               >
-                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span>
-                  <span className="font-medium">{t('todo.schedule')}</span>
-                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.scheduleDesc')}</span>
-                </span>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {t('todo.schedule')}
               </button>
             )}
             {canScheduleOnReset && (
               <button
                 onClick={() => { setShowResetSchedule(v => !v); setResetError(null); }}
-                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                title={t('todo.scheduleOnResetDesc')}
               >
-                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>
-                  <span className="font-medium">{t('todo.scheduleOnReset')}</span>
-                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.scheduleOnResetDesc')}</span>
-                </span>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {t('todo.scheduleOnReset')}
               </button>
             )}
             {canViewDiff && (
@@ -862,7 +858,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
           {/* Dependency info */}
           {parentTodo && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="badge bg-warm-200/60 text-warm-600">
+              <span className="badge bg-cyan-500/10 text-cyan-600">
                 {t('todo.dependsOn')}: {parentTodo.title}
               </span>
             </div>
@@ -880,7 +876,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                 </span>
               )}
               {todo.merged_from_branch && (
-                <span className="badge bg-warm-200/60 text-warm-600">
+                <span className="badge bg-purple-500/10 text-purple-600">
                   {t('todo.mergedFrom')}: {todo.merged_from_branch}
                 </span>
               )}
@@ -997,22 +993,22 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                   }
 
                   return (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
-                      <svg className="h-3.5 w-3.5 text-warm-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
+                      <svg className="h-3.5 w-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       {totalInput > 0 && (
                         <span className="text-xs font-mono">{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>
                       )}
-                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-warm-400">·</span>}
+                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-purple-300">·</span>}
                       {tu.output_tokens !== null && (
                         <span className="text-xs font-mono">{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>
                       )}
-                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-warm-400">·</span>}
+                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-purple-300">·</span>}
                       {tu.num_turns != null && tu.num_turns > 1 && (
                         <span className="text-xs font-mono">{tu.num_turns}{t('result.turns')}</span>
                       )}
-                      <span className="text-xs text-warm-400">·</span>
+                      <span className="text-xs text-purple-300">·</span>
                       <span className={`text-xs font-mono ${levelColor}`}>{levelLabel}</span>
                     </div>
                   );
