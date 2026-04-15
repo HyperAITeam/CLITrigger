@@ -228,6 +228,10 @@
   select {
     color-scheme: inherit;
   }
+  select option {
+    background-color: var(--color-bg-card);
+    color: var(--color-text-primary);
+  }
   .input-field::placeholder {
     color: var(--color-text-faint);
   }
