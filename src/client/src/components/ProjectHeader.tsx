@@ -250,7 +250,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <button
               onClick={onStartAll}
               disabled={!hasStartable}
-              className="btn-primary text-sm"
+              className="btn-ghost text-sm"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" />
@@ -261,7 +261,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <button
               onClick={onStopAll}
               disabled={!hasRunning}
-              className="btn-danger text-sm"
+              className="btn-ghost text-sm"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z" />
