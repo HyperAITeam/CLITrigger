@@ -520,7 +520,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-warm-200/60 text-warm-600 flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
             {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
           </span>
