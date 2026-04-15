@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import Sidebar from './Sidebar';
+import ParticleBackground from './ParticleBackground';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface LayoutProps {
@@ -58,8 +59,11 @@ export default function Layout({ children, onLogout, authRequired, connected, on
         </div>
 
         {/* Scrollable content area */}
-        <main className="flex-1 overflow-y-auto">
-          {children}
+        <main className="flex-1 overflow-y-auto relative">
+          <ParticleBackground />
+          <div className="relative" style={{ zIndex: 1 }}>
+            {children}
+          </div>
         </main>
       </div>
     </div>
