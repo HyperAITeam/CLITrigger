@@ -251,6 +251,25 @@
     pointer-events: none;
   }
 
+  /* Section label for list headers */
+  .section-label {
+    @apply text-[10px] font-semibold uppercase tracking-wider;
+    color: var(--color-text-muted);
+  }
+
+  /* Small metric chip for stats display */
+  .metric-chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium;
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-tertiary);
+  }
+
+  /* Panel container for settings sections */
+  .panel {
+    @apply p-4 rounded-xl;
+    border: 1px solid var(--color-border);
+  }
+
   .lang-toggle {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-tertiary);

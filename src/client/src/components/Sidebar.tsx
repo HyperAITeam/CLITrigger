@@ -99,12 +99,15 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         <Link
           to="/"
           onClick={handleNav}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 hover:-translate-x-0.5 active:scale-95"
+          className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 active:scale-95 ${location.pathname === '/' ? 'font-medium' : ''}`}
           style={location.pathname === '/'
             ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
             : { color: 'var(--color-text-tertiary)' }
           }
         >
+          {location.pathname === '/' && (
+            <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+          )}
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
           </svg>
@@ -130,15 +133,18 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 key={project.id}
                 to={`/projects/${project.id}`}
                 onClick={handleNav}
-                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover hover:-translate-x-0.5 active:scale-95 group"
+                className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''}`}
                 style={isActive
                   ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
                   : { color: 'var(--color-text-tertiary)' }
                 }
               >
+                {isActive && (
+                  <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+                )}
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   hasRunning ? 'bg-status-running animate-aurora-glow' : ''
-                }`} style={hasRunning ? undefined : { backgroundColor: 'var(--color-text-faint)' }} />
+                }`} style={hasRunning ? undefined : { backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)' }} />
                 <span className="truncate">{project.name}</span>
               </Link>
             );
