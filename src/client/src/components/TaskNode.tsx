@@ -55,9 +55,15 @@ function TaskNodeComponent({ data }: NodeProps) {
 
   return (
     <div
-      className={`bg-theme-card rounded-xl shadow-soft min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent shadow-lg' : ''}`}
-      style={{ borderLeft: `4px solid ${borderColor}` }}
+      className={`bg-theme-card rounded-xl shadow-card min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-300 ${ringClassMap[todo.status]} ${selected ? 'ring-2 ring-accent shadow-elevated -translate-y-1' : 'hover:shadow-elevated hover:-translate-y-0.5'}`}
+      style={{ 
+        borderLeft: `4px solid ${borderColor}`,
+        position: 'relative'
+      }}
     >
+      {/* Subtle top light highlight */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-white/10 z-10 pointer-events-none" />
+
       {/* Target handle (input - top) */}
       <Handle
         type="target"
