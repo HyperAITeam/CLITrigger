@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
+import { Skeleton } from './Skeleton';
 import * as analyticsApi from '../api/analytics';
 import type { AnalyticsData } from '../api/analytics';
 
@@ -46,7 +47,42 @@ export default function AnalyticsPanel({ projectId }: AnalyticsPanelProps) {
   }, [projectId, period]);
 
   if (loading) {
-    return <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>{t('analytics.loading')}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-4 w-32" />
+          <div className="flex gap-1">
+            <Skeleton className="h-6 w-12" count={4} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="card p-3 space-y-2">
+              <Skeleton className="h-6 w-16 mx-auto" />
+              <Skeleton className="h-3 w-12 mx-auto" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="card p-4 space-y-3">
+            <Skeleton className="h-3 w-24 mb-4" />
+            <Skeleton className="h-4 w-full" count={4} />
+          </div>
+          <div className="card p-4 space-y-3">
+            <Skeleton className="h-3 w-24 mb-4" />
+            <Skeleton className="h-4 w-full" count={4} />
+          </div>
+        </div>
+        <div className="card p-4 space-y-3">
+          <Skeleton className="h-3 w-24 mb-4" />
+          <div className="flex items-end gap-1 h-32">
+            {[...Array(20)].map((_, i) => (
+              <Skeleton key={i} className="flex-1" height={`${Math.random() * 100}%`} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {

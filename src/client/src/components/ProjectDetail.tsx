@@ -6,6 +6,7 @@ import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
 import * as schedulesApi from '../api/schedules';
 import * as discussionsApi from '../api/discussions';
+import { Skeleton } from './Skeleton';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
@@ -435,9 +436,50 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   if (loading) {
     return (
-      <div className="px-6 py-6 sm:px-8 sm:py-8">
-        <div className="text-center py-20 animate-fade-in" style={{ color: 'var(--color-text-muted)' }}>
-          {t('detail.loading')}
+      <div className="px-6 py-6 sm:px-8 sm:py-8 space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+
+        {/* Progress Bar Skeleton */}
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+          <Skeleton className="h-3 w-full rounded-full" />
+        </div>
+
+        {/* Tabs Skeleton */}
+        <div className="flex gap-4 border-b border-theme-border pb-px">
+          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-24" />
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="card p-4 space-y-3">
+              <div className="flex justify-between">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+              <Skeleton className="h-4 w-2/3" />
+              <div className="flex gap-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );

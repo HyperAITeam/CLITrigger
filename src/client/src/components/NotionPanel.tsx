@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Project, NotionPage } from '../types';
+import { Skeleton } from './Skeleton';
 import * as notionApi from '../api/notion';
 import { useI18n } from '../i18n';
 
@@ -133,6 +134,20 @@ export default function NotionPanel({ project, onImportAsTask }: NotionPanelProp
       </div>
 
       {/* Page List */}
+      {pages.length === 0 && loading && (
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="card p-3 space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <div className="flex justify-between">
+                <Skeleton className="h-3 w-1/4" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {pages.length === 0 && !loading && (
         <div className="card p-10 text-center">
           <p className="text-warm-400 text-sm">{t('notion.noPages')}</p>
@@ -264,8 +279,10 @@ function ExpandedPagePanel({ pageId, projectId }: { pageId: string; projectId: s
 
   if (loading) {
     return (
-      <div className="mt-3 pt-3 border-t border-warm-100 animate-slide-up">
-        <p className="text-xs text-warm-400">{t('notion.loadingContent')}</p>
+      <div className="mt-3 pt-3 border-t border-warm-100 space-y-2 animate-slide-up">
+        <Skeleton className="h-3 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
+        <Skeleton className="h-3 w-2/3" />
       </div>
     );
   }
