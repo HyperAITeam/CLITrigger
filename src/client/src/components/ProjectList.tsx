@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
+import { Skeleton } from './Skeleton';
 import ProjectForm from './ProjectForm';
 import ParticleBackground from './ParticleBackground';
 import { useI18n } from '../i18n';
@@ -132,8 +133,21 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
 
       {/* Content */}
       {loading ? (
-        <div className="text-center py-20 animate-fade-in" style={{ color: 'var(--color-text-muted)' }}>
-          {t('projects.loading')}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="card p-5 space-y-3">
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-3 w-full" />
+              <div className="flex gap-2">
+                <Skeleton className="h-5 w-12 rounded-full" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-1 w-full mt-2" />
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 animate-fade-in">

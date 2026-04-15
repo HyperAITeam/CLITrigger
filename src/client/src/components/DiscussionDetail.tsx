@@ -5,6 +5,7 @@ import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
 import { useI18n } from '../i18n';
 import { useNotification } from '../hooks/useNotification';
+import { Skeleton } from './Skeleton';
 import DiscussionForm, { type DiscussionFormValues } from './DiscussionForm';
 import MarkdownContent from './MarkdownContent';
 
@@ -248,7 +249,38 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   }, [discussionId, discussion, lang]);
 
   if (loading) {
-    return <div className="mx-auto max-w-4xl px-4 py-8 text-center text-warm-500">{t('detail.loading')}</div>;
+    return (
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="card p-6 space-y-4">
+          <Skeleton className="h-7 w-1/3" />
+          <Skeleton className="h-4 w-full" count={2} />
+          <div className="flex gap-4 pt-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+        <div className="space-y-8">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex gap-3">
+              <Skeleton variant="circular" width={32} height={32} />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <div className="card p-4 space-y-2">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-5/6" />
+                  <Skeleton className="h-3 w-4/6" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!discussion) {
