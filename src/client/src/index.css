@@ -225,7 +225,7 @@
            transition-all duration-300
            focus:outline-none focus:ring-4 focus:bg-white dark:focus:bg-black/20;
   }
-  select.input-field {
+  select {
     color-scheme: inherit;
   }
   .input-field::placeholder {
