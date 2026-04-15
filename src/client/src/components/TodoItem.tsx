@@ -497,53 +497,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
           </svg>
         </button>
 
-        {/* Priority */}
-        <span className="text-[10px] font-mono text-warm-400 w-6 flex-shrink-0">#{todo.priority}</span>
-
-        {/* Title — takes remaining space, forces line break after on mobile */}
+        {/* Title */}
         <span className="flex-1 basis-[calc(100%-100px)] md:basis-auto min-w-0 text-sm text-warm-800 font-medium truncate order-none">{todo.title}</span>
-
-        {/* Image count badge */}
-        {existingImages.length > 0 && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono text-warm-400 bg-warm-100 flex-shrink-0">
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {existingImages.length}
-          </span>
-        )}
-
-        {/* Dependency Badge */}
-        {parentTodo && (
-          <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
-            title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            {parentTodo.title.length > 20 ? parentTodo.title.slice(0, 20) + '...' : parentTodo.title}
-            {onRemoveDependency && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onRemoveDependency(todo.id); }}
-                className="ml-0.5 h-3.5 w-3.5 rounded-full hover:bg-cyan-500/20 inline-flex items-center justify-center opacity-0 group-hover/dep:opacity-100 transition-opacity"
-                title={t('dnd.removeDep')}
-              >
-                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </span>
-        )}
-
-        {/* CLI Tool Badge */}
-        {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
-            {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
-            {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
-          </span>
-        )}
 
         <StatusBadge status={todo.status} />
 
@@ -572,45 +527,39 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
               </svg>
             </button>
           )}
-          {canMerge && (
-            <button
-              onClick={handleMerge}
-              disabled={merging}
-              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
-              title={t('todo.merge')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-            </button>
-          )}
-          {canContinue && (
-            <button
-              onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
-              disabled={continuing}
-              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
-              title={t('todo.continue')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
-          {canRetry && (
-            <button
-              onClick={() => handleRetry('headless')}
-              disabled={retrying}
-              className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
-              title={t('todo.retry')}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h4.586M20 20v-5h-4.586M4.929 9A8 8 0 0119.071 9M19.071 15A8 8 0 014.929 15" />
-              </svg>
-            </button>
-          )}
 
-          {/* More menu: secondary actions */}
+          {/* More menu: all secondary actions */}
           <MoreMenu>
+            {canMerge && (
+              <button
+                onClick={handleMerge}
+                disabled={merging}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left disabled:opacity-30"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                {t('todo.merge')}
+              </button>
+            )}
+            {canContinue && (
+              <button
+                onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
+                disabled={continuing}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left disabled:opacity-30"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                {t('todo.continue')}
+              </button>
+            )}
+            {canRetry && (
+              <button
+                onClick={() => handleRetry('headless')}
+                disabled={retrying}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left disabled:opacity-30"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h4.586M20 20v-5h-4.586M4.929 9A8 8 0 0119.071 9M19.071 15A8 8 0 014.929 15" /></svg>
+                {t('todo.retry')}
+              </button>
+            )}
             {canStart && supportsInteractive && (
               <button
                 onClick={() => onStart(todo.id, 'interactive')}
@@ -818,12 +767,31 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-warm-200 px-3 sm:px-5 py-4 sm:py-5 space-y-4 sm:space-y-5 animate-fade-in bg-warm-50/50">
-          {/* Description */}
-          <div>
-            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-              {t('todo.description')}
-            </h4>
+        <div className="border-t px-3 sm:px-5 py-4 sm:py-5 space-y-3 animate-fade-in" style={{ borderColor: 'var(--color-border)' }}>
+          {/* Meta row: priority, CLI, dependency, branch */}
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-[10px] font-mono text-warm-400">#{todo.priority}</span>
+            {todo.cli_tool && (
+              <span className="badge bg-warm-200/60 text-warm-600 text-[10px] font-mono">
+                {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
+                {todo.cli_model && <span className="text-warm-400 ml-1">/ {todo.cli_model}</span>}
+              </span>
+            )}
+            {parentTodo && (
+              <span className="badge bg-warm-200/60 text-warm-600 text-[10px]">
+                {t('todo.dependsOn')}: {parentTodo.title.length > 30 ? parentTodo.title.slice(0, 30) + '...' : parentTodo.title}
+              </span>
+            )}
+            {todo.branch_name && (
+              <span className="badge bg-warm-200/60 text-warm-600 text-[10px] font-mono">{todo.branch_name}</span>
+            )}
+            {existingImages.length > 0 && (
+              <span className="badge bg-warm-200/60 text-warm-600 text-[10px]">{existingImages.length} images</span>
+            )}
+          </div>
+
+          {/* Description panel */}
+          <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             <p className="text-sm text-warm-600 whitespace-pre-wrap leading-relaxed">
               {todo.description || t('todo.noDescription')}
             </p>
@@ -831,60 +799,12 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
           {/* Attached Images */}
           {existingImages.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-                {t('todo.attachedImages')} ({existingImages.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {existingImages.map(img => (
-                  <a
-                    key={img.id}
-                    href={todosApi.getTodoImageUrl(todo.id, img.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <img
-                      src={todosApi.getTodoImageUrl(todo.id, img.id)}
-                      alt={img.originalName}
-                      className="h-24 w-24 object-cover rounded-lg border border-warm-200 hover:border-accent transition-colors cursor-pointer"
-                    />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Dependency info */}
-          {parentTodo && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="badge bg-cyan-500/10 text-cyan-600">
-                {t('todo.dependsOn')}: {parentTodo.title}
-              </span>
-            </div>
-          )}
-
-          {/* Branch info */}
-          {todo.branch_name && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="badge bg-status-running/10 text-status-running">
-                {t('todo.branch')}: {todo.branch_name}
-              </span>
-              {todo.worktree_path && (
-                <span className="badge bg-warm-200 text-warm-600 font-mono">
-                  {t('todo.path')}: {todo.worktree_path}
-                </span>
-              )}
-              {todo.merged_from_branch && (
-                <span className="badge bg-purple-500/10 text-purple-600">
-                  {t('todo.mergedFrom')}: {todo.merged_from_branch}
-                </span>
-              )}
-              {!todo.worktree_path && childTodo && (
-                <span className="badge bg-amber-500/10 text-amber-600">
-                  {t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}
-                </span>
-              )}
+            <div className="flex flex-wrap gap-2">
+              {existingImages.map(img => (
+                <a key={img.id} href={todosApi.getTodoImageUrl(todo.id, img.id)} target="_blank" rel="noopener noreferrer">
+                  <img src={todosApi.getTodoImageUrl(todo.id, img.id)} alt={img.originalName} className="h-20 w-20 object-cover rounded-lg border border-warm-200 hover:border-accent transition-colors cursor-pointer" />
+                </a>
+              ))}
             </div>
           )}
 
