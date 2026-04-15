@@ -818,6 +818,7 @@ export interface Session {
   process_pid: number | null;
   branch_name: string | null;
   worktree_path: string | null;
+  use_worktree: number;
   token_usage: string | null;
   total_cost_usd: number | null;
   total_tokens: number | null;
@@ -825,14 +826,14 @@ export interface Session {
   updated_at: string;
 }
 
-export function createSession(projectId: string, title: string, description?: string, cliTool?: string, cliModel?: string): Session {
+export function createSession(projectId: string, title: string, description?: string, cliTool?: string, cliModel?: string, useWorktree?: boolean): Session {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, cliTool ?? null, cliModel ?? null, now, now);
+    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, cliTool ?? null, cliModel ?? null, useWorktree ? 1 : 0, now, now);
   return getSessionById(id)!;
 }
 
@@ -846,7 +847,7 @@ export function getSessionById(id: string): Session | undefined {
   return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'token_usage' | 'total_cost_usd' | 'total_tokens'>>): Session | undefined {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens'>>): Session | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -858,6 +859,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
   if (updates.branch_name !== undefined) { fields.push('branch_name = ?'); values.push(updates.branch_name); }
   if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
+  if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree); }
   if (updates.token_usage !== undefined) { fields.push('token_usage = ?'); values.push(updates.token_usage); }
   if (updates.total_cost_usd !== undefined) { fields.push('total_cost_usd = ?'); values.push(updates.total_cost_usd); }
   if (updates.total_tokens !== undefined) { fields.push('total_tokens = ?'); values.push(updates.total_tokens); }

@@ -246,6 +246,7 @@ export interface Session {
   process_pid: number | null;
   branch_name: string | null;
   worktree_path: string | null;
+  use_worktree: number;
   token_usage: string | null;
   total_cost_usd: number | null;
   total_tokens: number | null;

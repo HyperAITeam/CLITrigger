@@ -7,7 +7,7 @@ export function getSessions(projectId: string): Promise<Session[]> {
 
 export function createSession(
   projectId: string,
-  data: { title: string; description?: string; cli_tool?: string; cli_model?: string }
+  data: { title: string; description?: string; cli_tool?: string; cli_model?: string; use_worktree?: boolean }
 ): Promise<Session> {
   return post(`/api/projects/${projectId}/sessions`, data);
 }

@@ -1,4 +1,5 @@
 import { claudeManager } from './claude-manager.js';
+import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
@@ -22,10 +23,38 @@ export class SessionManager {
     const adapter = getAdapter(cliTool);
     const cliModel = session.cli_model || project.claude_model || undefined;
     const prompt = session.description || '';
-    const workDir = project.path;
+    const useWorktree = !!session.use_worktree && !!project.is_git_repo;
 
     // Mark as running
     queries.updateSessionStatus(sessionId, 'running');
+
+    let workDir = project.path;
+    let worktreePath: string | null = null;
+    let branchName: string | null = null;
+
+    // Worktree setup
+    if (useWorktree) {
+      // Reuse existing worktree if available
+      if (session.worktree_path && session.branch_name && await worktreeManager.isValidWorktree(session.worktree_path)) {
+        worktreePath = session.worktree_path;
+        branchName = session.branch_name;
+        workDir = worktreePath;
+        queries.createSessionLog(sessionId, 'output', `Reusing existing worktree on branch ${branchName}`);
+      } else {
+        branchName = worktreeManager.sanitizeBranchName(`session-${session.title}`);
+        try {
+          worktreePath = await worktreeManager.createWorktree(project.path, branchName);
+          workDir = worktreePath;
+          queries.createSessionLog(sessionId, 'output', `Created worktree on branch ${branchName}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.updateSessionStatus(sessionId, 'failed');
+          queries.createSessionLog(sessionId, 'error', `Failed to create worktree: ${message}`);
+          broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
+          return;
+        }
+      }
+    }
 
     let pid: number;
     let exitPromise: Promise<number>;
@@ -33,7 +62,7 @@ export class SessionManager {
     try {
       const result = await claudeManager.startClaude(
         workDir, prompt, cliModel, undefined, 'interactive', cliTool,
-        undefined, workDir, undefined, false,
+        undefined, project.path, undefined, false,
       );
       pid = result.pid;
       exitPromise = result.exitPromise;
@@ -44,12 +73,19 @@ export class SessionManager {
       const message = err instanceof Error ? err.message : String(err);
       queries.updateSessionStatus(sessionId, 'failed');
       queries.createSessionLog(sessionId, 'error', `Failed to start ${adapter.displayName}: ${message}`);
+      // Clean up worktree on failure
+      if (useWorktree && worktreePath && !session.worktree_path) {
+        try { await worktreeManager.removeWorktree(project.path, worktreePath); } catch { /* ignore */ }
+      }
       broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
       return;
     }
 
-    queries.updateSession(sessionId, { process_pid: pid });
-    queries.createSessionLog(sessionId, 'output', `Started ${adapter.displayName} (PID: ${pid}) [interactive]`);
+    queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath });
+    const logMsg = useWorktree
+      ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [interactive]`
+      : `Started ${adapter.displayName} (PID: ${pid}) [interactive]`;
+    queries.createSessionLog(sessionId, 'output', logMsg);
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running' });
 
     // Handle process exit

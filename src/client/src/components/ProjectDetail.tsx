@@ -667,6 +667,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           sessions={sessions}
           projectCliTool={project.cli_tool}
           projectCliModel={project.claude_model ?? undefined}
+          isGitRepo={!!project.is_git_repo}
           onAddSession={handleAddSession}
           onStartSession={handleStartSession}
           onStopSession={handleStopSession}

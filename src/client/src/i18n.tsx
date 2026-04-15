@@ -442,6 +442,7 @@ const translations = {
     'session.create': 'Create Session',
     'session.cliTool': 'CLI Tool',
     'session.model': 'Model',
+    'session.worktree': 'Use worktree (isolated branch)',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -1035,6 +1036,7 @@ const translations = {
     'session.create': '세션 생성',
     'session.cliTool': 'CLI 도구',
     'session.model': '모델',
+    'session.worktree': '워크트리 사용 (격리된 브랜치)',
 
     // Analytics
     'analytics.title': '실행 통계',

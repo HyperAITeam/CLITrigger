@@ -11,6 +11,7 @@ interface SessionListProps {
   sessions: Session[];
   projectCliTool?: string;
   projectCliModel?: string;
+  isGitRepo?: boolean;
   onAddSession: (session: Session) => void;
   onStartSession: (id: string) => Promise<void>;
   onStopSession: (id: string) => Promise<void>;
@@ -42,6 +43,7 @@ export default function SessionList({
   sessions,
   projectCliTool,
   projectCliModel,
+  isGitRepo,
   onAddSession,
   onStartSession,
   onStopSession,
@@ -95,7 +97,7 @@ export default function SessionList({
     });
   }, [onEvent]);
 
-  const handleCreate = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string) => {
+  const handleCreate = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, useWorktree?: boolean) => {
     setCreating(true);
     try {
       const session = await sessionsApi.createSession(projectId, {
@@ -103,6 +105,7 @@ export default function SessionList({
         description: description || undefined,
         cli_tool: cliTool,
         cli_model: cliModel,
+        use_worktree: useWorktree,
       });
       onAddSession(session);
       setShowForm(false);
@@ -135,6 +138,7 @@ export default function SessionList({
           onCancel={() => setShowForm(false)}
           projectCliTool={projectCliTool}
           projectCliModel={projectCliModel}
+          isGitRepo={isGitRepo}
         />
       )}
 
@@ -180,6 +184,14 @@ export default function SessionList({
                           {session.cli_tool || 'claude'}
                           {session.cli_model ? ` / ${session.cli_model}` : ''}
                         </span>
+                        {session.branch_name && (
+                          <span className="text-[10px] text-accent/70 flex items-center gap-0.5">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {session.branch_name}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>

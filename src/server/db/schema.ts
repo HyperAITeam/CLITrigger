@@ -215,6 +215,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'task_logs', column: 'round_number', definition: 'INTEGER DEFAULT 1' },
     { table: 'todos', column: 'total_cost_usd', definition: 'REAL' },
     { table: 'todos', column: 'total_tokens', definition: 'INTEGER' },
+    { table: 'sessions', column: 'use_worktree', definition: 'INTEGER DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of migrations) {

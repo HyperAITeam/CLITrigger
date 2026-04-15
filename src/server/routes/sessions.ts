@@ -13,7 +13,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model } = req.body;
+    const { title, description, cli_tool, cli_model, use_worktree } = req.body;
     if (!title || typeof title !== 'string' || !title.trim()) {
       res.status(400).json({ error: 'Title is required' });
       return;
@@ -25,6 +25,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       description?.trim() || undefined,
       cli_tool || undefined,
       cli_model || undefined,
+      !!use_worktree,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
@@ -78,7 +79,7 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const allowed = ['title', 'description', 'cli_tool', 'cli_model'] as const;
+    const allowed = ['title', 'description', 'cli_tool', 'cli_model', 'use_worktree'] as const;
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
