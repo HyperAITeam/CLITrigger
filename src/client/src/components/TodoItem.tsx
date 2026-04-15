@@ -12,6 +12,7 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [positioned, setPositioned] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -28,14 +29,13 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       if (left > vw - 8) left = vw - 8;
       if (left - drop.width < 8) left = drop.width + 8;
       if (top + drop.height > vh - 8) top = r.top - drop.height - 4;
-    } else {
-      if (left > vw - 8) left = vw - 8;
+      setPositioned(true);
     }
     setPos({ top, left });
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setPositioned(false); return; }
     updatePos();
     const raf = requestAnimationFrame(updatePos);
     const close = (e: MouseEvent) => {
@@ -73,11 +73,12 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       {open && createPortal(
         <div
           ref={dropRef}
-          className="fixed z-[9999] min-w-[160px] max-w-[220px] rounded-xl py-1 shadow-elevated animate-scale-in"
+          className={`fixed z-[9999] min-w-[160px] max-w-[220px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
           style={{
             top: pos.top,
             left: pos.left,
             transform: 'translateX(-100%)',
+            opacity: positioned ? 1 : 0,
             backgroundColor: 'var(--color-bg-card)',
             border: '1px solid var(--color-border)',
           }}
