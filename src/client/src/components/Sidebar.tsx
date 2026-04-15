@@ -143,7 +143,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                   <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
                 )}
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  hasRunning ? 'bg-status-running animate-aurora-glow' : ''
+                  hasRunning ? 'bg-status-running animate-pulse' : ''
                 }`} style={hasRunning ? undefined : { backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)' }} />
                 <span className="truncate">{project.name}</span>
               </Link>

@@ -553,12 +553,12 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
       />
 
       {/* Segmented tab control */}
-      <div className="flex gap-1 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+      <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
-          { key: 'tasks', label: `${t('tabs.tasks')} (${todos.length})` },
-          { key: 'sessions', label: `${t('tabs.sessions')} (${sessions.length})` },
-          { key: 'discussions', label: `${t('tabs.discussions')} (${discussions.length})` },
-          { key: 'schedules', label: `${t('tabs.schedules')} (${schedules.length})` },
+          { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
+          { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
+          { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
+          { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
           ...getPluginsWithTabs(project).map((plugin) => ({
             key: plugin.id,
             label: t(`tabs.${plugin.id}`) || plugin.displayName,
@@ -569,14 +569,19 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold whitespace-nowrap rounded-lg transition-all duration-200 ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
               activeTab === tab.key
-                ? 'text-warm-800 shadow-soft'
-                : 'text-warm-500 hover:text-warm-700'
+                ? 'text-warm-800 font-semibold shadow-soft'
+                : 'text-warm-500 font-normal hover:text-warm-600'
             }`}
             style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
           >
             {tab.label}
+            {'count' in tab && typeof tab.count === 'number' && (
+              <span className={`ml-1 ${activeTab === tab.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                {tab.count}
+              </span>
+            )}
           </button>
         ))}
       </div>

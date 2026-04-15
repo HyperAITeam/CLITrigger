@@ -11,11 +11,11 @@ interface Particle {
   alpha: number;
 }
 
-const PARTICLE_COUNT = 80;
-const CONNECTION_DIST = 120;
-const MOUSE_RADIUS = 180;
-const RETURN_SPEED = 0.03;
-const PUSH_FORCE = 8;
+const PARTICLE_COUNT = 40;
+const CONNECTION_DIST = 100;
+const MOUSE_RADIUS = 120;
+const RETURN_SPEED = 0.02;
+const PUSH_FORCE = 4;
 
 export default function ParticleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -57,7 +57,7 @@ export default function ParticleBackground() {
           vx: (Math.random() - 0.5) * 0.3,
           vy: (Math.random() - 0.5) * 0.3,
           size: Math.random() * 1.5 + 0.5,
-          alpha: Math.random() * 0.4 + 0.1,
+          alpha: Math.random() * 0.2 + 0.05,
         });
       }
     }
@@ -123,7 +123,7 @@ export default function ParticleBackground() {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < CONNECTION_DIST) {
-            const alpha = (1 - dist / CONNECTION_DIST) * 0.15;
+            const alpha = (1 - dist / CONNECTION_DIST) * 0.08;
             ctx.beginPath();
             ctx.strokeStyle = `rgba(75, 141, 255, ${alpha})`;
             ctx.lineWidth = 0.5;
@@ -138,7 +138,7 @@ export default function ParticleBackground() {
         const mdy = particles[i].y - mouse.y;
         const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
         if (mdist < MOUSE_RADIUS) {
-          const alpha = (1 - mdist / MOUSE_RADIUS) * 0.3;
+          const alpha = (1 - mdist / MOUSE_RADIUS) * 0.12;
           ctx.beginPath();
           ctx.strokeStyle = `rgba(75, 141, 255, ${alpha})`;
           ctx.lineWidth = 0.8;
@@ -154,7 +154,7 @@ export default function ParticleBackground() {
         const dx = p.x - mouse.x;
         const dy = p.y - mouse.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const glowAlpha = dist < MOUSE_RADIUS ? p.alpha + (1 - dist / MOUSE_RADIUS) * 0.5 : p.alpha;
+        const glowAlpha = dist < MOUSE_RADIUS ? p.alpha + (1 - dist / MOUSE_RADIUS) * 0.2 : p.alpha;
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -165,7 +165,7 @@ export default function ParticleBackground() {
         if (dist < MOUSE_RADIUS) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(75, 141, 255, ${(1 - dist / MOUSE_RADIUS) * 0.08})`;
+          ctx.fillStyle = `rgba(75, 141, 255, ${(1 - dist / MOUSE_RADIUS) * 0.04})`;
           ctx.fill();
         }
       }

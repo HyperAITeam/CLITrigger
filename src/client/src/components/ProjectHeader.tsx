@@ -25,6 +25,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const { t } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<string>('execution');
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(project.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -278,18 +279,18 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           <div className="flex flex-wrap gap-1.5 flex-1">
             {project.is_git_repo ? (
               <>
-                <span className="badge bg-status-success/10 text-status-success">Git</span>
-                <span className="badge bg-status-running/10 text-status-running">
+                <span className="badge bg-warm-200/60 text-warm-600">Git</span>
+                <span className="badge bg-warm-200/60 text-warm-600">
                   {t('header.branch')}: {project.default_branch}
                 </span>
               </>
             ) : (
               <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
             )}
-            <span className="badge bg-status-merged/10 text-status-merged">
+            <span className="badge bg-warm-200/60 text-warm-600">
               {getToolConfig((project.cli_tool as CliTool) || 'claude').label}
             </span>
-            <span className={`badge ${(project.sandbox_mode || 'strict') === 'strict' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
+            <span className="badge bg-warm-200/60 text-warm-600">
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
           </div>
@@ -298,7 +299,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           <div className="flex items-center gap-3 flex-shrink-0">
             {runningTodos > 0 && (
               <span className="inline-flex items-center gap-1.5 text-xs text-status-running font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-status-running animate-aurora-glow" />
+                <span className="w-1.5 h-1.5 rounded-full bg-status-running animate-pulse" />
                 {runningTodos} {t('projects.active')}
               </span>
             )}
@@ -311,11 +312,31 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="mt-5 card p-6 animate-slide-up">
-          <h3 className="text-sm font-semibold text-warm-700 mb-5">
-            {t('header.config')}
-          </h3>
+        <div className="mt-5 card p-6 animate-fade-in">
+          {/* Settings section tabs */}
+          <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+            {[
+              { key: 'execution', label: t('header.config') },
+              { key: 'security', label: t('header.sandboxTitle') },
+              { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
+            ].map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSettingsSection(s.key)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  settingsSection === s.key
+                    ? 'text-warm-800 shadow-soft'
+                    : 'text-warm-500 hover:text-warm-700'
+                }`}
+                style={settingsSection === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
 
+          {settingsSection === 'execution' && (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div>
               <label className="block text-xs font-medium text-warm-500 mb-2">
@@ -364,7 +385,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                   href="https://claude.ai/settings/usage"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-1.5 text-xs text-purple-500 hover:text-purple-700 transition-colors"
+                  className="inline-flex items-center gap-1 mt-1.5 text-xs text-accent hover:text-accent-dark transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
@@ -443,11 +464,11 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           </div>
 
           {/* CLI Fallback Chain */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <h4 className="text-sm font-semibold text-warm-700 mb-2">
+          <div className="mt-5 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-xs font-semibold text-warm-600 mb-2">
               {t('header.fallbackChainTitle')}
             </h4>
-            <p className="text-xs text-warm-400 mb-3">{t('header.fallbackChainHint')}</p>
+            <p className="text-[10px] text-warm-400 mb-3">{t('header.fallbackChainHint')}</p>
             <div className="flex flex-wrap gap-2">
               {CLI_TOOLS.map((tool) => {
                 const idx = fallbackChain.indexOf(tool.value);
@@ -465,7 +486,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       isSelected
-                        ? 'bg-accent/20 border-accent text-accent-dark'
+                        ? 'bg-accent/10 border-accent text-accent'
                         : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
                     }`}
                   >
@@ -476,14 +497,18 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               })}
             </div>
             {fallbackChain.length > 0 && (
-              <p className="text-xs text-warm-500 mt-2">
+              <p className="text-[10px] text-warm-500 mt-2">
                 {fallbackChain.map((v) => CLI_TOOLS.find((t) => t.value === v)?.label ?? v).join(' → ')}
               </p>
             )}
           </div>
+          </>
+          )}
 
+          {settingsSection === 'security' && (
+          <>
           {/* Sandbox Mode */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+          <div className="p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">
               {t('header.sandboxTitle')}
             </h4>
@@ -614,6 +639,11 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             </label>
           </div>
 
+          </>
+          )}
+
+          {settingsSection === 'plugins' && (
+          <>
           {/* Plugin Settings */}
           {getClientPlugins().map((plugin) => (
             <div key={plugin.id} className="mt-6">
@@ -627,6 +657,8 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
 
           {/* Model Management */}
           <ModelSettings />
+          </>
+          )}
 
           {!project.is_git_repo && (
             <div className="mt-5 p-3 bg-status-warning/5 border border-status-warning/20 rounded-xl">

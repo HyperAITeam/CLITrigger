@@ -172,11 +172,11 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },
-                  className: 'card group block p-5 opacity-50 relative cursor-pointer animate-slide-up',
+                  className: 'card group block p-5 opacity-50 relative cursor-pointer animate-fade-in',
                 }
               : {
                   to: `/projects/${project.id}`,
-                  className: 'card group block p-5 relative hover:border-accent/30 animate-slide-up',
+                  className: 'card group block p-5 relative hover:border-accent/30 animate-fade-in',
                 };
             return (
               <CardWrapper
@@ -196,47 +196,47 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                   </svg>
                 </button>
 
-                <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
-                  {project.name}
-                </h3>
-                <p className="mt-1 text-xs font-mono truncate" style={{ color: 'var(--color-text-tertiary)' }}>
-                  {project.path}
-                </p>
-
-                <div className="mt-2 flex gap-1.5">
-                  {pathMissing ? (
-                    <span className="badge bg-status-error/10 text-status-error text-[10px]">{t('projects.pathMissing')}</span>
-                  ) : project.is_git_repo ? (
-                    <span className="badge bg-status-success/10 text-status-success text-[10px]">Git</span>
-                  ) : (
-                    <span className="badge bg-status-warning/10 text-status-warning text-[10px]">{t('projects.noGit')}</span>
-                  )}
+                {/* Top row: avatar + name */}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
+                    {project.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                      {project.name}
+                    </h3>
+                    <p className="text-[10px] font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
+                      {project.path.split(/[/\\]/).slice(-2).join('/')}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Stats */}
-                <div className="mt-4 flex items-center gap-2 text-xs">
-                  <span className="px-2 py-0.5 rounded-md" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-tertiary)' }}>
-                    {counts.total} {t('projects.tasks')}
-                  </span>
-                  {counts.running > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-running/10 text-status-running">
-                      <span className="h-1.5 w-1.5 rounded-full bg-status-running animate-aurora-glow" />
-                      {counts.running} {t('projects.active')}
+                {/* Progress + stats row */}
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    {counts.running > 0 && (
+                      <span className="inline-flex items-center gap-1 text-status-running font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-running" />
+                        {counts.running}
+                      </span>
+                    )}
+                    <span style={{ color: 'var(--color-text-muted)' }}>
+                      {counts.completed}/{counts.total}
                     </span>
-                  )}
-                  {counts.completed > 0 && (
-                    <span className="px-2 py-0.5 rounded-md bg-status-success/10 text-status-success">
-                      {counts.completed} {t('projects.done')}
+                  </div>
+                  {counts.total > 0 && (
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                      {Math.round((counts.completed / counts.total) * 100)}%
                     </span>
                   )}
                 </div>
 
                 {/* Progress bar */}
                 {counts.total > 0 && (
-                  <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
                     <div
-                      className="h-full rounded-full bg-status-success transition-all duration-500"
-                      style={{ width: `${(counts.completed / counts.total) * 100}%` }}
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${(counts.completed / counts.total) * 100}%`, backgroundColor: 'var(--color-accent)' }}
                     />
                   </div>
                 )}
