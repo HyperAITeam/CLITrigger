@@ -355,9 +355,9 @@ export default function TaskNodeDetail({
         {/* Branch */}
         {todo.branch_name && (
           <div className="flex flex-wrap gap-1.5">
-            <span className="badge text-[10px] bg-status-running/10 text-status-running">{t('todo.branch')}: {todo.branch_name}</span>
+            <span className="badge text-[10px] bg-warm-200/60 text-warm-600">{t('todo.branch')}: {todo.branch_name}</span>
             {todo.merged_from_branch && (
-              <span className="badge text-[10px] bg-purple-500/10 text-purple-600">{t('todo.mergedFrom')}: {todo.merged_from_branch}</span>
+              <span className="badge text-[10px] bg-warm-200/60 text-warm-600">{t('todo.mergedFrom')}: {todo.merged_from_branch}</span>
             )}
             {!todo.worktree_path && childTodo && (
               <span className="badge text-[10px] bg-amber-500/10 text-amber-600">{t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}</span>
@@ -411,7 +411,7 @@ export default function TaskNodeDetail({
                 </span>
               )}
               {showTokenUsage && resultData.token_usage && resultData.token_usage.input_tokens !== null && (
-                <span className="text-[10px] font-mono badge bg-purple-100 text-purple-700">
+                <span className="text-[10px] font-mono badge bg-warm-200/60 text-warm-600">
                   {formatTokenCount(resultData.token_usage.input_tokens)} in / {formatTokenCount(resultData.token_usage.output_tokens ?? 0)} out
                 </span>
               )}

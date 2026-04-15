@@ -512,7 +512,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
+            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-warm-200/60 text-warm-600 flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -862,7 +862,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
           {/* Dependency info */}
           {parentTodo && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="badge bg-cyan-500/10 text-cyan-600">
+              <span className="badge bg-warm-200/60 text-warm-600">
                 {t('todo.dependsOn')}: {parentTodo.title}
               </span>
             </div>
@@ -880,7 +880,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                 </span>
               )}
               {todo.merged_from_branch && (
-                <span className="badge bg-purple-500/10 text-purple-600">
+                <span className="badge bg-warm-200/60 text-warm-600">
                   {t('todo.mergedFrom')}: {todo.merged_from_branch}
                 </span>
               )}
@@ -997,22 +997,22 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                   }
 
                   return (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
-                      <svg className="h-3.5 w-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
+                      <svg className="h-3.5 w-3.5 text-warm-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       {totalInput > 0 && (
                         <span className="text-xs font-mono">{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>
                       )}
-                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-purple-300">·</span>}
+                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-warm-400">·</span>}
                       {tu.output_tokens !== null && (
                         <span className="text-xs font-mono">{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>
                       )}
-                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-purple-300">·</span>}
+                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-warm-400">·</span>}
                       {tu.num_turns != null && tu.num_turns > 1 && (
                         <span className="text-xs font-mono">{tu.num_turns}{t('result.turns')}</span>
                       )}
-                      <span className="text-xs text-purple-300">·</span>
+                      <span className="text-xs text-warm-400">·</span>
                       <span className={`text-xs font-mono ${levelColor}`}>{levelLabel}</span>
                     </div>
                   );
