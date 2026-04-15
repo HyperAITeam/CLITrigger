@@ -19,12 +19,25 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
   const updatePos = useCallback(() => {
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 4, left: r.right });
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let top = r.bottom + 4;
+    let left = r.right;
+    const drop = dropRef.current?.getBoundingClientRect();
+    if (drop) {
+      if (left > vw - 8) left = vw - 8;
+      if (left - drop.width < 8) left = drop.width + 8;
+      if (top + drop.height > vh - 8) top = r.top - drop.height - 4;
+    } else {
+      if (left > vw - 8) left = vw - 8;
+    }
+    setPos({ top, left });
   }, []);
 
   useEffect(() => {
     if (!open) return;
     updatePos();
+    const raf = requestAnimationFrame(updatePos);
     const close = (e: MouseEvent) => {
       const t = e.target as Node;
       if (btnRef.current?.contains(t) || dropRef.current?.contains(t)) return;
@@ -34,6 +47,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
     window.addEventListener('scroll', updatePos, true);
     window.addEventListener('resize', updatePos);
     return () => {
+      cancelAnimationFrame(raf);
       document.removeEventListener('mousedown', close);
       window.removeEventListener('scroll', updatePos, true);
       window.removeEventListener('resize', updatePos);
@@ -59,7 +73,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       {open && createPortal(
         <div
           ref={dropRef}
-          className="fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated animate-scale-in"
+          className="fixed z-[9999] min-w-[160px] max-w-[220px] rounded-xl py-1 shadow-elevated animate-scale-in"
           style={{
             top: pos.top,
             left: pos.left,
@@ -595,37 +609,49 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
             {canStart && supportsInteractive && (
               <button
                 onClick={() => onStart(todo.id, 'interactive')}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                {t('todo.startInteractive')}
+                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>
+                  <span className="font-medium">{t('todo.startInteractive')}</span>
+                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.startInteractiveDesc')}</span>
+                </span>
               </button>
             )}
             {canStart && (
               <button
                 onClick={() => onStart(todo.id, 'verbose')}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                {t('todo.startVerbose')}
+                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                <span>
+                  <span className="font-medium">{t('todo.startVerbose')}</span>
+                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.startVerboseDesc')}</span>
+                </span>
               </button>
             )}
             {canSchedule && (
               <button
                 onClick={() => setShowSchedulePicker(!showSchedulePicker)}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                {t('todo.schedule')}
+                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>
+                  <span className="font-medium">{t('todo.schedule')}</span>
+                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.scheduleDesc')}</span>
+                </span>
               </button>
             )}
             {canScheduleOnReset && (
               <button
                 onClick={() => { setShowResetSchedule(v => !v); setResetError(null); }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
+                className="flex items-start gap-2 w-full px-3 py-1.5 text-xs text-warm-600 hover:bg-theme-hover rounded-md transition-colors text-left"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {t('todo.scheduleOnReset')}
+                <svg className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>
+                  <span className="font-medium">{t('todo.scheduleOnReset')}</span>
+                  <span className="block text-[10px] text-warm-400 leading-tight mt-0.5">{t('todo.scheduleOnResetDesc')}</span>
+                </span>
               </button>
             )}
             {canViewDiff && (
