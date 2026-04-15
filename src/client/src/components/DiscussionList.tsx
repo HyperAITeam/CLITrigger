@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Play, Pause, Trash2 } from 'lucide-react';
 import type { Discussion, DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import * as discussionsApi from '../api/discussions';
@@ -152,7 +153,7 @@ export default function DiscussionList({
                         className="p-1.5 text-status-success hover:bg-status-success/10 rounded transition-colors"
                         title={t('header.runAll')}
                       >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                        <Play size={16} />
                       </button>
                     )}
                     {canStop && (
@@ -161,7 +162,7 @@ export default function DiscussionList({
                         className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
                         title={t('discussions.pause')}
                       >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
+                        <Pause size={16} />
                       </button>
                     )}
                     <button
@@ -169,9 +170,7 @@ export default function DiscussionList({
                       className="p-1.5 text-warm-400 hover:text-status-error rounded transition-colors"
                       title={t('todo.delete')}
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>

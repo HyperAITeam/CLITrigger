@@ -14,6 +14,7 @@ import {
   MarkerType,
   BackgroundVariant,
 } from '@xyflow/react';
+import { LayoutGrid, Plus } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import type { Todo, TaskLog } from '../types';
@@ -299,18 +300,14 @@ export default function TaskGraph({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-theme-card border border-warm-200 rounded-lg shadow-soft hover:bg-warm-50 text-warm-600 transition-colors"
             title={t('graph.autoLayout')}
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-            </svg>
+            <LayoutGrid size={14} />
             {t('graph.autoLayout')}
           </button>
           <button
             onClick={() => setShowForm(true)}
             className="btn-primary text-xs py-1.5"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+            <Plus size={14} />
             {t('todos.add')}
           </button>
         </div>

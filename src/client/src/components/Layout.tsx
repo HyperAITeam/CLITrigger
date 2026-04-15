@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import ParticleBackground from './ParticleBackground';
 import type { WsEvent } from '../hooks/useWebSocket';
+import { Menu } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -51,9 +52,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
             className="p-1.5 rounded-lg hover:bg-theme-hover transition-colors"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
+            <Menu size={20} />
           </button>
           <span className="ml-3 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>CLITrigger</span>
         </div>

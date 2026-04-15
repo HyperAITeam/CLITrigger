@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link, Search } from 'lucide-react';
 import type { Project, JiraIssue } from '../types';
 import * as jiraApi from '../api/jira';
 import { useI18n } from '../i18n';
@@ -81,9 +82,7 @@ export default function JiraPanel({ project, onImportAsTask }: JiraPanelProps) {
     return (
       <div className="card p-16 text-center animate-fade-in">
         <div className="text-warm-300 mb-3">
-          <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-          </svg>
+          <Link size={48} className="mx-auto" strokeWidth={1} />
         </div>
         <p className="text-warm-400 text-sm">{t('jira.notConfigured')}</p>
       </div>
@@ -136,9 +135,7 @@ export default function JiraPanel({ project, onImportAsTask }: JiraPanelProps) {
             onClick={handleSearch}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Search size={14} />
           </button>
         </div>
         <select

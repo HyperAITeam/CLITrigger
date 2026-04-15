@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
@@ -90,9 +91,7 @@ export default function ModelSettings() {
                 onClick={() => handleRemove(m.id)}
                 className="text-warm-300 hover:text-status-error transition-colors p-1"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={14} />
               </button>
             )}
           </div>

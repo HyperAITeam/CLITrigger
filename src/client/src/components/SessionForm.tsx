@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 
@@ -78,9 +79,7 @@ export default function SessionForm({ onSave, onCancel, projectCliTool, projectC
             onChange={(e) => setUseWorktree(e.target.checked)}
             className="rounded border-warm-300"
           />
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+          <GitBranch size={14} />
           {t('session.worktree')}
         </label>
       )}

@@ -6,6 +6,7 @@ import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
 import TaskGraph from './TaskGraph';
 import { useI18n } from '../i18n';
+import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink } from 'lucide-react';
 
 interface TodoListProps {
   todos: Todo[];
@@ -248,18 +249,14 @@ export default function TodoList({
                 className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
                 title={t('graph.listView')}
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <List size={14} />
               </button>
               <button
                 onClick={() => handleViewModeChange('graph')}
                 className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent"
                 title={t('graph.graphView')}
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                </svg>
+                <LayoutGrid size={14} />
               </button>
             </div>
           </div>
@@ -304,18 +301,14 @@ export default function TodoList({
               className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent"
               title={t('graph.listView')}
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <List size={14} />
             </button>
             <button
               onClick={() => handleViewModeChange('graph')}
               className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
               title={t('graph.graphView')}
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-              </svg>
+              <LayoutGrid size={14} />
             </button>
           </div>
           {!showForm && (
@@ -323,9 +316,7 @@ export default function TodoList({
               onClick={() => setShowForm(true)}
               className="btn-primary text-xs py-2"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+              <Plus size={14} />
               {t('todos.add')}
             </button>
           )}
@@ -362,9 +353,7 @@ export default function TodoList({
                 {/* Chain merge header for completed chain roots */}
                 {isCompletedChainRoot && (
                   <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-status-merged/5 border border-status-merged/20 animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
-                    <svg className="h-4 w-4 text-status-merged flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
+                    <Link size={16} className="text-status-merged flex-shrink-0" />
                     <span className="text-xs font-semibold text-status-merged">
                       {t('todo.chainComplete')}
                     </span>
@@ -381,9 +370,7 @@ export default function TodoList({
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-status-merged/15 text-status-merged hover:bg-status-merged/25 border border-status-merged/30 transition-colors disabled:opacity-50"
                         title={t('todo.mergeChainDesc')}
                       >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
+                        <ArrowLeftRight size={14} />
                         {mergingChain === todo.id ? '...' : t('todo.mergeChain')}
                       </button>
                     </div>
@@ -444,9 +431,7 @@ export default function TodoList({
             }
           }}
         >
-          <svg className="w-5 h-5 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.181 8.68a4.503 4.503 0 0 1 1.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 0 0 6.364 6.365l3.129-3.129m5.614-5.615 1.757-1.757a4.5 4.5 0 0 0-6.364-6.365l-3.129 3.129m0 0a4.503 4.503 0 0 0-1.903 6.405" />
-          </svg>
+          <Unlink size={20} className="mx-auto mb-1" />
           {t('dnd.dropToRemoveDep')}
         </div>
       )}

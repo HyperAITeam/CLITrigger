@@ -216,6 +216,20 @@
            disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:transform-none;
   }
 
+  /* Button size modifiers — add as second class: btn-primary btn-sm */
+  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg gap-1.5; }
+  .btn-lg { @apply px-6 py-3 text-base rounded-xl gap-2.5; }
+
+  /* Icon-only button */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg transition-all duration-200
+           hover:bg-theme-hover active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed;
+    color: var(--color-text-tertiary);
+  }
+  .btn-icon:hover { color: var(--color-text-primary); }
+  .btn-icon-sm { @apply w-7 h-7; }
+  .btn-icon-md { @apply w-8 h-8; }
+
   .input-field {
     background-color: var(--color-bg-input);
     border: 1px solid var(--color-border-strong);

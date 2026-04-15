@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Link, Play, Square, GitMerge, Archive, RotateCcw, Trash2 } from 'lucide-react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import StatusBadge from './StatusBadge';
@@ -93,9 +94,7 @@ function TaskNodeComponent({ data }: NodeProps) {
           )}
           {parentTodo && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono bg-cyan-500/10 text-cyan-600">
-              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
+              <Link size={10} />
               {parentTodo.title.length > 15 ? parentTodo.title.slice(0, 15) + '...' : parentTodo.title}
             </span>
           )}
@@ -110,7 +109,7 @@ function TaskNodeComponent({ data }: NodeProps) {
             className="p-1 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded transition-colors"
             title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}
           >
-            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            <Play size={12} />
           </button>
         )}
         {canStop && (
@@ -119,7 +118,7 @@ function TaskNodeComponent({ data }: NodeProps) {
             className="p-1 text-status-error/60 hover:text-status-error hover:bg-status-error/10 rounded transition-colors"
             title={t('todo.stop')}
           >
-            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z" /></svg>
+            <Square size={12} />
           </button>
         )}
         {canMerge && (
@@ -128,9 +127,7 @@ function TaskNodeComponent({ data }: NodeProps) {
             className="p-1 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded transition-colors"
             title={t('todo.merge')}
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
+            <GitMerge size={12} />
           </button>
         )}
         {canCleanup && (
@@ -139,9 +136,7 @@ function TaskNodeComponent({ data }: NodeProps) {
             className="p-1 text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10 rounded transition-colors"
             title={t('todo.cleanup')}
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
+            <Archive size={12} />
           </button>
         )}
         {canRetry && (
@@ -150,9 +145,7 @@ function TaskNodeComponent({ data }: NodeProps) {
             className="p-1 text-cyan-500/60 hover:text-cyan-500 hover:bg-cyan-500/10 rounded transition-colors"
             title={t('todo.retry')}
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h4.586M20 20v-5h-4.586M4.929 9A8 8 0 0119.071 9M19.071 15A8 8 0 014.929 15" />
-            </svg>
+            <RotateCcw size={12} />
           </button>
         )}
         <button
@@ -160,9 +153,7 @@ function TaskNodeComponent({ data }: NodeProps) {
           className="p-1 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded transition-colors"
           title={t('todo.delete')}
         >
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
+          <Trash2 size={12} />
         </button>
       </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Pencil, X } from 'lucide-react';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
@@ -197,17 +198,13 @@ export default function TaskNodeDetail({
           className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
           title={t('todo.edit')}
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
+          <Pencil size={14} />
         </button>
         <button
           onClick={onClose}
           className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-lg transition-colors"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X size={16} />
         </button>
       </div>
 

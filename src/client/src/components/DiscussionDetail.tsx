@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight } from 'lucide-react';
 import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, DiscussionLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
@@ -325,9 +326,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           to={`/projects/${id}?tab=discussions`}
           className="inline-flex items-center gap-1 text-sm text-warm-500 hover:text-accent transition-colors"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft size={16} />
           {t('discussions.back')}
         </Link>
         <span className="text-warm-300">/</span>
@@ -380,9 +379,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           <div className="mb-4 rounded-xl border border-status-error/30 bg-status-error/5 overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between px-4 py-2.5 bg-status-error/10 border-b border-status-error/20">
               <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-status-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
+                <AlertTriangle size={16} className="text-status-error" />
                 <h4 className="text-xs font-semibold text-status-error uppercase tracking-wider">
                   {t('discussions.failureTitle')}
                 </h4>
@@ -405,9 +402,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                 onClick={handleStart}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-status-success/15 text-status-success hover:bg-status-success/25 border border-status-success/30 transition-colors"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h4.586M20 20v-5h-4.586M4.929 9A8 8 0 0119.071 9M19.071 15A8 8 0 014.929 15" />
-                </svg>
+                <RotateCcw size={14} />
                 {t('discussions.retry')}
               </button>
             </div>
@@ -432,13 +427,13 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {canStart && (
           <button onClick={handleStart} className="btn-primary text-sm">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            <Play size={16} />
             {discussion.status === 'pending' ? t('header.runAll') : t('discussions.resume')}
           </button>
         )}
         {canStop && (
           <button onClick={handleStop} className="btn-danger text-sm">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
+            <Pause size={16} />
             {t('discussions.pause')}
           </button>
         )}
@@ -447,25 +442,19 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         )}
         {canImplement && (
           <button onClick={() => setShowImplementModal(true)} className="btn-primary text-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
+            <Code size={16} />
             {t('discussions.implement')}
           </button>
         )}
         {canMerge && discussion.branch_name && (
           <button onClick={handleMerge} className="btn-primary text-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
+            <GitMerge size={16} />
             {t('todos.merge')}
           </button>
         )}
         {canCleanup && (
           <button onClick={handleCleanup} className="btn-danger text-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
+            <Trash2 size={16} />
             {t('todo.cleanup')}
           </button>
         )}
@@ -542,9 +531,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                               onClick={() => toggleCollapse(message.id)}
                               className="text-[10px] text-warm-300 hover:text-accent transition-colors flex items-center gap-0.5"
                             >
-                              <svg className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                              </svg>
+                              <ChevronRight size={12} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
                               {isCollapsed ? t('discussions.expand') : t('discussions.collapse')}
                             </button>
                           )}

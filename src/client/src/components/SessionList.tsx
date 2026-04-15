@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { ChevronRight, GitBranch, Play, Square, Trash2 } from 'lucide-react';
 import type { Session, SessionLog, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { useI18n } from '../i18n';
@@ -168,9 +169,7 @@ export default function SessionList({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <svg className={`w-3 h-3 text-warm-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
+                        <ChevronRight size={12} className={`text-warm-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         <h3 className="text-sm font-semibold text-warm-700 truncate">{session.title}</h3>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
                           {t(`status.${session.status}`) || session.status}
@@ -186,9 +185,7 @@ export default function SessionList({
                         </span>
                         {session.branch_name && (
                           <span className="text-[10px] text-accent/70 flex items-center gap-0.5">
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
+                            <GitBranch size={12} />
                             {session.branch_name}
                           </span>
                         )}
@@ -204,7 +201,7 @@ export default function SessionList({
                           className="p-1.5 text-status-success hover:bg-status-success/10 rounded transition-colors"
                           title={t('session.start')}
                         >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                          <Play size={16} />
                         </button>
                       )}
                       {canStop && (
@@ -213,7 +210,7 @@ export default function SessionList({
                           className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
                           title={t('session.stop')}
                         >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
+                          <Square size={16} />
                         </button>
                       )}
                       <button
@@ -221,9 +218,7 @@ export default function SessionList({
                         className="p-1.5 text-warm-400 hover:text-status-error rounded transition-colors"
                         title={t('session.delete')}
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>

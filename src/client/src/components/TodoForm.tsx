@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { Image as ImageIcon, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
@@ -170,9 +171,7 @@ export default function TodoForm({
             onClick={() => fileInputRef.current?.click()}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+            <ImageIcon size={14} />
             {t('todoForm.addImage')}
           </button>
           <span className="text-[10px] text-warm-300">
@@ -215,9 +214,7 @@ export default function TodoForm({
                   onClick={() => removeExistingImage(img.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={12} strokeWidth={3} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.originalName}</span>
@@ -237,9 +234,7 @@ export default function TodoForm({
                   onClick={() => removePendingImage(img.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={12} strokeWidth={3} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.name}</span>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronRight, Clock, Play, Pause, Check, Pencil, Trash2, GitMerge } from 'lucide-react';
 import type { Schedule, ScheduleRun } from '../types';
 import * as schedulesApi from '../api/schedules';
 import ScheduleForm from './ScheduleForm';
@@ -143,13 +144,10 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
       >
         {/* Expand arrow */}
         <button className="text-warm-400 hover:text-amber-500 flex-shrink-0 transition-colors">
-          <svg
-            className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M8 5v14l11-7z" />
-          </svg>
+          <ChevronRight
+            size={14}
+            className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+          />
         </button>
 
         {/* Title */}
@@ -158,9 +156,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
         {/* Schedule type & timing badge */}
         {isOnce ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-blue-500/10 text-blue-600 flex-shrink-0">
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <Clock size={12} />
             {formatRunAt(schedule.run_at)}
           </span>
         ) : (
@@ -196,9 +192,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-30"
             title={t('schedule.trigger')}
           >
-            <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+            <Play size={14} />
           </button>
 
           {/* Toggle active/pause */}
@@ -212,13 +206,9 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             title={schedule.is_active ? t('schedule.pause') : t('schedule.activate')}
           >
             {schedule.is_active ? (
-              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-              </svg>
+              <Pause size={14} />
             ) : (
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+              <Check size={14} />
             )}
           </button>
 
@@ -228,9 +218,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             className="p-1.5 text-warm-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
             title={t('schedule.edit')}
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+            <Pencil size={14} />
           </button>
 
           {/* Delete */}
@@ -239,9 +227,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             className="p-1.5 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded-lg transition-colors"
             title={t('schedule.delete')}
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
@@ -312,9 +298,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
                             className="p-1 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded transition-colors disabled:opacity-30"
                             title={t('todo.merge')}
                           >
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                            </svg>
+                            <GitMerge size={12} />
                           </button>
                         )}
                         {canCleanup && onCleanupRun && (
@@ -324,9 +308,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
                             className="p-1 text-status-warning/60 hover:text-status-warning hover:bg-status-warning/10 rounded transition-colors disabled:opacity-30"
                             title={t('todo.cleanup')}
                           >
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <Trash2 size={12} />
                           </button>
                         )}
                       </div>

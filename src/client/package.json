@@ -5,6 +5,7 @@
   "dependencies": {
     "@xyflow/react": "^12.10.2",
     "dagre": "^0.8.5",
+    "lucide-react": "^1.8.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

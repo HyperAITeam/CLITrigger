@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus, Search, FolderOpen, X } from 'lucide-react';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import { Skeleton } from './Skeleton';
@@ -106,18 +107,14 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           onClick={() => setShowForm(true)}
           className="btn-primary"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+          <Plus size={20} strokeWidth={2.5} />
           <span className="hidden sm:inline font-bold">{t('projects.new')}</span>
         </button>
       </div>
 
       {/* Search */}
       <div className="mb-8 relative group">
-        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted group-focus-within:text-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-        </svg>
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-accent transition-colors" size={20} strokeWidth={2} />
         <input
           type="text"
           value={search}
@@ -148,9 +145,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 animate-fade-in">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-            <svg className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-            </svg>
+            <FolderOpen size={32} style={{ color: 'var(--color-text-muted)' }} strokeWidth={1.5} />
           </div>
           <p className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>{t('projects.empty')}</p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>{t('projects.emptyHint')}</p>
@@ -187,9 +182,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                   style={{ color: 'var(--color-text-muted)' }}
                   title={t('projects.delete')}
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={14} strokeWidth={2} />
                 </button>
 
                 {/* Top row: avatar + name */}

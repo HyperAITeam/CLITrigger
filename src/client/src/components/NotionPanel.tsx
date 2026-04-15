@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FileText, Search } from 'lucide-react';
 import type { Project, NotionPage } from '../types';
 import { Skeleton } from './Skeleton';
 import * as notionApi from '../api/notion';
@@ -71,9 +72,7 @@ export default function NotionPanel({ project, onImportAsTask }: NotionPanelProp
     return (
       <div className="card p-16 text-center animate-fade-in">
         <div className="text-warm-300 mb-3">
-          <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-          </svg>
+          <FileText size={48} className="mx-auto" strokeWidth={1} />
         </div>
         <p className="text-warm-400 text-sm">{t('notion.notConfigured')}</p>
       </div>
@@ -126,9 +125,7 @@ export default function NotionPanel({ project, onImportAsTask }: NotionPanelProp
             onClick={handleSearch}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Search size={14} />
           </button>
         </div>
       </div>
@@ -209,10 +206,8 @@ function PageCard({ page, projectId, expanded, onToggle, importing, imported, on
     <div className="card p-3 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3">
         {/* Notion page icon */}
-        <div className="w-4 h-4 mt-0.5 flex-shrink-0 text-warm-400">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-          </svg>
+        <div className="mt-0.5 flex-shrink-0 text-warm-400">
+          <FileText size={16} />
         </div>
 
         <div className="flex-1 min-w-0">
