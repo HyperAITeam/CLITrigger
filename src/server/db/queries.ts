@@ -1010,6 +1010,7 @@ export function getPlannerTagsByProjectId(projectId: string): PlannerTag[] {
   const savedMap = new Map(savedTags.map(t => [t.name, t]));
 
   // Collect all tags used in items
+  let colorIndex = savedTags.length;
   const items = getPlannerItemsByProjectId(projectId);
   for (const item of items) {
     if (item.tags) {
@@ -1018,7 +1019,8 @@ export function getPlannerTagsByProjectId(projectId: string): PlannerTag[] {
         if (Array.isArray(parsed)) {
           for (const name of parsed) {
             if (!savedMap.has(name)) {
-              const color = PLANNER_TAG_COLORS[Math.floor(Math.random() * PLANNER_TAG_COLORS.length)];
+              const color = PLANNER_TAG_COLORS[colorIndex % PLANNER_TAG_COLORS.length];
+              colorIndex++;
               const tag = upsertPlannerTag(projectId, name, color);
               savedMap.set(name, tag);
             }

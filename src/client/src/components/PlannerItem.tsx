@@ -108,7 +108,14 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
   const addTag = (tag: string) => {
     const trimmed = tag.trim();
-    if (trimmed && !editTags.includes(trimmed)) saveTags([...editTags, trimmed]);
+    if (trimmed && !editTags.includes(trimmed)) {
+      saveTags([...editTags, trimmed]);
+      if (!tagColors.has(trimmed) && onUpdateTag) {
+        const cycleColors = ['blue', 'green', 'orange', 'purple', 'pink', 'red', 'yellow', 'brown'];
+        const nextColor = cycleColors[tagColors.size % cycleColors.length];
+        onUpdateTag(trimmed, { color: nextColor });
+      }
+    }
     setTagInput('');
     tagRef.current?.focus();
   };
