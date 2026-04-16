@@ -656,12 +656,14 @@ function FileStatusSection({
   busy,
   setBusy,
   onRefresh,
+  onError,
 }: {
   projectId: string;
   files: GitStatusFile[];
   busy: boolean;
   setBusy: (b: boolean) => void;
   onRefresh: () => void;
+  onError: (msg: string | null) => void;
 }) {
   const { t } = useI18n();
 
@@ -669,11 +671,10 @@ function FileStatusSection({
   const unstaged = files.filter(f => f.working_dir !== ' ' && f.working_dir !== '?' && (f.index === ' ' || f.index === '?'));
   const untracked = files.filter(f => f.index === '?' && f.working_dir === '?');
 
-  const [execError, setExecError] = useState<string | null>(null);
   const exec = async (fn: () => Promise<unknown>) => {
     setBusy(true);
-    setExecError(null);
-    try { await fn(); onRefresh(); } catch (err) { setExecError(err instanceof Error ? err.message : 'Operation failed'); } finally { setBusy(false); }
+    onError(null);
+    try { await fn(); onRefresh(); } catch (err) { onError(err instanceof Error ? err.message : 'Operation failed'); } finally { setBusy(false); }
   };
 
   if (files.length === 0) {
@@ -684,12 +685,6 @@ function FileStatusSection({
     );
   }
 
-  const ErrorBanner = execError ? (
-    <div className="px-2 py-1 bg-red-50 text-red-600 text-xs flex items-center justify-between">
-      <span className="truncate">{execError}</span>
-      <button onClick={() => setExecError(null)} className="ml-2 shrink-0 text-red-400 hover:text-red-600">&times;</button>
-    </div>
-  ) : null;
 
   const FileRow = ({ file, type }: { file: GitStatusFile; type: 'staged' | 'unstaged' | 'untracked' }) => {
     const status = type === 'staged'
@@ -736,7 +731,6 @@ function FileStatusSection({
 
   return (
     <div className="space-y-1">
-      {ErrorBanner}
       {/* Staged */}
       {staged.length > 0 && (
         <div>
@@ -795,7 +789,7 @@ interface BranchMenuState {
   y: number;
 }
 
-function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onRefresh }: {
+function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onRefresh, onError }: {
   branches: GitRef[];
   tags: string[];
   stashCount: number;
@@ -803,6 +797,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   busy: boolean;
   setBusy: (b: boolean) => void;
   onRefresh: () => void;
+  onError: (msg: string | null) => void;
 }) {
   const { t } = useI18n();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -811,7 +806,6 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   const [contextMenu, setContextMenu] = useState<BranchMenuState | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [actionError, setActionError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [worktrees, setWorktrees] = useState<Array<{ path: string; branch: string }>>([]);
   const [cleaningWorktree, setCleaningWorktree] = useState<string | null>(null);
@@ -857,14 +851,14 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
 
   const exec = async (fn: () => Promise<unknown>, onSuccess?: () => void) => {
     setBusy(true);
-    setActionError(null);
+    onError(null);
     setContextMenu(null);
     try {
       await fn();
       onRefresh();
       if (onSuccess) onSuccess();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Error');
+      onError(err instanceof Error ? err.message : 'Error');
     } finally {
       setBusy(false);
     }
@@ -916,13 +910,6 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
 
   return (
     <div className="space-y-1">
-      {actionError && (
-        <div className="px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-2xs flex items-center justify-between rounded">
-          <span className="truncate">{actionError}</span>
-          <button onClick={() => setActionError(null)} className="ml-1 shrink-0">&times;</button>
-        </div>
-      )}
-
       <SectionHeader id="local" label={t('git.branches')} count={localBranches.length} />
       {expandedSections.has('local') && (
         <div className="pl-1 space-y-px">
@@ -1207,6 +1194,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const [stashCount, setStashCount] = useState(0);
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
   const [busy, setBusy] = useState(false);
+  const [sidebarError, setSidebarError] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<GitLogEntry | null>(null);
   const [commitFiles, setCommitFiles] = useState<CommitFile[]>([]);
   const [commitFilesLoading, setCommitFilesLoading] = useState(false);
@@ -1361,11 +1349,19 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
         />
       </div>
 
+      {/* Sidebar error (branch/tag actions) */}
+      {sidebarError && (
+        <div className="mb-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between rounded border border-red-200 dark:border-red-800">
+          <span>{sidebarError}</span>
+          <button onClick={() => setSidebarError(null)} className="ml-2 shrink-0 hover:text-red-800 dark:hover:text-red-300">&times;</button>
+        </div>
+      )}
+
       <div className="flex gap-3 flex-1 min-h-0">
         {/* Left sidebar: Refs + File Status */}
         <div className="w-56 shrink-0 flex flex-col gap-2 min-h-0">
           <div className="card overflow-y-auto p-3 flex-shrink-0" style={{ maxHeight: '45%' }}>
-            <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} />
+            <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} onError={setSidebarError} />
           </div>
           <div className="card overflow-y-auto p-2 flex-1 min-h-0">
             <div className="px-2 py-1 text-[11px] font-semibold text-warm-500 uppercase tracking-wider border-b border-warm-100 mb-1">
@@ -1377,6 +1373,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
               busy={busy}
               setBusy={setBusy}
               onRefresh={refresh}
+              onError={setSidebarError}
             />
           </div>
         </div>
