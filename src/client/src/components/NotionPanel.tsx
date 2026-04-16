@@ -224,11 +224,11 @@ function PageCard({ page, projectId, expanded, onToggle, importing, imported, on
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {status && (
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${getStatusColor(status)}`}>
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium ${getStatusColor(status)}`}>
                 {status}
               </span>
             )}
-            <span className="text-[10px] text-warm-300 ml-auto">
+            <span className="text-2xs text-warm-300 ml-auto">
               {lastEdited}
             </span>
           </div>
@@ -328,7 +328,7 @@ function BlockRenderer({ block }: { block: any }) {
         </p>
       );
     case 'code':
-      return <pre className="text-[10px] bg-warm-50 p-2 rounded text-warm-600 overflow-x-auto">{text}</pre>;
+      return <pre className="text-2xs bg-warm-50 p-2 rounded text-warm-600 overflow-x-auto">{text}</pre>;
     case 'divider':
       return <hr className="border-warm-100" />;
     default:

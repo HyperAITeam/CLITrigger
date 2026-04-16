@@ -79,10 +79,10 @@ export default function ModelSettings() {
             <div className="min-w-0">
               <span className="text-xs font-medium text-warm-700">{m.label}</span>
               {m.value && (
-                <span className="ml-2 text-[10px] text-warm-400 font-mono">{m.value}</span>
+                <span className="ml-2 text-2xs text-warm-400 font-mono">{m.value}</span>
               )}
               {m.isDefault && (
-                <span className="ml-2 text-[10px] text-warm-300">(built-in)</span>
+                <span className="ml-2 text-2xs text-warm-300">(built-in)</span>
               )}
             </div>
             {!m.isDefault && (
@@ -101,7 +101,7 @@ export default function ModelSettings() {
       {/* Add new model */}
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <label className="block text-[10px] font-medium text-warm-400 mb-1">
+          <label className="block text-2xs font-medium text-warm-400 mb-1">
             {t('header.modelValue') || 'Model ID'}
           </label>
           <input
@@ -113,7 +113,7 @@ export default function ModelSettings() {
           />
         </div>
         <div className="flex-1">
-          <label className="block text-[10px] font-medium text-warm-400 mb-1">
+          <label className="block text-2xs font-medium text-warm-400 mb-1">
             {t('header.modelLabel') || 'Display Name'}
           </label>
           <input
@@ -135,7 +135,7 @@ export default function ModelSettings() {
       </div>
       {error && <p className="text-xs text-status-error mt-1.5">{error}</p>}
 
-      <p className="text-[10px] text-warm-300 mt-3">
+      <p className="text-2xs text-warm-300 mt-3">
         {t('header.modelSettingsHint') || 'Add custom models here. They will appear in model dropdowns across all projects.'}
       </p>
     </div>

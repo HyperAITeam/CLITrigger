@@ -16,7 +16,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+    <div className="flex h-screen bg-theme-bg">
       {/* Sidebar - desktop: always visible, mobile: overlay */}
       <aside
         className={`
@@ -38,7 +38,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-overlay bg-black/50 backdrop-blur-sm md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -46,15 +46,14 @@ export default function Layout({ children, onLogout, authRequired, connected, on
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger */}
-        <div className="md:hidden flex items-center px-4 py-3 border-b glass z-20" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="md:hidden flex items-center px-4 py-3 border-b border-theme-border glass z-20">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-theme-hover transition-colors"
-            style={{ color: 'var(--color-text-secondary)' }}
+            className="p-1.5 rounded-lg hover:bg-theme-hover transition-colors text-theme-text-secondary"
           >
             <Menu size={20} />
           </button>
-          <span className="ml-3 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>CLITrigger</span>
+          <span className="ml-3 text-sm font-semibold text-theme-text">CLITrigger</span>
         </div>
 
         {/* Scrollable content area */}

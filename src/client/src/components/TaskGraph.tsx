@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import Modal from './Modal';
 import {
   ReactFlow,
   Background,
@@ -337,20 +338,18 @@ export default function TaskGraph({
 
       {/* Floating form */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <TodoForm
-              projectCliTool={projectCliTool}
-              projectCliModel={projectCliModel}
-              availableTodos={todos}
-              onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns) => {
-                await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns);
-                setShowForm(false);
-              }}
-              onCancel={() => setShowForm(false)}
-            />
-          </div>
-        </div>
+        <Modal open onClose={() => setShowForm(false)} size="lg">
+          <TodoForm
+            projectCliTool={projectCliTool}
+            projectCliModel={projectCliModel}
+            availableTodos={todos}
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns);
+              setShowForm(false);
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </Modal>
       )}
     </div>
   );

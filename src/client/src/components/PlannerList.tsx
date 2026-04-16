@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, LayoutList } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, PlannerTag } from '../types';
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
+import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 
 type SortField = 'title' | 'tags' | 'priority' | 'due_date' | 'status' | 'created_at';
@@ -162,19 +163,19 @@ export default function PlannerList({
         {/* Table header — clickable for sort */}
         <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl select-none" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
           <div className="w-[14px] flex-shrink-0" />
-          <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
+          <div className="flex-1 text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
             {t('planner.col.title')}<SortIcon field="title" />
           </div>
-          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('tags')}>
+          <div className="w-[160px] text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('tags')}>
             {t('planner.col.tags')}<SortIcon field="tags" />
           </div>
-          <div className="w-12 text-center text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
+          <div className="w-12 text-center text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
             {t('plannerForm.priority')}<SortIcon field="priority" />
           </div>
-          <div className="hidden md:block w-20 text-right text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('due_date')}>
+          <div className="hidden md:block w-20 text-right text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('due_date')}>
             {t('planner.col.dueDate')}<SortIcon field="due_date" />
           </div>
-          <div className="w-16 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('status')}>
+          <div className="w-16 text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('status')}>
             {t('planner.col.status')}<SortIcon field="status" />
           </div>
           <div className="w-8"></div>
@@ -182,10 +183,7 @@ export default function PlannerList({
 
         {/* Items */}
         {filteredItems.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-warm-600 font-medium">{t('planner.empty')}</p>
-            <p className="text-warm-400 text-sm mt-1">{t('planner.emptyHint')}</p>
-          </div>
+          <EmptyState icon={LayoutList} title={t('planner.empty')} description={t('planner.emptyHint')} />
         ) : (
           filteredItems.map((item, index) => (
             <div key={item.id} className="animate-slide-up" style={{ animationDelay: `${index * 20}ms` }}>

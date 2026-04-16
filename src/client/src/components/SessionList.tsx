@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ChevronRight, GitBranch, Play, Square, Trash2 } from 'lucide-react';
+import { ChevronRight, GitBranch, Play, Square, Trash2, TerminalSquare } from 'lucide-react';
+import EmptyState from './EmptyState';
 import type { Session, SessionLog, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { useI18n } from '../i18n';
@@ -144,9 +145,8 @@ export default function SessionList({
       )}
 
       {sessions.length === 0 && !showForm ? (
-        <div className="card p-10 text-center">
-          <p className="text-warm-400 text-sm">{t('session.empty')}</p>
-          <p className="text-warm-300 text-xs mt-1">{t('session.emptyHint')}</p>
+        <div className="card">
+          <EmptyState icon={TerminalSquare} title={t('session.empty')} description={t('session.emptyHint')} />
         </div>
       ) : (
         <div className="space-y-3">
@@ -171,7 +171,7 @@ export default function SessionList({
                       <div className="flex items-center gap-2">
                         <ChevronRight size={12} className={`text-warm-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         <h3 className="text-sm font-semibold text-warm-700 truncate">{session.title}</h3>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
                           {t(`status.${session.status}`) || session.status}
                         </span>
                       </div>
@@ -179,12 +179,12 @@ export default function SessionList({
                         <p className="text-xs text-warm-400 mt-1 ml-5 line-clamp-1">{session.description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1 ml-5">
-                        <span className="text-[10px] text-warm-300">
+                        <span className="text-2xs text-warm-300">
                           {session.cli_tool || 'claude'}
                           {session.cli_model ? ` / ${session.cli_model}` : ''}
                         </span>
                         {session.branch_name && (
-                          <span className="text-[10px] text-accent/70 flex items-center gap-0.5">
+                          <span className="text-2xs text-accent/70 flex items-center gap-0.5">
                             <GitBranch size={12} />
                             {session.branch_name}
                           </span>

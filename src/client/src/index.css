@@ -177,9 +177,24 @@
     color: var(--color-accent);
     border: 1px solid var(--color-border);
     @apply inline-flex items-center justify-center gap-2 font-semibold
-           px-6 py-2.5 rounded-xl transition-all duration-300
+           px-6 py-2.5 rounded-xl transition-all duration-300 relative overflow-hidden
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:transform-none
            active:scale-[0.97];
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 70%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .btn-primary:active:not(:disabled)::after {
+    transform: scale(2);
+    opacity: 1;
+    transition: 0s;
   }
   .btn-primary:hover:not(:disabled) {
     border-color: var(--color-accent);
@@ -217,6 +232,7 @@
   }
 
   /* Button size modifiers — add as second class: btn-primary btn-sm */
+  .btn-md { @apply px-4 py-2 text-sm rounded-xl gap-2; }
   .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg gap-1.5; }
   .btn-lg { @apply px-6 py-3 text-base rounded-xl gap-2.5; }
 
@@ -260,7 +276,7 @@
   }
 
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0
            transition-all duration-200 hover:scale-105 cursor-default;
     position: relative;
   }
@@ -276,7 +292,7 @@
 
   /* Section label for list headers */
   .section-label {
-    @apply text-[10px] font-semibold uppercase tracking-wider;
+    @apply text-2xs font-semibold uppercase tracking-wider;
     color: var(--color-text-muted);
   }
 
@@ -297,7 +313,7 @@
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-tertiary);
     @apply flex items-center justify-center w-9 h-9 rounded-xl
-           font-bold text-[10px] transition-all duration-300
+           font-bold text-2xs transition-all duration-300
            hover:bg-accent hover:text-white hover:shadow-accent hover:-translate-y-0.5
            active:scale-[0.9] active:brightness-90;
   }
@@ -329,7 +345,7 @@
   .markdown-content li { @apply mb-0.5; }
   .markdown-content code {
     background-color: var(--color-bg-tertiary);
-    @apply px-1 py-0.5 rounded text-[0.7rem] font-mono;
+    @apply px-1 py-0.5 rounded text-xs font-mono;
   }
   .markdown-content pre {
     background-color: var(--color-bg-tertiary);
@@ -341,7 +357,7 @@
   }
   .markdown-content table {
     border-color: var(--color-border-strong);
-    @apply w-full border-collapse mb-2 text-[0.7rem];
+    @apply w-full border-collapse mb-2 text-xs;
   }
   .markdown-content th,
   .markdown-content td {
@@ -399,4 +415,16 @@
   .flex.h-screen > aside {
     border-right: 1px solid var(--color-border);
   }
+}
+
+@layer utilities {
+  .text-2xs {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+}
+
+@keyframes toastProgress {
+  from { width: 100%; }
+  to { width: 0%; }
 }

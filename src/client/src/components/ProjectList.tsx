@@ -5,6 +5,7 @@ import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import { Skeleton } from './Skeleton';
 import ProjectForm from './ProjectForm';
+import EmptyState from './EmptyState';
 
 import { useI18n } from '../i18n';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -143,13 +144,12 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-            <FolderOpen size={32} style={{ color: 'var(--color-text-muted)' }} strokeWidth={1.5} />
-          </div>
-          <p className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>{t('projects.empty')}</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>{t('projects.emptyHint')}</p>
-        </div>
+        <EmptyState
+          icon={FolderOpen}
+          title={t('projects.empty')}
+          description={t('projects.emptyHint')}
+          size="lg"
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((project, index) => {
@@ -178,8 +178,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                 {/* Delete button */}
                 <button
                   onClick={(e) => handleDeleteProject(project.id, e)}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10"
-                  style={{ color: 'var(--color-text-muted)' }}
+                  className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10 text-theme-muted"
                   title={t('projects.delete')}
                 >
                   <X size={14} strokeWidth={2} />
@@ -187,14 +186,14 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
 
                 {/* Top row: avatar + name */}
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 bg-theme-bg-tertiary text-theme-text-secondary">
                     {project.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                    <h3 className="text-sm font-semibold truncate text-theme-text">
                       {project.name}
                     </h3>
-                    <p className="text-[10px] font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
+                    <p className="text-2xs font-mono truncate text-theme-muted">
                       {project.path.split(/[/\\]/).slice(-2).join('/')}
                     </p>
                   </div>
@@ -209,12 +208,12 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                         {counts.running}
                       </span>
                     )}
-                    <span style={{ color: 'var(--color-text-muted)' }}>
+                    <span className="text-theme-muted">
                       {counts.completed}/{counts.total}
                     </span>
                   </div>
                   {counts.total > 0 && (
-                    <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                    <span className="text-2xs font-medium text-theme-muted">
                       {Math.round((counts.completed / counts.total) * 100)}%
                     </span>
                   )}
@@ -222,10 +221,10 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
 
                 {/* Progress bar */}
                 {counts.total > 0 && (
-                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                  <div className="mt-1.5 h-1 rounded-full overflow-hidden bg-theme-bg-tertiary">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${(counts.completed / counts.total) * 100}%`, backgroundColor: 'var(--color-accent)' }}
+                      className="h-full rounded-full transition-all duration-500 bg-accent"
+                      style={{ width: `${(counts.completed / counts.total) * 100}%` }}
                     />
                   </div>
                 )}

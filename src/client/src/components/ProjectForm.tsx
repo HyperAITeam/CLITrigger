@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Loader2, FolderOpen } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { browseNativeFolder } from '../api/projects';
+import Modal from './Modal';
 
 interface ProjectFormProps {
   onSubmit: (name: string, path: string) => void;
@@ -30,9 +31,8 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-fade-in">
-      <div className="w-full max-w-md animate-scale-in shadow-2xl rounded-2xl">
-        <div className="card p-8">
+    <Modal open onClose={onCancel} size="md">
+      <div className="card p-8 shadow-2xl rounded-2xl">
           <h2 className="text-lg font-semibold text-warm-800 mb-6">
             {t('form.newProject')}
           </h2>
@@ -95,8 +95,7 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

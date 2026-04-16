@@ -233,22 +233,22 @@ function IssueCard({ issue, projectId, expanded, onToggle, importing, imported, 
 
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium ${statusColor}`}>
               {issue.fields.status.name}
             </span>
             {issue.fields.priority && (
-              <span className="text-[10px] text-warm-400 flex items-center gap-1">
+              <span className="text-2xs text-warm-400 flex items-center gap-1">
                 {issue.fields.priority.iconUrl && <img src={issue.fields.priority.iconUrl} alt="" className="w-3 h-3" />}
                 {issue.fields.priority.name}
               </span>
             )}
-            <span className="text-[10px] text-warm-300">
+            <span className="text-2xs text-warm-300">
               {issue.fields.assignee?.displayName || t('jira.unassigned')}
             </span>
             {issue.fields.labels.length > 0 && (
-              <span className="text-[10px] text-warm-300">{issue.fields.labels.join(', ')}</span>
+              <span className="text-2xs text-warm-300">{issue.fields.labels.join(', ')}</span>
             )}
-            <span className="text-[10px] text-warm-300 ml-auto">
+            <span className="text-2xs text-warm-300 ml-auto">
               {new Date(issue.fields.updated).toLocaleDateString()}
             </span>
           </div>
@@ -322,14 +322,14 @@ function ExpandedIssuePanel({ issueKey, projectId }: { issueKey: string; project
       {/* Transitions */}
       {transitions.length > 0 && (
         <div>
-          <p className="text-[10px] font-medium text-warm-500 mb-1.5">{t('jira.transition')}</p>
+          <p className="text-2xs font-medium text-warm-500 mb-1.5">{t('jira.transition')}</p>
           <div className="flex flex-wrap gap-1.5">
             {transitions.map((tr) => (
               <button
                 key={tr.id}
                 onClick={() => handleTransition(tr.id)}
                 disabled={transitioning}
-                className="text-[10px] px-2 py-1 rounded-md bg-warm-50 text-warm-600 hover:bg-warm-100 transition-colors font-medium"
+                className="text-2xs px-2 py-1 rounded-md bg-warm-50 text-warm-600 hover:bg-warm-100 transition-colors font-medium"
               >
                 {tr.name}
               </button>
@@ -340,7 +340,7 @@ function ExpandedIssuePanel({ issueKey, projectId }: { issueKey: string; project
 
       {/* Comment */}
       <div>
-        <p className="text-[10px] font-medium text-warm-500 mb-1.5">{t('jira.comment')}</p>
+        <p className="text-2xs font-medium text-warm-500 mb-1.5">{t('jira.comment')}</p>
         <div className="flex gap-2">
           <input
             type="text"

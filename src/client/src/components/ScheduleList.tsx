@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, CalendarClock } from 'lucide-react';
 import type { Schedule } from '../types';
 import ScheduleItem from './ScheduleItem';
 import ScheduleForm from './ScheduleForm';
+import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 
 interface ScheduleListProps {
@@ -51,7 +52,7 @@ export default function ScheduleList({
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="btn-primary text-xs py-2"
+            className="btn-primary btn-sm"
           >
             <Plus size={14} />
             {t('schedules.add')}
@@ -75,9 +76,8 @@ export default function ScheduleList({
 
       <div className="space-y-3">
         {schedules.length === 0 ? (
-          <div className="card p-10 text-center">
-            <p className="text-warm-600 font-medium">{t('schedules.empty')}</p>
-            <p className="text-warm-400 text-sm mt-1">{t('schedules.emptyHint')}</p>
+          <div className="card">
+            <EmptyState icon={CalendarClock} title={t('schedules.empty')} description={t('schedules.emptyHint')} />
           </div>
         ) : (
           schedules.map((schedule, index) => (

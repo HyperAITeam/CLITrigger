@@ -232,7 +232,7 @@ function IssueCard({ issue, projectId, expanded, onToggle, importing, imported, 
             {issue.labels.map((label) => (
               <span
                 key={label.name}
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium"
                 style={{
                   backgroundColor: `#${label.color}20`,
                   color: `#${label.color}`,
@@ -242,16 +242,16 @@ function IssueCard({ issue, projectId, expanded, onToggle, importing, imported, 
               </span>
             ))}
             {issue.user && (
-              <span className="text-[10px] text-warm-400">
+              <span className="text-2xs text-warm-400">
                 {issue.user.login}
               </span>
             )}
             {issue.comments > 0 && (
-              <span className="text-[10px] text-warm-400">
+              <span className="text-2xs text-warm-400">
                 {issue.comments} comments
               </span>
             )}
-            <span className="text-[10px] text-warm-300 ml-auto">
+            <span className="text-2xs text-warm-300 ml-auto">
               {updatedAt}
             </span>
           </div>
@@ -309,10 +309,10 @@ function ExpandedIssuePanel({ issueNumber, projectId, body }: { issueNumber: num
         <p className="text-xs text-warm-400">{t('github.loadingComments')}</p>
       ) : comments.length > 0 ? (
         <div className="space-y-2 mt-2">
-          <p className="text-[10px] font-semibold text-warm-500 uppercase">{t('github.comments')}</p>
+          <p className="text-2xs font-semibold text-warm-500 uppercase">{t('github.comments')}</p>
           {comments.map((c: any) => (
             <div key={c.id} className="pl-3 border-l-2 border-warm-100">
-              <p className="text-[10px] text-warm-400 font-medium">{c.user?.login}</p>
+              <p className="text-2xs text-warm-400 font-medium">{c.user?.login}</p>
               <p className="text-xs text-warm-500 whitespace-pre-wrap break-words">{c.body}</p>
             </div>
           ))}

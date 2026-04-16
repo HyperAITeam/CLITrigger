@@ -155,18 +155,18 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
 
         {/* Schedule type & timing badge */}
         {isOnce ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-blue-500/10 text-blue-600 flex-shrink-0">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-blue-500/10 text-blue-600 flex-shrink-0">
             <Clock size={12} />
             {formatRunAt(schedule.run_at)}
           </span>
         ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/10 text-amber-600 flex-shrink-0">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-amber-500/10 text-amber-600 flex-shrink-0">
             {schedule.cron_expression}
           </span>
         )}
 
         {/* Once / Recurring badge */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${
           isOnce
             ? 'bg-blue-500/10 text-blue-600'
             : 'bg-amber-500/10 text-amber-600'
@@ -175,7 +175,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
         </span>
 
         {/* Active/Paused badge */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${
           schedule.is_active
             ? 'bg-status-success/10 text-status-success'
             : 'bg-warm-200 text-warm-500'

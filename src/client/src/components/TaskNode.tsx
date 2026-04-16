@@ -78,7 +78,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         onClick={() => onSelect(todo.id)}
       >
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-mono text-warm-400">#{todo.priority}</span>
+          <span className="text-2xs font-mono text-warm-400">#{todo.priority}</span>
           <span className="flex-1 text-xs text-warm-800 font-medium truncate" title={todo.title}>
             {todo.title}
           </span>

@@ -46,7 +46,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const { labelKey, classes, icon } = config[status];
 
   return (
-    <span className={`badge text-[10px] font-semibold ${classes}`}>
+    <span className={`badge text-2xs font-semibold ${classes}`}>
       {icon}
       {t(labelKey as any)}
     </span>

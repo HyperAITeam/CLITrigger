@@ -119,7 +119,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
 
       {/* Projects section */}
       <div className="flex-1 overflow-y-auto px-3 pt-3">
-        <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+        <div className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
           {t('sidebar.workspaces')}
         </div>
         <div className="space-y-0.5">

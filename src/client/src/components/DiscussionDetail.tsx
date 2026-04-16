@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Modal from './Modal';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight } from 'lucide-react';
 import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, DiscussionLog } from '../types';
@@ -331,11 +332,11 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         </Link>
         <span className="text-warm-300">/</span>
         <span className="text-sm font-medium text-warm-700 truncate">{discussion.title}</span>
-        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${STATUS_COLORS[discussion.status]}`}>
+        <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[discussion.status]}`}>
           {t(`status.${discussion.status}`) || discussion.status}
         </span>
         {discussion.status === 'running' && (
-          <span className="text-[10px] text-status-success animate-pulse">
+          <span className="text-2xs text-status-success animate-pulse">
             {t('discussions.round')} {discussion.current_round}/{discussion.max_rounds}
           </span>
         )}
@@ -384,7 +385,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                   {t('discussions.failureTitle')}
                 </h4>
                 {failedAgent && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
+                  <span className="inline-flex items-center gap-1 text-2xs font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
                     <span
                       className="w-3 h-3 rounded-full inline-block"
                       style={{ backgroundColor: failedAgent.avatar_color || '#94a3b8' }}
@@ -393,7 +394,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                   </span>
                 )}
                 {failedMessage && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
+                  <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
                     {t('discussions.round')} {failedMessage.round_number}
                   </span>
                 )}
@@ -472,7 +473,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           {discussion.agents.map((agent) => (
             <div
               key={agent.id}
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold transition-all ${
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-2xs font-bold transition-all ${
                 discussion.current_agent_id === agent.id ? 'ring-2 ring-status-success ring-offset-1 scale-110' : 'opacity-60'
               }`}
               style={{ backgroundColor: agent.avatar_color || '#6366f1' }}
@@ -492,7 +493,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
             <div key={round}>
               <div className="flex items-center gap-3 my-4">
                 <div className="flex-1 h-px bg-warm-200" />
-                <span className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider">
+                <span className="text-2xs font-semibold text-warm-400 uppercase tracking-wider">
                   {isImplementationRound ? t('discussions.implementation') : `${t('discussions.round')} ${round}`}
                 </span>
                 <div className="flex-1 h-px bg-warm-200" />
@@ -522,14 +523,14 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                       {!isUser && (
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-semibold text-warm-700">{message.agent_name}</span>
-                          <span className="text-[10px] text-warm-400">{t(`agents.roles.${message.role}`) || message.role}</span>
+                          <span className="text-2xs text-warm-400">{t(`agents.roles.${message.role}`) || message.role}</span>
                           {message.status === 'skipped' && (
-                            <span className="text-[10px] text-warm-300 italic">{t('status.skipped')}</span>
+                            <span className="text-2xs text-warm-300 italic">{t('status.skipped')}</span>
                           )}
                           {canCollapse && (
                             <button
                               onClick={() => toggleCollapse(message.id)}
-                              className="text-[10px] text-warm-300 hover:text-accent transition-colors flex items-center gap-0.5"
+                              className="text-2xs text-warm-300 hover:text-accent transition-colors flex items-center gap-0.5"
                             >
                               <ChevronRight size={12} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
                               {isCollapsed ? t('discussions.expand') : t('discussions.collapse')}
@@ -612,8 +613,8 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       )}
 
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4" onClick={() => setShowEditModal(false)}>
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Modal open onClose={() => setShowEditModal(false)} size="xl">
+          <div className="max-h-[90vh] overflow-y-auto">
             <DiscussionForm
               agents={allowAdvancedFields ? projectAgents : discussion.agents}
               initialValues={initialEditValues}
@@ -624,12 +625,12 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
               onCancel={() => setShowEditModal(false)}
             />
           </div>
-        </div>
+        </Modal>
       )}
 
       {showImplementModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowImplementModal(false)}>
-          <div className="glass-card rounded-2xl p-6 w-80 shadow-elevated space-y-4" onClick={(e) => e.stopPropagation()}>
+        <Modal open onClose={() => setShowImplementModal(false)} size="sm">
+          <div className="glass-card rounded-2xl p-6 shadow-elevated space-y-4">
             <h3 className="text-sm font-semibold text-warm-700">{t('discussions.selectAgent')}</h3>
             <p className="text-xs text-warm-400">{t('discussions.implementHint')}</p>
             <div className="space-y-2">
@@ -654,7 +655,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
             </div>
             <button onClick={() => setShowImplementModal(false)} className="btn btn-sm text-xs text-warm-500 w-full">{t('header.cancel')}</button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

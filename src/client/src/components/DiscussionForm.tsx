@@ -165,7 +165,7 @@ export default function DiscussionForm({
                   </p>
                 </div>
                 {selectedAgents.length >= 2 && (
-                  <div className="text-[10px] font-semibold text-accent-dark bg-white/70 border border-accent/30 rounded-full px-2.5 py-1">
+                  <div className="text-2xs font-semibold text-accent-dark bg-white/70 border border-accent/30 rounded-full px-2.5 py-1">
                     {lang === 'ko' ? '순서 조정 가능' : 'Reorder enabled'}
                   </div>
                 )}
@@ -296,7 +296,7 @@ export default function DiscussionForm({
               onChange={(e) => setField('max_rounds', Number(e.target.value))}
               className="input-field w-24 text-center"
             />
-            <p className="text-[10px] text-warm-400 mt-1.5">{t('discussions.roundExplain')}</p>
+            <p className="text-2xs text-warm-400 mt-1.5">{t('discussions.roundExplain')}</p>
           </div>
 
           <div>
@@ -316,7 +316,7 @@ export default function DiscussionForm({
               />
               <span className="text-xs font-medium text-warm-500">{t('discussions.autoImplement')}</span>
             </label>
-            <p className="text-[10px] text-warm-400 mt-1 ml-6">{t('discussions.autoImplementHint')}</p>
+            <p className="text-2xs text-warm-400 mt-1 ml-6">{t('discussions.autoImplementHint')}</p>
             {values.auto_implement && (
               <div className="mt-2 ml-6">
                 <label className="block text-xs font-medium text-warm-500 mb-1">{t('discussions.selectAgent')}</label>

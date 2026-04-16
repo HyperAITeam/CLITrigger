@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Users } from 'lucide-react';
 import type { DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
 import * as discussionsApi from '../api/discussions';
+import EmptyState from './EmptyState';
 
 const ROLE_OPTIONS = ['architect', 'developer', 'reviewer', 'pm', 'tester', 'custom'] as const;
 
@@ -137,7 +138,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
       </div>
 
       {agents.length === 0 && !showForm && (
-        <p className="text-xs text-warm-400 py-2">{t('agents.empty')}</p>
+        <EmptyState icon={Users} title={t('agents.empty')} size="sm" />
       )}
 
       {/* Agent list */}
@@ -233,7 +234,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
               className="input-field resize-y min-h-[100px]"
               placeholder={lang === 'ko' ? '이 에이전트의 전문 분야와 관점을 설명하세요...' : "Describe this agent's expertise and perspective..."}
             />
-            <p className="text-[10px] text-warm-400 mt-1.5">
+            <p className="text-2xs text-warm-400 mt-1.5">
               {lang === 'ko' ? '토론 시 이 에이전트가 어떤 관점에서 발언할지 결정합니다.' : 'Determines what perspective this agent brings to the discussion.'}
             </p>
           </div>

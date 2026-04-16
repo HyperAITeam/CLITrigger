@@ -169,12 +169,12 @@ export default function TodoForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-2xs font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
           >
             <ImageIcon size={14} />
             {t('todoForm.addImage')}
           </button>
-          <span className="text-[10px] text-warm-300">
+          <span className="text-2xs text-warm-300">
             {t('todoForm.pasteHint')}
           </span>
         </div>
@@ -198,7 +198,7 @@ export default function TodoForm({
             <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider">
               {t('todoForm.images')}
             </h4>
-            <span className="text-[10px] text-warm-400">({totalImages})</span>
+            <span className="text-2xs text-warm-400">({totalImages})</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {/* Existing images (already uploaded) */}
@@ -292,7 +292,7 @@ export default function TodoForm({
             onChange={(e) => setMaxTurns(e.target.value)}
             className="input-field text-sm w-32"
           />
-          <p className="text-[10px] text-warm-400 mt-1">
+          <p className="text-2xs text-warm-400 mt-1">
             {t('todoForm.maxTurnsHint')}
           </p>
         </div>
@@ -317,7 +317,7 @@ export default function TodoForm({
             ))}
           </select>
           {dependsOn && (
-            <p className="text-[10px] text-warm-400 mt-1">
+            <p className="text-2xs text-warm-400 mt-1">
               {t('todoForm.dependsOnHint')}
             </p>
           )}

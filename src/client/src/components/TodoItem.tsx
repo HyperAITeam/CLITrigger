@@ -103,7 +103,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       {open && createPortal(
         <div
           ref={dropRef}
-          className={`fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+          className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
           style={{
             top: pos.top,
             left: pos.left,
@@ -510,14 +510,14 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         </button>
 
         {/* Priority */}
-        <span className="text-[10px] font-mono text-warm-400 w-6 flex-shrink-0">#{todo.priority}</span>
+        <span className="text-2xs font-mono text-warm-400 w-6 flex-shrink-0">#{todo.priority}</span>
 
         {/* Title — takes remaining space, forces line break after on mobile */}
         <span className="flex-1 basis-[calc(100%-100px)] md:basis-auto min-w-0 text-sm text-warm-800 font-medium truncate order-none">{todo.title}</span>
 
         {/* Image count badge */}
         {existingImages.length > 0 && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono text-warm-400 bg-warm-100 flex-shrink-0">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-2xs font-mono text-warm-400 bg-warm-100 flex-shrink-0">
             <ImageIcon size={12} />
             {existingImages.length}
           </span>
@@ -526,7 +526,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
+            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <Link size={12} />
@@ -545,7 +545,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
             {todo.cli_model && <span className="text-warm-400">/ {todo.cli_model}</span>}
           </span>
@@ -900,7 +900,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                       {t('failure.title')}
                     </h4>
                     {exitCode && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
+                      <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
                         {t('failure.exitCode')}: {exitCode}
                       </span>
                     )}

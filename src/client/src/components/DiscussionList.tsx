@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Pause, Trash2 } from 'lucide-react';
+import { Play, Pause, Trash2, MessageSquare } from 'lucide-react';
 import type { Discussion, DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import * as discussionsApi from '../api/discussions';
 import AgentManager from './AgentManager';
 import DiscussionForm from './DiscussionForm';
+import EmptyState from './EmptyState';
 
 interface DiscussionListProps {
   projectId: string;
@@ -101,9 +102,8 @@ export default function DiscussionList({
       )}
 
       {discussions.length === 0 && !showForm ? (
-        <div className="card p-10 text-center">
-          <p className="text-warm-400 text-sm">{t('discussions.empty')}</p>
-          <p className="text-warm-300 text-xs mt-1">{t('discussions.emptyHint')}</p>
+        <div className="card">
+          <EmptyState icon={MessageSquare} title={t('discussions.empty')} description={t('discussions.emptyHint')} />
         </div>
       ) : (
         <div className="space-y-3">
@@ -123,13 +123,13 @@ export default function DiscussionList({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-warm-700 truncate">{discussion.title}</h3>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${STATUS_COLORS[discussion.status] || ''}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[discussion.status] || ''}`}>
                         {t(`status.${discussion.status}`) || discussion.status}
                       </span>
                     </div>
                     <p className="text-xs text-warm-400 mt-1 line-clamp-1">{discussion.description}</p>
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-[10px] text-warm-400">
+                      <span className="text-2xs text-warm-400">
                         {t('discussions.round')} {discussion.current_round}/{discussion.max_rounds}
                       </span>
                       <div className="flex -space-x-1">

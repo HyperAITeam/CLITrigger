@@ -5,8 +5,9 @@ import type { PendingImage } from './TodoForm';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
 import TaskGraph from './TaskGraph';
+import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
-import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink } from 'lucide-react';
+import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList } from 'lucide-react';
 
 interface TodoListProps {
   todos: Todo[];
@@ -340,16 +341,15 @@ export default function TodoList({
 
       <div className="space-y-3">
         {sortedTodos.length === 0 ? (
-          <div className="card p-10 text-center">
-            <p className="text-warm-600 font-medium">{t('todos.empty')}</p>
-            <p className="text-warm-400 text-sm mt-1">{t('todos.emptyHint')}</p>
+          <div className="card">
+            <EmptyState icon={ClipboardList} title={t('todos.empty')} description={t('todos.emptyHint')} />
           </div>
         ) : (
           sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
             return (
-              <div key={todo.id}>
+              <div key={todo.id} className="animate-fade-in" style={{ animationDelay: `${index * 30}ms` }}>
                 {/* Chain merge header for completed chain roots */}
                 {isCompletedChainRoot && (
                   <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-status-merged/5 border border-status-merged/20 animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
@@ -357,12 +357,12 @@ export default function TodoList({
                     <span className="text-xs font-semibold text-status-merged">
                       {t('todo.chainComplete')}
                     </span>
-                    <span className="text-[10px] font-mono text-warm-400">
+                    <span className="text-2xs font-mono text-warm-400">
                       {t('todo.chainTasks').replace('{count}', String(completedChainRoots.get(todo.id)))}
                     </span>
                     <div className="ml-auto flex items-center gap-2">
                       {chainMergeError && mergingChain === null && (
-                        <span className="text-[10px] text-status-error">{chainMergeError}</span>
+                        <span className="text-2xs text-status-error">{chainMergeError}</span>
                       )}
                       <button
                         onClick={() => handleMergeChain(todo.id)}

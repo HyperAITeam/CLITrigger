@@ -187,7 +187,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             {item.title}
           </span>
           {isMoved && item.converted_type && (
-            <span className="text-[10px] text-purple-500">
+            <span className="text-2xs text-purple-500">
               → {item.converted_type === 'todo' ? t('planner.movedToTodo') : t('planner.movedToSchedule')}
             </span>
           )}
@@ -196,7 +196,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
         {/* Tags */}
         <div className="hidden sm:flex items-center gap-1 w-[160px] flex-shrink-0 overflow-hidden">
           {tags.map((tag) => (
-            <span key={tag} className={`px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
+            <span key={tag} className={`px-2 py-0.5 rounded text-2xs font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
           ))}
         </div>
 
@@ -220,7 +220,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
         {/* Status */}
         <div className="w-16 flex-shrink-0">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLES[item.status] || STATUS_STYLES.pending}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${STATUS_STYLES[item.status] || STATUS_STYLES.pending}`}>
             {t(`plannerStatus.${item.status}`)}
           </span>
         </div>
@@ -231,7 +231,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             <MoreVertical size={14} />
           </button>
           {menuOpen && createPortal(
-            <div ref={dropRef} className={`fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+            <div ref={dropRef} className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
               style={{ top: pos.top, left: pos.left, opacity: positioned ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
               onClick={() => setMenuOpen(false)}
             >
@@ -281,12 +281,12 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
             {/* Tags inline edit */}
             <div>
-              <label className="text-[10px] text-warm-400 mb-1 block">{t('plannerForm.tags')}</label>
+              <label className="text-2xs text-warm-400 mb-1 block">{t('plannerForm.tags')}</label>
               <div className="flex flex-wrap items-center gap-1.5">
                 {editTags.map((tag) => (
                   <div key={tag} className="relative">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
                       onClick={() => setColorPickTag(colorPickTag === tag ? null : tag)}
                     >
                       {tag}
@@ -294,7 +294,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                     </span>
                     {colorPickTag === tag && (
                       <div className="absolute top-full left-0 mt-1 p-2 rounded-lg shadow-elevated z-20 w-[180px]" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-                        <div className="text-[10px] text-warm-400 mb-1.5">{t('plannerTag.color')}</div>
+                        <div className="text-2xs text-warm-400 mb-1.5">{t('plannerTag.color')}</div>
                         <div className="grid grid-cols-5 gap-1.5">
                           {TAG_COLOR_KEYS.map((colorKey) => (
                             <button
@@ -333,7 +333,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                     <div className="absolute top-full left-0 mt-1 w-40 rounded-lg shadow-elevated z-10 py-1 max-h-32 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                       {tagSuggestions.slice(0, 8).map((s) => (
                         <button key={s} className="flex items-center w-full px-2 py-1 hover:bg-warm-100/50 transition-colors text-left" onMouseDown={() => addTag(s)}>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTagStyle(tagColors.get(s) || 'default')}`}>{s}</span>
+                          <span className={`px-2 py-0.5 rounded text-2xs font-medium ${getTagStyle(tagColors.get(s) || 'default')}`}>{s}</span>
                         </button>
                       ))}
                     </div>
@@ -345,7 +345,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             {/* Priority / Due date / Status row */}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] text-warm-400 mb-1 block">{t('plannerForm.priority')}</label>
+                <label className="text-2xs text-warm-400 mb-1 block">{t('plannerForm.priority')}</label>
                 <select className="input-field text-xs w-full py-1" value={editPriority} onChange={(e) => savePriority(Number(e.target.value))}>
                   <option value={0}>{t('plannerForm.priorityLow')}</option>
                   <option value={1}>{t('plannerForm.priorityNormal')}</option>
@@ -354,11 +354,11 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-warm-400 mb-1 block">{t('plannerForm.dueDate')}</label>
+                <label className="text-2xs text-warm-400 mb-1 block">{t('plannerForm.dueDate')}</label>
                 <input type="date" className="input-field text-xs w-full py-1" value={editDueDate} onChange={(e) => saveDueDate(e.target.value)} />
               </div>
               <div>
-                <label className="text-[10px] text-warm-400 mb-1 block">{t('plannerForm.status')}</label>
+                <label className="text-2xs text-warm-400 mb-1 block">{t('plannerForm.status')}</label>
                 <select className="input-field text-xs w-full py-1" value={editStatus} onChange={(e) => saveStatus(e.target.value)}>
                   <option value="pending">{t('plannerStatus.pending')}</option>
                   <option value="in_progress">{t('plannerStatus.in_progress')}</option>

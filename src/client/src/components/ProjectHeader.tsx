@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import Modal from './Modal';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
@@ -354,7 +355,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 onChange={(e) => setDefaultMaxTurns(Math.min(200, Math.max(5, parseInt(e.target.value, 10) || 30)))}
                 className="input-field"
               />
-              <p className="text-[10px] text-warm-400 mt-1">{t('settings.defaultMaxTurnsHint')}</p>
+              <p className="text-2xs text-warm-400 mt-1">{t('settings.defaultMaxTurnsHint')}</p>
             </div>
 
             <div>
@@ -385,7 +386,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               {cliStatusLoaded && currentCliStatus && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className={`inline-block w-2 h-2 rounded-full ${currentCliStatus.installed ? 'bg-status-success' : 'bg-status-error'}`} />
-                  <span className="text-[10px] text-warm-400">
+                  <span className="text-2xs text-warm-400">
                     {currentCliStatus.installed
                       ? (currentCliStatus.version || t('header.cliInstalled'))
                       : t('header.cliNotFound')}
@@ -409,7 +410,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                       <p className="text-xs font-medium text-status-warning">
                         {t('header.cliNotInstalled').replace('{tool}', CLI_TOOLS.find((c) => c.value === cliTool)?.label || cliTool)}
                       </p>
-                      <code className="block mt-1 text-[10px] text-warm-500 bg-warm-100 px-2 py-1 rounded select-all">
+                      <code className="block mt-1 text-2xs text-warm-500 bg-warm-100 px-2 py-1 rounded select-all">
                         {t(`header.cliInstallHint.${cliTool}`)}
                       </code>
                     </div>
@@ -452,7 +453,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <h4 className="text-xs font-semibold text-warm-600 mb-2">
               {t('header.fallbackChainTitle')}
             </h4>
-            <p className="text-[10px] text-warm-400 mb-3">{t('header.fallbackChainHint')}</p>
+            <p className="text-2xs text-warm-400 mb-3">{t('header.fallbackChainHint')}</p>
             <div className="flex flex-wrap gap-2">
               {CLI_TOOLS.map((tool) => {
                 const idx = fallbackChain.indexOf(tool.value);
@@ -481,7 +482,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               })}
             </div>
             {fallbackChain.length > 0 && (
-              <p className="text-[10px] text-warm-500 mt-2">
+              <p className="text-2xs text-warm-500 mt-2">
                 {fallbackChain.map((v) => CLI_TOOLS.find((t) => t.value === v)?.label ?? v).join(' → ')}
               </p>
             )}
@@ -507,7 +508,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 }`}
               >
                 <div className="text-xs font-semibold">{t('header.sandboxStrict')}</div>
-                <div className="text-[10px] mt-1 opacity-80">{t('header.sandboxStrictDesc')}</div>
+                <div className="text-2xs mt-1 opacity-80">{t('header.sandboxStrictDesc')}</div>
               </button>
               <button
                 type="button"
@@ -523,18 +524,18 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 }`}
               >
                 <div className="text-xs font-semibold">{t('header.sandboxPermissive')}</div>
-                <div className="text-[10px] mt-1 opacity-80">{t('header.sandboxPermissiveDesc')}</div>
+                <div className="text-2xs mt-1 opacity-80">{t('header.sandboxPermissiveDesc')}</div>
               </button>
             </div>
             {sandboxMode === 'permissive' && (
-              <p className="text-[10px] text-status-warning mt-2">{t('header.sandboxWarning')}</p>
+              <p className="text-2xs text-status-warning mt-2">{t('header.sandboxWarning')}</p>
             )}
           </div>
 
           {/* Sandbox warning confirmation dialog */}
           {showSandboxWarning && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-theme-card rounded-2xl p-6 max-w-sm mx-4 shadow-xl">
+            <Modal open onClose={() => setShowSandboxWarning(false)} size="sm">
+              <div className="bg-theme-card rounded-2xl p-6 shadow-xl">
                 <p className="text-sm text-warm-700 mb-4">{t('header.sandboxWarning')}</p>
                 <div className="flex justify-end gap-3">
                   <button
@@ -554,7 +555,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                   </button>
                 </div>
               </div>
-            </div>
+            </Modal>
           )}
 
           {/* Worktree Isolation */}
@@ -572,7 +573,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                   }`}
                 >
                   <div className="text-xs font-semibold">{t('header.worktreeEnabled')}</div>
-                  <div className="text-[10px] mt-1 opacity-80">{t('header.worktreeEnabledDesc')}</div>
+                  <div className="text-2xs mt-1 opacity-80">{t('header.worktreeEnabledDesc')}</div>
                 </button>
                 <button
                   type="button"
@@ -584,11 +585,11 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                   }`}
                 >
                   <div className="text-xs font-semibold">{t('header.worktreeDisabled')}</div>
-                  <div className="text-[10px] mt-1 opacity-80">{t('header.worktreeDisabledDesc')}</div>
+                  <div className="text-2xs mt-1 opacity-80">{t('header.worktreeDisabledDesc')}</div>
                 </button>
               </div>
               {!useWorktree && (
-                <p className="text-[10px] text-status-warning mt-2">{t('header.worktreeWarning')}</p>
+                <p className="text-2xs text-status-warning mt-2">{t('header.worktreeWarning')}</p>
               )}
             </div>
           ) : null}
@@ -596,7 +597,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           {/* Token Usage Display */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.showTokenUsageTitle')}</h4>
-            <p className="text-[10px] text-warm-500 mb-3">{t('header.showTokenUsageDesc')}</p>
+            <p className="text-2xs text-warm-500 mb-3">{t('header.showTokenUsageDesc')}</p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -611,7 +612,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           {/* Debug Logging */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.debugLoggingTitle')}</h4>
-            <p className="text-[10px] text-warm-500 mb-3">{t('header.debugLoggingDesc')}</p>
+            <p className="text-2xs text-warm-500 mb-3">{t('header.debugLoggingDesc')}</p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"

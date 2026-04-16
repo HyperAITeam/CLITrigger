@@ -111,6 +111,7 @@ export default {
         },
       },
       zIndex: {
+        overlay: '30',
         dropdown: '50',
         sticky: '60',
         modal: '100',

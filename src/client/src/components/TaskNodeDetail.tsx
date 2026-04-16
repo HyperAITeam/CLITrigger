@@ -335,15 +335,15 @@ export default function TaskNodeDetail({
 
         {/* Meta info */}
         <div className="flex flex-wrap gap-1.5">
-          <span className="text-[10px] font-mono text-warm-400 badge bg-warm-100">#{todo.priority}</span>
+          <span className="text-2xs font-mono text-warm-400 badge bg-warm-100">#{todo.priority}</span>
           {todo.cli_tool && (
-            <span className="badge text-[10px] font-mono bg-warm-200/60 text-warm-600">
+            <span className="badge text-2xs font-mono bg-warm-200/60 text-warm-600">
               {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
               {todo.cli_model && <span className="text-warm-400 ml-1">/ {todo.cli_model}</span>}
             </span>
           )}
           {parentTodo && (
-            <span className="badge text-[10px] font-mono bg-warm-200/60 text-warm-600">
+            <span className="badge text-2xs font-mono bg-warm-200/60 text-warm-600">
               {t('todo.dependsOn')}: {parentTodo.title.length > 20 ? parentTodo.title.slice(0, 20) + '...' : parentTodo.title}
             </span>
           )}
@@ -352,12 +352,12 @@ export default function TaskNodeDetail({
         {/* Branch */}
         {todo.branch_name && (
           <div className="flex flex-wrap gap-1.5">
-            <span className="badge text-[10px] bg-warm-200/60 text-warm-600">{t('todo.branch')}: {todo.branch_name}</span>
+            <span className="badge text-2xs bg-warm-200/60 text-warm-600">{t('todo.branch')}: {todo.branch_name}</span>
             {todo.merged_from_branch && (
-              <span className="badge text-[10px] bg-warm-200/60 text-warm-600">{t('todo.mergedFrom')}: {todo.merged_from_branch}</span>
+              <span className="badge text-2xs bg-warm-200/60 text-warm-600">{t('todo.mergedFrom')}: {todo.merged_from_branch}</span>
             )}
             {!todo.worktree_path && childTodo && (
-              <span className="badge text-[10px] bg-amber-500/10 text-amber-600">{t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}</span>
+              <span className="badge text-2xs bg-amber-500/10 text-amber-600">{t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}</span>
             )}
           </div>
         )}
@@ -369,11 +369,11 @@ export default function TaskNodeDetail({
           return (
             <div className="rounded-lg border border-status-error/30 bg-status-error/5 overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 bg-status-error/10 border-b border-status-error/20">
-                <h4 className="text-[10px] font-semibold text-status-error uppercase tracking-wider">{t('failure.title')}</h4>
+                <h4 className="text-2xs font-semibold text-status-error uppercase tracking-wider">{t('failure.title')}</h4>
                 {onFix && (
                   <button
                     onClick={() => onFix(todo, errorLogs)}
-                    className="text-[10px] font-medium text-amber-500 hover:text-amber-600"
+                    className="text-2xs font-medium text-amber-500 hover:text-amber-600"
                   >
                     {t('failure.fix')}
                   </button>
@@ -381,7 +381,7 @@ export default function TaskNodeDetail({
               </div>
               <div className="px-3 py-2 space-y-1 max-h-32 overflow-y-auto">
                 {errorLogs.map(log => (
-                  <div key={log.id} className="text-[10px] font-mono text-status-error whitespace-pre-wrap break-all">
+                  <div key={log.id} className="text-2xs font-mono text-status-error whitespace-pre-wrap break-all">
                     {log.message}
                   </div>
                 ))}
@@ -395,20 +395,20 @@ export default function TaskNodeDetail({
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               {resultData.duration_seconds !== null && (
-                <span className="text-[10px] font-mono badge bg-warm-100 text-warm-600">{formatDuration(resultData.duration_seconds)}</span>
+                <span className="text-2xs font-mono badge bg-warm-100 text-warm-600">{formatDuration(resultData.duration_seconds)}</span>
               )}
               {resultData.commits.length > 0 && (
-                <span className="text-[10px] font-mono badge bg-status-success/10 text-status-success">{resultData.commits.length} commits</span>
+                <span className="text-2xs font-mono badge bg-status-success/10 text-status-success">{resultData.commits.length} commits</span>
               )}
               {resultData.diff_stats.files_changed > 0 && (
-                <span className="text-[10px] font-mono badge bg-status-info/10 text-status-info">
+                <span className="text-2xs font-mono badge bg-status-info/10 text-status-info">
                   {resultData.diff_stats.files_changed} files
                   <span className="text-status-success ml-1">+{resultData.diff_stats.insertions}</span>
                   <span className="text-status-error ml-1">-{resultData.diff_stats.deletions}</span>
                 </span>
               )}
               {showTokenUsage && resultData.token_usage && resultData.token_usage.input_tokens !== null && (
-                <span className="text-[10px] font-mono badge bg-warm-200/60 text-warm-600">
+                <span className="text-2xs font-mono badge bg-warm-200/60 text-warm-600">
                   {formatTokenCount(resultData.token_usage.input_tokens)} in / {formatTokenCount(resultData.token_usage.output_tokens ?? 0)} out
                 </span>
               )}
@@ -417,10 +417,10 @@ export default function TaskNodeDetail({
             {/* Commits */}
             {resultData.commits.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('result.commitHistory')}</h4>
+                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('result.commitHistory')}</h4>
                 <div className="space-y-0.5">
                   {resultData.commits.map((c, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                    <div key={i} className="flex items-start gap-1.5 text-2xs">
                       <span className="font-mono text-status-info flex-shrink-0">{c.hash.slice(0, 7)}</span>
                       <span className="text-warm-700 truncate">{c.message}</span>
                     </div>
@@ -435,13 +435,13 @@ export default function TaskNodeDetail({
         {showDiff && diffData && (
           <div>
             <div className="flex items-center justify-between mb-1">
-              <h4 className="text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('todo.diffOutput')}</h4>
-              <div className="flex gap-2 text-[10px]">
+              <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider">{t('todo.diffOutput')}</h4>
+              <div className="flex gap-2 text-2xs">
                 <span className="text-status-success">+{diffData.stats.insertions}</span>
                 <span className="text-status-error">-{diffData.stats.deletions}</span>
               </div>
             </div>
-            <pre className="h-48 overflow-auto bg-warm-800 rounded-lg p-3 font-mono text-[10px] leading-relaxed">
+            <pre className="h-48 overflow-auto bg-warm-800 rounded-lg p-3 font-mono text-2xs leading-relaxed">
               {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
                 let cls = 'text-warm-400';
                 if (line.startsWith('+') && !line.startsWith('+++')) cls = 'text-green-400';
@@ -456,7 +456,7 @@ export default function TaskNodeDetail({
 
         {/* Logs */}
         <div>
-          <h4 className="text-[10px] font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('todo.systemLog')}</h4>
+          <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('todo.systemLog')}</h4>
           <LogViewer
             logs={logs}
             interactive={isInteractive && todo.status === 'running'}

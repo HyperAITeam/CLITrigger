@@ -298,7 +298,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
               onChange={(e) => setCustomValue(e.target.value)}
               className="bg-warm-50 border border-warm-300 rounded-lg px-3 py-1.5 w-full text-sm text-warm-800 font-mono transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
-            <p className="text-[10px] text-warm-400 mt-1">
+            <p className="text-2xs text-warm-400 mt-1">
               {t('schedule.cronHint')}
             </p>
           </div>

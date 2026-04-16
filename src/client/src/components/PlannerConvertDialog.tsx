@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { useModels } from '../hooks/useModels';
 import type { PlannerItem } from '../types';
+import Modal from './Modal';
 
 type ConvertMode = 'todo' | 'schedule';
 
@@ -52,8 +53,8 @@ export default function PlannerConvertDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
-      <div className="card p-6 w-full max-w-md animate-slide-up" onClick={(e) => e.stopPropagation()}>
+    <Modal open onClose={onClose} size="md" position="top" animation="slide-up">
+      <div className="card p-6">
         <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
           {mode === 'todo' ? t('plannerConvert.toTask') : t('plannerConvert.toSchedule')}
         </h3>
@@ -126,7 +127,7 @@ export default function PlannerConvertDialog({
         <div className="flex justify-end gap-3">
           <button className="btn-ghost text-xs" onClick={onClose}>{t('plannerConvert.cancel')}</button>
           <button
-            className="btn-primary text-xs py-2"
+            className="btn-primary btn-sm"
             onClick={handleConvert}
             disabled={converting || (mode === 'schedule' && scheduleType === 'once' && !runAt)}
           >
@@ -134,6 +135,6 @@ export default function PlannerConvertDialog({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
