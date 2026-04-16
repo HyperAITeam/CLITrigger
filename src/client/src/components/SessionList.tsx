@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ChevronRight, GitBranch, Play, Square, Trash2, TerminalSquare } from 'lucide-react';
+import { ChevronRight, GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
 import EmptyState from './EmptyState';
 import type { Session, SessionLog, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -19,6 +19,7 @@ interface SessionListProps {
   onStartSession: (id: string) => Promise<void>;
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
+  onCleanupSession: (id: string) => Promise<void>;
   onSendInput: (sessionId: string, input: string) => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
 }
@@ -51,6 +52,7 @@ export default function SessionList({
   onStartSession,
   onStopSession,
   onDeleteSession,
+  onCleanupSession,
   onSendInput,
   onEvent,
 }: SessionListProps) {
@@ -212,6 +214,15 @@ export default function SessionList({
                           title={t('session.stop')}
                         >
                           <Square size={16} />
+                        </button>
+                      )}
+                      {session.status !== 'running' && (session.worktree_path || session.branch_name) && (
+                        <button
+                          onClick={() => onCleanupSession(session.id)}
+                          className="p-1.5 text-warm-400 hover:text-amber-600 rounded transition-colors"
+                          title={t('session.cleanup')}
+                        >
+                          <Archive size={16} />
                         </button>
                       )}
                       <button
