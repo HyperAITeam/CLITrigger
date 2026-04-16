@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X } from 'lucide-react';
 import type { PlannerItem as PlannerItemType } from '../types';
 import { useI18n } from '../i18n';
-import { getTagStyle } from './plannerTagColors';
+import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-500',
@@ -27,9 +27,10 @@ interface PlannerItemProps {
   onDelete: () => void;
   onConvertToTodo: () => void;
   onConvertToSchedule: () => void;
+  onUpdateTag?: (name: string, data: { color?: string }) => Promise<void>;
 }
 
-export default function PlannerItem({ item, tagColors, existingTags, onSave, onDelete, onConvertToTodo, onConvertToSchedule }: PlannerItemProps) {
+export default function PlannerItem({ item, tagColors, existingTags, onSave, onDelete, onConvertToTodo, onConvertToSchedule, onUpdateTag }: PlannerItemProps) {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -49,6 +50,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   });
   const [tagInput, setTagInput] = useState('');
   const [showTagDrop, setShowTagDrop] = useState(false);
+  const [colorPickTag, setColorPickTag] = useState<string | null>(null);
   const tagRef = useRef<HTMLInputElement>(null);
 
   // Sync when item prop changes
@@ -275,10 +277,35 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
               <label className="text-[10px] text-warm-400 mb-1 block">{t('plannerForm.tags')}</label>
               <div className="flex flex-wrap items-center gap-1.5">
                 {editTags.map((tag) => (
-                  <span key={tag} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${getTagStyle(tagColors.get(tag) || 'default')}`}>
-                    {tag}
-                    <button onClick={() => removeTag(tag)} className="opacity-60 hover:opacity-100"><X size={9} /></button>
-                  </span>
+                  <div key={tag} className="relative">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
+                      onClick={() => setColorPickTag(colorPickTag === tag ? null : tag)}
+                    >
+                      {tag}
+                      <button onClick={(e) => { e.stopPropagation(); removeTag(tag); }} className="opacity-60 hover:opacity-100"><X size={9} /></button>
+                    </span>
+                    {colorPickTag === tag && (
+                      <div className="absolute top-full left-0 mt-1 p-2 rounded-lg shadow-elevated z-20 w-[180px]" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                        <div className="text-[10px] text-warm-400 mb-1.5">{t('plannerTag.color')}</div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {TAG_COLOR_KEYS.map((colorKey) => (
+                            <button
+                              key={colorKey}
+                              onClick={async () => {
+                                if (onUpdateTag) await onUpdateTag(tag, { color: colorKey });
+                                setColorPickTag(null);
+                              }}
+                              className={`aspect-square rounded-md flex items-center justify-center transition-all ${tagColors.get(tag) === colorKey ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                              title={t(`plannerTag.color.${colorKey}`)}
+                            >
+                              <div className={`w-5 h-5 rounded ${TAG_COLOR_MAP[colorKey].swatch}`} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
                 <div className="relative">
                   <input
