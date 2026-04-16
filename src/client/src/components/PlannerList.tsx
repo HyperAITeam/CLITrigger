@@ -1,10 +1,15 @@
 import { useState, useMemo } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, PlannerTag } from '../types';
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
 import { useI18n } from '../i18n';
+
+type SortField = 'title' | 'priority' | 'due_date' | 'status' | 'created_at';
+type SortDir = 'asc' | 'desc';
+
+const STATUS_ORDER: Record<string, number> = { pending: 0, in_progress: 1, done: 2, moved: 3 };
 
 interface PlannerListProps {
   plannerItems: PlannerItemType[];
@@ -30,18 +35,17 @@ export default function PlannerList({
   const [editItem, setEditItem] = useState<PlannerItemType | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [convertItem, setConvertItem] = useState<PlannerItemType | null>(null);
   const [convertMode, setConvertMode] = useState<'todo' | 'schedule'>('todo');
 
-  // Tag name list for filter dropdown
   const tagNames = useMemo(() => existingTags.map(t => t.name), [existingTags]);
-
-  // Tag color map for PlannerItem
   const tagColorMap = useMemo(() => new Map(existingTags.map(t => [t.name, t.color])), [existingTags]);
 
-  // Filter items
+  // Filter + Sort
   const filteredItems = useMemo(() => {
-    return plannerItems.filter((item) => {
+    let items = plannerItems.filter((item) => {
       if (filterStatus && item.status !== filterStatus) return false;
       if (filterTag) {
         const tags: string[] = item.tags ? (() => { try { return JSON.parse(item.tags!); } catch { return []; } })() : [];
@@ -49,7 +53,50 @@ export default function PlannerList({
       }
       return true;
     });
-  }, [plannerItems, filterTag, filterStatus]);
+
+    items = [...items].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'title':
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case 'priority':
+          cmp = a.priority - b.priority;
+          break;
+        case 'due_date': {
+          const da = a.due_date || '9999';
+          const db = b.due_date || '9999';
+          cmp = da.localeCompare(db);
+          break;
+        }
+        case 'status':
+          cmp = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+          break;
+        case 'created_at':
+          cmp = a.created_at.localeCompare(b.created_at);
+          break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return items;
+  }, [plannerItems, filterTag, filterStatus, sortField, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir(field === 'priority' ? 'desc' : 'asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return null;
+    return sortDir === 'asc'
+      ? <ArrowUp size={10} className="inline ml-0.5" />
+      : <ArrowDown size={10} className="inline ml-0.5" />;
+  };
 
   return (
     <div>
@@ -61,24 +108,12 @@ export default function PlannerList({
         </h2>
 
         <div className="flex items-center gap-2">
-          {/* Tag filter */}
-          <select
-            className="input-field text-xs py-1.5 px-2"
-            value={filterTag}
-            onChange={(e) => setFilterTag(e.target.value)}
-          >
+          <select className="input-field text-xs py-1.5 px-2" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
             <option value="">{t('planner.filterTag')}</option>
-            {tagNames.map((tag) => (
-              <option key={tag} value={tag}>{tag}</option>
-            ))}
+            {tagNames.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}
           </select>
 
-          {/* Status filter */}
-          <select
-            className="input-field text-xs py-1.5 px-2"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
+          <select className="input-field text-xs py-1.5 px-2" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">{t('planner.filterStatus')}</option>
             <option value="pending">{t('plannerStatus.pending')}</option>
             <option value="in_progress">{t('plannerStatus.in_progress')}</option>
@@ -119,13 +154,23 @@ export default function PlannerList({
 
       {/* Table */}
       <div className="card">
-        {/* Table header */}
-        <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
-          <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.title')}</div>
-          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.tags')}</div>
-          <div className="w-12 text-center text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('plannerForm.priority')}</div>
-          <div className="hidden md:block w-20 text-right text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.dueDate')}</div>
-          <div className="w-16 text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.status')}</div>
+        {/* Table header — clickable for sort */}
+        <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl select-none" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
+          <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
+            {t('planner.col.title')}<SortIcon field="title" />
+          </div>
+          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">
+            {t('planner.col.tags')}
+          </div>
+          <div className="w-12 text-center text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
+            {t('plannerForm.priority')}<SortIcon field="priority" />
+          </div>
+          <div className="hidden md:block w-20 text-right text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('due_date')}>
+            {t('planner.col.dueDate')}<SortIcon field="due_date" />
+          </div>
+          <div className="w-16 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('status')}>
+            {t('planner.col.status')}<SortIcon field="status" />
+          </div>
           <div className="w-8"></div>
         </div>
 
