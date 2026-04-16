@@ -106,6 +106,27 @@ describe('pty-output-filter', () => {
       expect(isNoiseLine('·F')).toBe(true);
     });
 
+    it('filters concatenated animation frames (multiple (thinking))', () => {
+      expect(isNoiseLine('✢ (thinking) * (thinking) ✶ (thinking) ✻ (thinking)')).toBe(true);
+      expect(isNoiseLine('(thinking) ✻ (thinking) (thinking) ✶ (thinking)')).toBe(true);
+    });
+
+    it('filters fragmented animation characters', () => {
+      expect(isNoiseLine('✢ * ✶ ✻ Smo ✽ S o m s oo hi s n ✻ h g i … ✶ ng…')).toBe(true);
+      expect(isNoiseLine('✢ h i es zi · i n z g i … ng ✢ … * ✶ ✻ ✽ ✻ ✶ P * ho Pho')).toBe(true);
+    });
+
+    it('filters Ink status sub-lines (Hmm…, Loading…)', () => {
+      expect(isNoiseLine('⎿  Hmm…')).toBe(true);
+      expect(isNoiseLine('Hmm…')).toBe(true);
+      expect(isNoiseLine('⎿ Loading…')).toBe(true);
+    });
+
+    it('keeps real ⎿ sub-lines (tool result continuation)', () => {
+      expect(isNoiseLine('⎿  Wrote 3 lines to 헬로지토.md')).toBe(false);
+      expect(isNoiseLine('⎿ .gitignore')).toBe(false);
+    });
+
     it('filters empty/whitespace lines', () => {
       expect(isNoiseLine('')).toBe(true);
       expect(isNoiseLine('   ')).toBe(true);
@@ -186,6 +207,26 @@ describe('pty-output-filter', () => {
       expect(result).toContain('● Here is my response:');
       expect(result).toContain('- First point');
       expect(result).toContain('- Second point');
+    });
+
+    it('splits on bare \\r (TUI animation frame separator)', () => {
+      const state = createPtyFilterState();
+      // Three spinner frames rewritten with \r, then a real response after \n
+      const chunk = '✶ Photosynthesizing…\r✻ Photosynthesizing…\r✽ Photosynthesizing…\n● 파일 생성 완료\n';
+      const result = filterInteractivePtyOutput(chunk, state);
+      expect(result).toContain('● 파일 생성 완료');
+      expect(result).not.toContain('Photosynthesizing');
+    });
+
+    it('filters accumulated animation frames even without \\n', () => {
+      const state = createPtyFilterState();
+      // Many bare-\r frames followed by a real line
+      let chunk = '';
+      for (let i = 0; i < 10; i++) chunk += `✻ Thinking…\r`;
+      chunk += '● Real response\n';
+      const result = filterInteractivePtyOutput(chunk, state);
+      expect(result).toContain('● Real response');
+      expect(result).not.toContain('Thinking');
     });
 
     it('handles mixed noise and content', () => {

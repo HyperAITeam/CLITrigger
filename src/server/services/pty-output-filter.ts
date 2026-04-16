@@ -15,6 +15,8 @@ export function createPtyFilterState(): PtyFilterState {
 
 // ── Noise detection patterns ──
 
+const SPINNER_CHARS = '✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*';
+
 const NOISE_PATTERNS: RegExp[] = [
   // Box drawing / separator lines (allow trailing prompt chars like > $ %)
   /^[\s─━│┃╭╮╰╯┌┐└┘┬┴├┤┼╋═║╔╗╚╝╠╣╦╩╬░█▓▒>$%›]+$/,
@@ -31,14 +33,16 @@ const NOISE_PATTERNS: RegExp[] = [
   /⏵/,
   // TUI hints
   /(?:ctrl|shift)\+\w+\s+to\s+/i,
-  // Tip lines
-  /^⎿\s*Tip:/,
+  // Ink status sub-line (⎿ followed by short status word: Tip, Hmm, Loading, etc.)
+  /^⎿\s*(?:Tip|Hmm|Loading|Processing|Running|Waiting|Thinking|Done|Working)/i,
+  // Ink short status line on its own (Hmm…, Loading…)
+  /^(?:Hmm|Thinking|Loading|Processing|Running|Waiting|Working)\s*…?$/i,
   // Spinner frames: allow optional (thinking)/(thought for Ns) suffix after …
   /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*]\s*.{0,60}…/,
   // Thinking animation chars mixed with (thinking) text (e.g. "✶(thinking)(thinking) ✻(thinking)✻")
   /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s]*\(?think(?:ing)?\)?[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s(thinking)]*$/,
   // Thinking indicators
-  /^\(?think(?:ing)?\)?(?:\(?think(?:ing)?\))*$/,
+  /^\(?think(?:ing)?\)?(?:\s*\(?think(?:ing)?\)?)*$/,
   /^\(thought for \d+/,
   /thought? (?:for )?\d+s?\)/,
   // Welcome screen elements
@@ -71,6 +75,31 @@ const NOISE_PATTERNS: RegExp[] = [
   /^IMPORTANT.*(?:working directory|Do NOT access)/i,
 ];
 
+/**
+ * Detects lines that are animation-frame collisions — typically produced when
+ * multiple spinner refreshes concatenate without a real line break. Such lines
+ * are composed almost entirely of spinner chars, "(thinking)" markers,
+ * whitespace, `…`, and short character fragments.
+ */
+function isAnimationCollision(line: string): boolean {
+  // Strip all pure-noise tokens and see what meaningful content remains.
+  const stripped = line
+    .replace(/\(thought for \d+s?\)/gi, '')
+    .replace(/\(?think(?:ing)?\)?/gi, '')
+    .replace(new RegExp(`[${SPINNER_CHARS}…\\s]`, 'g'), '');
+  // If nothing or only punctuation remains, it's pure noise.
+  if (stripped.length === 0) return true;
+  // Keep lines with real response signals.
+  if (/[●\[\]]/.test(line)) return false;
+  // Multiple "(thinking)" occurrences on one line = animation collision.
+  const thinkingCount = (line.match(/\(thinking\)/gi) || []).length;
+  if (thinkingCount >= 2) return true;
+  // Three or more spinner chars interspersed with text = collision.
+  const spinnerCount = (line.match(new RegExp(`[${SPINNER_CHARS}]`, 'g')) || []).length;
+  if (spinnerCount >= 3) return true;
+  return false;
+}
+
 /** Returns true if the line is TUI noise that should be suppressed. */
 export function isNoiseLine(line: string): boolean {
   const trimmed = line.trim();
@@ -91,6 +120,9 @@ export function isNoiseLine(line: string): boolean {
     if (pattern.test(trimmed)) return true;
   }
 
+  // Detect concatenated animation frames (multiple spinners / (thinking) on one line)
+  if (isAnimationCollision(trimmed)) return true;
+
   return false;
 }
 
@@ -103,9 +135,19 @@ const DEDUP_CAPACITY = 20;
 export function filterInteractivePtyOutput(chunk: string, state: PtyFilterState): string {
   state.lineBuffer += chunk;
 
-  const segments = state.lineBuffer.split(/\r?\n/);
-  // Last segment is incomplete (no trailing newline) — keep in buffer
+  // Split on any line boundary — including bare \r, which TUI animations use
+  // to overwrite the current line. Without this, spinner frames concatenate
+  // into one long line and bypass the per-line noise filter.
+  const segments = state.lineBuffer.split(/\r\n|\r|\n/);
+  // Last segment is incomplete (no trailing separator) — keep in buffer
   state.lineBuffer = segments.pop() || '';
+
+  // Runaway buffer guard: if no line break has arrived in a very long time,
+  // force-process the buffer so we don't accumulate indefinitely.
+  if (state.lineBuffer.length > 4096) {
+    segments.push(state.lineBuffer);
+    state.lineBuffer = '';
+  }
 
   const kept: string[] = [];
 
