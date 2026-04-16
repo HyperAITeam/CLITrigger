@@ -216,7 +216,7 @@ export default function SessionList({
                           <Square size={16} />
                         </button>
                       )}
-                      {session.status !== 'running' && (session.worktree_path || session.branch_name) && (
+                      {session.status !== 'running' && !!session.worktree_path && (
                         <button
                           onClick={() => {
                             const deleteBranch = session.branch_name

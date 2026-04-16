@@ -206,7 +206,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
   const canMerge = todo.status === 'completed' && !isChainMember && !!todo.branch_name;
   const canRetry = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped';
   const canContinue = !!onContinue && todo.status === 'completed' && !!todo.worktree_path;
-  const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && (todo.worktree_path || todo.branch_name) && !isChainMember;
+  const canCleanup = todo.status !== 'running' && todo.status !== 'pending' && !!todo.worktree_path && !isChainMember;
 
   const hasResult = todo.status === 'completed' || todo.status === 'failed' || todo.status === 'stopped' || todo.status === 'merged';
 
