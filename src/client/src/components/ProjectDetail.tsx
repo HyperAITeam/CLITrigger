@@ -406,14 +406,15 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   }, []);
 
   // Planner handlers
-  const handleAddPlannerItem = useCallback(async (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => {
-    if (!id) return;
+  const handleAddPlannerItem = useCallback(async (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }): Promise<PlannerItem> => {
+    if (!id) throw new Error('No project id');
     const item = await plannerApi.createPlannerItem(id, data);
     setPlannerItems((prev) => [item, ...prev]);
     if (data.tags) {
       const tags = await plannerApi.getPlannerTags(id);
       setPlannerTags(tags);
     }
+    return item;
   }, [id]);
 
   const handleEditPlannerItem = useCallback(async (itemId: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => {

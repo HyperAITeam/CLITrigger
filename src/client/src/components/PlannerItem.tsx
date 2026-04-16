@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X } from 'lucide-react';
-import type { PlannerItem as PlannerItemType } from '../types';
+import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X, Image as ImageIcon } from 'lucide-react';
+import type { PlannerItem as PlannerItemType, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
+import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-500',
@@ -53,6 +54,12 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   const [colorPickTag, setColorPickTag] = useState<string | null>(null);
   const tagRef = useRef<HTMLInputElement>(null);
 
+  // Image state
+  const [images, setImages] = useState<ImageMeta[]>(() => {
+    try { return item.images ? JSON.parse(item.images) : []; } catch { return []; }
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Sync when item prop changes
   useEffect(() => {
     setEditTitle(item.title);
@@ -61,6 +68,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
     setEditDueDate(item.due_date ?? '');
     setEditStatus(item.status);
     try { setEditTags(item.tags ? JSON.parse(item.tags) : []); } catch { setEditTags([]); }
+    try { setImages(item.images ? JSON.parse(item.images) : []); } catch { setImages([]); }
   }, [item]);
 
   const tags = editTags;
@@ -125,6 +133,51 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   const tagSuggestions = existingTags.filter(
     t => !editTags.includes(t) && (!tagInput || t.toLowerCase().includes(tagInput.toLowerCase()))
   );
+
+  // Image handlers
+  const addImagesFromFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    const pending: Array<{ name: string; data: string }> = [];
+    let loaded = 0;
+    for (const file of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        pending.push({ name: file.name, data: reader.result as string });
+        loaded++;
+        if (loaded === imageFiles.length) {
+          uploadPlannerImages(item.id, pending).then(res => setImages(res.images));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }, [item.id]);
+
+  const handleImagePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length === 0) return;
+    e.preventDefault();
+    addImagesFromFiles(files);
+  }, [addImagesFromFiles]);
+
+  const handleImageDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.files) addImagesFromFiles(e.dataTransfer.files);
+  }, [addImagesFromFiles]);
+
+  const handleDeleteImage = useCallback((imageId: string) => {
+    deletePlannerImage(item.id, imageId).then(() => {
+      setImages(prev => prev.filter(img => img.id !== imageId));
+    });
+  }, [item.id]);
 
   // Portal menu positioning
   const updatePos = useCallback(() => {
@@ -195,6 +248,11 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
         {/* Tags */}
         <div className="hidden sm:flex items-center gap-1 w-[160px] flex-shrink-0 overflow-hidden">
+          {images.length > 0 && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warm-100 text-warm-500 whitespace-nowrap">
+              <ImageIcon size={10} />{images.length}
+            </span>
+          )}
           {tags.map((tag) => (
             <span key={tag} className={`px-2 py-0.5 rounded text-2xs font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
           ))}
@@ -276,8 +334,60 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
               placeholder={t('plannerForm.descPlaceholder')}
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
+              onPaste={handleImagePaste}
+              onDrop={handleImageDrop}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
               onBlur={saveDesc}
             />
+
+            {/* Images */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+                >
+                  <ImageIcon size={12} />
+                  {t('plannerForm.addImage')}
+                </button>
+                <span className="text-[10px] text-warm-300">{t('plannerForm.pasteHint')}</span>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) addImagesFromFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              {images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {images.map(img => (
+                    <div key={img.id} className="relative group">
+                      <img
+                        src={getPlannerImageUrl(item.id, img.id)}
+                        alt={img.originalName}
+                        className="h-20 w-20 object-cover rounded-lg border border-warm-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteImage(img.id)}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
+                        <span className="text-[8px] text-white truncate block">{img.originalName}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Tags inline edit */}
             <div>

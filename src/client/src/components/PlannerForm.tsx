@@ -1,13 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import type { PlannerItem, PlannerTag } from '../types';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Image as ImageIcon } from 'lucide-react';
+import type { PlannerItem, PlannerTag, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle } from './plannerTagColors';
+import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
+
+interface PendingImage {
+  id: string;
+  name: string;
+  data: string;
+  preview: string;
+}
+
+let imageCounter = 0;
 
 interface PlannerFormProps {
   existingTags: PlannerTag[];
   editItem?: PlannerItem | null;
-  onSave: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number; status?: string }) => Promise<void>;
+  onSave: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number; status?: string }) => Promise<PlannerItem | void>;
   onCancel: () => void;
   onUpdateTag?: (name: string, data: { color?: string }) => Promise<void>;
 }
@@ -23,8 +33,11 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
   const [status, setStatus] = useState('pending');
   const [saving, setSaving] = useState(false);
   const [showTagDrop, setShowTagDrop] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [existingImages, setExistingImages] = useState<ImageMeta[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [localTagColors, setLocalTagColors] = useState<Map<string, string>>(new Map());
   const tagColorMap = new Map([...existingTags.map(t => [t.name, t.color] as [string, string]), ...localTagColors]);
@@ -39,6 +52,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
       setDueDate(editItem.due_date ?? '');
       setPriority(editItem.priority);
       setStatus(editItem.status);
+      try { setExistingImages(editItem.images ? JSON.parse(editItem.images) : []); } catch { setExistingImages([]); }
     }
     titleRef.current?.focus();
   }, [editItem]);
@@ -66,11 +80,54 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
 
   const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
+  const addImagesFromFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    for (const file of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = reader.result as string;
+        const id = `pending-${++imageCounter}`;
+        setPendingImages(prev => [...prev, { id, name: file.name, data, preview: data }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length === 0) return;
+    e.preventDefault();
+    addImagesFromFiles(files);
+  }, [addImagesFromFiles]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.files) addImagesFromFiles(e.dataTransfer.files);
+  }, [addImagesFromFiles]);
+
+  const removePendingImage = (id: string) => setPendingImages(prev => prev.filter(img => img.id !== id));
+
+  const removeExistingImage = (imageId: string) => {
+    if (editItem) deletePlannerImage(editItem.id, imageId);
+    setExistingImages(prev => prev.filter(img => img.id !== imageId));
+  };
+
+  const totalImages = existingImages.length + pendingImages.length;
+
   const handleSubmit = async () => {
     if (!title.trim()) return;
     setSaving(true);
     try {
-      await onSave({
+      const result = await onSave({
         title: title.trim(),
         description: description.trim() || undefined,
         tags: tags.length > 0 ? JSON.stringify(tags) : undefined,
@@ -80,6 +137,13 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
       });
       if (onUpdateTag && localTagColors.size > 0) {
         await Promise.all([...localTagColors.entries()].map(([name, color]) => onUpdateTag(name, { color })));
+      }
+      // Upload pending images
+      if (pendingImages.length > 0) {
+        const targetId = editItem?.id ?? (result as PlannerItem | undefined)?.id;
+        if (targetId) {
+          await uploadPlannerImages(targetId, pendingImages.map(img => ({ name: img.name, data: img.data })));
+        }
       }
     } finally {
       setSaving(false);
@@ -98,12 +162,81 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
       />
 
       <textarea
-        className="input-field text-sm w-full mb-4"
+        className="input-field text-sm w-full mb-3"
         rows={3}
         placeholder={t('plannerForm.descPlaceholder')}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
+        onPaste={handlePaste}
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
       />
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+        >
+          <ImageIcon size={14} />
+          {t('plannerForm.addImage')}
+        </button>
+        <span className="text-[10px] text-warm-300">{t('plannerForm.pasteHint')}</span>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) addImagesFromFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      {totalImages > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider">{t('plannerForm.images')}</h4>
+            <span className="text-[10px] text-warm-400">({totalImages})</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {existingImages.map(img => (
+              <div key={img.id} className="relative group">
+                <img
+                  src={editItem ? getPlannerImageUrl(editItem.id, img.id) : ''}
+                  alt={img.originalName}
+                  className="h-20 w-20 object-cover rounded-lg border border-warm-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeExistingImage(img.id)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
+                  <span className="text-[8px] text-white truncate block">{img.originalName}</span>
+                </div>
+              </div>
+            ))}
+            {pendingImages.map(img => (
+              <div key={img.id} className="relative group">
+                <img src={img.preview} alt={img.name} className="h-20 w-20 object-cover rounded-lg border border-blue-300/30" />
+                <button
+                  type="button"
+                  onClick={() => removePendingImage(img.id)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
+                  <span className="text-[8px] text-white truncate block">{img.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tags — simple select/add only */}
       <div className="mb-4">

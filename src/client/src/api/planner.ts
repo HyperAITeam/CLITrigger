@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { PlannerItem, PlannerTag, Todo, Schedule } from '../types';
+import type { PlannerItem, PlannerTag, Todo, Schedule, ImageMeta } from '../types';
 
 export function getPlannerItems(projectId: string): Promise<PlannerItem[]> {
   return get(`/api/projects/${projectId}/planner`);
@@ -42,6 +42,18 @@ export function convertToTodo(
   data: { cli_tool?: string; cli_model?: string; max_turns?: number }
 ): Promise<{ plannerItem: PlannerItem; todo: Todo }> {
   return post(`/api/planner/${id}/convert-to-todo`, data);
+}
+
+export function uploadPlannerImages(id: string, images: Array<{ name: string; data: string }>): Promise<{ images: ImageMeta[] }> {
+  return post(`/api/planner/${id}/images`, { images });
+}
+
+export function deletePlannerImage(plannerItemId: string, imageId: string): Promise<void> {
+  return del(`/api/planner/${plannerItemId}/images/${imageId}`);
+}
+
+export function getPlannerImageUrl(plannerItemId: string, imageId: string): string {
+  return `/api/planner/${plannerItemId}/images/${imageId}`;
 }
 
 export function convertToSchedule(

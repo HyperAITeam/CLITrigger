@@ -239,6 +239,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'total_cost_usd', definition: 'REAL' },
     { table: 'todos', column: 'total_tokens', definition: 'INTEGER' },
     { table: 'sessions', column: 'use_worktree', definition: 'INTEGER DEFAULT 0' },
+    { table: 'planner_items', column: 'images', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {
