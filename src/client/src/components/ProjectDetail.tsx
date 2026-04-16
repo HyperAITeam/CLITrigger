@@ -507,6 +507,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   }, []);
 
+  const handleCleanupSession = useCallback(async (sessionId: string) => {
+    await sessionsApi.cleanupSession(sessionId);
+    setSessions((prev) =>
+      prev.map((s) => s.id === sessionId ? { ...s, worktree_path: null, branch_name: null } : s)
+    );
+  }, []);
+
   const handleSendSessionInput = useCallback((sessionId: string, input: string) => {
     sendMessage({ type: 'session:stdin', sessionId, input });
   }, [sendMessage]);
@@ -686,6 +693,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onStartSession={handleStartSession}
           onStopSession={handleStopSession}
           onDeleteSession={handleDeleteSession}
+          onCleanupSession={handleCleanupSession}
           onSendInput={handleSendSessionInput}
           onEvent={onEvent}
         />

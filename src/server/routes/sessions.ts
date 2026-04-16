@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
+import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
@@ -160,6 +161,47 @@ router.post('/sessions/:id/stop', async (req: Request<{ id: string }>, res: Resp
 
     const updated = queries.getSessionById(req.params.id);
     res.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/sessions/:id/cleanup — remove worktree and branch for a session
+router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    if (session.status === 'running') {
+      res.status(400).json({ error: 'Cannot cleanup a running session. Stop it first.' });
+      return;
+    }
+
+    const project = queries.getProjectById(session.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const result = { worktreeRemoved: false, branchDeleted: false };
+
+    if (session.worktree_path || session.branch_name) {
+      const cleanup = await worktreeManager.cleanupWorktree(
+        project.path,
+        session.worktree_path || '',
+        session.branch_name || ''
+      );
+      result.worktreeRemoved = cleanup.worktreeRemoved;
+      result.branchDeleted = cleanup.branchDeleted;
+
+      queries.updateSession(req.params.id, { worktree_path: null, branch_name: null });
+    }
+
+    res.json({ success: true, ...result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

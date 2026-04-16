@@ -520,6 +520,7 @@ const translations = {
     'session.cliTool': 'CLI Tool',
     'session.model': 'Model',
     'session.worktree': 'Use worktree (isolated branch)',
+    'session.cleanup': 'Clean up worktree',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -1194,6 +1195,7 @@ const translations = {
     'session.cliTool': 'CLI 도구',
     'session.model': '모델',
     'session.worktree': '워크트리 사용 (격리된 브랜치)',
+    'session.cleanup': '워크트리 삭제',
 
     // Analytics
     'analytics.title': '실행 통계',
