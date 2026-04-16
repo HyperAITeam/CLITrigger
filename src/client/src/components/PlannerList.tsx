@@ -120,9 +120,9 @@ export default function PlannerList({
       )}
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card">
         {/* Table header */}
-        <div className="hidden sm:flex items-center gap-3 px-4 py-2" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
+        <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
           <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.title')}</div>
           <div className="hidden sm:block w-[200px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.tags')}</div>
           <div className="hidden md:block w-20 text-right text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.dueDate')}</div>
