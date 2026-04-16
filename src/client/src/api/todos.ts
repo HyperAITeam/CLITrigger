@@ -51,8 +51,8 @@ export function mergeChain(id: string): Promise<{ success: boolean; result?: unk
   return post(`/api/todos/${id}/merge-chain`);
 }
 
-export function cleanupTodo(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
-  return post(`/api/todos/${id}/cleanup`);
+export function cleanupTodo(id: string, deleteBranch = true): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
+  return post(`/api/todos/${id}/cleanup`, { delete_branch: deleteBranch });
 }
 
 export function retryTodo(id: string, mode: 'headless' | 'interactive' | 'verbose' = 'headless'): Promise<Todo> {

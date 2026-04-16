@@ -187,18 +187,22 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
       return;
     }
 
+    const deleteBranch = req.body.delete_branch !== false;
     const result = { worktreeRemoved: false, branchDeleted: false };
 
     if (session.worktree_path || session.branch_name) {
       const cleanup = await worktreeManager.cleanupWorktree(
         project.path,
         session.worktree_path || '',
-        session.branch_name || ''
+        session.branch_name || '',
+        deleteBranch
       );
       result.worktreeRemoved = cleanup.worktreeRemoved;
       result.branchDeleted = cleanup.branchDeleted;
 
-      queries.updateSession(req.params.id, { worktree_path: null, branch_name: null });
+      const updates: Record<string, null> = { worktree_path: null };
+      if (deleteBranch) updates.branch_name = null;
+      queries.updateSession(req.params.id, updates as any);
     }
 
     res.json({ success: true, ...result });

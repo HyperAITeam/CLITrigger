@@ -260,11 +260,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     );
   }, []);
 
-  const handleCleanupTodo = useCallback(async (todoId: string) => {
-    await todosApi.cleanupTodo(todoId);
+  const handleCleanupTodo = useCallback(async (todoId: string, deleteBranch: boolean) => {
+    await todosApi.cleanupTodo(todoId, deleteBranch);
     setTodos((prev) =>
       prev.map((t) =>
-        t.id === todoId ? { ...t, worktree_path: null, branch_name: null, updated_at: new Date().toISOString() } : t
+        t.id === todoId
+          ? { ...t, worktree_path: null, ...(deleteBranch ? { branch_name: null } : {}), updated_at: new Date().toISOString() }
+          : t
       )
     );
   }, []);
@@ -507,10 +509,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   }, []);
 
-  const handleCleanupSession = useCallback(async (sessionId: string) => {
-    await sessionsApi.cleanupSession(sessionId);
+  const handleCleanupSession = useCallback(async (sessionId: string, deleteBranch: boolean) => {
+    await sessionsApi.cleanupSession(sessionId, deleteBranch);
     setSessions((prev) =>
-      prev.map((s) => s.id === sessionId ? { ...s, worktree_path: null, branch_name: null } : s)
+      prev.map((s) => s.id === sessionId
+        ? { ...s, worktree_path: null, ...(deleteBranch ? { branch_name: null } : {}) }
+        : s
+      )
     );
   }, []);
 

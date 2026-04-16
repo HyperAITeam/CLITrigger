@@ -19,7 +19,7 @@ interface SessionListProps {
   onStartSession: (id: string) => Promise<void>;
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
-  onCleanupSession: (id: string) => Promise<void>;
+  onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
   onSendInput: (sessionId: string, input: string) => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
 }
@@ -218,7 +218,12 @@ export default function SessionList({
                       )}
                       {session.status !== 'running' && (session.worktree_path || session.branch_name) && (
                         <button
-                          onClick={() => onCleanupSession(session.id)}
+                          onClick={() => {
+                            const deleteBranch = session.branch_name
+                              ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
+                              : false;
+                            onCleanupSession(session.id, deleteBranch);
+                          }}
                           className="p-1.5 text-warm-400 hover:text-amber-600 rounded transition-colors"
                           title={t('session.cleanup')}
                         >

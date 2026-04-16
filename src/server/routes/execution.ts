@@ -318,19 +318,23 @@ router.post('/todos/:id/cleanup', async (req: Request<{ id: string }>, res: Resp
       return;
     }
 
+    const deleteBranch = req.body.delete_branch !== false;
     const result = { worktreeRemoved: false, branchDeleted: false };
 
     if (todo.worktree_path || todo.branch_name) {
       const cleanup = await worktreeManager.cleanupWorktree(
         project.path,
         todo.worktree_path || '',
-        todo.branch_name || ''
+        todo.branch_name || '',
+        deleteBranch
       );
       result.worktreeRemoved = cleanup.worktreeRemoved;
       result.branchDeleted = cleanup.branchDeleted;
 
       // Clear worktree info from DB
-      updateTodo(todo.id, { worktree_path: null, branch_name: null });
+      const dbUpdate: Record<string, null> = { worktree_path: null };
+      if (deleteBranch) dbUpdate.branch_name = null;
+      updateTodo(todo.id, dbUpdate);
     }
 
     res.json({ success: true, ...result });
