@@ -162,6 +162,7 @@ export default function PlannerList({
       <div className="card">
         {/* Table header — clickable for sort */}
         <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl select-none" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
+          <div className="w-[14px] flex-shrink-0" />
           <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
             {t('planner.col.title')}<SortIcon field="title" />
           </div>
