@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/projects';
@@ -812,6 +813,23 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   const [renameValue, setRenameValue] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [worktrees, setWorktrees] = useState<Array<{ path: string; branch: string }>>([]);
+  const [cleaningWorktree, setCleaningWorktree] = useState<string | null>(null);
+
+  // Fetch worktrees
+  useEffect(() => {
+    projectsApi.getWorktrees(projectId).then(r => setWorktrees(r.worktrees)).catch(() => {});
+  }, [projectId]);
+
+  // Re-fetch worktrees when onRefresh is triggered (branches change)
+  const refreshWorktrees = useCallback(() => {
+    projectsApi.getWorktrees(projectId).then(r => setWorktrees(r.worktrees)).catch(() => {});
+  }, [projectId]);
+
+  // Refresh worktrees when branches change
+  useEffect(() => {
+    refreshWorktrees();
+  }, [branches, refreshWorktrees]);
 
   // Close context menu on outside click or scroll
   useEffect(() => {
@@ -965,6 +983,56 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
         </>
       )}
 
+      {worktrees.length > 0 && (
+        <>
+          <SectionHeader id="worktrees" label={t('git.worktrees')} count={worktrees.length} />
+          {expandedSections.has('worktrees') && (
+            <div className="pl-1 space-y-px">
+              {worktrees.map(wt => (
+                <div
+                  key={wt.path}
+                  className="group flex items-center gap-1.5 px-2 py-1 text-xs text-warm-600 hover:bg-warm-50 dark:hover:bg-warm-800/50 rounded"
+                >
+                  <svg className="h-3 w-3 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span className="truncate flex-1" title={wt.path}>{wt.branch}</span>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 text-warm-400 hover:text-status-error transition-all"
+                    disabled={busy || cleaningWorktree === wt.path}
+                    title={t('git.cleanupWorktree')}
+                    onClick={() => {
+                      if (confirm(t('git.confirmCleanupWorktree').replace('{name}', wt.branch))) {
+                        setCleaningWorktree(wt.path);
+                        setBusy(true);
+                        setActionError(null);
+                        projectsApi.cleanupWorktree(projectId, wt.path, wt.branch)
+                          .then(() => {
+                            setWorktrees(prev => prev.filter(w => w.path !== wt.path));
+                            onRefresh();
+                          })
+                          .catch(err => setActionError(err instanceof Error ? err.message : 'Error'))
+                          .finally(() => { setCleaningWorktree(null); setBusy(false); });
+                      }
+                    }}
+                  >
+                    {cleaningWorktree === wt.path ? (
+                      <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    ) : (
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {stashCount > 0 && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
           {t('git.stashes')}
@@ -973,7 +1041,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
       )}
 
       {/* Branch context menu */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <div
           ref={menuRef}
           className="fixed z-sticky bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-xl py-1 min-w-[220px] text-xs"
@@ -1057,7 +1125,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
               )}
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Rename branch modal */}

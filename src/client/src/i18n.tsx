@@ -663,6 +663,9 @@ const translations = {
     'git.noFilesChanged': 'No files changed',
     'git.loadingFiles': 'Loading files...',
     'git.loadingDiff': 'Loading diff...',
+    'git.worktrees': 'Worktrees',
+    'git.cleanupWorktree': 'Cleanup',
+    'git.confirmCleanupWorktree': 'Remove worktree and branch {name}?',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -1334,6 +1337,9 @@ const translations = {
     'git.noFilesChanged': '변경된 파일 없음',
     'git.loadingFiles': '파일 불러오는 중...',
     'git.loadingDiff': '차이 불러오는 중...',
+    'git.worktrees': '워크트리',
+    'git.cleanupWorktree': '정리',
+    'git.confirmCleanupWorktree': '워크트리와 브랜치 {name}을(를) 삭제하시겠습니까?',
 
     // Language & Theme
     'lang.toggle': 'EN',

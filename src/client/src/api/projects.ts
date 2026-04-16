@@ -236,3 +236,17 @@ export function getCommitDiff(id: string, hash: string, file?: string): Promise<
   if (file) params.set('file', file);
   return get(`/api/projects/${id}/git-commit-diff?${params}`);
 }
+
+// Worktrees
+export interface WorktreeEntry {
+  path: string;
+  branch: string;
+}
+
+export function getWorktrees(id: string): Promise<{ worktrees: WorktreeEntry[] }> {
+  return get(`/api/projects/${id}/worktrees`);
+}
+
+export function cleanupWorktree(id: string, worktreePath: string, branchName: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
+  return post(`/api/projects/${id}/worktree-cleanup`, { worktreePath, branchName });
+}
