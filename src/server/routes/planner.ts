@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import * as queries from '../db/queries.js';
+import { getPlannerImagePaths } from './images.js';
 
 const router = Router();
 
@@ -168,11 +171,25 @@ router.post('/planner/:id/convert-to-todo', (req: Request<{ id: string }>, res: 
       item.priority, cli_tool, cli_model, undefined, undefined, max_turns
     );
 
+    // Copy planner images to todo
+    if (item.images) {
+      const plannerImagePaths = getPlannerImagePaths(item.id);
+      if (plannerImagePaths.length > 0) {
+        const todoDir = path.resolve(process.cwd(), 'data', 'uploads', todo.id);
+        if (!fs.existsSync(todoDir)) fs.mkdirSync(todoDir, { recursive: true });
+        for (const { filename, filePath } of plannerImagePaths) {
+          fs.copyFileSync(filePath, path.join(todoDir, filename));
+        }
+        queries.updateTodo(todo.id, { images: item.images });
+      }
+    }
+
     const updatedItem = queries.updatePlannerItem(req.params.id, {
       status: 'moved', converted_type: 'todo', converted_id: todo.id,
     });
 
-    res.status(201).json({ plannerItem: updatedItem, todo });
+    const updatedTodo = queries.getTodoById(todo.id)!;
+    res.status(201).json({ plannerItem: updatedItem, todo: updatedTodo });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

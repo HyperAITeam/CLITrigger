@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Plus, ArrowUp, ArrowDown, LayoutList } from 'lucide-react';
-import type { PlannerItem as PlannerItemType, PlannerTag } from '../types';
+import type { PlannerItem as PlannerItemType, PlannerTag, ImageMeta } from '../types';
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
@@ -17,7 +17,7 @@ interface PlannerListProps {
   existingTags: PlannerTag[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<void>;
+  onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<PlannerItemType>;
   onEditItem: (id: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
   onConvertToTodo: (id: string, data: Record<string, unknown>) => Promise<void>;
@@ -147,9 +147,11 @@ export default function PlannerList({
               if (editItem) {
                 await onEditItem(editItem.id, data);
                 setEditItem(null);
+                return;
               } else {
-                await onAddItem(data);
+                const item = await onAddItem(data);
                 setShowForm(false);
+                return item;
               }
             }}
             onCancel={() => { setShowForm(false); setEditItem(null); }}

@@ -273,6 +273,7 @@ export interface PlannerItem {
   due_date: string | null;
   status: 'pending' | 'in_progress' | 'done' | 'moved';
   priority: number;
+  images: string | null;
   converted_type: string | null;
   converted_id: string | null;
   created_at: string;
