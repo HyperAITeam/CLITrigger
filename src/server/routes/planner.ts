@@ -35,6 +35,44 @@ router.get('/projects/:id/planner/tags', (req: Request<{ id: string }>, res: Res
   }
 });
 
+// PUT /api/projects/:id/planner/tags/:name - update tag (color or rename)
+router.put('/projects/:id/planner/tags/:name', (req: Request<{ id: string; name: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+
+    const { color, new_name } = req.body;
+    const tagName = decodeURIComponent(req.params.name);
+
+    if (new_name && new_name !== tagName) {
+      queries.renamePlannerTag(req.params.id, tagName, new_name);
+    }
+    if (color) {
+      queries.upsertPlannerTag(req.params.id, new_name || tagName, color);
+    }
+
+    const tags = queries.getPlannerTagsByProjectId(req.params.id);
+    res.json(tags);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// DELETE /api/projects/:id/planner/tags/:name - delete tag from all items
+router.delete('/projects/:id/planner/tags/:name', (req: Request<{ id: string; name: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+
+    queries.deletePlannerTag(req.params.id, decodeURIComponent(req.params.name));
+    res.status(204).send();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // POST /api/projects/:id/planner - create planner item
 router.post('/projects/:id/planner', (req: Request<{ id: string }>, res: Response) => {
   try {

@@ -1,25 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical, Pencil, ArrowRight, Clock, Trash2 } from 'lucide-react';
-import type { PlannerItem as PlannerItemType } from '../types';
+import type { PlannerItem as PlannerItemType, PlannerTag } from '../types';
 import { useI18n } from '../i18n';
-
-// Hash-based tag color assignment
-const TAG_COLORS = [
-  'bg-cyan-500/10 text-cyan-600',
-  'bg-purple-500/10 text-purple-600',
-  'bg-amber-500/10 text-amber-700',
-  'bg-emerald-500/10 text-emerald-600',
-  'bg-rose-500/10 text-rose-600',
-  'bg-blue-500/10 text-blue-600',
-  'bg-orange-500/10 text-orange-600',
-];
-
-function getTagColor(tag: string): string {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) hash = ((hash << 5) - hash + tag.charCodeAt(i)) | 0;
-  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
-}
+import { getTagStyle } from './plannerTagColors';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-500',
@@ -37,13 +21,14 @@ const PRIORITY_LABELS: Record<number, { label: string; style: string }> = {
 
 interface PlannerItemProps {
   item: PlannerItemType;
+  tagColors: Map<string, string>;
   onEdit: () => void;
   onDelete: () => void;
   onConvertToTodo: () => void;
   onConvertToSchedule: () => void;
 }
 
-export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, onConvertToSchedule }: PlannerItemProps) {
+export default function PlannerItem({ item, tagColors, onEdit, onDelete, onConvertToTodo, onConvertToSchedule }: PlannerItemProps) {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [positioned, setPositioned] = useState(false);
@@ -114,7 +99,7 @@ export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, o
       {/* Tags — w-[160px] to match header */}
       <div className="hidden sm:flex items-center gap-1 w-[160px] flex-shrink-0 overflow-hidden">
         {tags.map((tag) => (
-          <span key={tag} className={`px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${getTagColor(tag)}`}>
+          <span key={tag} className={`px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>
             {tag}
           </span>
         ))}

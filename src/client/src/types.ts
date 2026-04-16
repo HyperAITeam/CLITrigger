@@ -279,6 +279,13 @@ export interface PlannerItem {
   updated_at: string;
 }
 
+export interface PlannerTag {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string;
+}
+
 export interface JiraIssue {
   key: string;
   fields: {

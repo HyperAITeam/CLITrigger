@@ -181,6 +181,14 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS planner_tags (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT 'default',
+      UNIQUE(project_id, name)
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs

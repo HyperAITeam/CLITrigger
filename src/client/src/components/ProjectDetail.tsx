@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem } from '../types';
+import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
@@ -37,7 +37,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [plannerItems, setPlannerItems] = useState<PlannerItem[]>([]);
-  const [plannerTags, setPlannerTags] = useState<string[]>([]);
+  const [plannerTags, setPlannerTags] = useState<PlannerTag[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
   const setActiveTab = useCallback((tab: string) => {
@@ -434,6 +434,26 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
 
+  const handleUpdatePlannerTag = useCallback(async (name: string, data: { color?: string; new_name?: string }) => {
+    if (!id) return;
+    const updatedTags = await plannerApi.updatePlannerTag(id, name, data);
+    setPlannerTags(updatedTags);
+    // If renamed, also refresh items to get updated tag names
+    if (data.new_name && data.new_name !== name) {
+      const items = await plannerApi.getPlannerItems(id);
+      setPlannerItems(items);
+    }
+  }, [id]);
+
+  const handleDeletePlannerTag = useCallback(async (name: string) => {
+    if (!id) return;
+    await plannerApi.deletePlannerTag(id, name);
+    // Refresh both tags and items
+    const [tags, items] = await Promise.all([plannerApi.getPlannerTags(id), plannerApi.getPlannerItems(id)]);
+    setPlannerTags(tags);
+    setPlannerItems(items);
+  }, [id]);
+
   // Discussion handlers
   const handleAddDiscussion = useCallback((discussion: Discussion) => {
     setDiscussions((prev) => [discussion, ...prev]);
@@ -719,6 +739,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onDeleteItem={handleDeletePlannerItem}
           onConvertToTodo={handleConvertPlannerToTodo}
           onConvertToSchedule={handleConvertPlannerToSchedule}
+          onUpdateTag={handleUpdatePlannerTag}
+          onDeleteTag={handleDeletePlannerTag}
         />
       )}
     </div>

@@ -1,12 +1,22 @@
 import { get, post, put, del } from './client';
-import type { PlannerItem, Todo, Schedule } from '../types';
+import type { PlannerItem, PlannerTag, Todo, Schedule } from '../types';
 
 export function getPlannerItems(projectId: string): Promise<PlannerItem[]> {
   return get(`/api/projects/${projectId}/planner`);
 }
 
-export function getPlannerTags(projectId: string): Promise<string[]> {
+export function getPlannerTags(projectId: string): Promise<PlannerTag[]> {
   return get(`/api/projects/${projectId}/planner/tags`);
+}
+
+export function updatePlannerTag(
+  projectId: string, name: string, data: { color?: string; new_name?: string }
+): Promise<PlannerTag[]> {
+  return put(`/api/projects/${projectId}/planner/tags/${encodeURIComponent(name)}`, data);
+}
+
+export function deletePlannerTag(projectId: string, name: string): Promise<void> {
+  return del(`/api/projects/${projectId}/planner/tags/${encodeURIComponent(name)}`);
 }
 
 export function createPlannerItem(

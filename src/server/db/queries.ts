@@ -993,18 +993,87 @@ export function deletePlannerItem(id: string): boolean {
   return result.changes > 0;
 }
 
-export function getPlannerTagsByProjectId(projectId: string): string[] {
+export interface PlannerTag {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string;
+}
+
+// Returns tag objects with colors. Merges planner_tags table with tags found in items.
+export function getPlannerTagsByProjectId(projectId: string): PlannerTag[] {
+  const db = getDatabase();
+  // Get saved tag metadata
+  const savedTags = db.prepare('SELECT * FROM planner_tags WHERE project_id = ? ORDER BY name').all(projectId) as PlannerTag[];
+  const savedMap = new Map(savedTags.map(t => [t.name, t]));
+
+  // Collect all tags used in items
   const items = getPlannerItemsByProjectId(projectId);
-  const tagSet = new Set<string>();
   for (const item of items) {
     if (item.tags) {
       try {
         const parsed = JSON.parse(item.tags);
-        if (Array.isArray(parsed)) parsed.forEach((t: string) => tagSet.add(t));
-      } catch { /* ignore bad JSON */ }
+        if (Array.isArray(parsed)) {
+          for (const name of parsed) {
+            if (!savedMap.has(name)) {
+              // Auto-create tag entry with default color
+              const tag = upsertPlannerTag(projectId, name, 'default');
+              savedMap.set(name, tag);
+            }
+          }
+        }
+      } catch { /* ignore */ }
     }
   }
-  return Array.from(tagSet).sort();
+  return Array.from(savedMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function upsertPlannerTag(projectId: string, name: string, color: string): PlannerTag {
+  const db = getDatabase();
+  const existing = db.prepare('SELECT * FROM planner_tags WHERE project_id = ? AND name = ?').get(projectId, name) as PlannerTag | undefined;
+  if (existing) {
+    db.prepare('UPDATE planner_tags SET color = ? WHERE id = ?').run(color, existing.id);
+    return { ...existing, color };
+  }
+  const id = uuidv4();
+  db.prepare('INSERT INTO planner_tags (id, project_id, name, color) VALUES (?, ?, ?, ?)').run(id, projectId, name, color);
+  return { id, project_id: projectId, name, color };
+}
+
+export function renamePlannerTag(projectId: string, oldName: string, newName: string): void {
+  const db = getDatabase();
+  // Update tag table
+  db.prepare('UPDATE planner_tags SET name = ? WHERE project_id = ? AND name = ?').run(newName, projectId, oldName);
+  // Update all items' JSON arrays
+  const items = getPlannerItemsByProjectId(projectId);
+  for (const item of items) {
+    if (!item.tags) continue;
+    try {
+      const parsed: string[] = JSON.parse(item.tags);
+      const idx = parsed.indexOf(oldName);
+      if (idx !== -1) {
+        parsed[idx] = newName;
+        db.prepare('UPDATE planner_items SET tags = ? WHERE id = ?').run(JSON.stringify(parsed), item.id);
+      }
+    } catch { /* ignore */ }
+  }
+}
+
+export function deletePlannerTag(projectId: string, name: string): void {
+  const db = getDatabase();
+  // Remove from tag table
+  db.prepare('DELETE FROM planner_tags WHERE project_id = ? AND name = ?').run(projectId, name);
+  // Remove from all items' JSON arrays
+  const items = getPlannerItemsByProjectId(projectId);
+  for (const item of items) {
+    if (!item.tags) continue;
+    try {
+      const parsed: string[] = JSON.parse(item.tags);
+      const filtered = parsed.filter(t => t !== name);
+      const newTags = filtered.length > 0 ? JSON.stringify(filtered) : null;
+      db.prepare('UPDATE planner_items SET tags = ? WHERE id = ?').run(newTags, item.id);
+    } catch { /* ignore */ }
+  }
 }
 
 // ── Cleanup ──

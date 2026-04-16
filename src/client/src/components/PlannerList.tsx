@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Plus } from 'lucide-react';
-import type { PlannerItem as PlannerItemType } from '../types';
+import type { PlannerItem as PlannerItemType, PlannerTag } from '../types';
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
@@ -8,7 +8,7 @@ import { useI18n } from '../i18n';
 
 interface PlannerListProps {
   plannerItems: PlannerItemType[];
-  existingTags: string[];
+  existingTags: PlannerTag[];
   projectCliTool?: string;
   projectCliModel?: string;
   onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<void>;
@@ -16,11 +16,14 @@ interface PlannerListProps {
   onDeleteItem: (id: string) => Promise<void>;
   onConvertToTodo: (id: string, data: Record<string, unknown>) => Promise<void>;
   onConvertToSchedule: (id: string, data: Record<string, unknown>) => Promise<void>;
+  onUpdateTag?: (name: string, data: { color?: string; new_name?: string }) => Promise<void>;
+  onDeleteTag?: (name: string) => Promise<void>;
 }
 
 export default function PlannerList({
   plannerItems, existingTags, projectCliTool, projectCliModel,
   onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule,
+  onUpdateTag, onDeleteTag,
 }: PlannerListProps) {
   const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
@@ -30,18 +33,11 @@ export default function PlannerList({
   const [convertItem, setConvertItem] = useState<PlannerItemType | null>(null);
   const [convertMode, setConvertMode] = useState<'todo' | 'schedule'>('todo');
 
-  // Collect all unique tags from items
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    plannerItems.forEach((item) => {
-      if (item.tags) {
-        try { JSON.parse(item.tags).forEach((t: string) => tagSet.add(t)); } catch {}
-      }
-    });
-    // Merge with existingTags (from API)
-    existingTags.forEach((t) => tagSet.add(t));
-    return Array.from(tagSet).sort();
-  }, [plannerItems, existingTags]);
+  // Tag name list for filter dropdown
+  const tagNames = useMemo(() => existingTags.map(t => t.name), [existingTags]);
+
+  // Tag color map for PlannerItem
+  const tagColorMap = useMemo(() => new Map(existingTags.map(t => [t.name, t.color])), [existingTags]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -72,7 +68,7 @@ export default function PlannerList({
             onChange={(e) => setFilterTag(e.target.value)}
           >
             <option value="">{t('planner.filterTag')}</option>
-            {allTags.map((tag) => (
+            {tagNames.map((tag) => (
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
@@ -103,7 +99,7 @@ export default function PlannerList({
       {(showForm || editItem) && (
         <div className="mb-5">
           <PlannerForm
-            existingTags={allTags}
+            existingTags={existingTags}
             editItem={editItem}
             onSave={async (data) => {
               if (editItem) {
@@ -115,6 +111,8 @@ export default function PlannerList({
               }
             }}
             onCancel={() => { setShowForm(false); setEditItem(null); }}
+            onUpdateTag={onUpdateTag}
+            onDeleteTag={onDeleteTag}
           />
         </div>
       )}
@@ -142,6 +140,7 @@ export default function PlannerList({
             <div key={item.id} className="animate-slide-up" style={{ animationDelay: `${index * 20}ms` }}>
               <PlannerItemRow
                 item={item}
+                tagColors={tagColorMap}
                 onEdit={() => { setEditItem(item); setShowForm(false); }}
                 onDelete={() => onDeleteItem(item.id)}
                 onConvertToTodo={() => { setConvertItem(item); setConvertMode('todo'); }}
