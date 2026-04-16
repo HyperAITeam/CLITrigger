@@ -128,8 +128,8 @@ export default function PlannerList({
           </select>
 
           {!showForm && !editItem && (
-            <button onClick={() => setShowForm(true)} className="btn-primary text-xs py-2">
-              <Plus size={14} />
+            <button onClick={() => setShowForm(true)} className="btn-primary text-xs py-2 whitespace-nowrap">
+              <Plus size={14} className="inline-block shrink-0" />
               {t('planner.add')}
             </button>
           )}
