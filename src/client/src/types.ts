@@ -164,7 +164,7 @@ export interface TaskResult {
 export interface TaskLog {
   id: string;
   todo_id: string;
-  log_type: 'info' | 'error' | 'output' | 'commit' | 'input' | 'prompt' | 'warning';
+  log_type: 'info' | 'error' | 'output' | 'commit' | 'input' | 'prompt' | 'warning' | 'assistant' | 'tool_use' | 'tool_result';
   message: string;
   round_number?: number;
   created_at: string;
@@ -257,7 +257,7 @@ export interface Session {
 export interface SessionLog {
   id: string;
   session_id: string;
-  log_type: 'info' | 'error' | 'output' | 'input';
+  log_type: 'info' | 'error' | 'output' | 'input' | 'assistant' | 'tool_use';
   message: string;
   created_at: string;
 }

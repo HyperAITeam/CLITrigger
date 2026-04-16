@@ -392,6 +392,77 @@
     @apply mr-1.5;
   }
 
+  /* Dark-theme markdown for LogViewer (terminal background) */
+  .markdown-content-dark {
+    @apply text-xs leading-relaxed;
+    color: #d4d4d4;
+  }
+  .markdown-content-dark h1,
+  .markdown-content-dark h2,
+  .markdown-content-dark h3,
+  .markdown-content-dark h4 {
+    color: #e6e6e6;
+    @apply font-semibold mt-2 mb-1;
+  }
+  .markdown-content-dark h1 { @apply text-sm; }
+  .markdown-content-dark h2 { @apply text-xs font-bold; }
+  .markdown-content-dark h3 { @apply text-xs font-bold; }
+  .markdown-content-dark p {
+    @apply mb-1.5 leading-relaxed;
+  }
+  .markdown-content-dark ul,
+  .markdown-content-dark ol {
+    @apply ml-4 mb-2;
+  }
+  .markdown-content-dark ul { @apply list-disc; }
+  .markdown-content-dark ol { @apply list-decimal; }
+  .markdown-content-dark li { @apply mb-0.5; }
+  .markdown-content-dark code {
+    background: rgba(255,255,255,0.08);
+    color: #ce9178;
+    @apply px-1 py-0.5 rounded text-xs;
+  }
+  .markdown-content-dark pre {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #3c3c3c;
+    @apply p-2 rounded-lg mb-2 overflow-x-auto;
+  }
+  .markdown-content-dark pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown-content-dark table {
+    border-color: #3c3c3c;
+    @apply w-full border-collapse text-xs mb-2;
+  }
+  .markdown-content-dark th,
+  .markdown-content-dark td {
+    border: 1px solid #3c3c3c;
+    @apply px-2 py-1;
+  }
+  .markdown-content-dark th {
+    background: rgba(255,255,255,0.05);
+  }
+  .markdown-content-dark blockquote {
+    border-left: 3px solid #b392f0;
+    color: #8b949e;
+    @apply pl-3 ml-0 my-2;
+  }
+  .markdown-content-dark a {
+    color: #79c0ff;
+    @apply underline;
+  }
+  .markdown-content-dark a:hover {
+    color: #a5d6ff;
+  }
+  .markdown-content-dark strong {
+    @apply font-semibold;
+    color: #e6e6e6;
+  }
+  .markdown-content-dark hr {
+    border-color: #3c3c3c;
+    @apply my-3;
+  }
+
   .glass {
     @apply backdrop-blur-md border border-white/20;
     background: rgba(255, 255, 255, 0.7);

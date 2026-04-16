@@ -279,6 +279,8 @@ const translations = {
     'log.noChanges': 'No changes detected.',
     'log.copy': 'Copy',
     'log.copied': 'Copied!',
+    'log.viewChat': 'Chat',
+    'log.viewRaw': 'Raw',
 
     // Schedules
     'schedules.title': 'Schedules',
@@ -955,6 +957,8 @@ const translations = {
     'log.noChanges': '변경사항이 없습니다.',
     'log.copy': '복사',
     'log.copied': '복사됨!',
+    'log.viewChat': '대화',
+    'log.viewRaw': '원시',
 
     // Schedules
     'schedules.title': '스케줄',

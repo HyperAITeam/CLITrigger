@@ -233,7 +233,7 @@ export class LogStreamer {
     try {
       switch (event.type) {
         case 'assistant': {
-          // Extract response text from message.content[0].text
+          // Extract response text from message.content[]
           const message = event.message as Record<string, unknown> | undefined;
           const content = message?.content as Array<Record<string, unknown>> | undefined;
           if (content) {
@@ -242,44 +242,42 @@ export class LogStreamer {
                 const text = block.text.trim();
                 if (!text) break;
 
-                // Split into lines for commit detection and readable logging
-                const textLines = text.split('\n');
-                for (const textLine of textLines) {
-                  if (!textLine.trim()) continue;
-                  if (commitPattern.test(textLine)) {
-                    this.log(todoId, 'commit', textLine.trim());
-                    const hashMatch = textLine.match(/[0-9a-f]{7,40}/i);
+                // Detect commits within the text (emitted as separate commit logs)
+                for (const line of text.split('\n')) {
+                  if (commitPattern.test(line)) {
+                    this.log(todoId, 'commit', line.trim());
+                    const hashMatch = line.match(/[0-9a-f]{7,40}/i);
                     broadcaster.broadcast({
                       type: 'todo:commit',
                       todoId,
                       commitHash: hashMatch ? hashMatch[0] : '',
-                      message: textLine.trim(),
-                    });
-                  } else {
-                    this.log(todoId, 'output', textLine.trim());
-                    broadcaster.broadcast({
-                      type: 'todo:log',
-                      todoId,
-                      message: textLine.trim(),
-                      logType: 'output',
+                      message: line.trim(),
                     });
                   }
                 }
+                // Store full text as a single assistant log entry
+                this.log(todoId, 'assistant', text);
+                broadcaster.broadcast({
+                  type: 'todo:log',
+                  todoId,
+                  message: text,
+                  logType: 'assistant',
+                });
               } else if (block.type === 'tool_use') {
-                // Log tool usage for visibility
+                // Store tool call as structured JSON
                 const toolName = block.name as string || 'unknown';
-                let logMsg = `[Tool: ${toolName}]`;
-                if (verbose && block.input) {
-                  const inputStr = JSON.stringify(block.input, null, 2);
-                  logMsg += ` input: ${inputStr.length > 2000 ? inputStr.slice(0, 2000) + '...' : inputStr}`;
-                }
-                this.log(todoId, 'output', logMsg);
-                broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
+                const input = block.input as Record<string, unknown> | undefined;
+                const summary = this.extractToolSummary(toolName, input);
+                const payload: Record<string, unknown> = { tool: toolName, summary };
+                if (verbose && input) payload.input = input;
+                const logMsg = JSON.stringify(payload);
+                this.log(todoId, 'tool_use', logMsg);
+                broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'tool_use' });
               } else if (verbose && block.type === 'tool_result') {
-                const content = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
-                const logMsg = `[Result] ${content.length > 2000 ? content.slice(0, 2000) + '...' : content}`;
-                this.log(todoId, 'output', logMsg);
-                broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'output' });
+                const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+                const logMsg = resultContent.length > 2000 ? resultContent.slice(0, 2000) + '...' : resultContent;
+                this.log(todoId, 'tool_result', logMsg);
+                broadcaster.broadcast({ type: 'todo:log', todoId, message: logMsg, logType: 'tool_result' });
               }
             }
           }
@@ -369,6 +367,30 @@ export class LogStreamer {
       }
     } catch {
       // Parsing failure — ignore to keep streaming
+    }
+  }
+
+  /** Extract a human-readable summary from tool input for compact display. */
+  private extractToolSummary(toolName: string, input?: Record<string, unknown>): string {
+    if (!input) return toolName;
+    switch (toolName) {
+      case 'Read': case 'Edit': case 'Write':
+        return String(input.file_path || toolName);
+      case 'Bash': {
+        const cmd = String(input.command || '');
+        return cmd.length > 80 ? cmd.slice(0, 80) + '...' : cmd;
+      }
+      case 'Grep': {
+        const pat = String(input.pattern || '');
+        const path = input.path ? ` in ${input.path}` : '';
+        return `/${pat}/${path}`;
+      }
+      case 'Glob':
+        return String(input.pattern || toolName);
+      default: {
+        const first = Object.values(input).find(v => typeof v === 'string');
+        return typeof first === 'string' ? (first.length > 60 ? first.slice(0, 60) + '...' : first) : toolName;
+      }
     }
   }
 
