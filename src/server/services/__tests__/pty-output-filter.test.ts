@@ -116,6 +116,22 @@ describe('pty-output-filter', () => {
       expect(isNoiseLine('✢ h i es zi · i n z g i … ng ✢ … * ✶ ✻ ✽ ✻ ✶ P * ho Pho')).toBe(true);
     });
 
+    it('filters single-spinner-prefixed fragmented redraws', () => {
+      // Spinner frames where cursor repositioning became spaces — no trailing …
+      expect(isNoiseLine('✶ r P ec')).toBe(true);
+      expect(isNoiseLine('✻ r i e p')).toBe(true);
+      expect(isNoiseLine('✻ t i at ng')).toBe(true);
+      expect(isNoiseLine('✽ Pre Pr ci e p')).toBe(true);
+      expect(isNoiseLine('✻ c i i t')).toBe(true);
+      expect(isNoiseLine('✶ pi at')).toBe(true);
+      expect(isNoiseLine('* t i a n')).toBe(true);
+    });
+
+    it('keeps real markdown bullets with substantive words', () => {
+      expect(isNoiseLine('* First item')).toBe(false);
+      expect(isNoiseLine('* Install dependencies')).toBe(false);
+    });
+
     it('filters Ink status sub-lines (Hmm…, Loading…)', () => {
       expect(isNoiseLine('⎿  Hmm…')).toBe(true);
       expect(isNoiseLine('Hmm…')).toBe(true);

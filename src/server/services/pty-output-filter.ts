@@ -97,6 +97,20 @@ function isAnimationCollision(line: string): boolean {
   // Three or more spinner chars interspersed with text = collision.
   const spinnerCount = (line.match(new RegExp(`[${SPINNER_CHARS}]`, 'g')) || []).length;
   if (spinnerCount >= 3) return true;
+  // Single leading spinner char followed by fragmented short-word content
+  // (e.g. "✶ r P ec", "* t i a n" — spinner frames where cursor repositioning
+  // became spaces). Require ≥3 tokens, all ≤3 chars, to avoid catching real
+  // markdown bullets like "* First item".
+  const spinnerLeadMatch = line.match(
+    new RegExp(`^[${SPINNER_CHARS}]\\s+(.+)$`),
+  );
+  if (spinnerLeadMatch) {
+    const tokens = spinnerLeadMatch[1].trim().split(/\s+/);
+    if (tokens.length >= 3 && tokens.every((t) => t.length <= 3)) return true;
+    // Shorter fragments (≥2 tokens) need a stricter bound to avoid
+    // swallowing real markdown bullets like "* Go now".
+    if (tokens.length >= 2 && tokens.every((t) => t.length <= 2)) return true;
+  }
   return false;
 }
 
