@@ -152,8 +152,6 @@ export default function PlannerList({
               }
             }}
             onCancel={() => { setShowForm(false); setEditItem(null); }}
-            onUpdateTag={onUpdateTag}
-            onDeleteTag={onDeleteTag}
           />
         </div>
       )}
