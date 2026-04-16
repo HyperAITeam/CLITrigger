@@ -3,6 +3,22 @@ import { X } from 'lucide-react';
 import type { PlannerItem } from '../types';
 import { useI18n } from '../i18n';
 
+const TAG_COLORS = [
+  'bg-cyan-500/20 text-cyan-400',
+  'bg-purple-500/20 text-purple-400',
+  'bg-amber-500/20 text-amber-400',
+  'bg-emerald-500/20 text-emerald-400',
+  'bg-rose-500/20 text-rose-400',
+  'bg-blue-500/20 text-blue-400',
+  'bg-orange-500/20 text-orange-400',
+];
+
+function getTagColor(tag: string): string {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) hash = ((hash << 5) - hash + tag.charCodeAt(i)) | 0;
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+}
+
 interface PlannerFormProps {
   existingTags: string[];
   editItem?: PlannerItem | null;
@@ -36,8 +52,9 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
     titleRef.current?.focus();
   }, [editItem]);
 
+  // Show all unused tags when no input, filter when typing
   const filteredSuggestions = existingTags.filter(
-    (t) => !tags.includes(t) && t.toLowerCase().includes(tagInput.toLowerCase())
+    (t) => !tags.includes(t) && (!tagInput || t.toLowerCase().includes(tagInput.toLowerCase()))
   );
 
   const addTag = (tag: string) => {
@@ -46,7 +63,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
       setTags([...tags, trimmed]);
     }
     setTagInput('');
-    setShowTagSuggestions(false);
+    setShowTagSuggestions(true);
     tagInputRef.current?.focus();
   };
 
@@ -117,11 +134,16 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
               onFocus={() => setShowTagSuggestions(true)}
               onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
             />
-            {showTagSuggestions && tagInput && filteredSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 mt-1 w-48 rounded-lg shadow-elevated z-10 py-1" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-                {filteredSuggestions.slice(0, 5).map((s) => (
-                  <button key={s} className="w-full text-left px-3 py-1.5 text-xs hover:bg-warm-100 transition-colors" style={{ color: 'var(--color-text-primary)' }} onMouseDown={() => addTag(s)}>
-                    {s}
+            {showTagSuggestions && filteredSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 w-56 rounded-lg shadow-elevated z-10 py-2 px-2 max-h-48 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                <div className="text-[10px] text-warm-400 mb-1.5 px-1">{tagInput ? t('plannerForm.tags') : t('planner.filterTag')}</div>
+                {filteredSuggestions.slice(0, 10).map((s) => (
+                  <button
+                    key={s}
+                    className="flex items-center gap-2 w-full px-2 py-1 rounded-md hover:bg-warm-100/50 transition-colors text-left"
+                    onMouseDown={() => addTag(s)}
+                  >
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${getTagColor(s)}`}>{s}</span>
                   </button>
                 ))}
               </div>
