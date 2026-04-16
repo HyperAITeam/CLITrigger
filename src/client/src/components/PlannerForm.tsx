@@ -80,7 +80,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
         placeholder={t('plannerForm.titlePlaceholder')}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
       />
 
       {/* Description */}
@@ -111,7 +111,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
               value={tagInput}
               onChange={(e) => { setTagInput(e.target.value); setShowTagSuggestions(true); }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && tagInput.trim()) { e.preventDefault(); addTag(tagInput); }
+                if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) { e.preventDefault(); addTag(tagInput.replace(',', '')); }
                 if (e.key === 'Backspace' && !tagInput && tags.length > 0) { removeTag(tags[tags.length - 1]); }
               }}
               onFocus={() => setShowTagSuggestions(true)}
