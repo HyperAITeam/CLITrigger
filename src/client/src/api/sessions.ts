@@ -35,6 +35,6 @@ export function getSessionLogs(id: string): Promise<SessionLog[]> {
   return get(`/api/sessions/${id}/logs`);
 }
 
-export function cleanupSession(id: string): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
-  return post(`/api/sessions/${id}/cleanup`);
+export function cleanupSession(id: string, deleteBranch = true): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
+  return post(`/api/sessions/${id}/cleanup`, { delete_branch: deleteBranch });
 }

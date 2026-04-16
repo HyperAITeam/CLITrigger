@@ -168,7 +168,7 @@ export class WorktreeManager {
    * Remove a worktree, delete its branch, and clean up the DB record.
    * Returns info about what was cleaned up.
    */
-  async cleanupWorktree(projectPath: string, worktreePath: string, branchName: string): Promise<{ worktreeRemoved: boolean; branchDeleted: boolean }> {
+  async cleanupWorktree(projectPath: string, worktreePath: string, branchName: string, deleteBranch = true): Promise<{ worktreeRemoved: boolean; branchDeleted: boolean }> {
     const result = { worktreeRemoved: false, branchDeleted: false };
     const git = simpleGit(projectPath);
 
@@ -192,8 +192,8 @@ export class WorktreeManager {
       }
     }
 
-    // 2. Delete the branch
-    if (branchName) {
+    // 2. Delete the branch (only if requested)
+    if (deleteBranch && branchName) {
       try {
         await git.raw(['branch', '-D', branchName]);
         result.branchDeleted = true;

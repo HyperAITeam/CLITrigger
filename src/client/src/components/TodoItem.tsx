@@ -131,7 +131,7 @@ interface TodoItemProps {
   onDelete: (id: string) => Promise<void>;
   onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
-  onCleanup: (id: string) => Promise<void>;
+  onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onContinue?: (id: string, prompt: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onFix?: (todo: Todo, errorLogs: TaskLog[]) => Promise<void>;
@@ -304,10 +304,13 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
   };
 
   const handleCleanup = async () => {
+    const deleteBranch = todo.branch_name
+      ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', todo.branch_name))
+      : false;
     setCleaning(true);
     setCleanError(null);
     try {
-      await onCleanup(todo.id);
+      await onCleanup(todo.id, deleteBranch);
     } catch (err) {
       setCleanError(err instanceof Error ? err.message : 'Cleanup failed');
     } finally {
