@@ -74,8 +74,17 @@ export class ClaudeManager {
       }
 
       const pid = ptyProcess.pid;
-      // ANSI escape code stripper
-      const stripAnsi = (str: string) => str.replace(/\x1B\[[0-9;]*[A-Za-z]|\x1B\].*?(?:\x07|\x1B\\)|\x1B[()][A-Z0-9]|\x1B[>=<]|\x1B\[[\?]?[0-9;]*[hlJKm]/g, '');
+      // ANSI escape code stripper — replaces cursor movement with spaces to preserve word gaps
+      const stripAnsi = (str: string) => {
+        // Step 1: Replace cursor movement/positioning sequences with a space
+        // C=forward, G=column absolute, H/f=row;col position
+        let result = str.replace(/\x1B\[\d*[CG]|\x1B\[\d+;\d+[Hf]/g, ' ');
+        // Step 2: Strip all remaining ANSI sequences
+        result = result.replace(/\x1B\[[0-9;]*[A-Za-z]|\x1B\].*?(?:\x07|\x1B\\)|\x1B[()][A-Z0-9]|\x1B[>=<]|\x1B\[[\?]?[0-9;]*[hlJKm]/g, '');
+        // Step 3: Collapse runs of multiple spaces into one
+        result = result.replace(/ {2,}/g, ' ');
+        return result;
+      };
 
       // Create a Readable stream from pty data (PTY merges stdout+stderr)
       const stdoutStream = new Readable({ read() {} });
