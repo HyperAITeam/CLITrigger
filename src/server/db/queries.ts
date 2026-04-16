@@ -925,6 +925,8 @@ export function deleteSessionLogsBySessionId(sessionId: string): number {
 
 // ── Planner Items ──
 
+const PLANNER_TAG_COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
+
 export interface PlannerItem {
   id: string;
   project_id: string;
@@ -1016,8 +1018,8 @@ export function getPlannerTagsByProjectId(projectId: string): PlannerTag[] {
         if (Array.isArray(parsed)) {
           for (const name of parsed) {
             if (!savedMap.has(name)) {
-              // Auto-create tag entry with default color
-              const tag = upsertPlannerTag(projectId, name, 'default');
+              const color = PLANNER_TAG_COLORS[Math.floor(Math.random() * PLANNER_TAG_COLORS.length)];
+              const tag = upsertPlannerTag(projectId, name, color);
               savedMap.set(name, tag);
             }
           }
