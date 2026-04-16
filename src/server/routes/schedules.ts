@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import * as queries from '../db/queries.js';
 import { scheduler } from '../services/scheduler.js';
 import { logStreamer } from '../services/log-streamer.js';
+import { cleanupTodoImages } from './images.js';
 
 const router = Router();
 
@@ -260,6 +261,7 @@ router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response)
 
     let originalDeleted = false;
     if (!keep_original) {
+      cleanupTodoImages(req.params.id);
       originalDeleted = queries.deleteTodo(req.params.id);
     }
 

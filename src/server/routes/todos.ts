@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createTodo, getTodosByProjectId, getTodoById, updateTodo, deleteTodo } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { validatePromptContent, MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
+import { cleanupTodoImages } from './images.js';
 
 const router = Router();
 
@@ -95,6 +96,7 @@ router.delete('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(400).json({ error: 'Cannot delete a running todo. Stop it first.' });
       return;
     }
+    cleanupTodoImages(req.params.id);
     const deleted = deleteTodo(req.params.id);
     if (!deleted) {
       res.status(404).json({ error: 'Todo not found' });

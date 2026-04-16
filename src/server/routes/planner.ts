@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
-import { getPlannerImagePaths } from './images.js';
+import { getPlannerImagePaths, cleanupPlannerImages } from './images.js';
 
 const router = Router();
 
@@ -144,6 +144,7 @@ router.delete('/planner/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Planner item not found' });
       return;
     }
+    cleanupPlannerImages(req.params.id);
     queries.deletePlannerItem(req.params.id);
     res.status(204).send();
   } catch (err: unknown) {

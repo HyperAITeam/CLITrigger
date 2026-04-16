@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { getTodoById, updateTodo, getPlannerItemById, updatePlannerItem } from '../db/queries.js';
+import { getTodoById, updateTodo, getPlannerItemById, updatePlannerItem, getTodosByProjectId, getPlannerItemsByProjectId } from '../db/queries.js';
 
 const router = Router();
 
@@ -311,6 +311,48 @@ export function getPlannerImagePaths(plannerItemId: string): Array<{ filename: s
       filePath: path.join(uploadsDir, 'planner', plannerItemId, img.filename),
     }))
     .filter(({ filePath }) => fs.existsSync(filePath));
+}
+
+/**
+ * Delete all image files for a single todo from disk.
+ */
+export function cleanupTodoImages(todoId: string): void {
+  const dir = path.join(getUploadsDir(), todoId);
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Delete all image files for a single planner item from disk.
+ */
+export function cleanupPlannerImages(plannerItemId: string): void {
+  const dir = path.join(getUploadsDir(), 'planner', plannerItemId);
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Delete all image files for a project (all todos + all planner items) from disk.
+ * Call BEFORE the DB cascade delete so we can still query item IDs.
+ */
+export function cleanupProjectImages(projectId: string): void {
+  const uploadsDir = getUploadsDir();
+  const todos = getTodosByProjectId(projectId);
+  for (const todo of todos) {
+    if (todo.images) {
+      const dir = path.join(uploadsDir, todo.id);
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  const items = getPlannerItemsByProjectId(projectId);
+  for (const item of items) {
+    if (item.images) {
+      const dir = path.join(uploadsDir, 'planner', item.id);
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
 }
 
 export default router;

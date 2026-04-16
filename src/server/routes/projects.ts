@@ -5,6 +5,7 @@ import { execFileSync, exec } from 'child_process';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { cleanupProjectImages } from './images.js';
 
 const router = Router();
 
@@ -243,6 +244,8 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
 // DELETE /api/projects/:id - delete project
 router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   try {
+    // Clean up image files before CASCADE deletes DB rows
+    cleanupProjectImages(req.params.id);
     const deleted = deleteProject(req.params.id);
     if (!deleted) {
       res.status(404).json({ error: 'Project not found' });
