@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical, Pencil, ArrowRight, Clock, Trash2 } from 'lucide-react';
 import type { PlannerItem as PlannerItemType } from '../types';
 import { useI18n } from '../i18n';
@@ -38,20 +39,55 @@ interface PlannerItemProps {
 export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, onConvertToSchedule }: PlannerItemProps) {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [positioned, setPositioned] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   const tags: string[] = item.tags ? (() => { try { return JSON.parse(item.tags!); } catch { return []; } })() : [];
   const isMoved = item.status === 'moved';
   const isOverdue = item.due_date && new Date(item.due_date) < new Date() && !isMoved && item.status !== 'done';
 
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let top = r.bottom + 4;
+    const drop = dropRef.current;
+    if (drop) {
+      const dw = drop.offsetWidth;
+      const dh = drop.offsetHeight;
+      let left = r.right - dw;
+      if (left < 8) left = 8;
+      if (left + dw > vw - 8) left = vw - 8 - dw;
+      if (top + dh > vh - 8) top = r.top - dh - 4;
+      setPos({ top, left });
+      setPositioned(true);
+    } else {
+      setPos({ top, left: Math.max(8, r.right - 180) });
+    }
+  }, []);
+
   useEffect(() => {
-    if (!menuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    if (!menuOpen) { setPositioned(false); return; }
+    updatePos();
+    const raf = requestAnimationFrame(updatePos);
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target) || dropRef.current?.contains(target)) return;
+      setMenuOpen(false);
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen]);
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [menuOpen, updatePos]);
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors hover:bg-warm-50 ${isMoved ? 'opacity-50' : ''}`}
@@ -95,33 +131,46 @@ export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, o
         </span>
       </div>
 
-      {/* Actions menu */}
-      <div className="relative flex-shrink-0" ref={menuRef}>
+      {/* Actions menu - portal based like TodoItem MoreMenu */}
+      <div className="flex-shrink-0">
         <button
+          ref={btnRef}
           onClick={() => setMenuOpen(!menuOpen)}
           className="p-1.5 text-warm-400 hover:text-warm-600 hover:bg-warm-100/50 rounded-lg transition-colors"
         >
           <MoreVertical size={14} />
         </button>
-        {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 w-44 rounded-lg shadow-elevated z-20 py-1" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-            <button onClick={() => { onEdit(); setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
+        {menuOpen && createPortal(
+          <div
+            ref={dropRef}
+            className={`fixed z-[9999] min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+            style={{
+              top: pos.top,
+              left: pos.left,
+              opacity: positioned ? 1 : 0,
+              backgroundColor: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+            }}
+            onClick={() => setMenuOpen(false)}
+          >
+            <button onClick={onEdit} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
               <Pencil size={12} /> {t('planner.edit')}
             </button>
             {!isMoved && (
               <>
-                <button onClick={() => { onConvertToTodo(); setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
+                <button onClick={onConvertToTodo} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
                   <ArrowRight size={12} /> {t('planner.convertToTask')}
                 </button>
-                <button onClick={() => { onConvertToSchedule(); setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
+                <button onClick={onConvertToSchedule} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
                   <Clock size={12} /> {t('planner.convertToSchedule')}
                 </button>
               </>
             )}
-            <button onClick={() => { if (confirm(t('planner.deleteConfirm'))) { onDelete(); } setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
+            <button onClick={() => { if (confirm(t('planner.deleteConfirm'))) onDelete(); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
               <Trash2 size={12} /> {t('planner.delete')}
             </button>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
