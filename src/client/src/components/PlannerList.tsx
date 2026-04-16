@@ -193,7 +193,8 @@ export default function PlannerList({
               <PlannerItemRow
                 item={item}
                 tagColors={tagColorMap}
-                onEdit={() => { setEditItem(item); setShowForm(false); }}
+                existingTags={tagNames}
+                onSave={async (id, data) => { await onEditItem(id, data as Record<string, string | number | undefined>); }}
                 onDelete={() => onDeleteItem(item.id)}
                 onConvertToTodo={() => { setConvertItem(item); setConvertMode('todo'); }}
                 onConvertToSchedule={() => { setConvertItem(item); setConvertMode('schedule'); }}
