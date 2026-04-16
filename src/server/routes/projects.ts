@@ -392,6 +392,51 @@ router.get('/:id/git-refs', async (req: Request<{ id: string }>, res: Response) 
   }
 });
 
+// GET /api/projects/:id/worktrees - list git worktrees
+router.get('/:id/worktrees', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+    if (!project.is_git_repo) { res.status(400).json({ error: 'Not a git repository' }); return; }
+    const worktrees = await worktreeManager.listWorktrees(project.path);
+    // Exclude the main worktree (same as project path)
+    const filtered = worktrees.filter(w => nodePath.resolve(w.path) !== nodePath.resolve(project.path));
+    res.json({ worktrees: filtered });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/worktree-cleanup - remove a worktree and its branch
+router.post('/:id/worktree-cleanup', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+    if (!project.is_git_repo) { res.status(400).json({ error: 'Not a git repository' }); return; }
+
+    const { worktreePath, branchName } = req.body as { worktreePath: string; branchName: string };
+    if (!worktreePath && !branchName) {
+      res.status(400).json({ error: 'worktreePath or branchName required' });
+      return;
+    }
+
+    // Validate worktree path is under .worktrees
+    if (worktreePath) {
+      const resolved = nodePath.resolve(worktreePath);
+      const worktreeBase = nodePath.resolve(project.path, '.worktrees');
+      if (!resolved.startsWith(worktreeBase + nodePath.sep) && resolved !== worktreeBase) {
+        res.status(400).json({ error: 'Invalid worktree path' });
+        return;
+      }
+    }
+
+    const result = await worktreeManager.cleanupWorktree(project.path, worktreePath || '', branchName || '');
+    res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // --- Git action helpers ---
 
 function getProjectGitPath(req: Request<{ id: string }>, res: Response): string | null {
