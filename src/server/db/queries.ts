@@ -923,6 +923,90 @@ export function deleteSessionLogsBySessionId(sessionId: string): number {
   return result.changes;
 }
 
+// ── Planner Items ──
+
+export interface PlannerItem {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  tags: string | null;
+  due_date: string | null;
+  status: string;
+  priority: number;
+  converted_type: string | null;
+  converted_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createPlannerItem(
+  projectId: string, title: string, description?: string, tags?: string, dueDate?: string, priority = 0
+): PlannerItem {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO planner_items (id, project_id, title, description, tags, due_date, priority, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, tags ?? null, dueDate ?? null, priority, now, now);
+  return getPlannerItemById(id)!;
+}
+
+export function getPlannerItemsByProjectId(projectId: string): PlannerItem[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM planner_items WHERE project_id = ? ORDER BY priority DESC, created_at ASC').all(projectId) as PlannerItem[];
+}
+
+export function getPlannerItemById(id: string): PlannerItem | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM planner_items WHERE id = ?').get(id) as PlannerItem | undefined;
+}
+
+export function updatePlannerItem(id: string, updates: Partial<Pick<PlannerItem, 'title' | 'description' | 'tags' | 'due_date' | 'status' | 'priority' | 'converted_type' | 'converted_id'>>): PlannerItem | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
+  if (updates.due_date !== undefined) { fields.push('due_date = ?'); values.push(updates.due_date); }
+  if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+  if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority); }
+  if (updates.converted_type !== undefined) { fields.push('converted_type = ?'); values.push(updates.converted_type); }
+  if (updates.converted_id !== undefined) { fields.push('converted_id = ?'); values.push(updates.converted_id); }
+
+  if (fields.length === 0) return getPlannerItemById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE planner_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getPlannerItemById(id);
+}
+
+export function deletePlannerItem(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM planner_items WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+export function getPlannerTagsByProjectId(projectId: string): string[] {
+  const items = getPlannerItemsByProjectId(projectId);
+  const tagSet = new Set<string>();
+  for (const item of items) {
+    if (item.tags) {
+      try {
+        const parsed = JSON.parse(item.tags);
+        if (Array.isArray(parsed)) parsed.forEach((t: string) => tagSet.add(t));
+      } catch { /* ignore bad JSON */ }
+    }
+  }
+  return Array.from(tagSet).sort();
+}
+
 // ── Cleanup ──
 
 export function cleanOldLogs(daysToKeep: number): number {

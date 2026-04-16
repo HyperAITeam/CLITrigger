@@ -262,6 +262,23 @@ export interface SessionLog {
   created_at: string;
 }
 
+// ── Planner ──
+
+export interface PlannerItem {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  tags: string | null;
+  due_date: string | null;
+  status: 'pending' | 'in_progress' | 'done' | 'moved';
+  priority: number;
+  converted_type: string | null;
+  converted_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JiraIssue {
   key: string;
   fields: {

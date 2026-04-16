@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import type { Project, Todo, Schedule, Discussion, Session, TaskLog } from '../types';
+import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
 import * as schedulesApi from '../api/schedules';
 import * as discussionsApi from '../api/discussions';
 import * as sessionsApi from '../api/sessions';
+import * as plannerApi from '../api/planner';
 import { Skeleton } from './Skeleton';
 import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
@@ -18,6 +19,7 @@ import GitStatusPanel from './GitStatusPanel';
 import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import AnalyticsPanel from './AnalyticsPanel';
+import PlannerList from './PlannerList';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -34,6 +36,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const [resetsAt, setResetsAt] = useState<number | null>(null);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [plannerItems, setPlannerItems] = useState<PlannerItem[]>([]);
+  const [plannerTags, setPlannerTags] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
   const setActiveTab = useCallback((tab: string) => {
@@ -51,13 +55,15 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id), schedulesApi.getRateLimit(), sessionsApi.getSessions(id)])
-      .then(([proj, todoList, scheduleList, discussionList, rateLimitData, sessionList]) => {
+    Promise.all([projectsApi.getProject(id), todosApi.getTodos(id), schedulesApi.getSchedules(id), discussionsApi.getDiscussions(id), schedulesApi.getRateLimit(), sessionsApi.getSessions(id), plannerApi.getPlannerItems(id), plannerApi.getPlannerTags(id)])
+      .then(([proj, todoList, scheduleList, discussionList, rateLimitData, sessionList, plannerList, tags]) => {
         setProject(proj);
         setTodos(todoList);
         setSchedules(scheduleList);
         setDiscussions(discussionList);
         setSessions(sessionList);
+        setPlannerItems(plannerList);
+        setPlannerTags(tags);
         if (rateLimitData.resetsAt) setResetsAt(rateLimitData.resetsAt);
         // Restore interactive mode state for running todos
         const interactiveIds = todoList
@@ -399,6 +405,35 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     await schedulesApi.triggerSchedule(scheduleId);
   }, []);
 
+  // Planner handlers
+  const handleAddPlannerItem = useCallback(async (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => {
+    if (!id) return;
+    const item = await plannerApi.createPlannerItem(id, data);
+    setPlannerItems((prev) => [item, ...prev]);
+  }, [id]);
+
+  const handleEditPlannerItem = useCallback(async (itemId: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => {
+    const updated = await plannerApi.updatePlannerItem(itemId, data);
+    setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
+  }, []);
+
+  const handleDeletePlannerItem = useCallback(async (itemId: string) => {
+    await plannerApi.deletePlannerItem(itemId);
+    setPlannerItems((prev) => prev.filter((i) => i.id !== itemId));
+  }, []);
+
+  const handleConvertPlannerToTodo = useCallback(async (itemId: string, data: Record<string, unknown>) => {
+    const result = await plannerApi.convertToTodo(itemId, data as { cli_tool?: string; cli_model?: string; max_turns?: number });
+    setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
+    setTodos((prev) => [...prev, result.todo]);
+  }, []);
+
+  const handleConvertPlannerToSchedule = useCallback(async (itemId: string, data: Record<string, unknown>) => {
+    const result = await plannerApi.convertToSchedule(itemId, data as { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string; cli_model?: string });
+    setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
+    setSchedules((prev) => [result.schedule, ...prev]);
+  }, []);
+
   // Discussion handlers
   const handleAddDiscussion = useCallback((discussion: Discussion) => {
     setDiscussions((prev) => [discussion, ...prev]);
@@ -559,6 +594,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
           { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
           { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
+          { key: 'planner', label: t('tabs.planner'), count: plannerItems.length },
           ...getPluginsWithTabs(project).map((plugin) => ({
             key: plugin.id,
             label: t(`tabs.${plugin.id}`) || plugin.displayName,
@@ -670,6 +706,19 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onTriggerSchedule={handleTriggerSchedule}
           onMergeRun={handleMergeTodo}
           onCleanupRun={handleCleanupTodo}
+        />
+      )}
+      {activeTab === 'planner' && (
+        <PlannerList
+          plannerItems={plannerItems}
+          existingTags={plannerTags}
+          projectCliTool={project.cli_tool}
+          projectCliModel={project.claude_model ?? undefined}
+          onAddItem={handleAddPlannerItem}
+          onEditItem={handleEditPlannerItem}
+          onDeleteItem={handleDeletePlannerItem}
+          onConvertToTodo={handleConvertPlannerToTodo}
+          onConvertToSchedule={handleConvertPlannerToSchedule}
         />
       )}
     </div>
