@@ -198,6 +198,7 @@ export default function PlannerList({
                 onDelete={() => onDeleteItem(item.id)}
                 onConvertToTodo={() => { setConvertItem(item); setConvertMode('todo'); }}
                 onConvertToSchedule={() => { setConvertItem(item); setConvertMode('schedule'); }}
+                onUpdateTag={onUpdateTag}
               />
             </div>
           ))
