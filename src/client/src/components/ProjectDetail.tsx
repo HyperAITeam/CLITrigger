@@ -410,6 +410,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     if (!id) return;
     const item = await plannerApi.createPlannerItem(id, data);
     setPlannerItems((prev) => [item, ...prev]);
+    if (data.tags) {
+      const tags = await plannerApi.getPlannerTags(id);
+      setPlannerTags(tags);
+    }
   }, [id]);
 
   const handleEditPlannerItem = useCallback(async (itemId: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => {
