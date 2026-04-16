@@ -102,7 +102,7 @@ export class ClaudeManager {
         // Detect CLI ready state and deliver prompt via stdin (Claude TUI only).
         // Non-Claude CLIs get immediate delivery (see below), so this only runs with delayStdin.
         if (delayStdin && stdinPrompt && !stdinDelivered && !exited && !trustPending) {
-          if (/[›>$%]\s*$/.test(clean)) {
+          if (/[›>$%⏵]\s*$/.test(clean) || /[☰○]\s*$/.test(clean)) {
             stdinDelivered = true;
             // PTY requires \r (carriage return) to submit, not \n (line feed)
             try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
@@ -164,13 +164,13 @@ export class ClaudeManager {
           }
         });
       } else if (stdinPrompt && delayStdin) {
-        // Fallback: if ready-state detection doesn't trigger within 10s, send anyway
+        // Fallback: if ready-state detection doesn't trigger within 5s, send anyway
         setTimeout(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
             try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
           }
-        }, 10000);
+        }, 5000);
       }
 
       setImmediate(() => {

@@ -20,8 +20,9 @@ const NOISE_PATTERNS: RegExp[] = [
   /^[\s─━│┃╭╮╰╯┌┐└┘┬┴├┤┼╋═║╔╗╚╝╠╣╦╩╬░█▓▒>$%›]+$/,
   // Claude banner frame
   /╭.*Claude|╰─/,
-  // Status bar: model/team info
+  // Status bar: model/team info (with or without brackets)
   /^\[.*(?:Haiku|Sonnet|Opus|Claude).*\]\s*│/i,
+  /(?:Haiku|Sonnet|Opus)\s+\d+(?:\.\d+)?.*(?:Team|Plan|Pro|Max)/i,
   // Context/Usage progress bars
   /(?:Context|Usage)\s+[█░▓▒]+/,
   // Hook count line
@@ -34,6 +35,8 @@ const NOISE_PATTERNS: RegExp[] = [
   /^⎿\s*Tip:/,
   // Spinner frames: allow optional (thinking)/(thought for Ns) suffix after …
   /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*]\s*.{0,60}…/,
+  // Thinking animation chars mixed with (thinking) text (e.g. "✶(thinking)(thinking) ✻(thinking)✻")
+  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s]*\(?think(?:ing)?\)?[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s(thinking)]*$/,
   // Thinking indicators
   /^\(?think(?:ing)?\)?(?:\(?think(?:ing)?\))*$/,
   /^\(thought for \d+/,
@@ -44,10 +47,20 @@ const NOISE_PATTERNS: RegExp[] = [
   /^No\s+recent\s+activity/i,
   /^Recent\s+activity/i,
   /^Run\s+\/init\s+to\s+create/i,
-  // Claude logo chars (short lines with block chars)
+  // Claude logo chars (standalone or mixed with sidebar text via pipe)
   /^[▐▛▜▌▝▘█▀▄▓░▒\s]+$/,
+  /^[▐▛▜▌▝▘█▀▄▓░▒\s]+\|/,
   // User input echo (already logged as [>>>] via WebSocket)
   /^>\s/,
+  // Numbered prompt echo (e.g. "3> 뭐해?" — CLI echoes user input with prompt number)
+  /^\d+>\s/,
+  // CLI status bar / prompt line (e.g. "────...──> [Haiku 4.5 | Team] │ repo git:(main)")
+  /^[─━]+.*\bgit:\(/,
+  // Working directory path line (e.g. "C:\path\.worktrees\branch..." or "/path/.worktrees/...")
+  /^[A-Z]:[\\\/].*[\\\/]\.?worktrees?\b/i,
+  /^\/.*\/\.?worktrees?\b/,
+  // TUI menu/mode indicators (☰ ○ etc.)
+  /^[☰○⏵◉◎●○\s]+$/,
   // Cost display
   /^\$\d+\.\d+/,
   // CLITrigger prompt template echo (repeated back by TUI)

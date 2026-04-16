@@ -134,12 +134,75 @@ export class SessionManager {
   }
 
   /**
-   * Simple plain-text log streaming for sessions.
-   * Interactive mode always outputs plain text (not JSON).
+   * Classify a filtered PTY output line into a log type.
+   * Heuristic: ● prefix = assistant response, [Tool: ...] = tool call, else = output.
+   */
+  private classifyPtyLine(line: string): { logType: string; message: string } {
+    // Claude TUI response lines start with ● (bullet)
+    if (/^●\s/.test(line)) {
+      return { logType: 'assistant', message: line.replace(/^●\s*/, '') };
+    }
+    // Tool call lines: [Tool: Read], ⏺ Read(file_path: ...), etc.
+    if (/^\[Tool:\s*\w+\]/.test(line)) {
+      const match = line.match(/^\[Tool:\s*(\w+)\]\s*(.*)/);
+      if (match) {
+        return { logType: 'tool_use', message: JSON.stringify({ tool: match[1], summary: match[2].trim() }) };
+      }
+    }
+    // Tool call variant: ⏺ ToolName (shown in some TUI versions)
+    if (/^⏺\s+\w+/.test(line)) {
+      const match = line.match(/^⏺\s+(\w+)\s*(.*)/);
+      if (match) {
+        return { logType: 'tool_use', message: JSON.stringify({ tool: match[1], summary: match[2].trim() }) };
+      }
+    }
+    return { logType: 'output', message: line };
+  }
+
+  /**
+   * Stream PTY output to session logs with heuristic classification.
+   * Accumulates consecutive assistant lines into a single log entry.
    */
   private streamToSessionLogs(sessionId: string, stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream): void {
     stdout.setEncoding('utf8' as BufferEncoding);
     stderr.setEncoding('utf8' as BufferEncoding);
+
+    // Accumulator for consecutive assistant lines (merged into one block)
+    let assistantBuffer: string[] = [];
+    let assistantFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushAssistant = () => {
+      if (assistantBuffer.length === 0) return;
+      const text = assistantBuffer.join('\n');
+      assistantBuffer = [];
+      try {
+        queries.createSessionLog(sessionId, 'assistant', text);
+        broadcaster.broadcast({ type: 'session:log', sessionId, message: text, logType: 'assistant' });
+      } catch { /* session may have been deleted */ }
+    };
+
+    const processStdoutLine = (line: string) => {
+      const { logType, message } = this.classifyPtyLine(line);
+
+      if (logType === 'assistant') {
+        // Accumulate assistant lines; flush after 300ms gap or on non-assistant line
+        assistantBuffer.push(message);
+        if (assistantFlushTimer) clearTimeout(assistantFlushTimer);
+        assistantFlushTimer = setTimeout(flushAssistant, 300);
+        return;
+      }
+
+      // Non-assistant line: flush any buffered assistant text first
+      if (assistantBuffer.length > 0) {
+        if (assistantFlushTimer) { clearTimeout(assistantFlushTimer); assistantFlushTimer = null; }
+        flushAssistant();
+      }
+
+      try {
+        queries.createSessionLog(sessionId, logType, message);
+        broadcaster.broadcast({ type: 'session:log', sessionId, message, logType });
+      } catch { /* session may have been deleted */ }
+    };
 
     let stdoutBuffer = '';
     stdout.on('data', (chunk: string) => {
@@ -148,19 +211,16 @@ export class SessionManager {
       stdoutBuffer = lines.pop() || '';
       for (const line of lines) {
         if (!line.trim()) continue;
-        try {
-          queries.createSessionLog(sessionId, 'output', line.trim());
-          broadcaster.broadcast({ type: 'session:log', sessionId, message: line.trim(), logType: 'output' });
-        } catch { /* session may have been deleted */ }
+        processStdoutLine(line.trim());
       }
     });
     stdout.on('end', () => {
       if (stdoutBuffer.trim()) {
-        try {
-          queries.createSessionLog(sessionId, 'output', stdoutBuffer.trim());
-          broadcaster.broadcast({ type: 'session:log', sessionId, message: stdoutBuffer.trim(), logType: 'output' });
-        } catch { /* ignore */ }
+        processStdoutLine(stdoutBuffer.trim());
       }
+      // Flush remaining assistant buffer
+      if (assistantFlushTimer) { clearTimeout(assistantFlushTimer); assistantFlushTimer = null; }
+      flushAssistant();
     });
 
     let stderrBuffer = '';
