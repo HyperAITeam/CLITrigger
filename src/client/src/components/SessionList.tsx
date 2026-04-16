@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import SessionForm from './SessionForm';
 import LogViewer from './LogViewer';
+import { CMD, CMD_FONT } from './terminal-theme';
 
 interface SessionListProps {
   projectId: string;
@@ -225,13 +226,35 @@ export default function SessionList({
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-theme-border">
-                    <LogViewer
-                      logs={logs}
-                      interactive={session.status === 'running'}
-                      todoId={session.id}
-                      onSendInput={session.status === 'running' ? handleSendInput : undefined}
-                    />
+                  <div className="overflow-hidden" style={{ borderTop: `1px solid ${CMD.separator}` }}>
+                    {/* Title bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', background: CMD.titleBg, padding: '8px 12px', gap: 8, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+                      </div>
+                      <span style={{ flex: 1, textAlign: 'center', color: CMD.titleText, fontSize: 12, fontFamily: CMD_FONT }}>
+                        {session.title}{session.cli_tool ? ` — ${session.cli_tool}${session.cli_model ? `/${session.cli_model}` : ''}` : ''}
+                      </span>
+                      <div style={{ width: 54 }} />
+                    </div>
+                    {/* Terminal body */}
+                    <div style={{ background: CMD.bg, padding: '12px 16px', fontFamily: CMD_FONT, fontSize: 12, lineHeight: '1.5', color: CMD.text }}>
+                      {session.branch_name && (
+                        <div style={{ marginBottom: 8 }}>
+                          <span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>branch</span>
+                          <div><span style={{ color: CMD.success }}>*</span> <span style={{ color: CMD.info }}>{session.branch_name}</span></div>
+                        </div>
+                      )}
+                      <LogViewer
+                        logs={logs}
+                        interactive={session.status === 'running'}
+                        todoId={session.id}
+                        onSendInput={session.status === 'running' ? handleSendInput : undefined}
+                        embedded
+                      />
+                    </div>
                   </div>
                 )}
               </div>
