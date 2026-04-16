@@ -124,7 +124,8 @@ export default function PlannerList({
         {/* Table header */}
         <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
           <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.title')}</div>
-          <div className="hidden sm:block w-[200px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.tags')}</div>
+          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.tags')}</div>
+          <div className="w-12 text-center text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('plannerForm.priority')}</div>
           <div className="hidden md:block w-20 text-right text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.dueDate')}</div>
           <div className="w-16 text-[10px] font-semibold text-warm-500 uppercase tracking-wider">{t('planner.col.status')}</div>
           <div className="w-8"></div>

@@ -28,6 +28,13 @@ const STATUS_STYLES: Record<string, string> = {
   moved: 'bg-purple-500/10 text-purple-600',
 };
 
+const PRIORITY_LABELS: Record<number, { label: string; style: string }> = {
+  0: { label: '—', style: 'text-warm-300' },
+  1: { label: '●', style: 'text-warm-500' },
+  2: { label: '●●', style: 'text-amber-500' },
+  3: { label: '●●●', style: 'text-red-500' },
+};
+
 interface PlannerItemProps {
   item: PlannerItemType;
   onEdit: () => void;
@@ -104,8 +111,8 @@ export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, o
         )}
       </div>
 
-      {/* Tags — fixed w-[200px] to match header */}
-      <div className="hidden sm:flex items-center gap-1 w-[200px] flex-shrink-0 overflow-hidden">
+      {/* Tags — w-[160px] to match header */}
+      <div className="hidden sm:flex items-center gap-1 w-[160px] flex-shrink-0 overflow-hidden">
         {tags.map((tag) => (
           <span key={tag} className={`px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${getTagColor(tag)}`}>
             {tag}
@@ -113,7 +120,14 @@ export default function PlannerItem({ item, onEdit, onDelete, onConvertToTodo, o
         ))}
       </div>
 
-      {/* Due date — fixed w-20 to match header */}
+      {/* Priority — w-12 to match header */}
+      <div className="hidden sm:block w-12 text-center flex-shrink-0">
+        <span className={`text-xs font-medium ${PRIORITY_LABELS[item.priority]?.style ?? 'text-warm-300'}`}>
+          {PRIORITY_LABELS[item.priority]?.label ?? '—'}
+        </span>
+      </div>
+
+      {/* Due date — w-20 to match header */}
       <div className="hidden md:block w-20 text-right flex-shrink-0">
         {item.due_date ? (
           <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-warm-500'}`}>
