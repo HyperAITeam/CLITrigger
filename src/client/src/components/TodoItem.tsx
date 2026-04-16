@@ -37,6 +37,30 @@ import {
   Ban,
 } from 'lucide-react';
 
+// Terminal window color palette (authentic CMD/Terminal feel)
+const CMD = {
+  titleBg: '#2d2d2d',
+  titleText: '#999',
+  bg: '#0c0c0c',
+  text: '#cccccc',
+  dim: '#666666',
+  bright: '#f2f2f2',
+  prompt: '#16c60c',
+  success: '#16c60c',
+  error: '#f14c4c',
+  warning: '#cca700',
+  info: '#569cd6',
+  cyan: '#61d6d6',
+  purple: '#b4009e',
+  orange: '#ce9178',
+  added: '#16c60c',
+  removed: '#f14c4c',
+  hunk: '#3b78ff',
+  separator: '#333333',
+} as const;
+
+const CMD_FONT = "'Cascadia Code', 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace";
+
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [positioned, setPositioned] = useState(false);
@@ -812,299 +836,209 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         </div>
       )}
 
-      {/* Expanded content */}
+      {/* Expanded content — Terminal */}
       {expanded && (
-        <div className="border-t border-warm-200 px-3 sm:px-5 py-4 sm:py-5 space-y-4 sm:space-y-5 animate-fade-in bg-warm-50/50">
-          {/* Description */}
-          <div>
-            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-              {t('todo.description')}
-            </h4>
-            <p className="text-sm text-warm-600 whitespace-pre-wrap leading-relaxed">
-              {todo.description || t('todo.noDescription')}
-            </p>
+        <div className="animate-fade-in overflow-hidden" style={{ borderTop: `1px solid ${CMD.separator}` }}>
+          {/* Title bar */}
+          <div style={{ display: 'flex', alignItems: 'center', background: CMD.titleBg, padding: '8px 12px', gap: 8, userSelect: 'none' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+            </div>
+            <span style={{ flex: 1, textAlign: 'center', color: CMD.titleText, fontSize: 12, fontFamily: CMD_FONT }}>{todo.title.length > 60 ? todo.title.slice(0, 57) + '...' : todo.title}</span>
+            <div style={{ width: 54 }} />
           </div>
-
-          {/* Attached Images */}
-          {existingImages.length > 0 && (
+          {/* Terminal body */}
+          <div style={{ background: CMD.bg, padding: '12px 16px', fontFamily: CMD_FONT, fontSize: 12, lineHeight: '1.5', color: CMD.text }}>
+            {/* Description */}
             <div>
-              <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-                {t('todo.attachedImages')} ({existingImages.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {existingImages.map(img => (
-                  <a
-                    key={img.id}
-                    href={todosApi.getTodoImageUrl(todo.id, img.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <img
-                      src={todosApi.getTodoImageUrl(todo.id, img.id)}
-                      alt={img.originalName}
-                      className="h-24 w-24 object-cover rounded-lg border border-warm-200 hover:border-accent transition-colors cursor-pointer"
-                    />
-                  </a>
-                ))}
-              </div>
+              <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>cat</span> <span style={{ color: CMD.dim }}>task.md</span></div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{todo.description || t('todo.noDescription')}</div>
             </div>
-          )}
 
-          {/* Dependency info */}
-          {parentTodo && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="badge bg-cyan-500/10 text-cyan-600">
-                {t('todo.dependsOn')}: {parentTodo.title}
-              </span>
-            </div>
-          )}
-
-          {/* Branch info */}
-          {todo.branch_name && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="badge bg-status-running/10 text-status-running">
-                {t('todo.branch')}: {todo.branch_name}
-              </span>
-              {todo.worktree_path && (
-                <span className="badge bg-warm-200 text-warm-600 font-mono">
-                  {t('todo.path')}: {todo.worktree_path}
-                </span>
-              )}
-              {todo.merged_from_branch && (
-                <span className="badge bg-purple-500/10 text-purple-600">
-                  {t('todo.mergedFrom')}: {todo.merged_from_branch}
-                </span>
-              )}
-              {!todo.worktree_path && childTodo && (
-                <span className="badge bg-amber-500/10 text-amber-600">
-                  {t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Failure Reason Panel */}
-          {todo.status === 'failed' && logs.length > 0 && (() => {
-            const errorLogs = logs.filter(l => l.log_type === 'error');
-            if (errorLogs.length === 0) return null;
-            // Extract exit code from error messages
-            const exitCodeMatch = errorLogs.find(l => /exited with code (\d+)/.test(l.message));
-            const exitCode = exitCodeMatch ? exitCodeMatch.message.match(/exited with code (\d+)/)?.[1] : null;
-            return (
-              <div className="rounded-xl border border-status-error/30 bg-status-error/5 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-status-error/10 border-b border-status-error/20">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-status-error" />
-                    <h4 className="text-xs font-semibold text-status-error uppercase tracking-wider">
-                      {t('failure.title')}
-                    </h4>
-                    {exitCode && (
-                      <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-status-error/15 text-status-error">
-                        {t('failure.exitCode')}: {exitCode}
-                      </span>
-                    )}
-                  </div>
-                  {onFix && (
-                    <button
-                      onClick={() => onFix(todo, errorLogs)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border border-amber-500/30 transition-colors"
-                      title={t('failure.fix')}
-                    >
-                      <Settings size={14} />
-                      {t('failure.fix')}
-                    </button>
-                  )}
-                </div>
-                <div className="px-4 py-3 space-y-1.5 max-h-48 overflow-y-auto">
-                  {errorLogs.map((log) => (
-                    <div key={log.id} className="flex items-start gap-2 text-xs">
-                      <span className="text-warm-500 font-mono flex-shrink-0">
-                        {new Date(log.created_at).toLocaleTimeString()}
-                      </span>
-                      <span className="text-status-error font-mono whitespace-pre-wrap break-all">
-                        {log.message}
-                      </span>
-                    </div>
+            {/* Attached Images */}
+            {existingImages.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>ls</span> <span style={{ color: CMD.dim }}>images/ ({existingImages.length})</span></div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {existingImages.map(img => (
+                    <a key={img.id} href={todosApi.getTodoImageUrl(todo.id, img.id)} target="_blank" rel="noopener noreferrer">
+                      <img src={todosApi.getTodoImageUrl(todo.id, img.id)} alt={img.originalName} style={{ height: 64, width: 64, objectFit: 'cover', border: `1px solid ${CMD.separator}`, borderRadius: 2 }} />
+                    </a>
                   ))}
                 </div>
               </div>
-            );
-          })()}
+            )}
 
-          {/* Result Summary */}
-          {hasResult && resultData && (
-            <div className="space-y-4">
-              {/* Stats bar */}
-              <div className="flex flex-wrap gap-3">
-                {resultData.duration_seconds !== null && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-warm-100 text-warm-700">
-                    <Clock size={14} className="text-warm-400" />
-                    <span className="text-xs font-medium">{t('result.duration')}</span>
-                    <span className="text-xs font-mono">{formatDuration(resultData.duration_seconds)}</span>
-                  </div>
+            {/* Dependency & branch info */}
+            {(parentTodo || todo.branch_name) && (
+              <div style={{ marginTop: 12 }}>
+                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>branch -v</span></div>
+                {parentTodo && (
+                  <div>  <span style={{ color: CMD.dim }}>depends-on:</span> <span style={{ color: CMD.cyan }}>{parentTodo.title}</span></div>
                 )}
-                {resultData.commits.length > 0 && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-status-success/10 text-status-success">
-                    <CheckCircle size={14} />
-                    <span className="text-xs font-medium">{resultData.commits.length} {t('result.commits')}</span>
-                  </div>
+                {todo.branch_name && (
+                  <div><span style={{ color: CMD.success }}>*</span> <span style={{ color: CMD.info }}>{todo.branch_name}</span></div>
                 )}
-                {resultData.diff_stats.files_changed > 0 && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-info/10 text-status-info">
-                    <span className="text-xs font-medium">{resultData.diff_stats.files_changed} {t('result.filesChanged')}</span>
-                    <span className="text-xs text-status-success font-mono">+{resultData.diff_stats.insertions}</span>
-                    <span className="text-xs text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
-                  </div>
+                {todo.worktree_path && (
+                  <div>  <span style={{ color: CMD.dim }}>worktree:</span> <span style={{ color: CMD.orange }}>{todo.worktree_path}</span></div>
                 )}
-                {showTokenUsage && resultData.token_usage && (() => {
-                  const tu = resultData.token_usage;
-                  const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
-                  const totalAll = totalInput + (tu.output_tokens ?? 0);
-
-                  // Usage level label based on total tokens
-                  let levelLabel: string;
-                  let levelColor: string;
-                  if (totalAll >= 500000) {
-                    levelLabel = t('result.levelHeavy');
-                    levelColor = 'text-status-error font-semibold';
-                  } else if (totalAll >= 300000) {
-                    levelLabel = t('result.levelHigh');
-                    levelColor = 'text-orange-600 font-semibold';
-                  } else if (totalAll >= 100000) {
-                    levelLabel = t('result.levelModerate');
-                    levelColor = 'text-amber-600';
-                  } else {
-                    levelLabel = t('result.levelLight');
-                    levelColor = 'text-purple-500';
-                  }
-
-                  return (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700">
-                      <Zap size={14} className="text-purple-400" />
-                      {totalInput > 0 && (
-                        <span className="text-xs font-mono">{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>
-                      )}
-                      {totalInput > 0 && tu.output_tokens !== null && <span className="text-xs text-purple-300">·</span>}
-                      {tu.output_tokens !== null && (
-                        <span className="text-xs font-mono">{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>
-                      )}
-                      {tu.num_turns != null && tu.num_turns > 1 && <span className="text-xs text-purple-300">·</span>}
-                      {tu.num_turns != null && tu.num_turns > 1 && (
-                        <span className="text-xs font-mono">{tu.num_turns}{t('result.turns')}</span>
-                      )}
-                      <span className="text-xs text-purple-300">·</span>
-                      <span className={`text-xs font-mono ${levelColor}`}>{levelLabel}</span>
-                    </div>
-                  );
-                })()}
+                {todo.merged_from_branch && (
+                  <div>  <span style={{ color: CMD.dim }}>merged-from:</span> <span style={{ color: CMD.purple }}>{todo.merged_from_branch}</span></div>
+                )}
+                {!todo.worktree_path && childTodo && (
+                  <div>  <span style={{ color: CMD.dim }}>transferred-to:</span> <span style={{ color: CMD.warning }}>{childTodo.title.length > 30 ? childTodo.title.slice(0, 27) + '...' : childTodo.title}</span></div>
+                )}
               </div>
+            )}
 
-              {/* Commits list */}
-              {resultData.commits.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-                    {t('result.commitHistory')}
-                  </h4>
-                  <div className="space-y-1">
-                    {resultData.commits.map((c, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs py-1 px-2 rounded hover:bg-warm-100 transition-colors">
-                        <span className="font-mono text-status-info flex-shrink-0">{c.hash.slice(0, 7) || '-------'}</span>
-                        <span className="text-warm-700 flex-1">{c.message}</span>
-                        <span className="text-warm-400 flex-shrink-0">{new Date(c.date).toLocaleTimeString()}</span>
+            {/* Failure Reason */}
+            {todo.status === 'failed' && logs.length > 0 && (() => {
+              const errorLogs = logs.filter(l => l.log_type === 'error');
+              if (errorLogs.length === 0) return null;
+              const exitCodeMatch = errorLogs.find(l => /exited with code (\d+)/.test(l.message));
+              const exitCode = exitCodeMatch ? exitCodeMatch.message.match(/exited with code (\d+)/)?.[1] : null;
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div>
+                    <span style={{ color: CMD.error }}>{'>'}</span>{' '}
+                    <span style={{ color: CMD.error, fontWeight: 700 }}>FAILED</span>
+                    {exitCode && <span style={{ color: CMD.dim }}> (exit code: {exitCode})</span>}
+                    {onFix && (
+                      <button
+                        onClick={() => onFix(todo, errorLogs)}
+                        style={{ marginLeft: 12, color: CMD.warning, background: 'none', border: `1px solid ${CMD.warning}`, padding: '1px 8px', borderRadius: 2, cursor: 'pointer', fontSize: 11, fontFamily: CMD_FONT }}
+                      >
+                        {t('failure.fix')}
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ maxHeight: 192, overflowY: 'auto', marginTop: 4 }}>
+                    {errorLogs.map((log) => (
+                      <div key={log.id}>
+                        <span style={{ color: CMD.dim }}>{new Date(log.created_at).toLocaleTimeString()}</span>{' '}
+                        <span style={{ color: CMD.error }}>{log.message}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
+              );
+            })()}
 
-              {/* Changed files list */}
-              {resultData.changed_files.length > 0 && (
+            {/* Result Summary */}
+            {hasResult && resultData && (
+              <div style={{ marginTop: 12 }}>
+                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>task</span> <span style={{ color: CMD.dim }}>result</span></div>
                 <div>
-                  <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-                    {t('result.changedFiles')}
-                  </h4>
-                  <div className="space-y-0.5">
+                  {resultData.duration_seconds !== null && (
+                    <><span style={{ color: CMD.dim }}>{t('result.duration')}:</span> {formatDuration(resultData.duration_seconds)}</>
+                  )}
+                  {resultData.commits.length > 0 && (
+                    <><span style={{ color: CMD.dim }}> | </span><span style={{ color: CMD.success }}>{resultData.commits.length}</span> {t('result.commits')}</>
+                  )}
+                  {resultData.diff_stats.files_changed > 0 && (
+                    <><span style={{ color: CMD.dim }}> | </span>{resultData.diff_stats.files_changed} {t('result.filesChanged')} <span style={{ color: CMD.added }}>+{resultData.diff_stats.insertions}</span> <span style={{ color: CMD.removed }}>-{resultData.diff_stats.deletions}</span></>
+                  )}
+                  {showTokenUsage && resultData.token_usage && (() => {
+                    const tu = resultData.token_usage;
+                    const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
+                    const totalAll = totalInput + (tu.output_tokens ?? 0);
+                    let levelLabel: string;
+                    let levelColor: string;
+                    if (totalAll >= 500000) { levelLabel = t('result.levelHeavy'); levelColor = CMD.error; }
+                    else if (totalAll >= 300000) { levelLabel = t('result.levelHigh'); levelColor = CMD.orange; }
+                    else if (totalAll >= 100000) { levelLabel = t('result.levelModerate'); levelColor = CMD.warning; }
+                    else { levelLabel = t('result.levelLight'); levelColor = CMD.info; }
+                    return (
+                      <>
+                        <span style={{ color: CMD.dim }}> | </span>
+                        {totalInput > 0 && <span>{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>}
+                        {totalInput > 0 && tu.output_tokens !== null && <span style={{ color: CMD.dim }}> · </span>}
+                        {tu.output_tokens !== null && <span>{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>}
+                        {tu.num_turns != null && tu.num_turns > 1 && <><span style={{ color: CMD.dim }}> · </span><span>{tu.num_turns}{t('result.turns')}</span></>}
+                        <span style={{ color: CMD.dim }}> · </span>
+                        <span style={{ color: levelColor }}>{levelLabel}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Commits */}
+                {resultData.commits.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>log --oneline</span></div>
+                    {resultData.commits.map((c, i) => (
+                      <div key={i}>
+                        <span style={{ color: CMD.cyan }}>{c.hash.slice(0, 7) || '-------'}</span>{' '}
+                        <span>{c.message}</span>{' '}
+                        <span style={{ color: CMD.dim }}>{new Date(c.date).toLocaleTimeString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Changed files */}
+                {resultData.changed_files.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>diff --name-status</span></div>
                     {resultData.changed_files.map((f, i) => {
-                      const info = fileStatusLabel[f.status] || { label: f.status, color: 'text-warm-500' };
+                      const c = f.status === 'A' ? CMD.added : f.status === 'D' ? CMD.removed : f.status === 'M' ? CMD.warning : CMD.text;
                       return (
-                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-warm-100 transition-colors">
-                          <span className={`font-mono font-bold w-4 text-center flex-shrink-0 ${info.color}`}>{f.status}</span>
-                          <span className="font-mono text-warm-700 flex-1 truncate" title={f.file}>{f.file}</span>
-                          {f.renamedFrom && (
-                            <span className="text-warm-400 truncate" title={f.renamedFrom}>&larr; {f.renamedFrom}</span>
-                          )}
+                        <div key={i}>
+                          <span style={{ color: c, fontWeight: 700, display: 'inline-block', width: 16 }}>{f.status}</span>{' '}
+                          <span>{f.file}</span>
+                          {f.renamedFrom && <span style={{ color: CMD.dim }}> ← {f.renamedFrom}</span>}
                         </div>
                       );
                     })}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Errors */}
+            {mergeError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.mergeFailed')}: {mergeError}</div>}
+            {cleanError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.cleanupFailed')}: {cleanError}</div>}
+            {retryError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.retryFailed')}: {retryError}</div>}
+            {diffError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.diffError')}: {diffError}</div>}
+
+            {/* Diff viewer */}
+            {showDiff && diffData && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>diff</span></div>
+                  <div style={{ color: CMD.dim }}>
+                    {diffData.stats.files_changed} {t('todo.files')}{' '}
+                    <span style={{ color: CMD.added }}>+{diffData.stats.insertions}</span>{' '}
+                    <span style={{ color: CMD.removed }}>-{diffData.stats.deletions}</span>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Errors */}
-          {mergeError && (
-            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
-              {t('todo.mergeFailed')}: {mergeError}
-            </div>
-          )}
-
-          {cleanError && (
-            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
-              {t('todo.cleanupFailed')}: {cleanError}
-            </div>
-          )}
-
-          {retryError && (
-            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
-              {t('todo.retryFailed')}: {retryError}
-            </div>
-          )}
-
-          {diffError && (
-            <div className="py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-xs text-status-error">
-              {t('todo.diffError')}: {diffError}
-            </div>
-          )}
-
-          {/* Diff viewer */}
-          {showDiff && diffData && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider">
-                  {t('todo.diffOutput')}
-                </h4>
-                <div className="flex gap-3 text-xs">
-                  <span className="text-warm-400">{diffData.stats.files_changed} {t('todo.files')}</span>
-                  <span className="text-status-success">+{diffData.stats.insertions}</span>
-                  <span className="text-status-error">-{diffData.stats.deletions}</span>
+                <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 4 }}>
+                  {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
+                    let color: string = CMD.dim;
+                    let fw = 400;
+                    if (line.startsWith('+') && !line.startsWith('+++')) color = CMD.added;
+                    else if (line.startsWith('-') && !line.startsWith('---')) color = CMD.removed;
+                    else if (line.startsWith('@@')) color = CMD.hunk;
+                    else if (line.startsWith('diff ')) { color = CMD.warning; fw = 700; }
+                    return <div key={i} style={{ color, fontWeight: fw }}>{line}</div>;
+                  }) : <span style={{ color: CMD.dim, fontStyle: 'italic' }}>{t('log.noChanges')}</span>}
                 </div>
               </div>
-              <pre className="h-60 sm:h-80 overflow-auto bg-warm-800 rounded-xl border border-warm-700 p-3 sm:p-4 font-mono text-xs leading-relaxed">
-                {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                  let className = 'text-warm-400';
-                  if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';
-                  else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-red-400';
-                  else if (line.startsWith('@@')) className = 'text-blue-400';
-                  else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
-                  return <div key={i} className={className}>{line}</div>;
-                }) : <span className="text-warm-500 italic">{t('log.noChanges')}</span>}
-              </pre>
-            </div>
-          )}
+            )}
 
-          {/* Logs */}
-          <div>
-            <h4 className="text-xs font-semibold text-warm-500 uppercase tracking-wider mb-2">
-              {t('todo.systemLog')}
-            </h4>
-            <LogViewer
-              logs={logs}
-              interactive={isInteractive && todo.status === 'running'}
-              todoId={todo.id}
-              onSendInput={onSendInput}
-            />
+            {/* Logs */}
+            <div style={{ marginTop: 12 }}>
+              <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>tail</span> <span style={{ color: CMD.dim }}>-f task.log</span></div>
+              <LogViewer
+                logs={logs}
+                interactive={isInteractive && todo.status === 'running'}
+                todoId={todo.id}
+                onSendInput={onSendInput}
+                embedded
+              />
+            </div>
           </div>
         </div>
       )}

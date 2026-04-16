@@ -84,6 +84,7 @@ interface LogViewerProps {
   interactive?: boolean;
   todoId?: string;
   onSendInput?: (todoId: string, input: string) => void;
+  embedded?: boolean;
 }
 
 const logPrefixes: Record<TaskLog['log_type'], string> = {
@@ -96,7 +97,7 @@ const logPrefixes: Record<TaskLog['log_type'], string> = {
   warning: '[WRN]',
 };
 
-export default function LogViewer({ logs, interactive, todoId, onSendInput }: LogViewerProps) {
+export default function LogViewer({ logs, interactive, todoId, onSendInput, embedded }: LogViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [copied, setCopied] = useState(false);
@@ -149,7 +150,7 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
   return (
     <div className="flex flex-col">
       <div className="relative">
-        {logs.length > 0 && (
+        {logs.length > 0 && !embedded && (
           <button
             onClick={handleCopy}
             style={{
@@ -175,8 +176,8 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
         )}
         <div
           ref={containerRef}
-          className="h-48 sm:h-64 overflow-y-auto overflow-x-auto rounded-xl p-3 sm:p-4 font-mono text-xs"
-          style={{
+          className={embedded ? "max-h-64 overflow-y-auto overflow-x-auto font-mono text-xs" : "h-48 sm:h-64 overflow-y-auto overflow-x-auto rounded-xl p-3 sm:p-4 font-mono text-xs"}
+          style={embedded ? undefined : {
             backgroundColor: TERM.bg,
             border: `1px solid ${TERM.border}`,
           }}
@@ -218,7 +219,13 @@ export default function LogViewer({ logs, interactive, todoId, onSendInput }: Lo
       {interactive && (
         <form
           onSubmit={handleSubmit}
-          style={{
+          style={embedded ? {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '4px 0',
+            marginTop: 4,
+          } : {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
