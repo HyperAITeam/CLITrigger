@@ -6,7 +6,7 @@ import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
 import { useI18n } from '../i18n';
 
-type SortField = 'title' | 'priority' | 'due_date' | 'status' | 'created_at';
+type SortField = 'title' | 'tags' | 'priority' | 'due_date' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 const STATUS_ORDER: Record<string, number> = { pending: 0, in_progress: 1, done: 2, moved: 3 };
@@ -60,6 +60,12 @@ export default function PlannerList({
         case 'title':
           cmp = a.title.localeCompare(b.title);
           break;
+        case 'tags': {
+          const ta = a.tags ? (() => { try { return JSON.parse(a.tags!).join(','); } catch { return ''; } })() : '';
+          const tb = b.tags ? (() => { try { return JSON.parse(b.tags!).join(','); } catch { return ''; } })() : '';
+          cmp = (ta || 'zzz').localeCompare(tb || 'zzz');
+          break;
+        }
         case 'priority':
           cmp = a.priority - b.priority;
           break;
@@ -159,8 +165,8 @@ export default function PlannerList({
           <div className="flex-1 text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
             {t('planner.col.title')}<SortIcon field="title" />
           </div>
-          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider">
-            {t('planner.col.tags')}
+          <div className="w-[160px] text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('tags')}>
+            {t('planner.col.tags')}<SortIcon field="tags" />
           </div>
           <div className="w-12 text-center text-[10px] font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
             {t('plannerForm.priority')}<SortIcon field="priority" />
