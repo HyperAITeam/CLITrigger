@@ -15,7 +15,7 @@ export function createPtyFilterState(): PtyFilterState {
 
 // ── Noise detection patterns ──
 
-const SPINNER_CHARS = '✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*';
+const SPINNER_CHARS = '✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖';
 
 const NOISE_PATTERNS: RegExp[] = [
   // Box drawing / separator lines (allow trailing prompt chars like > $ %)
@@ -38,9 +38,9 @@ const NOISE_PATTERNS: RegExp[] = [
   // Ink short status line on its own (Hmm…, Loading…)
   /^(?:Hmm|Thinking|Loading|Processing|Running|Waiting|Working)\s*…?$/i,
   // Spinner frames: allow optional (thinking)/(thought for Ns) suffix after …
-  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*]\s*.{0,60}…/,
+  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖]\s*.{0,60}…/,
   // Thinking animation chars mixed with (thinking) text (e.g. "✶(thinking)(thinking) ✻(thinking)✻")
-  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s]*\(?think(?:ing)?\)?[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*\s(thinking)]*$/,
+  /^[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖\s]*\(?think(?:ing)?\)?[✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖\s(thinking)]*$/,
   // Thinking indicators
   /^\(?think(?:ing)?\)?(?:\s*\(?think(?:ing)?\)?)*$/,
   /^\(thought for \d+/,
@@ -56,8 +56,8 @@ const NOISE_PATTERNS: RegExp[] = [
   /^[▐▛▜▌▝▘█▀▄▓░▒\s]+\|/,
   // User input echo (already logged as [>>>] via WebSocket)
   /^>\s/,
-  // Numbered prompt echo (e.g. "3> 뭐해?" — CLI echoes user input with prompt number)
-  /^\d+>\s/,
+  // Numbered prompt echo (e.g. "3> 뭐해?" or "3 > 뭐해?" — CLI echoes user input with prompt number)
+  /^\d+\s*>\s/,
   // CLI status bar / prompt line (e.g. "────...──> [Haiku 4.5 | Team] │ repo git:(main)")
   /^[─━]+.*\bgit:\(/,
   // Working directory path line (e.g. "C:\path\.worktrees\branch..." or "/path/.worktrees/...")
@@ -105,11 +105,22 @@ function isAnimationCollision(line: string): boolean {
     new RegExp(`^[${SPINNER_CHARS}]\\s+(.+)$`),
   );
   if (spinnerLeadMatch) {
-    const tokens = spinnerLeadMatch[1].trim().split(/\s+/);
+    // Strip trailing (thinking)/(thought for Ns) markers so the remaining
+    // tokens represent only the fragmented word content.
+    const suffix = spinnerLeadMatch[1]
+      .replace(/\(thought for \d+s?\)/gi, '')
+      .replace(/\(thinking\)/gi, '')
+      .trim();
+    const tokens = suffix.length > 0 ? suffix.split(/\s+/) : [];
     if (tokens.length >= 3 && tokens.every((t) => t.length <= 3)) return true;
     // Shorter fragments (≥2 tokens) need a stricter bound to avoid
     // swallowing real markdown bullets like "* Go now".
     if (tokens.length >= 2 && tokens.every((t) => t.length <= 2)) return true;
+    // Single short-word fragment (e.g. "* Lea", "* Le") — spinner word redraw
+    // caught mid-animation. Rare as a real markdown bullet.
+    if (tokens.length === 1 && tokens[0].length <= 3) return true;
+    // All content was "(thinking)" noise — suppress.
+    if (tokens.length === 0) return true;
   }
   return false;
 }

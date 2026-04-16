@@ -132,6 +132,29 @@ describe('pty-output-filter', () => {
       expect(isNoiseLine('* Install dependencies')).toBe(false);
     });
 
+    it('filters single-token spinner redraws (word mid-animation)', () => {
+      // "Learning" being redrawn: "* Lea", "* Le", etc.
+      expect(isNoiseLine('* Lea')).toBe(true);
+      expect(isNoiseLine('* Le')).toBe(true);
+      expect(isNoiseLine('✶ Pre')).toBe(true);
+      expect(isNoiseLine('✻ ing')).toBe(true);
+    });
+
+    it('filters plus-prefix spinner fragments with (thinking)', () => {
+      // "+" is also a spinner variant in some CLI animations
+      expect(isNoiseLine('+ c s (thinking)')).toBe(true);
+      expect(isNoiseLine('+ (thinking)')).toBe(true);
+      expect(isNoiseLine('+ Processing…')).toBe(true);
+    });
+
+    it('filters numbered prompt echo with spaced angle bracket', () => {
+      // TUI sometimes renders "3 > text" with space between number and >
+      expect(isNoiseLine('3 > 아테스트중이야')).toBe(true);
+      expect(isNoiseLine('10 > hello')).toBe(true);
+      // Existing no-space form still filtered
+      expect(isNoiseLine('3> 뭐해?')).toBe(true);
+    });
+
     it('filters Ink status sub-lines (Hmm…, Loading…)', () => {
       expect(isNoiseLine('⎿  Hmm…')).toBe(true);
       expect(isNoiseLine('Hmm…')).toBe(true);
