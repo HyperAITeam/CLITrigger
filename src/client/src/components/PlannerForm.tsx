@@ -9,9 +9,10 @@ interface PlannerFormProps {
   editItem?: PlannerItem | null;
   onSave: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number; status?: string }) => Promise<void>;
   onCancel: () => void;
+  onUpdateTag?: (name: string, data: { color?: string }) => Promise<void>;
 }
 
-export default function PlannerForm({ existingTags, editItem, onSave, onCancel }: PlannerFormProps) {
+export default function PlannerForm({ existingTags, editItem, onSave, onCancel, onUpdateTag }: PlannerFormProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -25,7 +26,10 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
   const titleRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
-  const tagColorMap = new Map(existingTags.map(t => [t.name, t.color]));
+  const [localTagColors, setLocalTagColors] = useState<Map<string, string>>(new Map());
+  const tagColorMap = new Map([...existingTags.map(t => [t.name, t.color] as [string, string]), ...localTagColors]);
+
+  const CYCLE_COLORS = ['blue', 'green', 'orange', 'purple', 'pink', 'red', 'yellow', 'brown'];
 
   useEffect(() => {
     if (editItem) {
@@ -45,7 +49,16 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
 
   const addTag = (tag: string) => {
     const trimmed = tag.trim();
-    if (trimmed && !tags.includes(trimmed)) setTags([...tags, trimmed]);
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags((prev) => {
+        const next = [...prev, trimmed];
+        if (!tagColorMap.has(trimmed)) {
+          const nextColor = CYCLE_COLORS[(tagColorMap.size) % CYCLE_COLORS.length];
+          setLocalTagColors((m) => new Map([...m, [trimmed, nextColor]]));
+        }
+        return next;
+      });
+    }
     setTagInput('');
     setShowTagDrop(true);
     tagInputRef.current?.focus();
@@ -65,6 +78,9 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel }
         priority,
         ...(editItem ? { status } : {}),
       });
+      if (onUpdateTag && localTagColors.size > 0) {
+        await Promise.all([...localTagColors.entries()].map(([name, color]) => onUpdateTag(name, { color })));
+      }
     } finally {
       setSaving(false);
     }
