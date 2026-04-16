@@ -32,9 +32,9 @@ describe('cli-adapters', () => {
     expect(adapter.formatStdinPrompt('hello')).toBe('hello\n');
   });
 
-  it('only enables interactive mode for Claude', () => {
+  it('enables interactive mode for all CLI tools', () => {
     expect(supportsInteractiveMode('claude')).toBe(true);
-    expect(supportsInteractiveMode('gemini')).toBe(false);
-    expect(supportsInteractiveMode('codex')).toBe(false);
+    expect(supportsInteractiveMode('gemini')).toBe(true);
+    expect(supportsInteractiveMode('codex')).toBe(true);
   });
 });

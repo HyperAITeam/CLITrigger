@@ -106,6 +106,7 @@ const claudeAdapter: CliAdapter = {
 const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
+  supportsInteractive: true,
   buildArgs({ mode, prompt, model, extraOptions }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
     // --prompt= enables headless mode with empty value; actual prompt delivered via stdin pipe.
@@ -130,6 +131,7 @@ const geminiAdapter: CliAdapter = {
 const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
+  supportsInteractive: true,
   buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode }) {
     const normalizedModel = normalizeModel(model, 'codex');
     const args: string[] = ['exec'];

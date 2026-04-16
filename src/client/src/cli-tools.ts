@@ -25,7 +25,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'gemini',
     label: 'Gemini CLI',
-    supportsInteractive: false,
+    supportsInteractive: true,
     models: [
       { value: '', label: 'Default (Gemini 2.5 Pro)' },
     ],
@@ -33,7 +33,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   {
     value: 'codex',
     label: 'Codex CLI',
-    supportsInteractive: false,
+    supportsInteractive: true,
     models: [
       { value: '', label: 'Default' },
       { value: 'gpt-4.1', label: 'GPT-4.1' },
