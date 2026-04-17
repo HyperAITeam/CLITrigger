@@ -29,21 +29,16 @@ function checkTool(tool: string, command: string): Promise<CliToolStatus> {
     // Windows needs shell:true to resolve .cmd shims (claude.cmd, gemini.cmd, etc.)
     if (process.platform === 'win32') opts.shell = true;
 
-    execFile(command, ['--version'], opts, (error, stdout) => {
+    execFile(command, ['--version'], opts, async (error, stdout) => {
       if (error) {
         resolve({ tool, installed: false, version: null });
         return;
       }
       // Parse version from stdout (first line, trim whitespace)
       const version = stdout.trim().split('\n')[0].trim() || null;
-      // Trigger a model sync if the detected version differs from what we last
-      // reconciled against. Fire-and-forget — callers get the latest cli_models
-      // data on the next GET /api/models.
-      try {
-        maybeTriggerSync(tool as CliTool, version);
-      } catch {
-        // Ignore any sync hook failures — they must never block version check.
-      }
+      // Await model reconciliation so clients that read /api/models right
+      // after this request see the post-sync cli_models state.
+      await maybeTriggerSync(tool as CliTool, version);
       resolve({ tool, installed: true, version });
     });
   });

@@ -77,26 +77,35 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
     });
   }, [project.id]);
 
-  // Fetch CLI tool installation status when settings panel opens
+  const { getToolConfig, refresh: refreshModelList } = useModels();
+
+  // Fetch CLI tool installation status when settings panel opens.
+  // The status call also triggers server-side model reconciliation if the
+  // installed CLI version has changed since last sync, so refresh the cached
+  // model list afterwards to reflect any newly discovered / deprecated models.
   useEffect(() => {
     if (!showSettings) return;
     getCliStatus()
-      .then(setCliStatuses)
+      .then((statuses) => {
+        setCliStatuses(statuses);
+        refreshModelList();
+      })
       .catch(() => {})
       .finally(() => setCliStatusLoaded(true));
-  }, [showSettings]);
+  }, [showSettings, refreshModelList]);
 
   const currentCliStatus = cliStatuses.find((s) => s.tool === cliTool);
 
   const handleRefreshCliStatus = useCallback(() => {
     setCliStatusLoaded(false);
     refreshCliStatus()
-      .then(setCliStatuses)
+      .then((statuses) => {
+        setCliStatuses(statuses);
+        refreshModelList();
+      })
       .catch(() => {})
       .finally(() => setCliStatusLoaded(true));
-  }, []);
-
-  const { getToolConfig } = useModels();
+  }, [refreshModelList]);
 
   const handleCliToolChange = (newTool: CliTool) => {
     setCliTool(newTool);
