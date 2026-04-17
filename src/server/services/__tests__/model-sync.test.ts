@@ -36,54 +36,67 @@ describe('model-sync', () => {
     testDb.close();
   });
 
-  it('inserts probed models with source=probe and records version', async () => {
+  it('inserts probe-only models with source=probe and records version', async () => {
+    // claude-brand-new is not in registry → must come from probe with source=probe
     mockProbe.mockResolvedValueOnce([
-      { value: 'claude-new-1', label: 'claude-new-1' },
-      { value: 'claude-new-2', label: 'claude-new-2' },
+      { value: 'claude-brand-new', label: 'claude-brand-new' },
     ]);
 
     await syncModels('claude', '2.9.9');
 
     const models = queries.getModelsByTool('claude');
-    const values = models.map((m) => m.model_value);
-    expect(values).toContain('claude-new-1');
-    expect(values).toContain('claude-new-2');
-    const newOne = models.find((m) => m.model_value === 'claude-new-1')!;
+    const newOne = models.find((m) => m.model_value === 'claude-brand-new')!;
+    expect(newOne).toBeDefined();
     expect(newOne.source).toBe('probe');
     expect(newOne.deprecated).toBe(0);
 
     const version = queries.getCliVersion('claude');
-    expect(version?.last_version).toBe('2.9.9');
+    expect(version?.last_version).toBe('2|2.9.9');
   });
 
-  it('falls back to registry when probe returns null', async () => {
-    mockProbe.mockResolvedValueOnce(null);
+  it('uses registry even when probe succeeds (union strategy)', async () => {
+    // Probe reports only sonnet, but registry also has opus-4-7, opus-4-6, haiku
+    mockProbe.mockResolvedValueOnce([
+      { value: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6' },
+    ]);
 
     await syncModels('claude', '2.0.0');
 
     const models = queries.getModelsByTool('claude');
-    // Registry contains claude-opus-4-7 — it should have been inserted with source=registry
-    const opus = models.find((m) => m.model_value === 'claude-opus-4-7');
-    expect(opus).toBeDefined();
-    expect(opus!.source).toBe('registry');
+    const opus47 = models.find((m) => m.model_value === 'claude-opus-4-7');
+    const opus46 = models.find((m) => m.model_value === 'claude-opus-4-6');
+    const haiku = models.find((m) => m.model_value === 'claude-haiku-4-5');
+    expect(opus47).toBeDefined();
+    expect(opus47!.source).toBe('registry');
+    expect(opus46?.deprecated).toBe(0);
+    expect(haiku?.deprecated).toBe(0);
   });
 
-  it('marks seed-sourced models absent from discovery as deprecated', async () => {
-    // Seed already includes claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5
+  it('uses registry label over raw probe value', async () => {
+    // Probe returns ugly label (equal to value); registry has pretty label
     mockProbe.mockResolvedValueOnce([
-      { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-      // haiku + opus-4-6 deliberately omitted
+      { value: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6' },
     ]);
 
-    await syncModels('claude', '2.9.9');
+    await syncModels('claude', '2.0.0');
 
-    const models = queries.getModelsByTool('claude');
-    const haiku = models.find((m) => m.model_value === 'claude-haiku-4-5');
-    const opus = models.find((m) => m.model_value === 'claude-opus-4-6');
-    const sonnet = models.find((m) => m.model_value === 'claude-sonnet-4-6');
-    expect(haiku?.deprecated).toBe(1);
-    expect(opus?.deprecated).toBe(1);
-    expect(sonnet?.deprecated).toBe(0);
+    const sonnet = queries.getModelsByTool('claude').find((m) => m.model_value === 'claude-sonnet-4-6');
+    expect(sonnet?.model_label).toBe('Claude Sonnet 4.6');
+  });
+
+  it('deprecates seeded models that are absent from both registry and probe', async () => {
+    // Add a fake seed-sourced entry that's in neither registry nor probe
+    const db = testDb;
+    db.prepare(
+      `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default, source)
+       VALUES ('fake-1', 'claude', 'claude-ancient-3-0', 'Claude Ancient 3.0', 99, 0, 'seed')`
+    ).run();
+    mockProbe.mockResolvedValueOnce(null);
+
+    await syncModels('claude', '2.0.0');
+
+    const ancient = queries.getModelsByTool('claude').find((m) => m.model_value === 'claude-ancient-3-0');
+    expect(ancient?.deprecated).toBe(1);
   });
 
   it('does not deprecate user-added models on reconciliation', async () => {
@@ -102,14 +115,18 @@ describe('model-sync', () => {
   });
 
   it('isModelSupported returns false for deprecated entries', async () => {
+    // Seed a stale model that is NOT in registry or probe so it will be deprecated
+    testDb.prepare(
+      `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default, source)
+       VALUES ('stale-1', 'claude', 'claude-stale-2-0', 'Claude Stale 2.0', 99, 0, 'seed')`
+    ).run();
     mockProbe.mockResolvedValueOnce([
       { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     ]);
 
     await syncModels('claude', '2.9.9');
 
-    // haiku was seeded but not in this probe → deprecated
-    expect(queries.isModelSupported('claude', 'claude-haiku-4-5')).toBe(false);
+    expect(queries.isModelSupported('claude', 'claude-stale-2-0')).toBe(false);
     expect(queries.isModelSupported('claude', 'claude-sonnet-4-6')).toBe(true);
   });
 
@@ -139,6 +156,6 @@ describe('model-sync', () => {
     mockProbe.mockResolvedValueOnce(null);
     await syncModels('gemini', '1.0.0');
     const version = queries.getCliVersion('gemini');
-    expect(version?.last_version).toBe('1.0.0');
+    expect(version?.last_version).toBe('2|1.0.0');
   });
 });
