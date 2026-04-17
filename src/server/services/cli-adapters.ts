@@ -1,9 +1,77 @@
 import path from 'path';
+import { execFile } from 'child_process';
 import { isModelSupported } from '../db/queries.js';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
 export type CliMode = 'headless' | 'interactive' | 'verbose';
 export type SandboxMode = 'strict' | 'permissive';
+
+export interface ProbedModel {
+  value: string;
+  label: string;
+}
+
+const PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Best-effort parse of a CLI --help dump to extract supported model identifiers.
+ *
+ * Heuristic: looks for lines that mention the `--model` flag and collects any
+ * comma/space-separated identifiers on the same (or next) line that match
+ * known model naming patterns (e.g. "claude-sonnet-4-6", "gpt-4.1", "o3",
+ * "gemini-2.5-pro"). Returns an empty array if nothing plausible is found;
+ * callers should treat empty as "probe failed, use registry".
+ */
+export function parseHelpForModels(helpText: string): ProbedModel[] {
+  if (!helpText || typeof helpText !== 'string') return [];
+
+  // Identifier shape CLI vendors tend to use for model slugs
+  const modelIdPattern = /\b(?:claude-[a-z0-9-]+|gpt-[0-9][0-9a-z.-]*|o[0-9][0-9a-z.-]*|gemini-[0-9][0-9a-z.-]*)\b/gi;
+
+  const lines = helpText.split(/\r?\n/);
+  const collected = new Set<string>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/--model\b/i.test(line)) continue;
+    // Scan current line + next 3 lines (help text often puts choices below)
+    const window = lines.slice(i, Math.min(i + 4, lines.length)).join(' ');
+    const matches = window.match(modelIdPattern);
+    if (matches) {
+      for (const m of matches) collected.add(m.toLowerCase());
+    }
+  }
+
+  return Array.from(collected).map((value) => ({ value, label: value }));
+}
+
+function runHelp(command: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const opts: { timeout: number; shell?: boolean; maxBuffer: number } = {
+      timeout: PROBE_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024,
+    };
+    if (process.platform === 'win32') opts.shell = true;
+    execFile(command, ['--help'], opts, (error, stdout, stderr) => {
+      if (error && !stdout && !stderr) {
+        resolve(null);
+        return;
+      }
+      resolve((stdout || '') + '\n' + (stderr || ''));
+    });
+  });
+}
+
+async function probeViaHelp(command: string): Promise<ProbedModel[] | null> {
+  try {
+    const help = await runHelp(command);
+    if (!help) return null;
+    const parsed = parseHelpForModels(help);
+    return parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
@@ -60,6 +128,12 @@ export interface CliAdapter {
   requiresTty?: boolean;
   /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
   outputFormat?: 'text' | 'stream-json';
+  /**
+   * Best-effort probe for currently supported models. Returns null when the
+   * CLI is unreachable or its help output yields no recognizable model ids;
+   * callers should fall back to the bundled registry.
+   */
+  probeModels?(): Promise<ProbedModel[] | null>;
 }
 
 const TASK_COMPLETION_SUFFIX = `
@@ -101,6 +175,9 @@ const claudeAdapter: CliAdapter = {
     if (mode === 'interactive') return prompt + '\n';
     return prompt + TASK_COMPLETION_SUFFIX + '\n';
   },
+  probeModels() {
+    return probeViaHelp('claude');
+  },
 };
 
 const geminiAdapter: CliAdapter = {
@@ -125,6 +202,9 @@ const geminiAdapter: CliAdapter = {
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';
+  },
+  probeModels() {
+    return probeViaHelp('gemini');
   },
 };
 
@@ -157,6 +237,9 @@ const codexAdapter: CliAdapter = {
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';
+  },
+  probeModels() {
+    return probeViaHelp('codex');
   },
 };
 

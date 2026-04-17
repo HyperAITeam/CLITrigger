@@ -2,10 +2,16 @@ import { getModels, type ModelMap, type ModelOption } from './api/models';
 
 export type CliTool = 'claude' | 'gemini' | 'codex';
 
+export interface CliModelOption {
+  value: string;
+  label: string;
+  deprecated?: boolean;
+}
+
 export interface CliToolConfig {
   value: CliTool;
   label: string;
-  models: { value: string; label: string }[];
+  models: CliModelOption[];
   supportsInteractive: boolean;
 }
 
@@ -67,10 +73,27 @@ export function refreshModels(): Promise<void> {
 export function getToolConfig(tool: CliTool): CliToolConfig {
   const base = DEFAULT_CLI_TOOLS.find((t) => t.value === tool) ?? DEFAULT_CLI_TOOLS[0];
   if (cachedModels && cachedModels[tool]) {
-    return {
-      ...base,
-      models: cachedModels[tool].map((m: ModelOption) => ({ value: m.value, label: m.label })),
-    };
+    const active: CliModelOption[] = [];
+    const deprecated: CliModelOption[] = [];
+    for (const m of cachedModels[tool] as ModelOption[]) {
+      if (m.deprecated) {
+        deprecated.push({ value: m.value, label: `${m.label} (deprecated)`, deprecated: true });
+      } else {
+        active.push({ value: m.value, label: m.label });
+      }
+    }
+    return { ...base, models: [...active, ...deprecated] };
   }
   return base;
+}
+
+/**
+ * Return true when the given model value is marked deprecated in the live
+ * server model list. Used by UI components to show a warning badge next to
+ * the currently-saved selection without altering the dropdown options.
+ */
+export function isModelDeprecated(tool: CliTool, modelValue: string): boolean {
+  if (!cachedModels || !cachedModels[tool]) return false;
+  const found = (cachedModels[tool] as ModelOption[]).find((m) => m.value === modelValue);
+  return !!found?.deprecated;
 }

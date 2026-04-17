@@ -438,8 +438,13 @@ export interface CliModel {
   model_label: string;
   sort_order: number;
   is_default: number;
+  deprecated: number;
+  last_verified_at: string | null;
+  source: string;
   created_at: string;
 }
+
+export type ModelSource = 'seed' | 'probe' | 'registry' | 'user';
 
 export function getModelsByTool(tool: string): CliModel[] {
   const db = getDatabase();
@@ -463,7 +468,7 @@ export function addModel(cliTool: string, modelValue: string, modelLabel: string
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM cli_models WHERE cli_tool = ?').get(cliTool) as { max_order: number | null };
   const sortOrder = (maxOrder.max_order ?? -1) + 1;
   db.prepare(
-    `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default) VALUES (?, ?, ?, ?, ?, 0)`
+    `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default, source) VALUES (?, ?, ?, ?, ?, 0, 'user')`
   ).run(id, cliTool, modelValue, modelLabel, sortOrder);
   return db.prepare('SELECT * FROM cli_models WHERE id = ?').get(id) as CliModel;
 }
@@ -478,8 +483,89 @@ export function removeModel(id: string): boolean {
 
 export function isModelSupported(cliTool: string, modelValue: string): boolean {
   const db = getDatabase();
-  const row = db.prepare('SELECT 1 FROM cli_models WHERE cli_tool = ? AND model_value = ?').get(cliTool, modelValue);
+  const row = db.prepare(
+    'SELECT 1 FROM cli_models WHERE cli_tool = ? AND model_value = ? AND deprecated = 0'
+  ).get(cliTool, modelValue);
   return !!row;
+}
+
+/**
+ * Upsert a discovered model. Updates label/source/last_verified_at and clears
+ * the deprecated flag on conflict. Does not overwrite user-added (source='user')
+ * entries except to refresh their verified timestamp.
+ */
+export function upsertDiscoveredModel(
+  cliTool: string,
+  modelValue: string,
+  modelLabel: string,
+  source: ModelSource,
+  now: string
+): void {
+  const db = getDatabase();
+  const existing = db.prepare(
+    'SELECT * FROM cli_models WHERE cli_tool = ? AND model_value = ?'
+  ).get(cliTool, modelValue) as CliModel | undefined;
+
+  if (existing) {
+    if (existing.source === 'user') {
+      db.prepare(
+        `UPDATE cli_models SET deprecated = 0, last_verified_at = ? WHERE id = ?`
+      ).run(now, existing.id);
+    } else {
+      db.prepare(
+        `UPDATE cli_models SET model_label = ?, source = ?, deprecated = 0, last_verified_at = ? WHERE id = ?`
+      ).run(modelLabel, source, now, existing.id);
+    }
+    return;
+  }
+
+  const id = uuidv4();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM cli_models WHERE cli_tool = ?').get(cliTool) as { max_order: number | null };
+  const sortOrder = (maxOrder.max_order ?? -1) + 1;
+  db.prepare(
+    `INSERT INTO cli_models (id, cli_tool, model_value, model_label, sort_order, is_default, deprecated, last_verified_at, source)
+     VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`
+  ).run(id, cliTool, modelValue, modelLabel, sortOrder, now, source);
+}
+
+/**
+ * Mark any non-user, non-default cli_models entries for the given tool as
+ * deprecated if their model_value is NOT in the discovered list.
+ */
+export function markDeprecatedExcept(cliTool: string, discoveredValues: string[]): void {
+  const db = getDatabase();
+  if (discoveredValues.length === 0) {
+    db.prepare(
+      `UPDATE cli_models SET deprecated = 1
+       WHERE cli_tool = ? AND is_default = 0 AND source IN ('seed','probe','registry')`
+    ).run(cliTool);
+    return;
+  }
+  const placeholders = discoveredValues.map(() => '?').join(',');
+  db.prepare(
+    `UPDATE cli_models SET deprecated = 1
+     WHERE cli_tool = ? AND is_default = 0 AND source IN ('seed','probe','registry')
+       AND model_value NOT IN (${placeholders})`
+  ).run(cliTool, ...discoveredValues);
+}
+
+export interface CliVersionRow {
+  cli_tool: string;
+  last_version: string | null;
+  last_synced_at: string | null;
+}
+
+export function getCliVersion(cliTool: string): CliVersionRow | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM cli_versions WHERE cli_tool = ?').get(cliTool) as CliVersionRow | undefined;
+}
+
+export function setCliVersion(cliTool: string, version: string | null, syncedAt: string): void {
+  const db = getDatabase();
+  db.prepare(
+    `INSERT INTO cli_versions (cli_tool, last_version, last_synced_at) VALUES (?, ?, ?)
+     ON CONFLICT(cli_tool) DO UPDATE SET last_version = excluded.last_version, last_synced_at = excluded.last_synced_at`
+  ).run(cliTool, version, syncedAt);
 }
 
 // ── CLI Fallback ──

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAdapter, supportsInteractiveMode } from '../cli-adapters.js';
+import { getAdapter, supportsInteractiveMode, parseHelpForModels } from '../cli-adapters.js';
 
 describe('cli-adapters', () => {
   it('uses non-interactive exec mode for Codex', () => {
@@ -36,5 +36,52 @@ describe('cli-adapters', () => {
     expect(supportsInteractiveMode('claude')).toBe(true);
     expect(supportsInteractiveMode('gemini')).toBe(true);
     expect(supportsInteractiveMode('codex')).toBe(true);
+  });
+
+  describe('parseHelpForModels', () => {
+    it('extracts claude model ids from help with --model flag', () => {
+      const help = [
+        'Usage: claude [options]',
+        '',
+        'Options:',
+        '  --model <name>      Model to use',
+        '                      Choices: claude-opus-4-7, claude-sonnet-4-6,',
+        '                      claude-haiku-4-5',
+      ].join('\n');
+      const models = parseHelpForModels(help);
+      const values = models.map((m) => m.value).sort();
+      expect(values).toEqual(['claude-haiku-4-5', 'claude-opus-4-7', 'claude-sonnet-4-6']);
+    });
+
+    it('extracts codex model ids with mixed formats', () => {
+      const help = [
+        'codex exec [options]',
+        '  --model   <name>  e.g. gpt-4.1, gpt-4.1-mini, o3, o4-mini',
+      ].join('\n');
+      const models = parseHelpForModels(help);
+      const values = models.map((m) => m.value).sort();
+      expect(values).toContain('gpt-4.1');
+      expect(values).toContain('gpt-4.1-mini');
+      expect(values).toContain('o3');
+      expect(values).toContain('o4-mini');
+    });
+
+    it('returns empty when --model flag is absent', () => {
+      const help = 'Usage: foo [options]\n  --color <when>  Colorize output';
+      expect(parseHelpForModels(help)).toEqual([]);
+    });
+
+    it('returns empty for non-string input', () => {
+      expect(parseHelpForModels('')).toEqual([]);
+      // @ts-expect-error intentional
+      expect(parseHelpForModels(null)).toEqual([]);
+    });
+
+    it('deduplicates repeated ids', () => {
+      const help = '--model  gpt-4.1 / gpt-4.1 / gpt-4.1';
+      const models = parseHelpForModels(help);
+      expect(models.length).toBe(1);
+      expect(models[0].value).toBe('gpt-4.1');
+    });
   });
 });

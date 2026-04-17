@@ -71,8 +71,17 @@ export function initDatabase(db: Database.Database): void {
       model_label TEXT NOT NULL,
       sort_order INTEGER DEFAULT 0,
       is_default INTEGER DEFAULT 0,
+      deprecated INTEGER DEFAULT 0,
+      last_verified_at DATETIME,
+      source TEXT DEFAULT 'seed',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(cli_tool, model_value)
+    );
+
+    CREATE TABLE IF NOT EXISTS cli_versions (
+      cli_tool TEXT PRIMARY KEY,
+      last_version TEXT,
+      last_synced_at DATETIME
     );
 
     CREATE TABLE IF NOT EXISTS plugin_configs (
@@ -240,6 +249,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'total_tokens', definition: 'INTEGER' },
     { table: 'sessions', column: 'use_worktree', definition: 'INTEGER DEFAULT 0' },
     { table: 'planner_items', column: 'images', definition: 'TEXT' },
+    { table: 'cli_models', column: 'deprecated', definition: 'INTEGER DEFAULT 0' },
+    { table: 'cli_models', column: 'last_verified_at', definition: 'DATETIME' },
+    { table: 'cli_models', column: 'source', definition: "TEXT DEFAULT 'seed'" },
   ];
 
   for (const { table, column, definition } of migrations) {

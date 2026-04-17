@@ -75,14 +75,24 @@ export default function ModelSettings() {
       {/* Model list */}
       <div className="space-y-1.5 mb-4">
         {currentModels.map((m) => (
-          <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-warm-50">
+          <div
+            key={m.id}
+            className={`flex items-center justify-between px-3 py-2 rounded-lg bg-warm-50 ${m.deprecated ? 'opacity-60' : ''}`}
+          >
             <div className="min-w-0">
-              <span className="text-xs font-medium text-warm-700">{m.label}</span>
+              <span className={`text-xs font-medium ${m.deprecated ? 'text-warm-400 line-through' : 'text-warm-700'}`}>
+                {m.label}
+              </span>
               {m.value && (
                 <span className="ml-2 text-2xs text-warm-400 font-mono">{m.value}</span>
               )}
               {m.isDefault && (
                 <span className="ml-2 text-2xs text-warm-300">(built-in)</span>
+              )}
+              {m.deprecated && (
+                <span className="ml-2 text-2xs text-status-warning font-medium">
+                  {t('header.modelDeprecated') || '(deprecated)'}
+                </span>
               )}
             </div>
             {!m.isDefault && (
