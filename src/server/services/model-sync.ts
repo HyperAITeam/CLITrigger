@@ -138,15 +138,20 @@ export async function syncModels(tool: CliTool, version: string): Promise<void> 
 }
 
 /**
- * Fire-and-forget wrapper used by cli-status.ts. Only triggers a real sync
- * when the newly detected version differs from the last recorded one OR when
- * the sync algorithm version has been bumped since the last reconciliation.
+ * Wrapper used by cli-status.ts. Triggers a real sync only when the newly
+ * detected version differs from the last recorded one OR when the sync
+ * algorithm version has been bumped since the last reconciliation. Returns
+ * a promise that callers may await to know sync is done (e.g. so that a
+ * subsequent read of cli_models reflects the reconciliation). Swallows
+ * errors internally — failures must never propagate to cli-status callers.
  */
-export function maybeTriggerSync(tool: CliTool, version: string | null): void {
+export async function maybeTriggerSync(tool: CliTool, version: string | null): Promise<void> {
   if (!version) return;
   const last = getCliVersion(tool);
   if (last?.last_version === encodeStoredVersion(version)) return;
-  syncModels(tool, version).catch((err) => {
+  try {
+    await syncModels(tool, version);
+  } catch (err) {
     console.warn(`[model-sync] syncModels(${tool}) failed:`, err);
-  });
+  }
 }

@@ -32,6 +32,7 @@ import plannerRouter from './routes/planner.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
 import { logStreamer } from './services/log-streamer.js';
+import { checkAllTools } from './services/cli-status.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
 import { jiraPlugin } from './plugins/jira/index.js';
 import { githubPlugin } from './plugins/github/index.js';
@@ -76,6 +77,11 @@ app.use(express.json({ limit: '50mb' }));
 
 // Initialize database
 getDatabase();
+
+// Kick off an initial CLI status check so version-change triggers fire and
+// model reconciliation runs before the UI loads /api/models. Fire-and-forget
+// — failures are swallowed inside checkAllTools / maybeTriggerSync.
+checkAllTools().catch(() => { /* ignore */ });
 
 // Startup recovery: reset stale 'running' todos to 'failed'
 // (processes are dead after server restart)
