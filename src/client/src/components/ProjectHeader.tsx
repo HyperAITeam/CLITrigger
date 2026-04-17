@@ -5,7 +5,7 @@ import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
 import { getCliStatus, refreshCliStatus, type CliToolStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool, isModelDeprecated } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
 import ModelSettings from './ModelSettings';
 import { getClientPlugins } from '../plugins/registry';
@@ -284,6 +284,15 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             <span className="badge bg-warm-200/60 text-warm-600">
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
+            {project.claude_model && isModelDeprecated((project.cli_tool as CliTool) || 'claude', project.claude_model) && (
+              <span
+                className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1"
+                title={t('header.modelDeprecatedWarning') || 'Current model is no longer supported by the installed CLI. It will fall back to the default at execution time.'}
+              >
+                <AlertTriangle size={10} />
+                {t('header.modelDeprecated') || 'Model deprecated'}
+              </span>
+            )}
           </div>
 
           {/* Compact progress */}

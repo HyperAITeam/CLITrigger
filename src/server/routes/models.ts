@@ -7,13 +7,14 @@ const router = Router();
 router.get('/models', (_req: Request, res: Response) => {
   try {
     const allModels = queries.getAllModels();
-    const result: Record<string, { value: string; label: string; id: string; isDefault: boolean }[]> = {};
+    const result: Record<string, { value: string; label: string; id: string; isDefault: boolean; deprecated: boolean }[]> = {};
     for (const [tool, models] of Object.entries(allModels)) {
       result[tool] = models.map((m) => ({
         value: m.model_value,
         label: m.model_label,
         id: m.id,
         isDefault: m.is_default === 1,
+        deprecated: m.deprecated === 1,
       }));
     }
     res.json(result);
@@ -37,6 +38,7 @@ router.post('/models', (req: Request, res: Response) => {
       label: model.model_label,
       id: model.id,
       isDefault: model.is_default === 1,
+      deprecated: model.deprecated === 1,
     });
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('UNIQUE constraint')) {

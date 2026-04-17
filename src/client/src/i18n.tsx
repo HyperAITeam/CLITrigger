@@ -107,6 +107,8 @@ const translations = {
     'header.modelLabel': 'Display Name',
     'header.addModel': 'Add',
     'header.modelSettingsHint': 'Add custom models here. They will appear in model dropdowns across all projects.',
+    'header.modelDeprecated': 'deprecated',
+    'header.modelDeprecatedWarning': 'This model is no longer supported by the installed CLI. It will fall back to the default at execution time.',
 
     // Jira Header
     'header.jiraTitle': 'Jira Integration',
@@ -785,6 +787,8 @@ const translations = {
     'header.modelLabel': '표시 이름',
     'header.addModel': '추가',
     'header.modelSettingsHint': '커스텀 모델을 추가하세요. 모든 프로젝트의 모델 드롭다운에 표시됩니다.',
+    'header.modelDeprecated': '사용 중단됨',
+    'header.modelDeprecatedWarning': '설치된 CLI가 더 이상 지원하지 않는 모델입니다. 실행 시 기본 모델로 자동 대체됩니다.',
 
     // Jira Header
     'header.jiraTitle': 'Jira \uC5F0\uB3D9',

@@ -5,6 +5,7 @@ export interface ModelOption {
   label: string;
   id: string;
   isDefault: boolean;
+  deprecated?: boolean;
 }
 
 export type ModelMap = Record<string, ModelOption[]>;

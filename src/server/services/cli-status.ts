@@ -1,4 +1,6 @@
 import { execFile } from 'child_process';
+import { maybeTriggerSync } from './model-sync.js';
+import type { CliTool } from './cli-adapters.js';
 
 export interface CliToolStatus {
   tool: string;
@@ -34,6 +36,14 @@ function checkTool(tool: string, command: string): Promise<CliToolStatus> {
       }
       // Parse version from stdout (first line, trim whitespace)
       const version = stdout.trim().split('\n')[0].trim() || null;
+      // Trigger a model sync if the detected version differs from what we last
+      // reconciled against. Fire-and-forget — callers get the latest cli_models
+      // data on the next GET /api/models.
+      try {
+        maybeTriggerSync(tool as CliTool, version);
+      } catch {
+        // Ignore any sync hook failures — they must never block version check.
+      }
       resolve({ tool, installed: true, version });
     });
   });
