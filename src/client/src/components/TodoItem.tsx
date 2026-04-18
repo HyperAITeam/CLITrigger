@@ -284,8 +284,10 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
       const data = await todosApi.getTodoDiff(todo.id);
       setDiffData(data);
       setShowDiff(true);
+      setExpanded(true);
     } catch (err) {
       setDiffError(err instanceof Error ? err.message : 'Failed to load diff');
+      setExpanded(true);
     } finally {
       setDiffLoading(false);
     }
