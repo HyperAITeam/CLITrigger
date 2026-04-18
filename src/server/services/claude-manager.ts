@@ -33,7 +33,7 @@ export class ClaudeManager {
     const adapter = getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
 
-    if (adapter.requiresTty || (mode === 'interactive' && tool === 'claude')) {
+    if (adapter.requiresTty || mode === 'interactive') {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
       // Only Claude has a TUI that requires delayed stdin delivery (wait for ready indicator)
       const delayStdin = tool === 'claude';

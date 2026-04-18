@@ -184,13 +184,14 @@ const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
   supportsInteractive: true,
-  buildArgs({ mode, prompt, model, extraOptions }) {
+  buildArgs({ mode, prompt, model, extraOptions, continueSession }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
     // --prompt= enables headless mode with empty value; actual prompt delivered via stdin pipe.
     // Must use --prompt= (single arg) instead of -p '' because Windows cmd.exe drops empty string args.
     const normalizedModel = normalizeModel(model, 'gemini');
     const args = ['--yolo'];
     if (mode !== 'interactive') args.push('--prompt=');
+    if (continueSession) args.push('--resume', 'latest');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
@@ -212,9 +213,15 @@ const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
   supportsInteractive: true,
-  buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode }) {
+  buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode, continueSession }) {
     const normalizedModel = normalizeModel(model, 'codex');
-    const args: string[] = ['exec'];
+    const args: string[] = [];
+    if (mode !== 'interactive') {
+      args.push('exec');
+      if (continueSession) {
+        args.push('resume', '--last');
+      }
+    }
     if (sandboxMode === 'strict') {
       // Use --full-auto (workspace-write sandbox) with --add-dir to allow git metadata access.
       // Git worktree metadata lives at <projectPath>/.git/worktrees/, so we whitelist the .git dir.

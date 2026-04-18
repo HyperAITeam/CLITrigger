@@ -25,6 +25,42 @@ describe('cli-adapters', () => {
     expect(args).toEqual(['--yolo', '--prompt=']);
   });
 
+  it('uses --resume latest for Gemini when continuing a session', () => {
+    const adapter = getAdapter('gemini');
+    const args = adapter.buildArgs({
+      mode: 'headless',
+      prompt: 'Follow up',
+      continueSession: true,
+    });
+
+    expect(args).toEqual(['--yolo', '--prompt=', '--resume', 'latest']);
+  });
+
+  it('omits exec subcommand for Codex in interactive mode', () => {
+    const adapter = getAdapter('codex');
+    const args = adapter.buildArgs({
+      mode: 'interactive',
+      prompt: '',
+      model: 'o3',
+      sandboxMode: 'permissive',
+    });
+
+    expect(args).not.toContain('exec');
+    expect(args).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
+  });
+
+  it('uses exec resume --last for Codex when continuing a session', () => {
+    const adapter = getAdapter('codex');
+    const args = adapter.buildArgs({
+      mode: 'headless',
+      prompt: 'Follow up',
+      model: 'o3',
+      continueSession: true,
+    });
+
+    expect(args).toEqual(['exec', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
+  });
+
   it('sends Codex prompts over stdin', () => {
     const adapter = getAdapter('codex');
 
