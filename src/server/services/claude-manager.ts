@@ -58,6 +58,9 @@ export class ClaudeManager {
       const delayStdin = !!adapter.delayStdinUntilReady;
       const autoRespondRules = adapter.autoRespondRules ?? [];
       const readyPattern = adapter.readyIndicatorPattern;
+      // PTY submit sequence: most Ink-based TUIs accept '\r', but Gemini
+      // needs '\r\n'. Replaces a trailing '\n' on writes going to the PTY.
+      const submitSeq = adapter.stdinSubmitSequence ?? '\r';
 
       let ptyProcess: pty.IPty;
       try {
@@ -135,8 +138,7 @@ export class ClaudeManager {
           const readyMatched = readyPattern?.test(clean) ?? false;
           if (readyMatched || /[›>$%⏵]\s*$/.test(clean) || /[☰○]\s*$/.test(clean)) {
             stdinDelivered = true;
-            // PTY requires \r (carriage return) to submit, not \n (line feed)
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
           }
         }
 
@@ -163,8 +165,7 @@ export class ClaudeManager {
       if (interactive) {
         const ptyWritable = new Writable({
           write(chunk: Buffer | string, _encoding: string, callback: () => void) {
-            // PTY requires \r (carriage return) to submit, not \n (line feed)
-            try { ptyProcess.write(chunk.toString().replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(chunk.toString().replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
             callback();
           },
         });
@@ -186,20 +187,20 @@ export class ClaudeManager {
         });
       });
 
-      // Stdin delivery: immediate for non-Claude CLIs, delayed for Claude TUI
+      // Stdin delivery: immediate for adapters without delayStdin, otherwise
+      // wait for the ready indicator (handled in onData) with a 5s fallback.
       if (stdinPrompt && !delayStdin) {
         setImmediate(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
           }
         });
       } else if (stdinPrompt && delayStdin) {
-        // Fallback: if ready-state detection doesn't trigger within 5s, send anyway
         setTimeout(() => {
           if (!stdinDelivered && !exited) {
             stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }
+            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
           }
         }, 5000);
       }
