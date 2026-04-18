@@ -294,12 +294,53 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
             {project.claude_model && isModelDeprecated((project.cli_tool as CliTool) || 'claude', project.claude_model) && (
-              <span
-                className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1"
-                title={t('header.modelDeprecatedWarning') || 'Current model is no longer supported by the installed CLI. It will fall back to the default at execution time.'}
-              >
-                <AlertTriangle size={10} />
-                {t('header.modelDeprecated') || 'Model deprecated'}
+              <span className="relative group inline-flex">
+                <span
+                  className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1 cursor-help"
+                  tabIndex={0}
+                >
+                  <AlertTriangle size={10} />
+                  {t('header.modelDeprecated') || 'Model deprecated'}
+                </span>
+                <div
+                  role="tooltip"
+                  className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto absolute left-0 top-full mt-2 w-80 p-3 rounded-lg shadow-elevated text-xs leading-relaxed opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-tooltip"
+                  style={{
+                    backgroundColor: 'var(--color-bg-card)',
+                    borderColor: 'var(--color-border)',
+                    borderWidth: '1px',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 font-semibold text-status-warning mb-1.5">
+                    <AlertTriangle size={12} />
+                    {t('header.modelDeprecatedTitle')}
+                    {project.claude_model && (
+                      <code className="ml-1 px-1 py-0.5 rounded text-[10px] font-mono" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                        {project.claude_model}
+                      </code>
+                    )}
+                  </div>
+                  <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('header.modelDeprecatedReason')}
+                  </p>
+                  <div className="font-semibold mb-1">{t('header.modelDeprecatedFixHeading')}</div>
+                  <ul className="list-disc pl-4 space-y-0.5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                    <li>{t('header.modelDeprecatedFix1')}</li>
+                    <li>{t('header.modelDeprecatedFix2')}</li>
+                    <li>{t('header.modelDeprecatedFix3')}</li>
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsSection('execution');
+                      setShowSettings(true);
+                    }}
+                    className="btn-primary text-xs px-2.5 py-1"
+                  >
+                    {t('header.modelDeprecatedOpenSettings')}
+                  </button>
+                </div>
               </span>
             )}
           </div>
