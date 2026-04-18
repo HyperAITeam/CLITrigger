@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
-import { getAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
+import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
@@ -35,9 +35,7 @@ export class ClaudeManager {
 
     if (adapter.requiresTty || mode === 'interactive') {
       const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
-      // Only Claude has a TUI that requires delayed stdin delivery (wait for ready indicator)
-      const delayStdin = tool === 'claude';
-      const result = await this.startWithPty(adapter.command, args, worktreePath, adapter.displayName, stdinPrompt, mode === 'interactive', delayStdin);
+      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive');
       return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
@@ -47,7 +45,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(command: string, args: string[], cwd: string, displayName: string, stdinPrompt?: string, interactive?: boolean, delayStdin: boolean = true): Promise<{
+  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -55,6 +53,12 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     return new Promise((resolve, reject) => {
+      const command = adapter.command;
+      const displayName = adapter.displayName;
+      const delayStdin = !!adapter.delayStdinUntilReady;
+      const autoRespondRules = adapter.autoRespondRules ?? [];
+      const readyPattern = adapter.readyIndicatorPattern;
+
       let ptyProcess: pty.IPty;
       try {
         // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd)
@@ -98,20 +102,38 @@ export class ClaudeManager {
       ptyProcess.onData((data) => {
         const clean = stripAnsi(data);
 
-        // Auto-confirm workspace trust prompt (shown when Claude CLI runs without --print)
-        if (!trustPending && !exited && /Yes,\s*I\s*trust\s*this/i.test(clean)) {
-          trustPending = true;
-          try { ptyProcess.write('\r'); } catch { /* PTY may have exited */ }
-        }
-        // Clear pending flag once trust is confirmed (CLI proceeds past the prompt)
-        if (trustPending && /Welcome\s*back|›|>\s*$/.test(clean) && !/trust/i.test(clean)) {
-          trustPending = false;
+        // Run adapter-defined auto-respond rules.
+        // Blocking rules (trust dialogs) pin trustPending so the initial prompt is
+        // deferred until the ready indicator reappears. Non-blocking rules (update
+        // notices) dismiss themselves inline without holding back the main prompt.
+        for (const rule of autoRespondRules) {
+          if (!rule.pattern.test(clean)) continue;
+          if (rule.blocksInitialPrompt) {
+            if (!trustPending && !exited) {
+              trustPending = true;
+              try { ptyProcess.write(rule.response); } catch { /* PTY may have exited */ }
+            }
+          } else if (!exited) {
+            try { ptyProcess.write(rule.response); } catch { /* PTY may have exited */ }
+          }
         }
 
-        // Detect CLI ready state and deliver prompt via stdin (Claude TUI only).
-        // Non-Claude CLIs get immediate delivery (see below), so this only runs with delayStdin.
+        // Clear blocking flag once the CLI is back at a ready indicator AND no
+        // blocking rule still matches. Reset stdinDelivered so the initial prompt
+        // is (re)sent — handles Gemini's in-process restart after trust approval.
+        if (trustPending && readyPattern?.test(clean)) {
+          const stillBlocking = autoRespondRules.some(r => r.blocksInitialPrompt && r.pattern.test(clean));
+          if (!stillBlocking) {
+            trustPending = false;
+            stdinDelivered = false;
+          }
+        }
+
+        // Detect CLI ready state and deliver the initial prompt via PTY stdin.
+        // Non-delayed adapters send immediately in the fallback block below.
         if (delayStdin && stdinPrompt && !stdinDelivered && !exited && !trustPending) {
-          if (/[›>$%⏵]\s*$/.test(clean) || /[☰○]\s*$/.test(clean)) {
+          const readyMatched = readyPattern?.test(clean) ?? false;
+          if (readyMatched || /[›>$%⏵]\s*$/.test(clean) || /[☰○]\s*$/.test(clean)) {
             stdinDelivered = true;
             // PTY requires \r (carriage return) to submit, not \n (line feed)
             try { ptyProcess.write(stdinPrompt.replace(/\n$/, '\r')); } catch { /* PTY may have exited */ }

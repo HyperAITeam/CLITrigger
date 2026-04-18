@@ -111,6 +111,26 @@ function normalizeModel(model: string | undefined, cliTool: CliTool): string | u
   return undefined;
 }
 
+/**
+ * A rule for auto-responding to a CLI's in-process prompt (trust dialog,
+ * update notice, etc). Matched against PTY stdout after ANSI stripping.
+ */
+export interface AutoRespondRule {
+  /** Label for logs */
+  name: string;
+  /** Regex to match the prompt in the stripped PTY output */
+  pattern: RegExp;
+  /** Exact string written to PTY in response (include trailing \r to submit) */
+  response: string;
+  /**
+   * If true, defer initial-prompt delivery until this rule's pattern stops
+   * matching AND the ready indicator appears. Use for trust dialogs that
+   * steal stdin. Non-blocking rules (e.g. update prompts) get dismissed in
+   * place without holding up the initial prompt.
+   */
+  blocksInitialPrompt?: boolean;
+}
+
 export interface CliAdapter {
   /** Executable command name */
   command: string;
@@ -128,6 +148,20 @@ export interface CliAdapter {
   requiresTty?: boolean;
   /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
   outputFormat?: 'text' | 'stream-json';
+  /**
+   * Defer writing the initial prompt to PTY stdin until the CLI's ready
+   * indicator appears (or a fallback timeout elapses). Prevents the prompt
+   * from being consumed by startup banners or trust dialogs.
+   */
+  delayStdinUntilReady?: boolean;
+  /**
+   * Regex that matches the CLI's "ready for input" state in stripped PTY
+   * output. Used both to time initial-prompt delivery and to detect the
+   * end of a blocking auto-respond rule (e.g. trust dialog dismissed).
+   */
+  readyIndicatorPattern?: RegExp;
+  /** Ordered list of prompts to auto-respond to while the PTY runs */
+  autoRespondRules?: AutoRespondRule[];
   /**
    * Best-effort probe for currently supported models. Returns null when the
    * CLI is unreachable or its help output yields no recognizable model ids;
@@ -148,6 +182,16 @@ const claudeAdapter: CliAdapter = {
   displayName: 'Claude CLI',
   supportsInteractive: true,
   outputFormat: 'stream-json',
+  delayStdinUntilReady: true,
+  readyIndicatorPattern: /Welcome\s*back|›|>\s*$/,
+  autoRespondRules: [
+    {
+      name: 'claude-trust',
+      pattern: /Yes,\s*I\s*trust\s*this/i,
+      response: '\r',
+      blocksInitialPrompt: true,
+    },
+  ],
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession }) {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
@@ -184,6 +228,25 @@ const geminiAdapter: CliAdapter = {
   command: 'gemini',
   displayName: 'Gemini CLI',
   supportsInteractive: true,
+  delayStdinUntilReady: true,
+  // Gemini welcome screen fixed tokens shown after trust dialog is dismissed
+  readyIndicatorPattern: /Type your message|Shortcuts|ctrl\+y/i,
+  autoRespondRules: [
+    {
+      name: 'gemini-trust-folder',
+      // First-run folder trust dialog. Option 1 = "Trust folder" (current dir only)
+      pattern: /Do you trust the files in this folder\?|Trust folder/i,
+      response: '1\r',
+      blocksInitialPrompt: true,
+    },
+    {
+      // Provisional pattern; refine once the actual update prompt is captured in logs.
+      // Decline updates to avoid unexpected CLI version changes mid-session.
+      name: 'gemini-update-prompt',
+      pattern: /update available.*\(y\/n\)|install.*new.*version.*\?/i,
+      response: 'n\r',
+    },
+  ],
   buildArgs({ mode, prompt, model, extraOptions, continueSession }) {
     // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
     // --prompt= enables headless mode with empty value; actual prompt delivered via stdin pipe.
@@ -213,6 +276,11 @@ const codexAdapter: CliAdapter = {
   command: 'codex',
   displayName: 'Codex CLI',
   supportsInteractive: true,
+  delayStdinUntilReady: true,
+  // Typical Codex TUI input-cursor glyphs. 5s fallback in claude-manager handles miss.
+  readyIndicatorPattern: /▍|›|>\s*$/,
+  // No auto-respond rules yet — add once real startup/update prompts are captured.
+  autoRespondRules: [],
   buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode, continueSession }) {
     const normalizedModel = normalizeModel(model, 'codex');
     const args: string[] = [];
