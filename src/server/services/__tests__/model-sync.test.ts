@@ -51,7 +51,7 @@ describe('model-sync', () => {
     expect(newOne.deprecated).toBe(0);
 
     const version = queries.getCliVersion('claude');
-    expect(version?.last_version).toBe('2|2.9.9');
+    expect(version?.last_version).toBe('3|2.9.9');
   });
 
   it('uses registry even when probe succeeds (union strategy)', async () => {
@@ -156,6 +156,6 @@ describe('model-sync', () => {
     mockProbe.mockResolvedValueOnce(null);
     await syncModels('gemini', '1.0.0');
     const version = queries.getCliVersion('gemini');
-    expect(version?.last_version).toBe('2|1.0.0');
+    expect(version?.last_version).toBe('3|1.0.0');
   });
 });
