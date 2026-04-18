@@ -163,6 +163,13 @@ export interface CliAdapter {
   /** Ordered list of prompts to auto-respond to while the PTY runs */
   autoRespondRules?: AutoRespondRule[];
   /**
+   * Byte sequence written to PTY stdin to submit a line of user input.
+   * Replaces a trailing '\n' in writes going through the interactive relay
+   * and the initial-prompt delivery. Default: '\r'. Some TUIs (e.g. Gemini)
+   * only treat '\r\n' as Enter; others need '\n'.
+   */
+  stdinSubmitSequence?: string;
+  /**
    * Best-effort probe for currently supported models. Returns null when the
    * CLI is unreachable or its help output yields no recognizable model ids;
    * callers should fall back to the bundled registry.
@@ -229,6 +236,9 @@ const geminiAdapter: CliAdapter = {
   displayName: 'Gemini CLI',
   supportsInteractive: true,
   delayStdinUntilReady: true,
+  // Gemini's TUI only treats \r\n (CRLF) as Enter; a lone \r leaves the
+  // character in the input box without submitting.
+  stdinSubmitSequence: '\r\n',
   // Gemini welcome screen fixed tokens shown after trust dialog is dismissed
   readyIndicatorPattern: /Type your message|Shortcuts|ctrl\+y/i,
   autoRespondRules: [
