@@ -1,0 +1,34 @@
+{
+  "$comment": "Fallback model registry consumed by model-sync.ts. Merged with CLI --help probe results; registry wins for labels.",
+  "claude": [
+    {
+      "versionPrefix": "*",
+      "models": [
+        { "value": "claude-opus-4-7", "label": "Claude Opus 4.7" },
+        { "value": "claude-opus-4-6", "label": "Claude Opus 4.6" },
+        { "value": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6" },
+        { "value": "claude-haiku-4-5", "label": "Claude Haiku 4.5" }
+      ]
+    }
+  ],
+  "gemini": [
+    {
+      "versionPrefix": "*",
+      "models": [
+        { "value": "gemini-2.5-pro", "label": "Gemini 2.5 Pro" }
+      ]
+    }
+  ],
+  "codex": [
+    {
+      "versionPrefix": "*",
+      "models": [
+        { "value": "gpt-4.1", "label": "GPT-4.1" },
+        { "value": "gpt-4.1-mini", "label": "GPT-4.1 Mini" },
+        { "value": "gpt-4.1-nano", "label": "GPT-4.1 Nano" },
+        { "value": "o3", "label": "o3" },
+        { "value": "o4-mini", "label": "o4-mini" }
+      ]
+    }
+  ]
+}

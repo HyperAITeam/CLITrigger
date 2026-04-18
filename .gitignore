@@ -39,6 +39,6 @@ worktrees/
 .hecaton/
 plugin-build/
 clitrigger-plugin.zip
-data/
+/data/
 .worktrees
 .debug-logs
