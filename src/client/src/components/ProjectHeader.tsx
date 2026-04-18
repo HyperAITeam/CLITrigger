@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Modal from './Modal';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
@@ -17,6 +18,115 @@ interface ProjectHeaderProps {
   onStartAll: () => void;
   onStopAll: () => void;
   onProjectUpdate: (project: Project) => void;
+}
+
+interface DeprecatedModelBadgeProps {
+  model: string;
+  onOpenSettings: () => void;
+}
+
+function DeprecatedModelBadge({ model, onOpenSettings }: DeprecatedModelBadgeProps) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [positioned, setPositioned] = useState(false);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const updatePos = useCallback(() => {
+    if (!anchorRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pop = popRef.current;
+    const pw = pop?.offsetWidth ?? 320;
+    const ph = pop?.offsetHeight ?? 200;
+    let top = r.bottom + 6;
+    let left = r.left;
+    if (left + pw > vw - 8) left = vw - 8 - pw;
+    if (left < 8) left = 8;
+    if (top + ph > vh - 8) top = r.top - ph - 6;
+    if (top < 8) top = 8;
+    setPos({ top, left });
+    setPositioned(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) { setPositioned(false); return; }
+    updatePos();
+    const raf = requestAnimationFrame(updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open, updatePos]);
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1 cursor-help"
+        tabIndex={0}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        <AlertTriangle size={10} />
+        {t('header.modelDeprecated') || 'Model deprecated'}
+      </span>
+      {open && createPortal(
+        <div
+          ref={popRef}
+          role="tooltip"
+          className="fixed w-80 p-3 rounded-lg shadow-elevated text-xs leading-relaxed z-tooltip"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            opacity: positioned ? 1 : 0,
+            backgroundColor: 'var(--color-bg-card)',
+            borderColor: 'var(--color-border)',
+            borderWidth: '1px',
+            color: 'var(--color-text-primary)',
+          }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          <div className="flex items-center gap-1.5 font-semibold text-status-warning mb-1.5 flex-wrap">
+            <AlertTriangle size={12} />
+            {t('header.modelDeprecatedTitle')}
+            <code className="ml-1 px-1 py-0.5 rounded text-[10px] font-mono" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+              {model}
+            </code>
+          </div>
+          <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('header.modelDeprecatedReason')}
+          </p>
+          <div className="font-semibold mb-1">{t('header.modelDeprecatedFixHeading')}</div>
+          <ul className="list-disc pl-4 space-y-0.5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+            <li>{t('header.modelDeprecatedFix1')}</li>
+            <li>{t('header.modelDeprecatedFix2')}</li>
+            <li>{t('header.modelDeprecatedFix3')}</li>
+          </ul>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onOpenSettings();
+              setOpen(false);
+            }}
+            className="btn-primary text-xs px-2.5 py-1"
+          >
+            {t('header.modelDeprecatedOpenSettings')}
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 export default function ProjectHeader({ project, todos, onStartAll, onStopAll, onProjectUpdate }: ProjectHeaderProps) {
@@ -294,54 +404,13 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
             {project.claude_model && isModelDeprecated((project.cli_tool as CliTool) || 'claude', project.claude_model) && (
-              <span className="relative group inline-flex">
-                <span
-                  className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1 cursor-help"
-                  tabIndex={0}
-                >
-                  <AlertTriangle size={10} />
-                  {t('header.modelDeprecated') || 'Model deprecated'}
-                </span>
-                <div
-                  role="tooltip"
-                  className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto absolute left-0 top-full mt-2 w-80 p-3 rounded-lg shadow-elevated text-xs leading-relaxed opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-tooltip"
-                  style={{
-                    backgroundColor: 'var(--color-bg-card)',
-                    borderColor: 'var(--color-border)',
-                    borderWidth: '1px',
-                    color: 'var(--color-text-primary)',
-                  }}
-                >
-                  <div className="flex items-center gap-1.5 font-semibold text-status-warning mb-1.5">
-                    <AlertTriangle size={12} />
-                    {t('header.modelDeprecatedTitle')}
-                    {project.claude_model && (
-                      <code className="ml-1 px-1 py-0.5 rounded text-[10px] font-mono" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-                        {project.claude_model}
-                      </code>
-                    )}
-                  </div>
-                  <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('header.modelDeprecatedReason')}
-                  </p>
-                  <div className="font-semibold mb-1">{t('header.modelDeprecatedFixHeading')}</div>
-                  <ul className="list-disc pl-4 space-y-0.5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                    <li>{t('header.modelDeprecatedFix1')}</li>
-                    <li>{t('header.modelDeprecatedFix2')}</li>
-                    <li>{t('header.modelDeprecatedFix3')}</li>
-                  </ul>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettingsSection('execution');
-                      setShowSettings(true);
-                    }}
-                    className="btn-primary text-xs px-2.5 py-1"
-                  >
-                    {t('header.modelDeprecatedOpenSettings')}
-                  </button>
-                </div>
-              </span>
+              <DeprecatedModelBadge
+                model={project.claude_model}
+                onOpenSettings={() => {
+                  setSettingsSection('execution');
+                  setShowSettings(true);
+                }}
+              />
             )}
           </div>
 

@@ -98,6 +98,21 @@ Config via `.env` (see `.env.example`) or `~/.clitrigger/config.json` (npm globa
 
 UI and documentation are primarily in Korean. Commit messages use Korean or English. The codebase (variable names, comments in code) is in English.
 
+## UI Guidelines
+
+### Floating elements must render via portal
+
+Tooltips, dropdowns, popovers, hover help boxes, context menus, and "more" menus MUST be rendered through `createPortal(..., document.body)` with `position: fixed` + viewport clamping (using the anchor element's `getBoundingClientRect`). Do NOT rely on `position: absolute` inside the component tree — header cards, list rows, badge rows, and worktree/todo containers all have `overflow`, `border-radius`, or `transform` ancestors that will clip the floating element.
+
+Past bugs from this exact mistake: project header deprecated-model tooltip was clipped by the header card border; todo-item "more" menu (`⋮`) was clipped by the task row. The portal + fixed + clamp pattern lives in `TodoItem.tsx`'s `MoreMenu` and `ProjectHeader.tsx`'s `DeprecatedModelBadge` — copy that pattern for any new floating UI.
+
+Checklist for every floating element:
+- Render into `document.body` via `createPortal`
+- Use `position: fixed` with top/left computed from the anchor's `getBoundingClientRect()`
+- Clamp within viewport: flip above on vertical overflow, shift left on horizontal overflow, keep ≥8px from edges
+- Recompute on `scroll` (capture phase) and `resize`
+- Use `z-tooltip` z-index class
+
 ## Task Execution Guidelines
 
 When working on tasks in this repository (especially via CLITrigger worktrees), follow these efficiency rules:
