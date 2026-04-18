@@ -109,6 +109,13 @@ const translations = {
     'header.modelSettingsHint': 'Add custom models here. They will appear in model dropdowns across all projects.',
     'header.modelDeprecated': 'deprecated',
     'header.modelDeprecatedWarning': 'This model is no longer supported by the installed CLI. It will fall back to the default at execution time.',
+    'header.modelDeprecatedTitle': 'Model marked as deprecated',
+    'header.modelDeprecatedReason': 'The installed CLI no longer reports this model in --help, and it is not listed in the bundled model registry. At execution time it will silently fall back to the CLI default.',
+    'header.modelDeprecatedFixHeading': 'How to fix',
+    'header.modelDeprecatedFix1': 'Pick a currently-supported model in project settings → Config.',
+    'header.modelDeprecatedFix2': 'Or upgrade the CLI so it reports this model again.',
+    'header.modelDeprecatedFix3': 'Or add it as a custom model in AI Model Settings if you know it is still valid.',
+    'header.modelDeprecatedOpenSettings': 'Open settings',
 
     // Jira Header
     'header.jiraTitle': 'Jira Integration',
@@ -789,6 +796,13 @@ const translations = {
     'header.modelSettingsHint': '커스텀 모델을 추가하세요. 모든 프로젝트의 모델 드롭다운에 표시됩니다.',
     'header.modelDeprecated': '사용 중단됨',
     'header.modelDeprecatedWarning': '설치된 CLI가 더 이상 지원하지 않는 모델입니다. 실행 시 기본 모델로 자동 대체됩니다.',
+    'header.modelDeprecatedTitle': '사용 중단된 모델',
+    'header.modelDeprecatedReason': '설치된 CLI의 --help 출력에 더 이상 이 모델이 보이지 않고, 번들 모델 레지스트리에도 없어서 표시된 경고입니다. 실행 시 CLI 기본 모델로 조용히 대체됩니다.',
+    'header.modelDeprecatedFixHeading': '해결 방법',
+    'header.modelDeprecatedFix1': '프로젝트 설정 → 실행 설정에서 현재 지원되는 모델로 변경하세요.',
+    'header.modelDeprecatedFix2': '또는 CLI를 업그레이드해서 이 모델이 다시 지원 목록에 나타나게 하세요.',
+    'header.modelDeprecatedFix3': '여전히 유효한 모델이라고 확신한다면 AI 모델 설정에서 커스텀 모델로 추가하세요.',
+    'header.modelDeprecatedOpenSettings': '설정 열기',
 
     // Jira Header
     'header.jiraTitle': 'Jira \uC5F0\uB3D9',
