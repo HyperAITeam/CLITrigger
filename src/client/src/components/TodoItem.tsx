@@ -35,6 +35,8 @@ import {
   CheckCircle,
   Zap,
   Ban,
+  GitBranch,
+  GitCommit,
 } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 
@@ -818,71 +820,91 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         </div>
       )}
 
-      {/* Expanded content — Terminal */}
+      {/* Expanded content */}
       {expanded && (
-        <div className="animate-fade-in overflow-hidden" style={{ borderTop: `1px solid ${CMD.separator}` }}>
-          {/* Title bar */}
-          <div style={{ display: 'flex', alignItems: 'center', background: CMD.titleBg, padding: '8px 12px', gap: 8, userSelect: 'none' }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
-            </div>
-            <span style={{ flex: 1, textAlign: 'center', color: CMD.titleText, fontSize: 12, fontFamily: CMD_FONT }}>{todo.title.length > 60 ? todo.title.slice(0, 57) + '...' : todo.title}</span>
-            <div style={{ width: 54 }} />
-          </div>
-          {/* Terminal body */}
-          <div style={{ background: CMD.bg, padding: '12px 16px', fontFamily: CMD_FONT, fontSize: 12, lineHeight: '1.5', color: CMD.text }}>
+        <div className="animate-fade-in overflow-hidden border-t border-theme-border">
+          <div className="px-4 py-3 space-y-3">
+
             {/* Description */}
-            <div>
-              <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>cat</span> <span style={{ color: CMD.dim }}>task.md</span></div>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{todo.description || t('todo.noDescription')}</div>
-            </div>
+            <section>
+              <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                {t('todo.description')}
+              </h4>
+              <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2">
+                {todo.description ? (
+                  <p className="text-sm text-warm-700 whitespace-pre-wrap">{todo.description}</p>
+                ) : (
+                  <p className="text-sm text-warm-400 italic">{t('todo.noDescription')}</p>
+                )}
+              </div>
+            </section>
 
             {/* Attached Images */}
             {existingImages.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>ls</span> <span style={{ color: CMD.dim }}>images/ ({existingImages.length})</span></div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              <section>
+                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                  {t('todo.attachedImages')} <span className="text-warm-400 normal-case">({existingImages.length})</span>
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
                   {existingImages.map(img => (
                     <a key={img.id} href={todosApi.getTodoImageUrl(todo.id, img.id)} target="_blank" rel="noopener noreferrer">
-                      <img src={todosApi.getTodoImageUrl(todo.id, img.id)} alt={img.originalName} style={{ height: 64, width: 64, objectFit: 'cover', border: `1px solid ${CMD.separator}`, borderRadius: 2 }} />
+                      <img src={todosApi.getTodoImageUrl(todo.id, img.id)} alt={img.originalName} className="h-16 w-16 object-cover rounded-md border border-theme-border" />
                     </a>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
-            {/* Dependency & branch info */}
-            {(parentTodo || todo.branch_name) && (
-              <div style={{ marginTop: 12 }}>
-                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>branch -v</span></div>
-                {parentTodo && (
-                  <div>  <span style={{ color: CMD.dim }}>depends-on:</span> <span style={{ color: CMD.cyan }}>{parentTodo.title}</span></div>
-                )}
-                {todo.branch_name && (
-                  <div><span style={{ color: CMD.success }}>*</span> <span style={{ color: CMD.info }}>{todo.branch_name}</span></div>
-                )}
-                {todo.worktree_path && (
-                  <div>  <span style={{ color: CMD.dim }}>worktree:</span> <span style={{ color: CMD.orange }}>{todo.worktree_path}</span></div>
-                )}
-                {todo.merged_from_branch && (
-                  <div>  <span style={{ color: CMD.dim }}>merged-from:</span> <span style={{ color: CMD.purple }}>{todo.merged_from_branch}</span></div>
-                )}
-                {!todo.worktree_path && childTodo && (
-                  <div>  <span style={{ color: CMD.dim }}>transferred-to:</span> <span style={{ color: CMD.warning }}>{childTodo.title.length > 30 ? childTodo.title.slice(0, 27) + '...' : childTodo.title}</span></div>
-                )}
-              </div>
+            {/* Branch / Worktree / Dependencies */}
+            {(parentTodo || todo.branch_name || childTodo) && (
+              <section>
+                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                  {t('todo.branch')}
+                </h4>
+                <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 space-y-1.5">
+                  {parentTodo && (
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="text-warm-400 w-24 flex-shrink-0 pt-0.5">{t('todo.dependsOn')}</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-accent/10 text-accent text-2xs font-medium">{parentTodo.title}</span>
+                    </div>
+                  )}
+                  {todo.branch_name && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-warm-400 w-24 flex-shrink-0">{t('todo.branch')}</span>
+                      <GitBranch size={12} className="text-status-success flex-shrink-0" />
+                      <code className="font-mono text-xs text-warm-700 break-all">{todo.branch_name}</code>
+                    </div>
+                  )}
+                  {todo.worktree_path && (
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="text-warm-400 w-24 flex-shrink-0 pt-0.5">{t('todo.worktree')}</span>
+                      <code className="font-mono text-2xs text-warm-500 break-all">{todo.worktree_path}</code>
+                    </div>
+                  )}
+                  {todo.merged_from_branch && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-warm-400 w-24 flex-shrink-0">{t('todo.mergedFrom')}</span>
+                      <code className="font-mono text-xs text-status-merged break-all">{todo.merged_from_branch}</code>
+                    </div>
+                  )}
+                  {!todo.worktree_path && childTodo && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-warm-400 w-24 flex-shrink-0">{t('todo.transferredTo')}</span>
+                      <span className="text-warm-700 truncate">{childTodo.title.length > 30 ? childTodo.title.slice(0, 27) + '...' : childTodo.title}</span>
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
-            {/* Failure Reason */}
+            {/* Failure Reason (terminal-styled) */}
             {todo.status === 'failed' && logs.length > 0 && (() => {
               const errorLogs = logs.filter(l => l.log_type === 'error');
               if (errorLogs.length === 0) return null;
               const exitCodeMatch = errorLogs.find(l => /exited with code (\d+)/.test(l.message));
               const exitCode = exitCodeMatch ? exitCodeMatch.message.match(/exited with code (\d+)/)?.[1] : null;
               return (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ background: CMD.bg, fontFamily: CMD_FONT, fontSize: 12, lineHeight: '1.5', padding: '10px 12px', borderRadius: 8, border: `1px solid ${CMD.separator}`, color: CMD.text }}>
                   <div>
                     <span style={{ color: CMD.error }}>{'>'}</span>{' '}
                     <span style={{ color: CMD.error, fontWeight: 700 }}>FAILED</span>
@@ -910,109 +932,142 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
             {/* Result Summary */}
             {hasResult && resultData && (
-              <div style={{ marginTop: 12 }}>
-                <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>task</span> <span style={{ color: CMD.dim }}>result</span></div>
-                <div>
-                  {resultData.duration_seconds !== null && (
-                    <><span style={{ color: CMD.dim }}>{t('result.duration')}:</span> {formatDuration(resultData.duration_seconds)}</>
-                  )}
-                  {resultData.commits.length > 0 && (
-                    <><span style={{ color: CMD.dim }}> | </span><span style={{ color: CMD.success }}>{resultData.commits.length}</span> {t('result.commits')}</>
-                  )}
-                  {resultData.diff_stats.files_changed > 0 && (
-                    <><span style={{ color: CMD.dim }}> | </span>{resultData.diff_stats.files_changed} {t('result.filesChanged')} <span style={{ color: CMD.added }}>+{resultData.diff_stats.insertions}</span> <span style={{ color: CMD.removed }}>-{resultData.diff_stats.deletions}</span></>
-                  )}
-                  {showTokenUsage && resultData.token_usage && (() => {
-                    const tu = resultData.token_usage;
-                    const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
-                    const totalAll = totalInput + (tu.output_tokens ?? 0);
-                    let levelLabel: string;
-                    let levelColor: string;
-                    if (totalAll >= 500000) { levelLabel = t('result.levelHeavy'); levelColor = CMD.error; }
-                    else if (totalAll >= 300000) { levelLabel = t('result.levelHigh'); levelColor = CMD.orange; }
-                    else if (totalAll >= 100000) { levelLabel = t('result.levelModerate'); levelColor = CMD.warning; }
-                    else { levelLabel = t('result.levelLight'); levelColor = CMD.info; }
-                    return (
-                      <>
-                        <span style={{ color: CMD.dim }}> | </span>
-                        {totalInput > 0 && <span>{t('result.inputTokens')} {formatTokenCount(totalInput)}</span>}
-                        {totalInput > 0 && tu.output_tokens !== null && <span style={{ color: CMD.dim }}> · </span>}
-                        {tu.output_tokens !== null && <span>{t('result.outputTokens')} {formatTokenCount(tu.output_tokens)}</span>}
-                        {tu.num_turns != null && tu.num_turns > 1 && <><span style={{ color: CMD.dim }}> · </span><span>{tu.num_turns}{t('result.turns')}</span></>}
-                        <span style={{ color: CMD.dim }}> · </span>
-                        <span style={{ color: levelColor }}>{levelLabel}</span>
-                      </>
-                    );
-                  })()}
-                </div>
+              <section>
+                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                  {t('todo.result')}
+                </h4>
+                <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 space-y-2.5">
 
-                {/* Commits */}
-                {resultData.commits.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>log --oneline</span></div>
-                    {resultData.commits.map((c, i) => (
-                      <div key={i}>
-                        <span style={{ color: CMD.cyan }}>{c.hash.slice(0, 7) || '-------'}</span>{' '}
-                        <span>{c.message}</span>{' '}
-                        <span style={{ color: CMD.dim }}>{new Date(c.date).toLocaleTimeString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Changed files */}
-                {resultData.changed_files.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>diff --name-status</span></div>
-                    {resultData.changed_files.map((f, i) => {
-                      const c = f.status === 'A' ? CMD.added : f.status === 'D' ? CMD.removed : f.status === 'M' ? CMD.warning : CMD.text;
+                  {/* Stats row */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    {resultData.duration_seconds !== null && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock size={12} className="text-warm-400" />
+                        <span className="text-warm-400">{t('result.duration')}</span>
+                        <span className="text-warm-700 font-medium">{formatDuration(resultData.duration_seconds)}</span>
+                      </span>
+                    )}
+                    {resultData.commits.length > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <GitCommit size={12} className="text-status-success" />
+                        <span className="text-status-success font-medium">{resultData.commits.length}</span>
+                        <span className="text-warm-400">{t('result.commits')}</span>
+                      </span>
+                    )}
+                    {resultData.diff_stats.files_changed > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <FileText size={12} className="text-warm-400" />
+                        <span className="text-warm-700 font-medium">{resultData.diff_stats.files_changed}</span>
+                        <span className="text-warm-400">{t('result.filesChanged')}</span>
+                        <span className="text-status-success font-mono">+{resultData.diff_stats.insertions}</span>
+                        <span className="text-status-error font-mono">-{resultData.diff_stats.deletions}</span>
+                      </span>
+                    )}
+                    {showTokenUsage && resultData.token_usage && (() => {
+                      const tu = resultData.token_usage;
+                      const totalInput = (tu.input_tokens ?? 0) + (tu.cache_read_input_tokens ?? 0) + (tu.cache_creation_input_tokens ?? 0);
+                      const totalAll = totalInput + (tu.output_tokens ?? 0);
+                      let levelLabel: string;
+                      let levelClass: string;
+                      if (totalAll >= 500000) { levelLabel = t('result.levelHeavy'); levelClass = 'text-status-error'; }
+                      else if (totalAll >= 300000) { levelLabel = t('result.levelHigh'); levelClass = 'text-orange-500'; }
+                      else if (totalAll >= 100000) { levelLabel = t('result.levelModerate'); levelClass = 'text-status-warning'; }
+                      else { levelLabel = t('result.levelLight'); levelClass = 'text-status-info'; }
                       return (
-                        <div key={i}>
-                          <span style={{ color: c, fontWeight: 700, display: 'inline-block', width: 16 }}>{f.status}</span>{' '}
-                          <span>{f.file}</span>
-                          {f.renamedFrom && <span style={{ color: CMD.dim }}> ← {f.renamedFrom}</span>}
-                        </div>
+                        <span className="inline-flex items-center gap-1">
+                          {totalInput > 0 && <><span className="text-warm-400">{t('result.inputTokens')}</span><span className="text-warm-700 font-medium">{formatTokenCount(totalInput)}</span></>}
+                          {totalInput > 0 && tu.output_tokens !== null && <span className="text-warm-400">·</span>}
+                          {tu.output_tokens !== null && <><span className="text-warm-400">{t('result.outputTokens')}</span><span className="text-warm-700 font-medium">{formatTokenCount(tu.output_tokens)}</span></>}
+                          {tu.num_turns != null && tu.num_turns > 1 && <><span className="text-warm-400">·</span><span className="text-warm-700">{tu.num_turns}{t('result.turns')}</span></>}
+                          <span className="text-warm-400">·</span>
+                          <span className={`font-medium ${levelClass}`}>{levelLabel}</span>
+                        </span>
                       );
-                    })}
+                    })()}
                   </div>
-                )}
-              </div>
+
+                  {/* Commits */}
+                  {resultData.commits.length > 0 && (
+                    <div>
+                      <h5 className="text-2xs font-semibold text-warm-400 uppercase tracking-wider mb-1">{t('result.commitHistory')}</h5>
+                      <div className="space-y-0.5">
+                        {resultData.commits.map((c, i) => (
+                          <div key={i} className="flex items-center gap-2 px-1.5 py-1 text-xs rounded hover:bg-theme-hover">
+                            <code className="font-mono text-accent flex-shrink-0">{c.hash.slice(0, 7) || '-------'}</code>
+                            <span className="text-warm-700 truncate flex-1">{c.message}</span>
+                            <span className="text-2xs text-warm-400 flex-shrink-0">{new Date(c.date).toLocaleTimeString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Changed files */}
+                  {resultData.changed_files.length > 0 && (
+                    <div>
+                      <h5 className="text-2xs font-semibold text-warm-400 uppercase tracking-wider mb-1">{t('result.changedFiles')}</h5>
+                      <div className="space-y-0.5">
+                        {resultData.changed_files.map((f, i) => {
+                          const statusClass =
+                            f.status === 'A' ? 'bg-status-success/15 text-status-success' :
+                            f.status === 'D' ? 'bg-status-error/15 text-status-error' :
+                            f.status === 'M' ? 'bg-status-warning/15 text-status-warning' :
+                            'bg-warm-200 text-warm-600';
+                          return (
+                            <div key={i} className="flex items-center gap-2 px-1.5 py-0.5 text-xs">
+                              <span className={`inline-flex items-center justify-center w-5 h-4 rounded text-[10px] font-bold ${statusClass}`}>{f.status}</span>
+                              <span className="text-warm-700 font-mono text-2xs break-all flex-1">{f.file}</span>
+                              {f.renamedFrom && <span className="text-warm-400 text-2xs flex-shrink-0">← {f.renamedFrom}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
             {/* Errors */}
-            {mergeError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.mergeFailed')}: {mergeError}</div>}
-            {cleanError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.cleanupFailed')}: {cleanError}</div>}
-            {retryError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.retryFailed')}: {retryError}</div>}
-            {diffError && <div style={{ color: CMD.error, marginTop: 4 }}>stderr: {t('todo.diffError')}: {diffError}</div>}
+            {mergeError && <div className="rounded-md bg-status-error/10 text-status-error text-xs px-3 py-2">{t('todo.mergeFailed')}: {mergeError}</div>}
+            {cleanError && <div className="rounded-md bg-status-error/10 text-status-error text-xs px-3 py-2">{t('todo.cleanupFailed')}: {cleanError}</div>}
+            {retryError && <div className="rounded-md bg-status-error/10 text-status-error text-xs px-3 py-2">{t('todo.retryFailed')}: {retryError}</div>}
+            {diffError && <div className="rounded-md bg-status-error/10 text-status-error text-xs px-3 py-2">{t('todo.diffError')}: {diffError}</div>}
 
             {/* Diff viewer */}
             {showDiff && diffData && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>diff</span></div>
-                  <div style={{ color: CMD.dim }}>
-                    {diffData.stats.files_changed} {t('todo.files')}{' '}
-                    <span style={{ color: CMD.added }}>+{diffData.stats.insertions}</span>{' '}
-                    <span style={{ color: CMD.removed }}>-{diffData.stats.deletions}</span>
+              <section>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider">
+                    {t('todo.diffOutput')}
+                  </h4>
+                  <div className="flex items-center gap-1.5 text-2xs">
+                    <span className="text-warm-500">{diffData.stats.files_changed} {t('todo.files')}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-mono">+{diffData.stats.insertions}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-mono">-{diffData.stats.deletions}</span>
                   </div>
                 </div>
-                <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 4 }}>
+                <div className="max-h-80 overflow-y-auto rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 font-mono text-xs leading-tight">
                   {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                    let color: string = CMD.dim;
-                    let fw = 400;
-                    if (line.startsWith('+') && !line.startsWith('+++')) color = CMD.added;
-                    else if (line.startsWith('-') && !line.startsWith('---')) color = CMD.removed;
-                    else if (line.startsWith('@@')) color = CMD.hunk;
-                    else if (line.startsWith('diff ')) { color = CMD.warning; fw = 700; }
-                    return <div key={i} style={{ color, fontWeight: fw }}>{line}</div>;
-                  }) : <span style={{ color: CMD.dim, fontStyle: 'italic' }}>{t('log.noChanges')}</span>}
+                    let lineClass = 'text-warm-500';
+                    let fw = '';
+                    if (line.startsWith('+') && !line.startsWith('+++')) lineClass = 'text-status-success';
+                    else if (line.startsWith('-') && !line.startsWith('---')) lineClass = 'text-status-error';
+                    else if (line.startsWith('@@')) lineClass = 'text-accent';
+                    else if (line.startsWith('diff ')) { lineClass = 'text-warm-700'; fw = 'font-semibold'; }
+                    return <div key={i} className={`whitespace-pre ${lineClass} ${fw}`}>{line}</div>;
+                  }) : <span className="text-warm-400 italic">{t('log.noChanges')}</span>}
                 </div>
-              </div>
+              </section>
             )}
 
-            {/* Logs */}
-            <div style={{ marginTop: 12 }}>
-              <div><span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>tail</span> <span style={{ color: CMD.dim }}>-f task.log</span></div>
+            {/* Logs (terminal-styled) */}
+            <div className="rounded-lg overflow-hidden" style={{ background: CMD.bg, fontFamily: CMD_FONT, border: `1px solid ${CMD.separator}` }}>
+              <div style={{ padding: '8px 12px', borderBottom: `1px solid ${CMD.separator}`, fontSize: 12, color: CMD.text }}>
+                <span style={{ color: CMD.prompt }}>$</span>{' '}
+                <span style={{ color: CMD.bright }}>tail</span>{' '}
+                <span style={{ color: CMD.dim }}>-f task.log</span>
+              </div>
               <LogViewer
                 logs={logs}
                 interactive={isInteractive && todo.status === 'running'}
