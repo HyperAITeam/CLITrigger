@@ -19,7 +19,7 @@ const REGISTRY_PATH = path.resolve(__dirname, '../data/cli-models-registry.json'
  * as a prefix on cli_versions.last_version so a bump causes maybeTriggerSync
  * to treat the current record as stale and resync on the next version probe.
  */
-const SYNC_ALGORITHM_VERSION = '2';
+const SYNC_ALGORITHM_VERSION = '3';
 
 function encodeStoredVersion(version: string): string {
   return `${SYNC_ALGORITHM_VERSION}|${version}`;
@@ -45,8 +45,11 @@ function loadRegistry(): RegistryFile {
     return cachedRegistry;
   } catch (err) {
     console.warn('[model-sync] Could not load registry:', err);
-    cachedRegistry = {};
-    return cachedRegistry;
+    // Do NOT cache the empty fallback. A later call (after the file is added,
+    // or after a transient read failure) must be able to retry; otherwise the
+    // whole deprecation/merge logic silently runs against an empty registry
+    // and incorrectly flags valid models as deprecated.
+    return {};
   }
 }
 
@@ -133,7 +136,15 @@ export async function syncModels(tool: CliTool, version: string): Promise<void> 
   for (const model of discovered) {
     upsertDiscoveredModel(tool, model.value, model.label, model.source, now);
   }
-  markDeprecatedExcept(tool, discovered.map((m) => m.value));
+  // Only run deprecation pass when the registry was available. `claude --help`
+  // and similar probes often list only a subset of supported models (e.g. only
+  // sonnet is named in the usage line), so the probe alone is NOT a reliable
+  // signal of "these are the only valid models". The registry is authoritative
+  // for that decision; if it failed to load, skip deprecation entirely and let
+  // existing rows keep their flags until the next successful sync.
+  if (registryModels.length > 0) {
+    markDeprecatedExcept(tool, discovered.map((m) => m.value));
+  }
   setCliVersion(tool, encodeStoredVersion(version), now);
 }
 
