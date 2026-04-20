@@ -7,7 +7,7 @@ import TodoForm from './TodoForm';
 import TaskGraph from './TaskGraph';
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
-import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList } from 'lucide-react';
+import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp } from 'lucide-react';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -93,6 +93,12 @@ export default function TodoList({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
     try { return (localStorage.getItem('todoStatusFilter') as StatusFilter) || 'all'; } catch { return 'all'; }
   });
+  const [stackModeEnabled, setStackModeEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('todoStackModeEnabled') === 'true'; } catch { return false; }
+  });
+  const [stackCollapsed, setStackCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('todoStackCollapsed') === 'true'; } catch { return false; }
+  });
   const { t } = useI18n();
 
   const handleViewModeChange = useCallback((mode: 'list' | 'graph') => {
@@ -104,6 +110,28 @@ export default function TodoList({
     setStatusFilter(filter);
     try { localStorage.setItem('todoStatusFilter', filter); } catch { /* ignore */ }
   }, []);
+
+  const handleStackModeToggle = useCallback(() => {
+    setStackModeEnabled(prev => {
+      const next = !prev;
+      try { localStorage.setItem('todoStackModeEnabled', String(next)); } catch { /* ignore */ }
+      if (!next) {
+        setStackCollapsed(false);
+        try { localStorage.setItem('todoStackCollapsed', 'false'); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleStackToggle = useCallback(() => {
+    setStackCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('todoStackCollapsed', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const isStacked = stackModeEnabled && stackCollapsed && viewMode === 'list';
 
   const filterCounts = useMemo(() => ({
     all: todos.length,
@@ -119,12 +147,12 @@ export default function TodoList({
   }, [todos, statusFilter]);
 
   // Build hierarchical order: parents first, then their children (indented).
-  // When a specific status filter is active, flatten the list (depth=0 for all)
-  // since partial hierarchies across status boundaries are confusing.
+  // Flatten the list when a status filter is active (hierarchies across status
+  // boundaries are confusing) or when stacked (depth indent breaks the stack).
   const sortedTodos = (() => {
     const byPriority = [...filteredTodos].sort((a, b) => a.priority - b.priority);
 
-    if (statusFilter !== 'all') {
+    if (statusFilter !== 'all' || isStacked) {
       return byPriority.map(todo => ({ todo, depth: 0 }));
     }
 
@@ -349,6 +377,26 @@ export default function TodoList({
               <LayoutGrid size={14} />
             </button>
           </div>
+          <button
+            onClick={handleStackModeToggle}
+            className={`p-1.5 rounded-md transition-colors ${
+              stackModeEnabled
+                ? 'bg-accent/10 text-accent'
+                : 'text-warm-400 hover:text-warm-600 hover:bg-warm-100'
+            }`}
+            title={stackModeEnabled ? t('todos.stackModeOn') : t('todos.stackModeOff')}
+          >
+            <Layers size={14} />
+          </button>
+          {stackModeEnabled && !stackCollapsed && viewMode === 'list' && sortedTodos.length > 0 && (
+            <button
+              onClick={handleStackToggle}
+              className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600 hover:bg-warm-100"
+              title={t('todos.collapseStack')}
+            >
+              <ChevronsUp size={14} />
+            </button>
+          )}
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
@@ -402,7 +450,11 @@ export default function TodoList({
         })}
       </div>
 
-      <div className="space-y-3">
+      <div
+        className={`space-y-3 ${isStacked ? 'cursor-pointer pb-16' : ''}`}
+        onClick={isStacked ? handleStackToggle : undefined}
+        title={isStacked ? t('todos.expandStack') : undefined}
+      >
         {sortedTodos.length === 0 ? (
           <div className="card">
             <EmptyState
@@ -415,10 +467,53 @@ export default function TodoList({
           sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
+            // iPhone notification-stack: pull items 2+ upward so they sit behind
+            // item 1 with a small peek. STACK_PULL ≈ (estimated item height + gap
+            // − desired peek). Values are approximate — TodoItem height varies,
+            // but the peek stays visibly consistent as long as items are similar.
+            const STACK_PULL = 82;
+            const STACK_TRANSITION = 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 350ms ease, max-height 450ms cubic-bezier(0.2, 0.8, 0.2, 1), margin-top 450ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+            const stackStyle: React.CSSProperties = isStacked
+              ? index === 0
+                ? {
+                    zIndex: 20,
+                    transition: STACK_TRANSITION,
+                    transformOrigin: 'top center',
+                    position: 'relative',
+                  }
+                : index < 3
+                  ? {
+                      transform: `translateY(${-index * STACK_PULL}px) scale(${1 - index * 0.04})`,
+                      opacity: 1 - index * 0.35,
+                      zIndex: 20 - index,
+                      pointerEvents: 'none',
+                      transformOrigin: 'top center',
+                      transition: STACK_TRANSITION,
+                      position: 'relative',
+                    }
+                  : {
+                      transform: `translateY(${-2 * STACK_PULL}px) scale(0.9)`,
+                      opacity: 0,
+                      maxHeight: 0,
+                      marginTop: 0,
+                      overflow: 'hidden',
+                      pointerEvents: 'none',
+                      transition: STACK_TRANSITION,
+                      position: 'relative',
+                    }
+              : {
+                  transition: STACK_TRANSITION,
+                  transformOrigin: 'top center',
+                  position: 'relative',
+                };
             return (
-              <div key={todo.id} className="animate-fade-in" style={{ animationDelay: `${index * 30}ms` }}>
+              <div
+                key={todo.id}
+                className={isStacked ? '' : 'animate-fade-in'}
+                style={isStacked ? stackStyle : { animationDelay: `${index * 30}ms`, ...stackStyle }}
+              >
                 {/* Chain merge header for completed chain roots */}
-                {isCompletedChainRoot && (
+                {!isStacked && isCompletedChainRoot && (
                   <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-status-merged/5 border border-status-merged/20 animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
                     <Link size={16} className="text-status-merged flex-shrink-0" />
                     <span className="text-xs font-semibold text-status-merged">
@@ -486,7 +581,7 @@ export default function TodoList({
           })
         )}
       </div>
-      {dragSourceId && todos.find(t => t.id === dragSourceId)?.depends_on && (
+      {!isStacked && dragSourceId && todos.find(t => t.id === dragSourceId)?.depends_on && (
         <div
           className="mt-3 border-2 border-dashed border-red-300 rounded-lg p-4 text-center text-sm text-red-400 transition-colors hover:border-red-400 hover:text-red-500 hover:bg-red-50"
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
