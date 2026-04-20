@@ -451,10 +451,9 @@ export default function TodoList({
       </div>
 
       <div
-        className={isStacked ? 'relative cursor-pointer' : 'space-y-3'}
+        className={isStacked ? 'relative cursor-pointer' : ''}
         onClick={isStacked ? handleStackToggle : undefined}
         title={isStacked ? t('todos.expandStack') : undefined}
-        style={isStacked ? { height: 96 } : undefined}
       >
         {sortedTodos.length === 0 ? (
           <div className="card">
@@ -468,48 +467,44 @@ export default function TodoList({
           sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
-            // iOS notification stack: container uses absolute positioning so it
-            // collapses to a small height, with items 2+ peeking 6px below item 1.
-            const STACK_TRANSITION = 'transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease, top 400ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+            // iOS notification stack via margin-top: all items stay in flow at
+            // the same width/size, items 2+ use negative margin-top to slide up
+            // and overlap item 0 with a small peek (STACK_PEEK). On expand, the
+            // margin transitions back to the normal gap so items "unfold" in place.
+            const STACK_PEEK = 6;
+            const NORMAL_GAP = 12;
+            // Negative margin large enough to pull item 2+ onto item 1's bottom
+            // minus peek. Items in this project have varying heights (with
+            // expanded panels), so we use a negative min-margin that looks good
+            // for the common collapsed TodoItem.
+            const COLLAPSED_ITEM_MARGIN = -76 + STACK_PEEK; // = -70
             const stackStyle: React.CSSProperties = isStacked
               ? index === 0
                 ? {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    zIndex: 20,
-                    transition: STACK_TRANSITION,
-                    transformOrigin: 'top center',
+                    marginTop: 0,
+                    zIndex: sortedTodos.length + 10,
+                    position: 'relative',
+                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
                   }
-                : index < 3
-                  ? {
-                      position: 'absolute',
-                      top: index * 6,
-                      left: 0,
-                      right: 0,
-                      transform: `scale(${1 - index * 0.04})`,
-                      opacity: 1 - index * 0.35,
-                      zIndex: 20 - index,
-                      pointerEvents: 'none',
-                      transformOrigin: 'top center',
-                      transition: STACK_TRANSITION,
-                    }
-                  : {
-                      position: 'absolute',
-                      top: 12,
-                      left: 0,
-                      right: 0,
-                      transform: 'scale(0.88)',
-                      opacity: 0,
-                      visibility: 'hidden',
-                      pointerEvents: 'none',
-                      transformOrigin: 'top center',
-                      transition: STACK_TRANSITION,
-                    }
-              : {
-                  transformOrigin: 'top center',
-                };
+                : {
+                    marginTop: COLLAPSED_ITEM_MARGIN,
+                    zIndex: sortedTodos.length + 10 - index,
+                    position: 'relative',
+                    opacity: 0.85,
+                    pointerEvents: 'none',
+                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
+                  }
+              : index === 0
+                ? {
+                    marginTop: 0,
+                    position: 'relative',
+                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
+                  }
+                : {
+                    marginTop: NORMAL_GAP,
+                    position: 'relative',
+                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
+                  };
             return (
               <div
                 key={todo.id}
