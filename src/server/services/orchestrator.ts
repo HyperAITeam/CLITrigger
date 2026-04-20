@@ -460,8 +460,8 @@ Complete the task in the current directory.`;
     const cliTool = (todo.cli_tool as CliTool) || (project.cli_tool as CliTool) || 'claude';
     const sandboxMode = (project.sandbox_mode as SandboxMode) || 'strict';
 
-    // Sandbox: generate Claude CLI permission settings in worktree
-    if (sandboxMode === 'strict' && cliTool === 'claude' && useWorktree && workDir !== projectPath) {
+    // Sandbox: generate Claude CLI permission settings (worktree or project root)
+    if (sandboxMode === 'strict' && cliTool === 'claude') {
       try {
         const claudeDir = path.join(workDir, '.claude');
         const settingsPath = path.join(claudeDir, 'settings.json');
