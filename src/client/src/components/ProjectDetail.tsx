@@ -471,6 +471,49 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setPlannerItems(items);
   }, [id]);
 
+  const handleExportPlanner = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { blob, filename } = await plannerApi.exportPlanner(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const hasImages = plannerItems.some((i) => i.images);
+      if (hasImages) {
+        window.alert(t('planner.importNoImages'));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      window.alert(`${t('planner.exportError')}: ${msg}`);
+    }
+  }, [id, plannerItems, t]);
+
+  const handleImportPlanner = useCallback(async (file: File) => {
+    if (!id) return;
+    try {
+      const text = await file.text();
+      let payload: plannerApi.PlannerExportPayload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error(t('planner.importInvalidJson'));
+      }
+      const result = await plannerApi.importPlanner(id, payload);
+      const [tags, items] = await Promise.all([plannerApi.getPlannerTags(id), plannerApi.getPlannerItems(id)]);
+      setPlannerTags(tags);
+      setPlannerItems(items);
+      window.alert(t('planner.importSuccess').replace('{items}', String(result.imported_items)).replace('{tags}', String(result.imported_tags)));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      window.alert(`${t('planner.importError')}: ${msg}`);
+    }
+  }, [id, t]);
+
   // Discussion handlers
   const handleAddDiscussion = useCallback((discussion: Discussion) => {
     setDiscussions((prev) => [discussion, ...prev]);
@@ -770,6 +813,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onConvertToSchedule={handleConvertPlannerToSchedule}
           onUpdateTag={handleUpdatePlannerTag}
           onDeleteTag={handleDeletePlannerTag}
+          onExport={handleExportPlanner}
+          onImport={handleImportPlanner}
         />
       )}
     </div>
