@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import simpleGit from 'simple-git';
+import { createGit } from '../lib/git.js';
 import fs from 'fs';
 import { getTaskLogsByTodoId, getTodoById, getTodosByProjectId } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
@@ -80,7 +80,7 @@ router.get('/todos/:id/diff', async (req: Request<{ id: string }>, res: Response
     const project = getProjectById(todo.project_id);
     const defaultBranch = project?.default_branch || 'main';
 
-    const git = simpleGit(todo.worktree_path);
+    const git = createGit(todo.worktree_path);
     const diff = await git.diff([`${defaultBranch}...HEAD`]);
     const diffStat = await git.diff([`${defaultBranch}...HEAD`, '--stat']);
 
@@ -141,7 +141,7 @@ router.get('/todos/:id/result', async (req: Request<{ id: string }>, res: Respon
     if (todo.worktree_path && fs.existsSync(todo.worktree_path)) {
       const project = getProjectById(todo.project_id);
       const defaultBranch = project?.default_branch || 'main';
-      const git = simpleGit(todo.worktree_path);
+      const git = createGit(todo.worktree_path);
 
       try {
         // Get changed files with status
