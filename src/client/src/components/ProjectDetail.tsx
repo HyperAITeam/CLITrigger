@@ -335,6 +335,16 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 
+  const handleReorderTodos = useCallback(async (orderedIds: string[]) => {
+    // Client sorts ascending by priority, so assign 0..N-1 matching new order.
+    const updates = orderedIds.map((id, idx) => ({ id, priority: idx }));
+    setTodos(prev => prev.map(t => {
+      const u = updates.find(u => u.id === t.id);
+      return u ? { ...t, priority: u.priority } : t;
+    }));
+    await Promise.all(updates.map(u => todosApi.updateTodo(u.id, { priority: u.priority })));
+  }, []);
+
   const handleUpdatePosition = useCallback(async (todoId: string, x: number, y: number) => {
     await todosApi.updateTodo(todoId, { position_x: x, position_y: y });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? { ...t, position_x: x, position_y: y } : t)));
@@ -680,6 +690,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           resetsAt={resetsAt}
           onUpdateDependency={handleUpdateDependency}
           onUpdatePosition={handleUpdatePosition}
+          onReorderTodos={handleReorderTodos}
           onEvent={onEvent}
           onSendInput={handleSendInput}
           interactiveTodos={interactiveTodos}
