@@ -9,6 +9,15 @@ import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList } from 'lucide-react';
 
+type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
+
+const FILTER_STATUSES: Record<StatusFilter, Todo['status'][] | null> = {
+  all: null,
+  active: ['pending', 'running'],
+  completed: ['completed', 'merged'],
+  cancelled: ['stopped', 'failed'],
+};
+
 interface TodoListProps {
   todos: Todo[];
   projectCliTool?: string;
@@ -81,6 +90,9 @@ export default function TodoList({
   const [viewMode, setViewMode] = useState<'list' | 'graph'>(() => {
     try { return (localStorage.getItem('todoViewMode') as 'list' | 'graph') || 'list'; } catch { return 'list'; }
   });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    try { return (localStorage.getItem('todoStatusFilter') as StatusFilter) || 'all'; } catch { return 'all'; }
+  });
   const { t } = useI18n();
 
   const handleViewModeChange = useCallback((mode: 'list' | 'graph') => {
@@ -88,9 +100,34 @@ export default function TodoList({
     try { localStorage.setItem('todoViewMode', mode); } catch { /* ignore */ }
   }, []);
 
-  // Build hierarchical order: parents first, then their children (indented)
+  const handleStatusFilterChange = useCallback((filter: StatusFilter) => {
+    setStatusFilter(filter);
+    try { localStorage.setItem('todoStatusFilter', filter); } catch { /* ignore */ }
+  }, []);
+
+  const filterCounts = useMemo(() => ({
+    all: todos.length,
+    active: todos.filter(t => FILTER_STATUSES.active!.includes(t.status)).length,
+    completed: todos.filter(t => FILTER_STATUSES.completed!.includes(t.status)).length,
+    cancelled: todos.filter(t => FILTER_STATUSES.cancelled!.includes(t.status)).length,
+  }), [todos]);
+
+  const filteredTodos = useMemo(() => {
+    const allowed = FILTER_STATUSES[statusFilter];
+    if (!allowed) return todos;
+    return todos.filter(t => allowed.includes(t.status));
+  }, [todos, statusFilter]);
+
+  // Build hierarchical order: parents first, then their children (indented).
+  // When a specific status filter is active, flatten the list (depth=0 for all)
+  // since partial hierarchies across status boundaries are confusing.
   const sortedTodos = (() => {
-    const byPriority = [...todos].sort((a, b) => a.priority - b.priority);
+    const byPriority = [...filteredTodos].sort((a, b) => a.priority - b.priority);
+
+    if (statusFilter !== 'all') {
+      return byPriority.map(todo => ({ todo, depth: 0 }));
+    }
+
     const childrenMap = new Map<string, Todo[]>(); // parentId -> children
     const roots: Todo[] = [];
 
@@ -339,10 +376,40 @@ export default function TodoList({
         </div>
       )}
 
+      <div className="flex items-center gap-1 mb-4 bg-warm-100 rounded-lg p-0.5 w-fit">
+        {(['all', 'active', 'completed', 'cancelled'] as StatusFilter[]).map(filter => {
+          const isActive = statusFilter === filter;
+          const labelKey = filter === 'all' ? 'todos.filterAll'
+            : filter === 'active' ? 'todos.filterActive'
+            : filter === 'completed' ? 'todos.filterCompleted'
+            : 'todos.filterCancelled';
+          return (
+            <button
+              key={filter}
+              onClick={() => handleStatusFilterChange(filter)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                isActive
+                  ? 'bg-theme-card shadow-sm text-accent'
+                  : 'text-warm-500 hover:text-warm-700'
+              }`}
+            >
+              <span>{t(labelKey)}</span>
+              <span className={`text-2xs font-mono ${isActive ? 'text-accent/70' : 'text-warm-400'}`}>
+                {filterCounts[filter]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="space-y-3">
         {sortedTodos.length === 0 ? (
           <div className="card">
-            <EmptyState icon={ClipboardList} title={t('todos.empty')} description={t('todos.emptyHint')} />
+            <EmptyState
+              icon={ClipboardList}
+              title={statusFilter === 'all' ? t('todos.empty') : t('todos.filterEmpty')}
+              description={statusFilter === 'all' ? t('todos.emptyHint') : undefined}
+            />
           </div>
         ) : (
           sortedTodos.map(({ todo, depth }, index) => {

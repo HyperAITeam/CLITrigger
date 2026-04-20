@@ -153,6 +153,11 @@ const translations = {
     'todos.empty': 'No tasks yet',
     'todos.emptyHint': 'Add a task to begin.',
     'todos.merge': 'Merge',
+    'todos.filterAll': 'All',
+    'todos.filterActive': 'In Progress',
+    'todos.filterCompleted': 'Completed',
+    'todos.filterCancelled': 'Cancelled',
+    'todos.filterEmpty': 'No tasks in this filter.',
 
     // Todo Item
     'todo.description': 'Description',
@@ -841,6 +846,11 @@ const translations = {
     'todos.add': '작업 추가',
     'todos.empty': '작업이 없습니다',
     'todos.emptyHint': '작업을 추가해보세요.',
+    'todos.filterAll': '전체',
+    'todos.filterActive': '작업중',
+    'todos.filterCompleted': '완료',
+    'todos.filterCancelled': '취소',
+    'todos.filterEmpty': '해당 상태의 작업이 없습니다.',
     'todos.merge': '병합',
 
     // Todo Item
