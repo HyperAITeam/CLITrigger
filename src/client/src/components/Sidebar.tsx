@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X } from 'lucide-react';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
 import type { WsEvent } from '../hooks/useWebSocket';
+import ProjectForm from './ProjectForm';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -25,7 +26,9 @@ interface ProjectStatus {
 export default function Sidebar({ onLogout, authRequired, connected, onEvent, onClose }: SidebarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
+  const [showForm, setShowForm] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { t, toggleLang } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
@@ -79,6 +82,32 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     onClose?.();
   };
 
+  const handleAddProject = async (name: string, path: string) => {
+    try {
+      await projectsApi.createProject({ name, path });
+      setShowForm(false);
+      window.dispatchEvent(new Event('projects:changed'));
+    } catch {
+      // TODO: show error
+    }
+  };
+
+  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(t('projects.deleteConfirm'))) return;
+    try {
+      await projectsApi.deleteProject(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      window.dispatchEvent(new Event('projects:changed'));
+      if (activeProjectId === String(id)) {
+        navigate('/');
+      }
+    } catch {
+      // TODO: show error
+    }
+  };
+
   return (
     <div className="flex flex-col h-full glass border-none">
       {/* Logo */}
@@ -119,8 +148,18 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
 
       {/* Projects section */}
       <div className="flex-1 overflow-y-auto px-3 pt-3">
-        <div className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-          {t('sidebar.workspaces')}
+        <div className="px-3 mb-2 flex items-center justify-between">
+          <span className="text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+            {t('sidebar.workspaces')}
+          </span>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center justify-center w-5 h-5 rounded-md transition-colors hover:bg-theme-hover"
+            style={{ color: 'var(--color-text-tertiary)' }}
+            title={t('projects.new')}
+          >
+            <Plus size={14} strokeWidth={2} />
+          </button>
         </div>
         <div className="space-y-0.5">
           {projects.map((project) => {
@@ -144,12 +183,27 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   hasRunning ? 'bg-status-running animate-pulse' : ''
                 }`} style={hasRunning ? undefined : { backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)' }} />
-                <span className="truncate">{project.name}</span>
+                <span className="truncate flex-1">{project.name}</span>
+                <button
+                  onClick={(e) => handleDeleteProject(project.id, e)}
+                  className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  title={t('projects.delete')}
+                >
+                  <X size={12} strokeWidth={2} />
+                </button>
               </Link>
             );
           })}
         </div>
       </div>
+
+      {showForm && (
+        <ProjectForm
+          onSubmit={(name, path) => handleAddProject(name, path)}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
 
       {/* Bottom section */}
       <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
