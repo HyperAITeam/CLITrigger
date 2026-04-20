@@ -102,8 +102,9 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   };
 
   const saveStatus = (v: string) => {
-    setEditStatus(v);
-    if (v !== item.status) save({ status: v });
+    const next = v as typeof item.status;
+    setEditStatus(next);
+    if (next !== item.status) save({ status: next });
   };
 
   const saveTags = (next: string[]) => {

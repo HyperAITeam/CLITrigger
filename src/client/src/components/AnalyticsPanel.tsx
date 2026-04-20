@@ -7,8 +7,17 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
   LineChart, Line, CartesianGrid,
-  type TooltipProps,
 } from 'recharts';
+
+type ChartTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: Array<{
+    name?: string | number;
+    value?: string | number;
+    color?: string;
+  }>;
+};
 
 interface AnalyticsPanelProps {
   projectId: string;
@@ -39,7 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
 const PIE_COLORS = ['#34C759', '#4B8DFF', '#FF3B30', '#FF9500', '#007AFF', '#AF52DE'];
 
 // Custom tooltip styled with theme
-function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="card px-3 py-2 text-xs shadow-elevated border-theme-border">
@@ -55,7 +64,7 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
   );
 }
 
-function CostTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function CostTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="card px-3 py-2 text-xs shadow-elevated border-theme-border">
@@ -71,7 +80,7 @@ function CostTooltip({ active, payload, label }: TooltipProps<number, string>) {
   );
 }
 
-function TokenTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function TokenTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="card px-3 py-2 text-xs shadow-elevated border-theme-border">

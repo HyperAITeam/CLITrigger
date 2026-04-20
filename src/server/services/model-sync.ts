@@ -32,6 +32,38 @@ interface RegistryEntry {
 
 type RegistryFile = Record<string, RegistryEntry[]>;
 
+const BUILTIN_REGISTRY: RegistryFile = {
+  claude: [
+    {
+      versionPrefix: '*',
+      models: [
+        { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+        { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+        { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+        { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+      ],
+    },
+  ],
+  gemini: [
+    {
+      versionPrefix: '*',
+      models: [{ value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }],
+    },
+  ],
+  codex: [
+    {
+      versionPrefix: '*',
+      models: [
+        { value: 'gpt-4.1', label: 'GPT-4.1' },
+        { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+        { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+        { value: 'o3', label: 'o3' },
+        { value: 'o4-mini', label: 'o4-mini' },
+      ],
+    },
+  ],
+};
+
 let cachedRegistry: RegistryFile | null = null;
 
 function loadRegistry(): RegistryFile {
@@ -44,12 +76,12 @@ function loadRegistry(): RegistryFile {
     cachedRegistry = parsed as RegistryFile;
     return cachedRegistry;
   } catch (err) {
-    console.warn('[model-sync] Could not load registry:', err);
-    // Do NOT cache the empty fallback. A later call (after the file is added,
-    // or after a transient read failure) must be able to retry; otherwise the
-    // whole deprecation/merge logic silently runs against an empty registry
-    // and incorrectly flags valid models as deprecated.
-    return {};
+    console.warn('[model-sync] Could not load registry file, using built-in fallback:', err);
+    // Do NOT cache — a later call (after the file is added or after a transient
+    // read failure) must be able to retry and pick up the richer file-based
+    // registry. The built-in fallback keeps deprecation/merge logic correct
+    // even when the file is unavailable (e.g. in CI test environments).
+    return BUILTIN_REGISTRY;
   }
 }
 
