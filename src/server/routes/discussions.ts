@@ -120,13 +120,13 @@ router.post('/projects/:id/agents', (req: Request<{ id: string }>, res: Response
       return;
     }
 
-    const { name, role, system_prompt, cli_tool, cli_model, avatar_color } = req.body;
+    const { name, role, system_prompt, cli_tool, cli_model, avatar_color, can_implement } = req.body;
     if (!name || !role || !system_prompt) {
       res.status(400).json({ error: 'name, role, and system_prompt are required' });
       return;
     }
 
-    const agent = queries.createDiscussionAgent(req.params.id, name, role, system_prompt, cli_tool, cli_model, avatar_color);
+    const agent = queries.createDiscussionAgent(req.params.id, name, role, system_prompt, cli_tool, cli_model, avatar_color, Boolean(can_implement));
     res.status(201).json(agent);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

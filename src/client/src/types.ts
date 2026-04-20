@@ -182,6 +182,7 @@ export interface DiscussionAgent {
   cli_model: string | null;
   avatar_color: string | null;
   sort_order: number;
+  can_implement: number;
   created_at: string;
   updated_at: string;
 }

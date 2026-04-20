@@ -649,13 +649,14 @@ export interface DiscussionAgent {
   cli_model: string | null;
   avatar_color: string | null;
   sort_order: number;
+  can_implement: number;
   created_at: string;
   updated_at: string;
 }
 
 export function createDiscussionAgent(
   projectId: string, name: string, role: string, systemPrompt: string,
-  cliTool?: string, cliModel?: string, avatarColor?: string
+  cliTool?: string, cliModel?: string, avatarColor?: string, canImplement = false
 ): DiscussionAgent {
   const db = getDatabase();
   const id = uuidv4();
@@ -663,9 +664,9 @@ export function createDiscussionAgent(
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM discussion_agents WHERE project_id = ?').get(projectId) as { max_order: number | null };
   const sortOrder = (maxOrder.max_order ?? -1) + 1;
   db.prepare(
-    `INSERT INTO discussion_agents (id, project_id, name, role, system_prompt, cli_tool, cli_model, avatar_color, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, name, role, systemPrompt, cliTool ?? null, cliModel ?? null, avatarColor ?? null, sortOrder, now, now);
+    `INSERT INTO discussion_agents (id, project_id, name, role, system_prompt, cli_tool, cli_model, avatar_color, sort_order, can_implement, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, name, role, systemPrompt, cliTool ?? null, cliModel ?? null, avatarColor ?? null, sortOrder, canImplement ? 1 : 0, now, now);
   return getDiscussionAgentById(id)!;
 }
 
@@ -679,7 +680,7 @@ export function getDiscussionAgentById(id: string): DiscussionAgent | undefined 
   return db.prepare('SELECT * FROM discussion_agents WHERE id = ?').get(id) as DiscussionAgent | undefined;
 }
 
-export function updateDiscussionAgent(id: string, updates: Partial<Pick<DiscussionAgent, 'name' | 'role' | 'system_prompt' | 'cli_tool' | 'cli_model' | 'avatar_color' | 'sort_order'>>): DiscussionAgent | undefined {
+export function updateDiscussionAgent(id: string, updates: Partial<Pick<DiscussionAgent, 'name' | 'role' | 'system_prompt' | 'cli_tool' | 'cli_model' | 'avatar_color' | 'sort_order' | 'can_implement'>>): DiscussionAgent | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -691,6 +692,7 @@ export function updateDiscussionAgent(id: string, updates: Partial<Pick<Discussi
   if (updates.cli_model !== undefined) { fields.push('cli_model = ?'); values.push(updates.cli_model); }
   if (updates.avatar_color !== undefined) { fields.push('avatar_color = ?'); values.push(updates.avatar_color); }
   if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(updates.sort_order); }
+  if (updates.can_implement !== undefined) { fields.push('can_implement = ?'); values.push(updates.can_implement ? 1 : 0); }
 
   if (fields.length === 0) return getDiscussionAgentById(id);
 
