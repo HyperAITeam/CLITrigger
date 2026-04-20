@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, Fragment } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
@@ -553,8 +553,8 @@ export default function TodoList({
                   transition: STACK_TRANSITION,
                 };
             return (
-              <Fragment key={todo.id}>
               <div
+                key={todo.id}
                 className={isStacked ? '' : 'animate-fade-in'}
                 style={isStacked ? stackStyle : { animationDelay: `${index * 30}ms`, ...stackStyle }}
               >
@@ -624,8 +624,6 @@ export default function TodoList({
                 </div>
                 {renderGap(index + 1)}
               </div>
-              {renderGap(index + 1)}
-              </Fragment>
             );
           })}
             </>
