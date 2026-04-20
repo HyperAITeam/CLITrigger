@@ -624,6 +624,9 @@ const translations = {
     'agents.roles.pm': 'Product Manager',
     'agents.roles.tester': 'Tester',
     'agents.roles.custom': 'Custom',
+    'agents.canImplement': 'Implement during discussion',
+    'agents.canImplementHelp': 'When it is this agent\'s turn, they can write code and commit to the discussion branch — not just talk. Useful for developer-style agents that should demonstrate ideas mid-discussion.',
+    'agents.canImplementBadge': 'Implementer',
 
     // Git
     'git.ahead': 'ahead',
@@ -1331,6 +1334,9 @@ const translations = {
     'agents.roles.pm': 'PM',
     'agents.roles.tester': '테스터',
     'agents.roles.custom': '사용자 정의',
+    'agents.canImplement': '토론 중 구현 수행',
+    'agents.canImplementHelp': '이 에이전트의 턴에서 발언뿐 아니라 실제 코드 작성·커밋까지 수행합니다. 개발자 역할 에이전트가 아이디어를 즉석에서 시연하도록 할 때 유용합니다.',
+    'agents.canImplementBadge': '구현자',
 
     // Git
     'git.ahead': '앞섬',

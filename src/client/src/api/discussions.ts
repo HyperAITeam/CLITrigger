@@ -32,6 +32,7 @@ export function createAgent(projectId: string, data: {
   cli_tool?: string;
   cli_model?: string;
   avatar_color?: string;
+  can_implement?: boolean;
 }): Promise<DiscussionAgent> {
   return post(`/api/projects/${projectId}/agents`, data);
 }
@@ -44,6 +45,7 @@ export function updateAgent(id: string, data: Partial<{
   cli_model: string | null;
   avatar_color: string | null;
   sort_order: number;
+  can_implement: boolean;
 }>): Promise<DiscussionAgent> {
   return put(`/api/agents/${id}`, data);
 }

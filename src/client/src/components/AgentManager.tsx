@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Users } from 'lucide-react';
+import { Hammer, Pencil, Trash2, Users } from 'lucide-react';
 import type { DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
@@ -63,6 +63,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
   const [cliTool, setCliTool] = useState<CliTool | ''>('');
   const [cliModel, setCliModel] = useState('');
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
+  const [canImplement, setCanImplement] = useState(false);
   const [saving, setSaving] = useState(false);
   const { getToolConfig } = useModels();
 
@@ -73,6 +74,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
     setCliTool('');
     setCliModel('');
     setAvatarColor(AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]);
+    setCanImplement(false);
     setShowForm(false);
     setEditingId(null);
   };
@@ -85,6 +87,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
         const updated = await discussionsApi.updateAgent(editingId, {
           name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
           cli_tool: cliTool || null, cli_model: cliModel || null,
+          can_implement: canImplement,
         });
         onAgentsChange(agents.map((a) => (a.id === editingId ? updated : a)));
       } else {
@@ -92,6 +95,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
           name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
           ...(cliTool ? { cli_tool: cliTool } : {}),
           ...(cliModel ? { cli_model: cliModel } : {}),
+          can_implement: canImplement,
         });
         onAgentsChange([...agents, created]);
       }
@@ -109,6 +113,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
     setCliTool((agent.cli_tool as CliTool) || '');
     setCliModel(agent.cli_model || '');
     setAvatarColor(agent.avatar_color || AVATAR_COLORS[0]);
+    setCanImplement(!!agent.can_implement);
     setShowForm(true);
   };
 
@@ -152,7 +157,18 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
               {agent.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-warm-700 truncate">{agent.name}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-warm-700 truncate">{agent.name}</span>
+                {!!agent.can_implement && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                    title={t('agents.canImplementHelp')}
+                  >
+                    <Hammer size={10} />
+                    {t('agents.canImplementBadge')}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-warm-400 mt-0.5">
                 {t(`agents.roles.${agent.role}`) || agent.role}
                 {agent.cli_tool && (
@@ -270,6 +286,25 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
                 }
               </select>
             </div>
+          </div>
+
+          {/* Can Implement toggle */}
+          <div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={canImplement}
+                onChange={(e) => setCanImplement(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-warm-300 text-warm-600 focus:ring-warm-400"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-warm-700">
+                  <Hammer size={12} />
+                  {t('agents.canImplement')}
+                </div>
+                <p className="text-2xs text-warm-400 mt-0.5">{t('agents.canImplementHelp')}</p>
+              </div>
+            </label>
           </div>
 
           {/* Avatar Color */}
