@@ -137,13 +137,13 @@ export default function PlannerList({
           <span className="ml-1 text-warm-400">{plannerItems.length}</span>
         </h2>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select className="input-field text-xs py-1.5 px-2" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
+        <div className="flex items-center gap-2 min-w-0">
+          <select className="input-field text-xs py-1.5 px-2 w-auto max-w-[10rem] shrink" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
             <option value="">{t('planner.filterTag')}</option>
             {tagNames.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}
           </select>
 
-          <select className="input-field text-xs py-1.5 px-2" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <select className="input-field text-xs py-1.5 px-2 w-auto max-w-[10rem] shrink" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">{t('planner.filterStatus')}</option>
             <option value="pending">{t('plannerStatus.pending')}</option>
             <option value="in_progress">{t('plannerStatus.in_progress')}</option>
@@ -155,7 +155,7 @@ export default function PlannerList({
             <button
               onClick={handleExportClick}
               disabled={ioBusy || plannerItems.length === 0}
-              className="btn-secondary text-xs py-2 whitespace-nowrap disabled:opacity-50"
+              className="btn-secondary text-xs py-2 whitespace-nowrap shrink-0 disabled:opacity-50"
               title={t('planner.exportTooltip')}
             >
               <Download size={14} className="inline-block shrink-0" />
@@ -167,7 +167,7 @@ export default function PlannerList({
               <button
                 onClick={handleImportClick}
                 disabled={ioBusy}
-                className="btn-secondary text-xs py-2 whitespace-nowrap disabled:opacity-50"
+                className="btn-secondary text-xs py-2 whitespace-nowrap shrink-0 disabled:opacity-50"
                 title={t('planner.importTooltip')}
               >
                 <Upload size={14} className="inline-block shrink-0" />
