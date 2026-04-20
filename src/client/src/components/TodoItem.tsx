@@ -459,7 +459,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
   const handleItemDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', todo.id);
-    e.dataTransfer.effectAllowed = 'link';
+    e.dataTransfer.effectAllowed = 'linkMove';
     onDragStart?.(todo.id);
   };
 

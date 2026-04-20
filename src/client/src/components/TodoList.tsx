@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, Fragment } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
@@ -38,6 +38,7 @@ interface TodoListProps {
   resetsAt?: number | null;
   onUpdateDependency?: (todoId: string, dependsOnId: string | null) => Promise<void>;
   onUpdatePosition?: (todoId: string, x: number, y: number) => Promise<void>;
+  onReorderTodos?: (orderedIds: string[]) => Promise<void>;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onSendInput: (todoId: string, input: string) => void;
   interactiveTodos: Set<string>;
@@ -78,6 +79,7 @@ export default function TodoList({
   resetsAt,
   onUpdateDependency,
   onUpdatePosition,
+  onReorderTodos,
   onEvent,
   onSendInput,
   interactiveTodos,
@@ -87,6 +89,7 @@ export default function TodoList({
   const [showForm, setShowForm] = useState(false);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [dragOverGapIndex, setDragOverGapIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'graph'>(() => {
     try { return (localStorage.getItem('todoViewMode') as 'list' | 'graph') || 'list'; } catch { return 'list'; }
   });
@@ -268,10 +271,12 @@ export default function TodoList({
     }
     setDragSourceId(null);
     setDragOverTargetId(null);
+    setDragOverGapIndex(null);
   }, [dragSourceId, todos, onUpdateDependency]);
 
   const handleDragOverTarget = useCallback((targetId: string) => {
     setDragOverTargetId(targetId);
+    setDragOverGapIndex(null);
   }, []);
 
   const handleDragLeaveTarget = useCallback((targetId: string) => {
@@ -287,6 +292,7 @@ export default function TodoList({
     await onUpdateDependency(dragSourceId, targetId);
     setDragSourceId(null);
     setDragOverTargetId(null);
+    setDragOverGapIndex(null);
   }, [dragSourceId, todos, onUpdateDependency]);
 
   const handleRemoveDependency = useCallback(async (todoId: string) => {
@@ -299,6 +305,33 @@ export default function TodoList({
     if (dragSourceId === targetId) return false;
     return !wouldCreateCycle(todos, dragSourceId, targetId);
   }, [dragSourceId, todos]);
+
+  const handleGapDragOver = useCallback((gapIndex: number) => {
+    setDragOverGapIndex(gapIndex);
+    setDragOverTargetId(null);
+  }, []);
+
+  const handleGapDragLeave = useCallback((gapIndex: number) => {
+    setDragOverGapIndex(prev => prev === gapIndex ? null : prev);
+  }, []);
+
+  const handleGapDrop = useCallback(async (gapIndex: number, currentOrderIds: string[]) => {
+    if (!dragSourceId || !onReorderTodos) return;
+    const sourceIdx = currentOrderIds.indexOf(dragSourceId);
+    if (sourceIdx < 0) return;
+    const without = currentOrderIds.filter(id => id !== dragSourceId);
+    const insertAt = gapIndex > sourceIdx ? gapIndex - 1 : gapIndex;
+    if (insertAt === sourceIdx) {
+      setDragOverGapIndex(null);
+      return;
+    }
+    const next = [...without.slice(0, insertAt), dragSourceId, ...without.slice(insertAt)];
+    dropSucceededRef.current = true;
+    await onReorderTodos(next);
+    setDragSourceId(null);
+    setDragOverGapIndex(null);
+    setDragOverTargetId(null);
+  }, [dragSourceId, onReorderTodos]);
 
   if (viewMode === 'graph') {
     return (
@@ -464,8 +497,33 @@ export default function TodoList({
               description={statusFilter === 'all' ? t('todos.emptyHint') : undefined}
             />
           </div>
-        ) : (
-          sortedTodos.map(({ todo, depth }, index) => {
+        ) : (() => {
+          const orderedIds = sortedTodos.map(({ todo }) => todo.id);
+          const canReorder = !isStacked && !!onReorderTodos && dragSourceId !== null;
+          const renderGap = (gapIndex: number) => {
+            if (!canReorder) return null;
+            const isActive = dragOverGapIndex === gapIndex;
+            return (
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; handleGapDragOver(gapIndex); }}
+                onDragLeave={() => handleGapDragLeave(gapIndex)}
+                onDrop={(e) => { e.preventDefault(); handleGapDrop(gapIndex, orderedIds); }}
+                className="relative transition-all"
+                style={{
+                  height: isActive ? 24 : 8,
+                  marginTop: 0,
+                }}
+              >
+                {isActive && (
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-accent rounded-full shadow-[0_0_6px_rgba(0,0,0,0.15)]" />
+                )}
+              </div>
+            );
+          };
+          return (
+            <>
+              {renderGap(0)}
+              {sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
             // iOS notification stack: when collapsed, items use absolute
@@ -491,8 +549,8 @@ export default function TodoList({
                   transition: STACK_TRANSITION,
                 };
             return (
+              <Fragment key={todo.id}>
               <div
-                key={todo.id}
                 className={isStacked ? '' : 'animate-fade-in'}
                 style={isStacked ? stackStyle : { animationDelay: `${index * 30}ms`, ...stackStyle }}
               >
@@ -561,9 +619,13 @@ export default function TodoList({
                   />
                 </div>
               </div>
+              {renderGap(index + 1)}
+              </Fragment>
             );
-          })
-        )}
+          })}
+            </>
+          );
+        })()}
       </div>
       {!isStacked && dragSourceId && todos.find(t => t.id === dragSourceId)?.depends_on && (
         <div
