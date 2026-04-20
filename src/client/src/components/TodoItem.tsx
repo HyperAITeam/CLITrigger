@@ -489,7 +489,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
 
   return (
     <div
-      className={`relative transition-all duration-200 ${isDragSource ? 'opacity-40 scale-[0.98]' : ''} ${isDragging && !isDragSource ? '' : ''}`}
+      className={`relative transition-opacity duration-200 ${isDragSource ? 'opacity-40' : ''}`}
       onDragOver={handleItemDragOver}
       onDragLeave={handleItemDragLeave}
       onDrop={handleItemDrop}
