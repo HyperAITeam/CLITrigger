@@ -451,9 +451,10 @@ export default function TodoList({
       </div>
 
       <div
-        className={isStacked ? 'relative cursor-pointer' : ''}
+        className={isStacked ? 'relative cursor-pointer' : 'space-y-3'}
         onClick={isStacked ? handleStackToggle : undefined}
         title={isStacked ? t('todos.expandStack') : undefined}
+        style={isStacked ? { height: 76 + Math.max(sortedTodos.length - 1, 0) * 6 } : undefined}
       >
         {sortedTodos.length === 0 ? (
           <div className="card">
@@ -467,44 +468,28 @@ export default function TodoList({
           sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
-            // iOS notification stack via margin-top: all items stay in flow at
-            // the same width/size, items 2+ use negative margin-top to slide up
-            // and overlap item 0 with a small peek (STACK_PEEK). On expand, the
-            // margin transitions back to the normal gap so items "unfold" in place.
+            // iOS notification stack: when collapsed, items use absolute
+            // positioning so the FRONT card (index 0) stays at top and items 1+
+            // slide BELOW it at 6px intervals, each fully overlapped by the card
+            // in front except for a 6px peek at the bottom. Container height is
+            // fixed to 76 + (n-1)*6 so there is no wasted vertical space.
+            // When expanded, items go back to normal flow (space-y-3).
             const STACK_PEEK = 6;
-            const NORMAL_GAP = 12;
-            // Negative margin large enough to pull item 2+ onto item 1's bottom
-            // minus peek. Items in this project have varying heights (with
-            // expanded panels), so we use a negative min-margin that looks good
-            // for the common collapsed TodoItem.
-            const COLLAPSED_ITEM_MARGIN = -76 + STACK_PEEK; // = -70
+            const STACK_TRANSITION = 'top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease';
             const stackStyle: React.CSSProperties = isStacked
-              ? index === 0
-                ? {
-                    marginTop: 0,
-                    zIndex: sortedTodos.length + 10,
-                    position: 'relative',
-                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
-                  }
-                : {
-                    marginTop: COLLAPSED_ITEM_MARGIN,
-                    zIndex: sortedTodos.length + 10 - index,
-                    position: 'relative',
-                    opacity: 0.85,
-                    pointerEvents: 'none',
-                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
-                  }
-              : index === 0
-                ? {
-                    marginTop: 0,
-                    position: 'relative',
-                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
-                  }
-                : {
-                    marginTop: NORMAL_GAP,
-                    position: 'relative',
-                    transition: 'margin-top 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease',
-                  };
+              ? {
+                  position: 'absolute',
+                  top: index * STACK_PEEK,
+                  left: 0,
+                  right: 0,
+                  zIndex: sortedTodos.length + 10 - index,
+                  opacity: index === 0 ? 1 : 0.9,
+                  pointerEvents: index === 0 ? 'auto' : 'none',
+                  transition: STACK_TRANSITION,
+                }
+              : {
+                  transition: STACK_TRANSITION,
+                };
             return (
               <div
                 key={todo.id}
