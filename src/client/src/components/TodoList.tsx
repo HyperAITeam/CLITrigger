@@ -505,13 +505,17 @@ export default function TodoList({
             const isActive = dragOverGapIndex === gapIndex;
             return (
               <div
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; handleGapDragOver(gapIndex); }}
+                key={`gap-${gapIndex}`}
+                onDragEnter={(e) => { e.preventDefault(); handleGapDragOver(gapIndex); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'link'; handleGapDragOver(gapIndex); }}
                 onDragLeave={() => handleGapDragLeave(gapIndex)}
-                onDrop={(e) => { e.preventDefault(); handleGapDrop(gapIndex, orderedIds); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleGapDrop(gapIndex, orderedIds); }}
                 className="relative transition-all"
                 style={{
-                  height: isActive ? 24 : 8,
-                  marginTop: 0,
+                  height: isActive ? 28 : 18,
+                  marginTop: -6,
+                  marginBottom: -6,
+                  zIndex: 5,
                 }}
               >
                 {isActive && (
@@ -618,6 +622,7 @@ export default function TodoList({
                     isChainMember={isChainMember}
                   />
                 </div>
+                {renderGap(index + 1)}
               </div>
               {renderGap(index + 1)}
               </Fragment>
