@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Plus, ArrowUp, ArrowDown, LayoutList } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Plus, ArrowUp, ArrowDown, LayoutList, Download, Upload } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, PlannerTag, ImageMeta } from '../types';
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
@@ -24,12 +24,14 @@ interface PlannerListProps {
   onConvertToSchedule: (id: string, data: Record<string, unknown>) => Promise<void>;
   onUpdateTag?: (name: string, data: { color?: string; new_name?: string }) => Promise<void>;
   onDeleteTag?: (name: string) => Promise<void>;
+  onExport?: () => Promise<void>;
+  onImport?: (file: File) => Promise<void>;
 }
 
 export default function PlannerList({
   plannerItems, existingTags, projectCliTool, projectCliModel,
   onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule,
-  onUpdateTag, onDeleteTag,
+  onUpdateTag, onDeleteTag, onExport, onImport,
 }: PlannerListProps) {
   const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
@@ -40,6 +42,27 @@ export default function PlannerList({
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [convertItem, setConvertItem] = useState<PlannerItemType | null>(null);
   const [convertMode, setConvertMode] = useState<'todo' | 'schedule'>('todo');
+  const [ioBusy, setIoBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExportClick = async () => {
+    if (!onExport || ioBusy) return;
+    setIoBusy(true);
+    try { await onExport(); } finally { setIoBusy(false); }
+  };
+
+  const handleImportClick = () => {
+    if (!onImport || ioBusy) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !onImport) return;
+    setIoBusy(true);
+    try { await onImport(file); } finally { setIoBusy(false); }
+  };
 
   const tagNames = useMemo(() => existingTags.map(t => t.name), [existingTags]);
   const tagColorMap = useMemo(() => new Map(existingTags.map(t => [t.name, t.color])), [existingTags]);
@@ -127,6 +150,38 @@ export default function PlannerList({
             <option value="done">{t('plannerStatus.done')}</option>
             <option value="moved">{t('plannerStatus.moved')}</option>
           </select>
+
+          {onExport && (
+            <button
+              onClick={handleExportClick}
+              disabled={ioBusy || plannerItems.length === 0}
+              className="btn-secondary text-xs py-2 whitespace-nowrap disabled:opacity-50"
+              title={t('planner.exportTooltip')}
+            >
+              <Download size={14} className="inline-block shrink-0" />
+              {t('planner.export')}
+            </button>
+          )}
+          {onImport && (
+            <>
+              <button
+                onClick={handleImportClick}
+                disabled={ioBusy}
+                className="btn-secondary text-xs py-2 whitespace-nowrap disabled:opacity-50"
+                title={t('planner.importTooltip')}
+              >
+                <Upload size={14} className="inline-block shrink-0" />
+                {t('planner.import')}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </>
+          )}
 
           {!showForm && !editItem && (
             <button onClick={() => setShowForm(true)} className="btn-primary text-xs py-2 whitespace-nowrap">

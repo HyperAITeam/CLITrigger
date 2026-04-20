@@ -2,7 +2,36 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
+import { getDatabase } from '../db/connection.js';
 import { getPlannerImagePaths, cleanupPlannerImages } from './images.js';
+
+const ALLOWED_IMPORT_STATUSES = new Set(['pending', 'in_progress', 'done']);
+
+interface ExportedItem {
+  title: string;
+  description: string | null;
+  tags: string[];
+  due_date: string | null;
+  status: string;
+  priority: number;
+}
+
+interface ExportedTag {
+  name: string;
+  color: string;
+}
+
+interface ExportPayload {
+  version: number;
+  exported_at: string;
+  project_name: string;
+  items: ExportedItem[];
+  tags: ExportedTag[];
+}
+
+function sanitizeFilenamePart(input: string): string {
+  return input.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project';
+}
 
 const router = Router();
 
@@ -235,6 +264,141 @@ router.post('/planner/:id/convert-to-schedule', (req: Request<{ id: string }>, r
     });
 
     res.status(201).json({ plannerItem: updatedItem, schedule });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/projects/:id/planner/export - download planner as JSON
+router.get('/projects/:id/planner/export', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const allItems = queries.getPlannerItemsByProjectId(req.params.id);
+    const tags = queries.getPlannerTagsByProjectId(req.params.id);
+
+    const items: ExportedItem[] = allItems
+      .filter((item) => item.status !== 'moved')
+      .map((item) => {
+        let parsedTags: string[] = [];
+        if (item.tags) {
+          try {
+            const parsed = JSON.parse(item.tags);
+            if (Array.isArray(parsed)) parsedTags = parsed.filter((t) => typeof t === 'string');
+          } catch { /* ignore */ }
+        }
+        return {
+          title: item.title,
+          description: item.description,
+          tags: parsedTags,
+          due_date: item.due_date,
+          status: item.status,
+          priority: item.priority,
+        };
+      });
+
+    const payload: ExportPayload = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      project_name: project.name,
+      items,
+      tags: tags.map((t) => ({ name: t.name, color: t.color })),
+    };
+
+    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const filename = `planner-${sanitizeFilenamePart(project.name)}-${datePart}.json`;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/projects/:id/planner/import - import planner JSON
+router.post('/projects/:id/planner/import', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const payload = req.body as Partial<ExportPayload> | undefined;
+    if (!payload || typeof payload !== 'object') {
+      res.status(400).json({ error: 'Invalid payload' });
+      return;
+    }
+    if (payload.version !== 1) {
+      res.status(400).json({ error: `Unsupported version: ${payload.version}` });
+      return;
+    }
+    if (!Array.isArray(payload.items)) {
+      res.status(400).json({ error: 'items must be an array' });
+      return;
+    }
+
+    for (let i = 0; i < payload.items.length; i++) {
+      const item = payload.items[i];
+      if (!item || typeof item.title !== 'string' || !item.title.trim()) {
+        res.status(400).json({ error: `items[${i}].title is required` });
+        return;
+      }
+    }
+
+    const existingTagNames = new Set(
+      queries.getPlannerTagsByProjectId(req.params.id).map((t) => t.name)
+    );
+
+    const db = getDatabase();
+    let importedItems = 0;
+    let importedTags = 0;
+
+    const runImport = db.transaction(() => {
+      if (Array.isArray(payload.tags)) {
+        for (const tag of payload.tags) {
+          if (!tag || typeof tag.name !== 'string' || !tag.name.trim()) continue;
+          if (existingTagNames.has(tag.name)) continue;
+          const color = typeof tag.color === 'string' && tag.color ? tag.color : 'blue';
+          queries.upsertPlannerTag(req.params.id, tag.name, color);
+          existingTagNames.add(tag.name);
+          importedTags++;
+        }
+      }
+
+      for (const item of payload.items!) {
+        const tagsArr = Array.isArray(item.tags) ? item.tags.filter((t) => typeof t === 'string') : [];
+        const rawStatus = typeof item.status === 'string' ? item.status : 'pending';
+        const status = ALLOWED_IMPORT_STATUSES.has(rawStatus) ? rawStatus : 'pending';
+        const priority = typeof item.priority === 'number' ? item.priority : 0;
+        const description = typeof item.description === 'string' ? item.description : undefined;
+        const dueDate = typeof item.due_date === 'string' ? item.due_date : undefined;
+
+        const created = queries.createPlannerItem(
+          req.params.id,
+          item.title,
+          description,
+          tagsArr.length > 0 ? JSON.stringify(tagsArr) : undefined,
+          dueDate,
+          priority
+        );
+
+        if (status !== 'pending') {
+          queries.updatePlannerItem(created.id, { status });
+        }
+        importedItems++;
+      }
+    });
+
+    runImport();
+
+    res.status(200).json({ imported_items: importedItems, imported_tags: importedTags });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
