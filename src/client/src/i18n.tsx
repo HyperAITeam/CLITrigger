@@ -158,6 +158,10 @@ const translations = {
     'todos.filterCompleted': 'Completed',
     'todos.filterCancelled': 'Cancelled',
     'todos.filterEmpty': 'No tasks in this filter.',
+    'todos.stackModeOn': 'Stack mode on — click ✕ to disable',
+    'todos.stackModeOff': 'Enable stack mode (iOS-style collapse)',
+    'todos.collapseStack': 'Collapse to stack',
+    'todos.expandStack': 'Click to expand',
 
     // Todo Item
     'todo.description': 'Description',
@@ -851,6 +855,10 @@ const translations = {
     'todos.filterCompleted': '완료',
     'todos.filterCancelled': '취소',
     'todos.filterEmpty': '해당 상태의 작업이 없습니다.',
+    'todos.stackModeOn': '스택 모드 켜짐 — 다시 누르면 해제',
+    'todos.stackModeOff': '스택 모드 켜기 (iOS 알림 스타일)',
+    'todos.collapseStack': '스택으로 접기',
+    'todos.expandStack': '클릭하면 펼쳐집니다',
     'todos.merge': '병합',
 
     // Todo Item
