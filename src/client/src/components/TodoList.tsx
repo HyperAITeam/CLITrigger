@@ -499,10 +499,9 @@ export default function TodoList({
           </div>
         ) : (() => {
           const orderedIds = sortedTodos.map(({ todo }) => todo.id);
-          const canReorder = !isStacked && !!onReorderTodos && dragSourceId !== null;
           const renderGap = (gapIndex: number) => {
-            if (!canReorder) return null;
-            const isActive = dragOverGapIndex === gapIndex;
+            if (isStacked || !onReorderTodos) return null;
+            const isActive = dragSourceId !== null && dragOverGapIndex === gapIndex;
             return (
               <div
                 key={`gap-${gapIndex}`}
@@ -510,13 +509,8 @@ export default function TodoList({
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'link'; handleGapDragOver(gapIndex); }}
                 onDragLeave={() => handleGapDragLeave(gapIndex)}
                 onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleGapDrop(gapIndex, orderedIds); }}
-                className="relative transition-all"
-                style={{
-                  height: isActive ? 28 : 18,
-                  marginTop: -6,
-                  marginBottom: -6,
-                  zIndex: 5,
-                }}
+                className="relative"
+                style={{ height: 16, marginTop: -8, marginBottom: -8 }}
               >
                 {isActive && (
                   <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-accent rounded-full shadow-[0_0_6px_rgba(0,0,0,0.15)]" />
