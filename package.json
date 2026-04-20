@@ -9,7 +9,7 @@
     "dist/",
     "bin/",
     ".env.example",
-    "README_EN.md"
+    "README_KR.md"
   ],
   "engines": {
     "node": ">=20"

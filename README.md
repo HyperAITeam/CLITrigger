@@ -11,8 +11,8 @@
 *Write tasks. Let AI execute them in parallel. Review and merge.*
 
 <p align="center">
-  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README.md">한국어</a> ·
-  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README_EN.md">English</a>
+  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README.md">English</a> ·
+  <a href="https://github.com/OSgoodYZ/CLITrigger/blob/main/README_KR.md">한국어</a>
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -25,195 +25,219 @@
 
 ---
 
-> AI가 코드를 짜는 시대, 개발자의 역할이 바뀌고 있다.  
-> 하지만 **이해 없는 바이브 코딩**은 결국 한계에 부딪힌다.  
-> CLITrigger는 AI를 병렬로 돌리면서도, 개발자가 맥락을 잃지 않도록 설계되었다.
+> In the age of AI-generated code, the developer's role is shifting toward supervision and review.
+> But **vibe coding without understanding** eventually hits a wall.
+> CLITrigger lets you run AI in parallel — while keeping you in full context of what's happening.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks — 병렬 워크트리 실행" width="800">
-  <p><em>병렬 워크트리에서 AI CLI가 동시에 작업을 처리하는 모습</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
+  <p><em>AI CLIs working simultaneously across isolated git worktrees</em></p>
 </div>
 
 ---
 
-## 왜 CLITrigger인가?
+## Why CLITrigger?
 
-Claude Code 제작자 Boris Cherny는 **병렬 실행(Parallelism)** 을 강조한다. 터미널 하나에서 하나씩 기다리는 건 AI 시대의 병목이다.
+Boris Cherny, creator of Claude Code, emphasizes **parallelism** as the key to AI-assisted development. Waiting for one task to finish before starting the next is the new bottleneck.
 
-동시에 많은 AI 서비스는 **시간당 토큰 한도**를 가지고 있다. 낮에 한도를 다 쓰면 밤에 아무것도 못 한다.
+At the same time, most AI services have **rate limits** — you can burn through your daily quota by noon and be stuck waiting until midnight.
 
-CLITrigger는 이 두 문제를 동시에 해결한다:
+CLITrigger solves both problems:
 
-- **지금 당장** — 여러 작업을 격리된 worktree에서 Claude / Gemini / Codex가 병렬로 처리
-- **한도 걱정 없이** — 새벽, 특정 시각에 예약 실행으로 토큰을 최대한 활용
-- **더 나은 결과** — 여러 AI 에이전트가 서로 토론한 뒤 구현, 혼자 짠 코드보다 품질이 높아진다
+- **Right now** — Multiple tasks run in isolated git worktrees, with Claude / Gemini / Codex executing in parallel
+- **Without hitting limits** — Schedule tasks for off-peak hours to make the most of your token quota
+- **Better output** — Multiple AI agents debate and review before implementation, producing higher-quality results than a single AI working alone
 
 ---
 
-## 어떻게 동작하나?
+## How It Works
 
 ```
-[브라우저에서 TODO 작성]
+[Write TODOs in the browser]
          ↓
-┌────────────────────────────────────────────────────┐
-│  TODO 1: 로그인 기능 구현   → worktree/feature-login     → Claude CLI → 자동 커밋  │
-│  TODO 2: 회원가입 페이지    → worktree/feature-signup    → Gemini CLI → 자동 커밋  │
-│  TODO 3: 대시보드 레이아웃  → worktree/feature-dashboard → Claude CLI → 자동 커밋  │
-└────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  TODO 1: Implement login      → worktree/feature-login     → Claude CLI → auto-commit  │
+│  TODO 2: Signup page          → worktree/feature-signup    → Gemini CLI → auto-commit  │
+│  TODO 3: Dashboard layout     → worktree/feature-dashboard → Claude CLI → auto-commit  │
+└──────────────────────────────────────────────────────────────┘
          ↓
-[실시간 로그 확인 → Diff 보기 → Main에 Merge]
+[Live log streaming → Review diffs → Merge to main]
 ```
 
-각 TODO는 **독립된 git worktree**에서 실행된다. 서로 충돌하지 않고, 각자의 브랜치에서 커밋이 쌓인다. 개발자는 결과를 검토하고 머지 여부를 결정한다.
+Each TODO runs in its **own isolated git worktree** — no conflicts, separate branches, independent commit history. You review the results and decide what to merge.
 
 ---
 
-## 주요 기능
+## Features
 
-### 병렬 Worktree 실행
-TODO를 작성하면 각 작업마다 격리된 git worktree가 자동 생성된다. Claude / Gemini / Codex CLI가 동시에 병렬로 실행되며, 의존성 체인을 설정하면 선행 작업 완료 후 자동으로 후속 작업이 실행되고 브랜치 병합까지 처리된다.
+### Parallel Worktree Execution
+Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
 
-### 다중 AI 토론 (Discussion)
-아키텍트, 개발자, 리뷰어 등 역할이 다른 AI 에이전트들이 라운드 방식으로 토론한 뒤, 합의된 내용을 바탕으로 자동 구현까지 이어진다. 단일 AI의 판단보다 훨씬 검증된 설계 결과물이 나온다.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — 다중 AI 토론" width="800">
-  <p><em>여러 AI 에이전트가 역할별로 토론하는 Discussion 화면</em></p>
-</div>
-
-### 예약 실행 (Scheduler)
-토큰 한도를 피해 새벽이나 특정 시각에 작업을 예약 실행할 수 있다. cron 기반 반복 스케줄과 일회성 예약 모두 지원한다.
+### Multi-Agent Discussion
+AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules — 예약 실행" width="800">
-  <p><em>cron 기반 반복·일회성 예약 실행 설정 화면</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
+  <p><em>Multiple AI agents with different roles debating in the Discussion view</em></p>
 </div>
 
-### 파이프라인 (Pipeline)
-여러 작업을 순차 또는 병렬로 묶어 다단계 실행 흐름을 구성한다. 복잡한 릴리스 절차도 자동화할 수 있다.
+### Scheduled Execution
+Schedule tasks for off-peak hours to avoid rate limits. Supports recurring cron schedules, one-time scheduled runs, and auto-recovery scheduling on rate-limit events — if the CLI hits a token quota, CLITrigger schedules a retry for the exact reset time.
 
-### 실시간 로그 & 내장 Git 클라이언트
-WebSocket으로 실행 로그를 실시간 스트리밍하고, 웹 UI에서 직접 커밋·푸시·머지 등 Git 작업을 처리한다. 개발자는 항상 맥락을 파악할 수 있다.
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
+  <p><em>Cron-based recurring and one-time scheduled task execution</em></p>
+</div>
 
-### 멀티 CLI & 샌드박스
-Claude / Gemini / Codex CLI를 프로젝트·TODO별로 선택한다. 엄격(strict) 샌드박스 모드에서는 CLI의 파일 접근을 워크트리 디렉토리로 제한해 안전하게 실행한다.
+### Planner
+A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. JSON export/import lets you move plans across machines or share with teammates.
 
-### 플러그인 시스템
-Jira, GitHub, Notion 연동과 gstack 스킬 주입 등 외부 서비스 통합을 플러그인 단위로 추가할 수 있다.
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
+  <p><em>Inline editing, color-coded tags, image attachments, and one-click conversion to TODOs or schedules</em></p>
+</div>
 
-### 외부 접속
-Cloudflare Tunnel로 어디서든 폰·노트북으로 제어한다.
+### Analytics
+Per-project cost and execution stats powered by Recharts — stacked bar chart by CLI tool, donut chart for status distribution, line chart for cost/token trends. Denormalized cost fields in the DB keep aggregation fast even on long histories.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics — Execution stats" width="800">
+  <p><em>Cost and token usage broken down by CLI, status, and over time</em></p>
+</div>
+
+### Built-in Git Client
+A full Git client lives inside the web UI — commit graph, action toolbar, file-status sidebar, worktree list, branch context menu (checkout / merge / rebase / fetch / pull / push / rename / delete), and a commit detail panel with file-level diff viewer. Non-ASCII filenames (Korean, CJK, emoji) render correctly in diff and status output.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
+  <p><em>Commit graph, branch actions, file diffs — all in the browser</em></p>
+</div>
+
+### Interactive Sessions
+Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in an embedded terminal, with optional worktree isolation per session. PTY output is filtered for spinner noise and classified into assistant / tool-use blocks so the Chat-mode log viewer stays readable.
+
+### Live Logs (Chat & Raw)
+WebSocket-based real-time log streaming with two view modes — Chat mode renders assistant messages as markdown with collapsible tool-use rows; Raw mode is a flat terminal view. Multi-round continue reuses the same worktree via the CLI's native `--continue` flag.
+
+### Multi-CLI & Sandbox Mode
+Select Claude / Gemini / Codex per project, per TODO, or per discussion agent. Strict sandbox mode restricts CLI file access to the worktree directory using each CLI's native sandboxing (Claude settings.json, Codex `--full-auto`, Gemini prompt-level restriction).
+
+### Plugin System
+Jira, GitHub, Notion integrations and gstack skill injection ship as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
+
+### Remote Access
+Access and control from anywhere via Cloudflare Tunnel. Browser notifications alert you when tasks or discussions complete, so you can walk away and come back.
 
 ---
 
-## 기술 스택
+## Tech Stack
 
-| 영역 | 기술 |
-|------|------|
+| Layer | Tech |
+|-------|------|
 | Backend | Node.js · Express · TypeScript · SQLite · WebSocket |
-| Frontend | React 18 · Vite · Tailwind CSS |
-| AI CLI | Claude · Gemini · Codex (Adapter Pattern) |
-| Git | simple-git (worktree 관리) |
-| 스케줄링 | node-cron |
-| 터미널 | node-pty (TTY 지원) |
-| 외부 접속 | Cloudflare Tunnel (선택) |
+| Frontend | React 18 · Vite · Tailwind CSS · Recharts |
+| AI CLIs | Claude · Gemini · Codex (Adapter Pattern) |
+| Git | simple-git (worktree management) |
+| Scheduling | node-cron |
+| Terminal | node-pty (TTY support) |
+| Remote Access | Cloudflare Tunnel (optional) |
 
 ---
 
-## 빠른 시작
+## Quick Start
 
 ```bash
 npm i -g clitrigger
 clitrigger
 ```
 
-첫 실행 시 비밀번호 설정 여부를 물어보고, 바로 서버가 시작된다.  
-브라우저에서 `http://localhost:3000` 접속 → 프로젝트 등록 → TODO 작성 → Start.
+On first run, you'll be prompted to set a password. Then the server starts immediately.
+Open `http://localhost:3000` → Register a project → Write TODOs → Click Start.
 
 ```bash
-# 설정 변경
-clitrigger config port 8080    # 포트 변경
-clitrigger config password     # 비밀번호 변경
+# Change settings
+clitrigger config port 8080    # Change port
+clitrigger config password     # Change password
 ```
 
-> **사전 요구사항**: Node.js 20+, Git, 사용할 AI CLI (Claude / Gemini / Codex 중 하나 이상)
+> **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
 >
-> **지원 플랫폼**: Windows · macOS · Linux — 모든 핵심 코드가 크로스 플랫폼 대응되어 있다.
-> macOS에서는 네이티브 모듈 빌드를 위해 `xcode-select --install`이 필요할 수 있다.
+> **Supported Platforms**: Windows · macOS · Linux — all core code is cross-platform compatible.
+> On macOS, you may need `xcode-select --install` for native module compilation.
 
-### 소스에서 직접 실행 (개발용)
+### Run from Source (for development)
 
 <details>
-<summary>클릭하여 펼치기</summary>
+<summary>Click to expand</summary>
 
 ```bash
-# 1. 클론 & 설치
+# 1. Clone & install
 git clone https://github.com/OSgoodYZ/CLITrigger.git
 cd CLITrigger
 npm install
 cd src/client && npm install && cd ../..
 
-# 2. 환경 설정
+# 2. Configure environment
 cp .env.example .env
-# .env 열어서 AUTH_PASSWORD 설정
+# Edit .env and set AUTH_PASSWORD
 
-# 3. 실행
+# 3. Run
 npm run dev
 ```
 
-브라우저에서 `http://localhost:5173` 접속.
+Open `http://localhost:5173`.
 
-#### Windows 원클릭 실행
+#### Windows One-Click Scripts
 
-`scripts/` 폴더의 bat 파일을 더블클릭하면 명령어 입력 없이 바로 실행된다.
+Double-click any bat file in `scripts/` — no terminal needed.
 
-| 파일 | 기능 |
-|------|------|
-| `install.bat` | 의존성 설치 (처음 한 번) |
-| `dev.bat` | 개발 모드 실행 |
-| `build.bat` | 빌드 |
-| `start.bat` | 프로덕션 서버 실행 |
-| `start-tunnel.bat` | 터널 모드 실행 |
-| `test.bat` | 전체 테스트 |
+| File | Action |
+|------|--------|
+| `install.bat` | Install dependencies (first time) |
+| `dev.bat` | Start development mode |
+| `build.bat` | Build project |
+| `start.bat` | Start production server |
+| `start-tunnel.bat` | Start with Cloudflare Tunnel |
+| `test.bat` | Run all tests |
 
 #### macOS / Linux
 
-`npm run` 명령어가 모든 플랫폼에서 동일하게 동작한다. `.bat` 스크립트 대신 터미널에서 직접 실행하면 된다.
+`npm run` commands work identically on all platforms. Use the terminal instead of `.bat` scripts.
 
 ```bash
-npm run dev        # 개발 모드
-npm run build      # 빌드
-npm run start      # 프로덕션 실행
-npm test           # 테스트
+npm run dev        # Development mode
+npm run build      # Build
+npm run start      # Production server
+npm test           # Run tests
 ```
 
 </details>
 
-### 외부 접속 (Cloudflare Tunnel)
+### Remote Access (Cloudflare Tunnel)
 
 ```bash
-# cloudflared 설치
+# Install cloudflared
 winget install cloudflare.cloudflared    # Windows
 brew install cloudflared                  # macOS
 
-# .env에서 TUNNEL_ENABLED=true 설정 후
+# Set TUNNEL_ENABLED=true in .env, then:
 npm run start:tunnel
-# → 콘솔에 https://xxxx.trycloudflare.com 출력
+# → Outputs https://xxxx.trycloudflare.com in the console
 ```
 
 ---
 
-## 문서
+## Documentation
 
-| 문서 | 내용 |
-|------|------|
-| [SETUP.md](docs/SETUP.md) | 상세 설치 및 사용 가이드 |
-| [CHANGELOG.md](docs/CHANGELOG.md) | 버전별 변경 이력 |
-| [CICD.md](docs/CICD.md) | GitHub Actions CI/CD 설정 |
-| [TESTING.md](docs/TESTING.md) | 테스트 가이드 |
+| Doc | Content |
+|-----|---------|
+| [SETUP.md](docs/SETUP.md) | Detailed installation and usage guide |
+| [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
+| [CICD.md](docs/CICD.md) | GitHub Actions CI/CD setup |
+| [TESTING.md](docs/TESTING.md) | Testing guide |
 
 ---
 
-## 라이선스
+## License
 
-[MIT](LICENSE) — 자유롭게 사용, 수정, 배포하세요.
+[MIT](LICENSE) — Free to use, modify, and distribute.
