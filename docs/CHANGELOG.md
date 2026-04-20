@@ -1,10 +1,302 @@
 # Changelog
 
-## 2026-04-14 — 파이프라인 기능 제거 + 커밋 상세 패널 추가
+## 2026-04-18 — PTY 어댑터화(Gemini/Codex 대화 수정) + Todo UI 롤백
 
 ### 배경
 
-사용하지 않는 파이프라인(다단계 순차/병렬 실행) 기능을 전면 제거하여 코드베이스를 경량화. Git 패널에서 커밋을 클릭하면 변경 파일 목록과 diff를 볼 수 있는 커밋 상세 패널 추가.
+Gemini TUI는 `\r\n`을 Enter로 인식하고, Claude/Codex는 `\r`만으로 입력이 제출됨. 기존 하드코딩 `\r` 치환으로 인해 Gemini 인터랙티브 모드에서 사용자 메시지가 제출되지 않고 입력창에 누적되던 버그를 어댑터별 PTY submit sequence 분리로 해결. 또한 4/16에 적용한 TodoItem CMD/터미널 스타일이 앱 전반과 이질적이라는 피드백에 따라 일반 카드 UI로 복구(터미널 스타일은 실제 CLI 스트림이 있는 영역에만 유지).
+
+### 주요 변경
+
+#### 1. PTY submit sequence를 어댑터별로 분리 (`69395e1`)
+
+- **서버**: `cli-adapters.ts` — `CliAdapter.stdinSubmitSequence` 필드 추가 (기본 `\r`, Gemini만 `\r\n` 오버라이드)
+- **서버**: `claude-manager.ts` — 모든 PTY write 경로(초기 프롬프트 즉시/지연 전달, WebSocket stdin relay, 5s delayStdin fallback)에서 어댑터의 submit sequence 사용
+
+#### 2. CLI trust/update 프롬프트 자동 응답을 어댑터 레벨로 일반화 (`bfe3d29`)
+
+- **서버**: `cli-adapters.ts` — `delayStdinUntilReady`, `readyIndicatorPattern`, `AutoRespondRule[]` (blocking/non-blocking) 추가
+  - Claude: 기존 trust-Enter 규칙을 새 형식으로 포팅
+  - Gemini: welcome-screen ready 패턴, "Trust folder" 자동 확인(`1\r` 전송), 업데이트 프롬프트 거부 규칙 추가. 첫 실행 시 trust 다이얼로그가 사용자 초기 프롬프트를 삼키던 문제 해결
+  - Codex: TUI 커서 ready 패턴 기반 delayStdin 활성화 (rule 목록은 placeholder)
+- **서버**: `claude-manager.ts` — Claude 전용 trust regex 블록을 `adapter.autoRespondRules` 순회로 치환, trust clear 시 `stdinDelivered` 리셋(Gemini의 trust 승인 후 in-process restart 대응)
+
+#### 3. Codex/Gemini 세션 재개 + Interactive 모드 복구 (`13979fb`)
+
+- **서버**: `cli-adapters.ts` — Codex 어댑터가 `continueSession` 시 `exec resume --last` 발행, interactive 모드에서는 `exec` 서브커맨드 생략하고 top-level `codex` TUI 기동
+- **서버**: `cli-adapters.ts` — Gemini 어댑터가 `continueSession` 시 `--resume latest` 발행
+- **서버**: `claude-manager.ts` — PTY 분기 조건을 Claude 전용에서 interactive 모드 전체로 확대 (Codex/Gemini interactive 세션이 pipe 대신 진짜 TTY 획득)
+- **테스트**: Codex resume, Gemini resume, Codex interactive args에서 `exec` 제외 케이스 커버리지 추가
+
+#### 4. TodoItem 확장 섹션 UI 롤백 — 터미널 스타일 → 일반 카드 UI (`cc0f502`)
+
+- **클라이언트**: `TodoItem.tsx` — 4/16의 CMD/터미널 래퍼(트래픽 라이트, `$ cat task.md` 등)를 제거하고 설명/브랜치/결과/diff 섹션을 Tailwind 카드/라벨/리스트로 재작성
+- **클라이언트**: 터미널 스타일은 실제 CLI 스트림이 있는 영역에만 유지 — `$ tail -f task.log` LogViewer 래퍼, FAILED 에러 블록
+- **클라이언트**: 결과 섹션에 stats chips(duration/commits/files/tokens) + 커밋 리스트 + 변경 파일 리스트(상태별 컬러 뱃지)
+- **클라이언트**: 액션 에러 메시지를 CMD inline 문자열에서 status-error chip 카드로 변경
+- **i18n**: `todo.worktree`, `todo.result` 키 추가
+
+#### 5. 더 보기 메뉴에서 Diff 클릭 시 자동 확장 (`0114bfe`)
+
+- **클라이언트**: `TodoItem.tsx` — `handleViewDiff`가 성공/실패 모두에서 `setExpanded(true)` 호출 (접힌 상태에서 더 보기 메뉴로 Diff 트리거 시 결과가 보이지 않던 버그 수정)
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/cli-adapters.ts` | `stdinSubmitSequence`, `delayStdinUntilReady`, `readyIndicatorPattern`, `autoRespondRules` 추가; Codex/Gemini resume 및 interactive args 분기 |
+| `src/server/services/claude-manager.ts` | 어댑터 기반 PTY submit/autoRespond 루프, interactive 모드 PTY 확장 |
+| `src/client/src/components/TodoItem.tsx` | 확장 섹션 카드형 UI 복원, Diff 클릭 자동 확장 |
+| `src/server/services/__tests__/cli-adapters.test.ts` | Codex/Gemini resume·interactive 테스트 추가 |
+
+### 아키텍처 결정
+
+1. **PTY 입력 시퀀스 어댑터화**: 기존 Claude 기준 하드코딩을 제거하고 어댑터가 "CLI의 TUI가 기대하는 Enter 문자"를 선언하도록 변경. Gemini(`\r\n`), Claude/Codex(`\r`) 등 CLI별 차이를 adapter.ts 하나에 격리
+2. **Auto-respond 규칙 일반화**: trust/update 프롬프트 자동 응답을 Claude 전용 분기에서 `AutoRespondRule[]` 배열로 일반화하여 신규 CLI 추가 시 규칙만 선언하면 되는 구조. blocking 규칙은 초기 프롬프트를 gating, non-blocking 규칙은 중간에 삽입되는 다이얼로그에 응답
+3. **Todo 확장 UI 카드 복귀**: 전체 앱 톤과 이질적인 터미널 래퍼를 제거하되 실제 로그 스트림이 있는 영역에만 CMD 스타일 유지. "정보 패널"과 "터미널 스트림"을 시각적으로 구분
+
+---
+
+## 2026-04-17 — CLI 모델 레지스트리 + Gemini/Codex Interactive + 대화형 로그 뷰어 + 세션 Cleanup
+
+### 배경
+
+프로젝트/TODO 설정에서 하드코딩된 모델 목록을 CLI 자체에서 동기화 받아 deprecated 모델을 표시하고, Gemini/Codex도 세션 탭에서 인터랙티브로 사용 가능하도록 확장. 기존 LogViewer는 모든 출력을 평면 `[OUT]` 라인으로만 표시하여 대화 흐름을 따라가기 어려웠던 문제를 Chat/Raw 모드 토글로 해결. 세션에도 워크트리 cleanup 버튼 추가.
+
+### 주요 변경
+
+#### 1. CLI 모델 레지스트리 + deprecated 자동 감지 (`813797f`, `ebe4a8f`, `8b461bc`, `5ba031e`, `da1cf55`, `d232d46`, `8d719e2`)
+
+- **서버**: `model-sync.ts` 신규 — CLI `--help` 파싱 + `src/server/data/cli-models-registry.json` 레지스트리 fallback을 병합(probe 결과 없으면 레지스트리 사용, 있으면 probe 결과로 보강)
+- **DB**: `cli_versions` 테이블 + `cli_models.deprecated`, `cli_models.source` 컬럼 추가
+- **서버**: `cli-status.ts` — 버전 체크 시 fire-and-forget으로 모델 동기화 트리거
+- **클라이언트**: `ModelSettings`, `ProjectHeader`에 deprecated 뱃지 + 포털 기반 tooltip으로 fix guidance 표시
+- **빌드**: `build:server`에서 `src/server/data/`를 `dist/server/data/`로 복사(레지스트리 패키징)
+- **.gitignore**: `data/` → `/data/`로 좁혀 서버 데이터 디렉토리 추적
+
+#### 2. Gemini/Codex Interactive 모드 활성화 (`8ad5ad5`)
+
+- **서버**: `cli-adapters.ts` — Gemini/Codex 어댑터에 `supportsInteractive: true` 추가
+- **클라이언트**: `cli-tools.ts` 동기화 (세션 폼 드롭다운에서 Claude 외에도 선택 가능)
+
+#### 3. 대화형 로그 뷰어 — Chat/Raw 모드 토글 (`a3f5554`)
+
+- **서버**: `log-streamer.ts` — Claude stream-json 이벤트를 평면 `output`이 아닌 `assistant`/`tool_use`/`tool_result` 타입으로 분류, 전체 텍스트 블록을 개행 분리 없이 단일 엔트리로 저장
+- **서버**: `session-manager.ts` — 인터랙티브 PTY 출력에 휴리스틱 분류 적용 (● 프리픽스를 assistant 텍스트로, `[Tool:]`/⏺ 패턴을 tool_use로 감지, 연속된 assistant 라인을 하나의 블록으로 누적)
+- **클라이언트**: `LogViewer.tsx` 재작성 — Chat 모드(마크다운 assistant 블록 + `▸`/`▾` 접이식 tool_use) / Raw 모드(기존 평면 터미널 뷰). 로그 타입에 따라 자동 모드 감지
+- **클라이언트**: `.markdown-content-dark` CSS 추가 (다크 터미널 배경용 마크다운 스타일)
+- **PTY 필터**: `pty-output-filter.ts` — 번호 프롬프트 에코(`3> ...`), CLI 상태 바, thinking 애니메이션, block char + 사이드바 텍스트 조합, 워크트리 경로, TUI 메뉴/모드 지시자(☰ ○) 등 노이즈 패턴 확장
+- **타입**: `TaskLog.log_type`, `SessionLog.log_type` 유니온 확장
+- **i18n**: Chat/Raw 토글 번역 키 추가
+
+#### 4. PTY 스피너/TUI 노이즈 필터 강화 (`77a4fdb`, `6063ad9`, `23849ce`, `2b55f15`)
+
+- **서버**: `pty-output-filter.ts` — 연속 스피너 프레임 접합, 베어 `\r` 애니메이션 라인, 단일 스피너 프리픽스 단편 redraw 필터링
+- **서버**: 커서 시퀀스를 제거할 때 공백으로 치환하여 단어 간격 보존 (기존에는 공백이 전부 사라져 단어 경계가 붙던 문제)
+
+#### 5. 세션 워크트리 Cleanup 버튼 + 브랜치 삭제 확인 (`56dc48d`, `fa723aa`, `b2fb1e0`, `ac80db4`)
+
+- **서버**: `POST /api/sessions/:id/cleanup` 엔드포인트 추가
+- **서버**: `worktreeManager.cleanupWorktree()`에 `deleteBranch` 파라미터 추가 (기본 true, false면 브랜치 보존)
+- **서버**: todo/session cleanup 엔드포인트가 body의 `delete_branch` 수용, false면 DB에 `branch_name` 보존
+- **클라이언트**: `SessionList.tsx` — 워크트리 존재 + 실행 중이 아닐 때 Archive 아이콘 버튼 표시
+- **클라이언트**: `TodoItem`/`SessionList` — 브랜치 삭제 전 `confirm()` 다이얼로그 (기본 체크), 워크트리 없는 세션에는 cleanup 버튼 숨김
+- **i18n**: `session.cleanup`, `cleanup.confirmDeleteBranch` 추가
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/model-sync.ts` | **신규** — CLI --help 파싱 + 레지스트리 fallback/병합 |
+| `src/server/data/cli-models-registry.json` | **신규** — Claude/Gemini/Codex 기본 모델 목록 |
+| `src/server/services/cli-status.ts` | 버전 체크 시 model sync fire-and-forget 트리거 |
+| `src/server/services/cli-adapters.ts` | Gemini/Codex `supportsInteractive: true` |
+| `src/server/services/log-streamer.ts` | stream-json 이벤트 타입 분류 (assistant/tool_use/tool_result) |
+| `src/server/services/session-manager.ts` | 인터랙티브 PTY 출력 휴리스틱 분류 + `/cleanup` 지원 |
+| `src/server/services/pty-output-filter.ts` | 스피너/TUI 노이즈 패턴 대거 추가 |
+| `src/server/services/worktree-manager.ts` | `cleanupWorktree(path, deleteBranch?)` |
+| `src/server/routes/sessions.ts` | `POST /:id/cleanup` 라우트 |
+| `src/server/db/schema.ts` | `cli_versions` 테이블, `cli_models.deprecated/source` 컬럼 |
+| `src/client/src/components/LogViewer.tsx` | Chat/Raw 이중 모드 렌더링 |
+| `src/client/src/components/ModelSettings.tsx` | deprecated 뱃지 + tooltip |
+| `src/client/src/components/ProjectHeader.tsx` | deprecated 모델 경고 tooltip (포털) |
+| `src/client/src/components/SessionList.tsx` | cleanup 버튼 추가 |
+
+### 아키텍처 결정
+
+1. **모델 레지스트리 + probe 병합**: probe만 사용하면 CLI가 `--help` 포맷을 바꿀 때 빈 리스트가 되고, 레지스트리만 사용하면 신규 모델이 누락됨. 둘을 병합(union)하여 안정성과 최신성을 동시에 확보
+2. **대화 로그 분류**: 로그를 DB에 저장할 때부터 의미 있는 타입(assistant/tool_use/tool_result)으로 분류해두어 클라이언트 렌더링 비용 최소화. 기존 flat `output`만 있는 레거시 로그는 Raw 모드로 fallback
+3. **PTY 필터 패턴 누적**: 스피너/TUI는 CLI 업데이트마다 새 패턴이 추가되므로 `pty-output-filter.ts`에 패턴을 누적 등록하는 방식 유지 (개별 라인 차단 vs 라인 정규화 방식 혼용)
+4. **Cleanup 브랜치 보존 옵션**: 워크트리 정리가 항상 브랜치를 삭제하는 기존 동작이 과도했음. confirm 다이얼로그로 "브랜치도 삭제" 여부를 명시적으로 받아 git 이력 보존 가능
+
+---
+
+## 2026-04-16 — 세션(Session) 탭 승격 + Planner 신규 + Git 워크트리 UI + 디자인 시스템 재정비
+
+### 배경
+
+인터랙티브 모드는 기존엔 TODO의 실행 옵션 중 하나였지만, "자동 실행(TODO)"과 "수동 대화(세션)"의 개념을 명확히 구분하기 위해 세션을 독립 엔티티로 승격(토론과 동일한 패턴). 피쳐/태그 중심의 경량 작업 관리를 위해 Planner 탭을 신규 추가. Git 패널 사이드바에 활성 워크트리 섹션을 추가해 todo/discussion 워크트리를 Git UI에서 직접 정리할 수 있게 함. 동시에 인라인 SVG 115개를 lucide-react로 전환하고 Modal/EmptyState/Toast/Skeleton 공용 컴포넌트를 도입, AnalyticsPanel의 차트를 Recharts로 교체.
+
+### 주요 변경
+
+#### 1. 세션(Session) 탭 신규 — 인터랙티브 모드의 독립 엔티티화 (`798682d`, `0cd78b4`)
+
+- **DB**: `sessions`, `session_logs` 테이블 + CRUD 쿼리 12개 함수 (`use_worktree` 포함)
+- **서버**: `session-manager.ts` 신규 — `claudeManager`/`logStreamer` 래퍼 + 워크트리 생성/재사용/실패 정리
+- **서버**: `routes/sessions.ts` 신규 — 8개 REST 엔드포인트 (CRUD + start/stop/cleanup)
+- **WebSocket**: `session:stdin` 핸들러 + `session:status-changed`/`session:log` 이벤트
+- **서버**: 서버 시작 시 stale 세션 복구 + `session_logs` 자동 정리
+- **클라이언트**: `SessionList.tsx`(목록 + 인라인 터미널), `SessionForm.tsx`(생성 폼 + Git 저장소일 때만 워크트리 체크박스)
+- **클라이언트**: `ProjectDetail`에 세션 탭/상태/핸들러/WebSocket 이벤트 통합
+- **i18n**: 기존 "작업" → "자동 작업" 탭 이름 변경, 세션 관련 번역 키 추가
+
+#### 2. Planner 신규 기능 — CRUD + 태그 + TODO/스케줄로 변환 (`02a08d6`, 및 20여개 WIP 커밋)
+
+- **DB**: `planner_items`, `planner_tags` 테이블 추가
+- **서버**: `routes/planner.ts` 신규 — 아이템 CRUD + 태그 관리 + convert-to-todo/convert-to-schedule 엔드포인트
+- **클라이언트**: `PlannerList.tsx`, `PlannerItem.tsx`, `PlannerForm.tsx`, `PlannerConvertDialog.tsx` 신규
+- **클라이언트**: `ProjectDetail`에 Planner 탭 추가 (탭 바 첫 위치)
+- **기능**: 인라인 편집(클릭 시 편집 모드), 컬럼 정렬(제목/우선순위/태그), 우선순위 컬럼, 태그 자동 색상 할당(10색 순환), 태그 인라인 색상 피커, 태그 rename/삭제, 쉼표 delimiter, Enter 동작, 이미지 첨부, 삭제 시 디스크 정리, 포털 기반 액션 메뉴
+- **변환**: 플래너 아이템을 CLI 도구/모델 선택하여 TODO 또는 스케줄로 변환
+- **i18n**: 한/영 번역 104개 키
+
+#### 3. Git 사이드바 워크트리 섹션 + 브랜치 컨텍스트 메뉴 (`b12755b`, `35d4512`)
+
+- **서버**: `GET /api/projects/:id/worktrees` (메인 워크트리 제외), `POST /api/projects/:id/worktree-cleanup`
+- **클라이언트**: `GitStatusPanel.RefsSidebar` — Worktrees 접이식 섹션(폴더 아이콘, 브랜치명, hover 시 삭제 버튼, confirm 다이얼로그)
+- **클라이언트**: 사이드바 로컬 에러를 상위 패널의 전체 너비 배너로 이동(truncate 문제 해결)
+
+#### 4. UI 일관성 전면 개선 — Modal/EmptyState/Toast/Skeleton 공용 컴포넌트 + Recharts (`cf1a41e`)
+
+- **신규 컴포넌트**: `Modal`(createPortal, sm/md/lg/xl, ESC 닫기, 애니메이션), `EmptyState`(아이콘+제목+설명+CTA), `Toast` + `useToast`(progress bar, slide-in, 4가지 타입), `Skeleton`
+- **신규 유틸**: `lib/cn.ts` (조건부 클래스 조합)
+- **AnalyticsPanel**: 직접 구현한 div 차트를 Recharts로 교체 (BarChart 스택드, 도넛 PieChart, cost/tokens 탭 LineChart)
+- **마이그레이션**: 7개 모달 → Modal 컴포넌트, 7개 빈 상태 → EmptyState 컴포넌트, 전체 `text-[10px]`→`text-2xs`, `z-[9999]`→`z-tooltip`, `z-[60]`→`z-sticky`
+- **tailwind.config.js**: z-index 시맨틱 스케일(dropdown/modal/toast/tooltip), `z-overlay:30`
+- **index.css**: `text-2xs` 유틸, `btn-md` 사이즈, `btn-primary` 리플 이펙트, `toastProgress` 키프레임, stagger 애니메이션(30ms 간격)
+
+#### 5. lucide-react 아이콘 전환 + MoreMenu 포털 수정 (`378425b`, `c313760`, `125e217`, `24d34ba`, `a649eb4`)
+
+- **의존성**: `lucide-react` 추가
+- **마이그레이션**: 24개 컴포넌트의 인라인 SVG 115개를 Lucide 아이콘으로 교체 (Sidebar/Layout/StatusBadge/ProjectList/TodoItem/DiscussionList 등 대부분 컴포넌트)
+- **MoreMenu 수정**: `createPortal` + `offsetWidth` 기반 뷰포트 clamp + `positioned` state로 opacity 0→1 전환 (카드 영역 overflow-hidden 클리핑, 뷰포트 이탈, 위치 점프 버그 일괄 해결)
+- **i18n**: 6개 메뉴 키의 긴 설명을 라벨 + Desc 키로 분리하고 tooltip으로 이동
+
+#### 6. UI 디자인 리프레시 (대량 커밋들)
+
+- **홈페이지 파티클**: 파티클 배경을 홈에서 `Layout`으로 이동하여 전체 페이지에 적용 (`fbbaf4b`)
+- **버튼 위계**: btn-primary를 차분한 outlined 스타일로, Run All/Stop All을 ghost 스타일로, 그라디언트 제거 플랫 복원 (`728bf64`, `64acecf`, `57ae179`)
+- **색상 통일**: 뱃지/그래프 노드 중성톤 통일, 중성톤 CLI tool 뱃지, dark/light 모드 시각적 계층 강화 (`a5804f0`, `638d812`, `b8be2da`, `5330fc8`)
+- **Select 다크 모드**: 모든 `<select>`에 `color-scheme` 적용 + 옵션 다크 배경/텍스트 직접 지정 (`a0b3d5d`, `230a88b`, `8942860`)
+- **Hero header + segmented tabs**: 프로젝트 헤더 리디자인 + 사이드바 레이아웃 + 액션 정리 (`f20142b`, `0866c0a`)
+- **Dependency rail + 사이드바 압축**: TodoItem 헤더 최소화, 확장 영역 패널화, 의존성 rail 추가 (`474bc11`, `12dace9`)
+- **CMD/터미널 스타일 Todo** (`d5609e4`, `2bef9ee`): 이후 4/18에 롤백됨(롤백 기록은 4/18 엔트리 참조)
+
+#### 7. Planner 이미지 첨부 + 태그 관리 (`8b859ae`, `caabb7a`, `a2b5835`)
+
+- 플래너 아이템에 이미지 첨부 지원 + 삭제 시 디스크 정리
+- 태그 색상 관리(색상 피커, 색상 사이클, 저장 시점에 인라인 적용), rename, 삭제 기능
+- 태그 제안 개선 (색상 코딩, 항상 표시)
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/db/schema.ts` | `sessions`, `session_logs`, `planner_items`, `planner_tags` 테이블 추가 |
+| `src/server/services/session-manager.ts` | **신규** — 인터랙티브 세션 매니저 |
+| `src/server/routes/sessions.ts` | **신규** — 세션 REST API (CRUD + start/stop/cleanup) |
+| `src/server/routes/planner.ts` | **신규** — Planner REST API (CRUD + tags + convert) |
+| `src/server/routes/projects.ts` | 워크트리 listing/cleanup 엔드포인트 추가 |
+| `src/server/index.ts` | sessions/planner 라우터 마운트, stale 세션 복구 |
+| `src/server/websocket/index.ts` | `session:stdin`/`session:log`/`session:status-changed` |
+| `src/client/src/components/SessionList.tsx` | **신규** — 세션 목록 + 인라인 터미널 |
+| `src/client/src/components/SessionForm.tsx` | **신규** — 세션 생성 폼 |
+| `src/client/src/components/PlannerList.tsx` | **신규** — Planner 목록 |
+| `src/client/src/components/PlannerItem.tsx` | **신규** — Planner 아이템 (인라인 편집) |
+| `src/client/src/components/PlannerForm.tsx` | **신규** — Planner 생성 폼 |
+| `src/client/src/components/PlannerConvertDialog.tsx` | **신규** — TODO/스케줄 변환 |
+| `src/client/src/components/Modal.tsx` | **신규** — 공용 모달 (포털) |
+| `src/client/src/components/EmptyState.tsx` | **신규** — 공용 빈 상태 |
+| `src/client/src/components/Toast.tsx` | **신규** — 공용 토스트 |
+| `src/client/src/components/Skeleton.tsx` | **신규** — 스켈레톤 로딩 |
+| `src/client/src/components/AnalyticsPanel.tsx` | Recharts 기반 재작성 |
+| `src/client/src/components/GitStatusPanel.tsx` | Worktrees 사이드바 섹션, 브랜치 컨텍스트 메뉴 연동 |
+| `src/client/src/hooks/useToast.ts` | **신규** — 토스트 dispatcher |
+| `src/client/src/lib/cn.ts` | **신규** — 조건부 클래스 유틸 |
+| `src/client/tailwind.config.js` | z-index 시맨틱 스케일 (dropdown/modal/toast/tooltip) |
+| `src/client/package.json` | `lucide-react`, `recharts` 추가 |
+
+### 아키텍처 결정
+
+1. **세션 = 토론 패턴 복제**: 기존 토론(Discussion)이 라운드/에이전트 기반 서비스를 독립 테이블+라우트+매니저로 구성한 것과 동일하게 세션도 `sessions` 테이블 + `session-manager.ts` + `routes/sessions.ts`로 분리. TODO의 실행 모드 옵션에서 빼내어 "자동/수동" 구분을 UX 레벨에서 명확히 함
+2. **Planner 경량화**: Planner는 tsup-like CRUD만 제공하고, 실제 실행은 기존 TODO/스케줄로 변환하여 위임. 별도 실행 엔진 도입 없이 기존 인프라 재활용
+3. **공용 UI 컴포넌트 도입**: Modal/EmptyState/Toast/Skeleton을 컴포넌트 테이블에 등록. 각 화면에서 reinvent 되던 패턴을 일원화하여 "floating elements must render via portal" 규칙 준수도 구조적으로 강제
+4. **Recharts 채택**: AnalyticsPanel은 pure CSS div 차트로 시작했지만 인터랙션(툴팁, legend toggle)과 시맨틱 축을 제공하기 어려워 Recharts 도입. 번들 사이즈는 lazy-loaded panel에 한정
+5. **Git 사이드바 워크트리 = todo cleanup 재활용**: 별도 UI 패턴 만들지 않고 기존 todo cleanup의 hover 삭제 버튼 + confirm 패턴을 그대로 사용
+
+---
+
+## 2026-04-15 — Glassmorphism + Skeleton + 인라인 프로젝트명 수정 + Rate Limit 자동 재스케줄
+
+### 배경
+
+Apple 스타일 디자인 시스템(4/7) 후속으로 glassmorphism, micro-interactions, 다층 그림자, 순차 등장 애니메이션을 도입하여 시각적 만족감 강화. 프로젝트 이름은 생성 시 고정되어 수정이 불가능하던 제약 해결. Claude CLI의 rate limit 소진 시 창구 리셋 시점에 자동으로 태스크를 재시도하는 스케줄링 추가.
+
+### 주요 변경
+
+#### 1. UI 디자인 업그레이드 — glassmorphism + skeleton + 애니메이션 (`b35d89d`, `3637bb1`, `b2c9c3f`, `51e10f5`, `4cf739f`)
+
+- **클라이언트**: `index.css` 다층 그림자 변수(elevated, card hover용), 카드 상단 하이라이트 + 호버 부상 애니메이션
+- **클라이언트**: `tailwind.config.js` — slide-up/slide-down/scale-in/shimmer 등 cubic-bezier 기반 애니메이션 키프레임
+- **클라이언트**: `index.css` 전역 전환 효과 — 모든 버튼/링크/입력에 0.3s cubic-bezier 적용
+- **클라이언트**: 프로젝트 목록/토론 목록 stagger 애니메이션 (50ms 간격으로 카드 slide-up)
+- **클라이언트**: `ProjectForm` 모달에 backdrop-blur + scale-up 애니메이션
+- **클라이언트**: `Skeleton.tsx` 신규 + `App`/`ProjectList`/`ProjectDetail`/`DiscussionDetail`/`NotionPanel`/`AnalyticsPanel`에 스켈레톤 로딩 상태 적용
+- **클라이언트**: glass/glass-card CSS — `@apply` 호환성 버그 수정(opacity 클래스 분리), 다크 모드 배경색 수정
+
+#### 2. 프로젝트 이름 인라인 수정 (`d2ce584`)
+
+- **클라이언트**: `ProjectHeader.tsx` — h1 클릭 시 인라인 input 전환 (Enter 저장, Escape 취소, blur 자동 저장, hover 시 연필 아이콘 힌트)
+- **i18n**: `header.editName` 추가
+
+#### 3. Rate Limit 리셋 시점 자동 재스케줄 (`e2a1ecf`, `74fe7f9`, `4b3ae98`, `a219c59`)
+
+- **서버**: `log-streamer.ts` — Claude stream-json의 `rate_limit_event` 파싱, WebSocket으로 브로드캐스트
+- **서버**: 서버 시작 시 rate limit reset 시각 fetch하여 복구
+- **서버**: `GET /api/rate-limit` (현재 reset 시각 조회), `POST /api/todos/:id/schedule-on-reset` (리셋 시점 1회성 스케줄 생성)
+- **클라이언트**: `TodoItem.tsx` — rate-limit 상태일 때 "리셋 시점에 실행 예약" UI 표시. pending/failed/stopped 등 startable 상태 모두에 제공
+- **i18n**: 한/영 번역 키 추가
+
+#### 4. JSON 에러 응답 파싱 + 기타 버그 수정 (`9f8d5ad`, `40ed6fa`)
+
+- **클라이언트**: `api/client.ts` — 응답 body의 JSON 에러를 파싱하여 가독성 있는 메시지로 표시
+- **클라이언트**: 브랜치 컨텍스트 메뉴 클릭이 액션 트리거되지 않던 버그 수정
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/client/src/index.css` | 다층 그림자, 글래스모피즘, stagger 애니메이션, 글로벌 전환 |
+| `src/client/tailwind.config.js` | slide-up/scale-in/shimmer 애니메이션 키프레임 |
+| `src/client/src/components/Skeleton.tsx` | **신규** — 스켈레톤 로딩 컴포넌트 |
+| `src/client/src/components/ProjectHeader.tsx` | 이름 인라인 편집 모드 |
+| `src/server/services/log-streamer.ts` | rate_limit_event 파싱 + WebSocket 브로드캐스트 |
+| `src/server/routes/schedules.ts` | `/rate-limit`, `/todos/:id/schedule-on-reset` 엔드포인트 |
+| `src/server/index.ts` | 서버 시작 시 rate limit reset 시각 fetch |
+| `src/client/src/components/TodoItem.tsx` | rate-limit 재스케줄 UI |
+
+### 아키텍처 결정
+
+1. **Rate limit 1회성 스케줄 위임**: rate limit 복구 로직을 별도 서비스가 아닌 기존 `schedule_runs` 인프라 위에 1회성 스케줄로 구현. scheduler는 이미 실행/만료 처리를 담당하므로 재사용
+2. **Stagger 애니메이션 CSS 기반**: JS 기반 staggered reveal 대신 CSS `animation-delay`로 처리하여 리액트 리렌더링 비용 0
+
+---
+
+## 2026-04-14 — 파이프라인 제거 + 커밋 상세 패널 + 실행 분석 대시보드 + CLI 설치 체크 + 브라우저 알림 + Git 브랜치 컨텍스트 메뉴
+
+### 배경
+
+사용하지 않는 파이프라인(다단계 순차/병렬 실행) 기능을 전면 제거하여 코드베이스를 경량화. Git 패널에서 커밋을 클릭하면 변경 파일 목록과 diff를 볼 수 있는 커밋 상세 패널 추가. 프로젝트별 실행 통계와 비용 추적을 위한 분석 대시보드 추가. CLI 도구 미설치 시 cryptic spawn 오류 대신 설정 패널에서 설치 상태를 사전 감지. 긴 태스크/토론 완료를 OS 레벨 알림으로 수신. Git 사이드바 브랜치에 VS Code 스타일 컨텍스트 메뉴 추가.
 
 ### 주요 변경
 
@@ -21,6 +313,57 @@
 - **클라이언트**: `api/pipelines.ts` 삭제, `types.ts` 파이프라인 타입 제거
 - **i18n**: 파이프라인 관련 번역 키 94개 제거
 - **WebSocket**: 파이프라인 이벤트 타입 제거
+
+#### 1-2. 실행 분석 대시보드 — 비용/토큰 비정규화 추적 (`7bd9126`)
+
+프로젝트별 태스크 실행 통계(성공률, CLI별 비용 분해, 일별 활동 차트)를 표시하는 Analytics 탭 추가. `todos.total_cost_usd`/`total_tokens` 비정규화 컬럼으로 JSON 파싱 없이 순수 SQL 집계.
+
+- **DB**: `todos`에 `total_cost_usd` (REAL), `total_tokens` (INTEGER) 컬럼 추가
+- **서버**: `orchestrator.ts` — 성공/실패 양쪽 경로에서 비정규화 cost/token 값 저장
+- **서버**: `GET /api/projects/:id/analytics` — 기간 필터(7d/30d/90d/all), summary/CLI별 분해/일별 집계/상태 분포
+- **클라이언트**: `AnalyticsPanel.tsx` 신규 — summary 카드 + 바 차트 + 툴팁 (이후 4/16에 Recharts로 교체)
+- **클라이언트**: `ProjectDetail`에 Analytics 탭 추가
+- **i18n**: 한/영 번역 22개 키
+
+#### 1-3. CLI 설치 상태 체크 (`dc2f0cc`)
+
+프로젝트 설정 열릴 때 `--version`으로 CLI 가용성 확인 후 설치 가이드 표시. 태스크 실행 전 사전 감지.
+
+- **서버**: `cli-status.ts` 신규 — 병렬 version 체크 + 60초 캐싱
+- **서버**: `GET /api/cli/status`, `POST /api/cli/status/refresh`
+- **클라이언트**: `ProjectHeader`에 CLI 상태 인디케이터(녹색/빨강 + 버전) + 미설치 시 npm install 명령 배너 + refresh 버튼
+
+#### 1-4. 브라우저 알림 — 태스크/토론 완료 (`34ef7ec`)
+
+긴 작업 완료를 OS 레벨 알림으로 수신. 사이드바 토글 + localStorage 영속.
+
+- **클라이언트**: `useNotification` 훅 신규 — Context + Provider (useTheme 패턴), permission 요청 플로우, stable `sendNotification` ref
+- **클라이언트**: `Sidebar`에 bell 아이콘 토글 (on일 때 accent fill, 차단 시 tooltip)
+- **클라이언트**: `ProjectDetail`(todo + discussion), `DiscussionDetail` — completed/failed 이벤트에 알림 디스패치
+- **i18n**: 알림 메시지/토글 라벨
+
+#### 1-5. Git 브랜치 컨텍스트 메뉴 (`eb2fd88`)
+
+Git 사이드바 브랜치에 우클릭 VS Code 스타일 컨텍스트 메뉴 추가.
+
+- **클라이언트**: 로컬 브랜치 메뉴 — checkout, merge into current, rebase onto, fetch, pull, push, rename, delete
+- **클라이언트**: 원격 브랜치 메뉴 — local tracking으로 checkout, merge, fetch
+- **클라이언트**: 브랜치 rename 모달 (Enter 지원, 현재 이름 prefill)
+- **서버**: `worktree-manager.ts` — `gitRenameBranch`, `gitRebase` 메서드
+- **서버**: `POST /api/projects/:id/git-branch-rename`, `/git-rebase`
+- **클라이언트**: 뷰포트 인식 메뉴 포지셔닝 (화면 가장자리 자동 조정)
+
+#### 1-6. 프로젝트 open-folder 버튼 (`7acc782`)
+
+- **서버**: `POST /api/projects/open-folder` — OS별 파일 탐색기 열기 (Windows/macOS/Linux)
+- **클라이언트**: `ProjectHeader` 경로를 텍스트에서 폴더 아이콘 + 클릭 가능 버튼으로 교체
+
+#### 1-7. Gemini headless 모드 Windows 수정 (`81fcce7`, `dc70fcf`)
+
+Windows에서 Gemini CLI가 `-p ""` 형식 인자를 해석하지 못해 headless 모드가 실패하던 문제 해결.
+
+- **서버**: `cli-adapters.ts` — Gemini가 `--prompt=`(equals 형식)으로 prompt를 전달하도록 변경
+- **서버**: headless mode에서 `-p` flag에 빈 문자열 전달
 
 #### 2. 커밋 상세 패널 — 파일 목록 + Diff 뷰어 (`1828a7b`)
 
