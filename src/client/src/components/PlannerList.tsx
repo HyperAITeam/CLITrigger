@@ -137,7 +137,7 @@ export default function PlannerList({
           <span className="ml-1 text-warm-400">{plannerItems.length}</span>
         </h2>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select className="input-field text-xs py-1.5 px-2" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
             <option value="">{t('planner.filterTag')}</option>
             {tagNames.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}
@@ -184,7 +184,7 @@ export default function PlannerList({
           )}
 
           {!showForm && !editItem && (
-            <button onClick={() => setShowForm(true)} className="btn-primary text-xs py-2 whitespace-nowrap">
+            <button onClick={() => setShowForm(true)} className="btn-primary text-xs py-2 whitespace-nowrap shrink-0">
               <Plus size={14} className="inline-block shrink-0" />
               {t('planner.add')}
             </button>
