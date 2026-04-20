@@ -992,13 +992,13 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                       if (confirm(t('git.confirmCleanupWorktree').replace('{name}', wt.branch))) {
                         setCleaningWorktree(wt.path);
                         setBusy(true);
-                        setActionError(null);
+                        onError(null);
                         projectsApi.cleanupWorktree(projectId, wt.path, wt.branch)
                           .then(() => {
                             setWorktrees(prev => prev.filter(w => w.path !== wt.path));
                             onRefresh();
                           })
-                          .catch(err => setActionError(err instanceof Error ? err.message : 'Error'))
+                          .catch(err => onError(err instanceof Error ? err.message : 'Error'))
                           .finally(() => { setCleaningWorktree(null); setBusy(false); });
                       }
                     }}

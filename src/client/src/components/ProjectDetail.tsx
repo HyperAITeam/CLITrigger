@@ -260,7 +260,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     );
   }, []);
 
-  const handleCleanupTodo = useCallback(async (todoId: string, deleteBranch: boolean) => {
+  const handleCleanupTodo = useCallback(async (todoId: string, deleteBranch: boolean = false) => {
     await todosApi.cleanupTodo(todoId, deleteBranch);
     setTodos((prev) =>
       prev.map((t) =>

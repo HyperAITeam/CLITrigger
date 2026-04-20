@@ -42,15 +42,15 @@ describe('StatusBadge', () => {
     expect(screen.getByText('Merged')).toBeInTheDocument();
   });
 
-  it('should show pulse animation for running status', () => {
+  it('should show spin animation for running status', () => {
     const { container } = renderWithProviders(<StatusBadge status="running" />);
-    const pulseElement = container.querySelector('.animate-pulse');
-    expect(pulseElement).toBeInTheDocument();
+    const spinElement = container.querySelector('.animate-spin');
+    expect(spinElement).toBeInTheDocument();
   });
 
-  it('should not show pulse animation for non-running status', () => {
+  it('should not show spin animation for non-running status', () => {
     const { container } = renderWithProviders(<StatusBadge status="completed" />);
-    const pulseElement = container.querySelector('.animate-pulse');
-    expect(pulseElement).not.toBeInTheDocument();
+    const spinElement = container.querySelector('.animate-spin');
+    expect(spinElement).not.toBeInTheDocument();
   });
 });
