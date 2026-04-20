@@ -451,9 +451,10 @@ export default function TodoList({
       </div>
 
       <div
-        className={`space-y-3 ${isStacked ? 'cursor-pointer pb-16' : ''}`}
+        className={isStacked ? 'relative cursor-pointer' : 'space-y-3'}
         onClick={isStacked ? handleStackToggle : undefined}
         title={isStacked ? t('todos.expandStack') : undefined}
+        style={isStacked ? { height: 96 } : undefined}
       >
         {sortedTodos.length === 0 ? (
           <div className="card">
@@ -467,44 +468,47 @@ export default function TodoList({
           sortedTodos.map(({ todo, depth }, index) => {
             const isCompletedChainRoot = completedChainRoots.has(todo.id);
             const isChainMember = completedChainMembers.has(todo.id);
-            // iPhone notification-stack: pull items 2+ upward so they sit behind
-            // item 1 with a small peek. STACK_PULL ≈ (estimated item height + gap
-            // − desired peek). Values are approximate — TodoItem height varies,
-            // but the peek stays visibly consistent as long as items are similar.
-            const STACK_PULL = 82;
-            const STACK_TRANSITION = 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 350ms ease, max-height 450ms cubic-bezier(0.2, 0.8, 0.2, 1), margin-top 450ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+            // iOS notification stack: container uses absolute positioning so it
+            // collapses to a small height, with items 2+ peeking 6px below item 1.
+            const STACK_TRANSITION = 'transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease, top 400ms cubic-bezier(0.2, 0.8, 0.2, 1)';
             const stackStyle: React.CSSProperties = isStacked
               ? index === 0
                 ? {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
                     zIndex: 20,
                     transition: STACK_TRANSITION,
                     transformOrigin: 'top center',
-                    position: 'relative',
                   }
                 : index < 3
                   ? {
-                      transform: `translateY(${-index * STACK_PULL}px) scale(${1 - index * 0.04})`,
+                      position: 'absolute',
+                      top: index * 6,
+                      left: 0,
+                      right: 0,
+                      transform: `scale(${1 - index * 0.04})`,
                       opacity: 1 - index * 0.35,
                       zIndex: 20 - index,
                       pointerEvents: 'none',
                       transformOrigin: 'top center',
                       transition: STACK_TRANSITION,
-                      position: 'relative',
                     }
                   : {
-                      transform: `translateY(${-2 * STACK_PULL}px) scale(0.9)`,
+                      position: 'absolute',
+                      top: 12,
+                      left: 0,
+                      right: 0,
+                      transform: 'scale(0.88)',
                       opacity: 0,
-                      maxHeight: 0,
-                      marginTop: 0,
-                      overflow: 'hidden',
+                      visibility: 'hidden',
                       pointerEvents: 'none',
+                      transformOrigin: 'top center',
                       transition: STACK_TRANSITION,
-                      position: 'relative',
                     }
               : {
-                  transition: STACK_TRANSITION,
                   transformOrigin: 'top center',
-                  position: 'relative',
                 };
             return (
               <div
