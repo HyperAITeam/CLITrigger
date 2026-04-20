@@ -1005,7 +1005,19 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
                   {/* Changed files */}
                   {resultData.changed_files.length > 0 && (
                     <div>
-                      <h5 className="text-2xs font-semibold text-warm-400 uppercase tracking-wider mb-1">{t('result.changedFiles')}</h5>
+                      <div className="flex items-center justify-between mb-1">
+                        <h5 className="text-2xs font-semibold text-warm-400 uppercase tracking-wider">{t('result.changedFiles')}</h5>
+                        {canViewDiff && (
+                          <button
+                            onClick={handleViewDiff}
+                            disabled={diffLoading}
+                            className="flex items-center gap-1 text-2xs text-warm-500 hover:text-accent transition-colors disabled:opacity-30"
+                          >
+                            <ChevronRight size={10} className={`transition-transform ${showDiff ? 'rotate-90' : ''}`} />
+                            <span>{showDiff ? t('todo.hideDiff') : t('todo.viewDiff')}</span>
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-0.5">
                         {resultData.changed_files.map((f, i) => {
                           const statusClass =
