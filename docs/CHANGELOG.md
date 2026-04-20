@@ -1,5 +1,100 @@
 # Changelog
 
+## 2026-04-20 — 할일별 워크트리 오버라이드 + DnD 순서 변경 + 에이전트 구현 권한 + Planner Export/Import + Todo 스택/필터 UI
+
+### 배경
+
+프로젝트 기본값 외에 할일/에이전트 단위로 격리·권한을 세밀하게 조정할 수 있도록 오버라이드를 도입(짧은 패치는 메인 브랜치에서, 토론 중에 개발자 에이전트가 직접 커밋 등). Planner를 프로젝트·설치 간 이동하려는 요구에 JSON Export/Import를 추가. TODO 탭은 스택 모드/상태 필터/갭 드랍 기반 순서 변경으로 리스트 관리 UX 개선. Git 명령 출력의 한글 파일명 깨짐, 워크트리 없는 프로젝트의 Claude strict 샌드박스 미동작, 사이드바에서 프로젝트 CRUD 불가 같은 쌓인 불편도 일괄 해소.
+
+### 주요 변경
+
+#### 1. 할일별 워크트리 오버라이드 + 메인 브랜치 동시성 게이트 (`45eb87d`)
+
+- **DB**: `todos.use_worktree` nullable INTEGER 컬럼 추가 (null=상속, 0=메인 강제, 1=워크트리 강제)
+- **서버**: `orchestrator.ts` — `resolveUseWorktree(project, todo)` 헬퍼로 todo 오버라이드 > `project.use_worktree` 우선순위 일원화. `continueTodo`/`startSingleTodo` 두 지점에서 공통 사용
+- **서버**: `canStartNow` 게이트 — effective useWorktree=false인 todo는 다른 todo 실행 중이면 시작 거부하고 "deferred" 로그 남김. `startDependentChildren`에 형제 재시도 로직을 추가해 부모 완료 시 pending 형제들이 자동 재시도
+- **API**: `POST /api/projects/:id/todos`, `PUT /api/todos/:id` body에 `use_worktree` 수신 + 도메인 검증 (null|0|1)
+- **클라이언트**: `TodoForm` — 3-옵션 라디오(inherit / 워크트리 / 메인), 상속 선택 시 프로젝트 기본값 힌트 표시, 메인 브랜치 실행 시 "다른 작업 동시 실행 차단" 경고. `TodoList`/`TaskGraph`/`TodoItem`/`TaskNodeDetail` 시그니처 체인에 `projectIsGitRepo`, `projectUseWorktree`, `useWorktree` 전파
+- **i18n**: ko/en `todoForm.worktree*` 키 7개
+
+#### 2. 토론 에이전트별 `can_implement` 플래그 (`b2a1681`)
+
+- **DB**: `discussion_agents.can_implement` (INTEGER DEFAULT 0) 컬럼 추가
+- **서버**: `discussion-orchestrator.ts` — `runAgentTurn`/`buildTurnPrompt`에 플래그 전달. `can_implement=true` 에이전트에는 "지금은 토론 중이지만 최소 조각(prototype)은 구현/커밋해도 된다"는 변형 프롬프트 제공(최종 구현 라운드의 "전부 구현하고 끝내라" 프롬프트와 구분). `project.default_max_turns` 전액 부여로 10턴 캡 해제
+- **서버**: 워크트리 라이프사이클/최종 구현 라운드/커밋 감지·브로드캐스트 경로는 유지 — 공유 워크트리/브랜치에 커밋이 자연스럽게 체인됨
+- **API**: POST/PUT discussion-agents에서 `can_implement` 수신
+- **클라이언트**: `AgentManager` — 생성/수정 폼에 "Implement during discussion" 체크박스 + 설명, 리스트 행에 망치 아이콘 "Implementer" 뱃지
+- **i18n**: `agents.canImplement`, `agents.canImplementHelp`, `agents.canImplementBadge` (ko/en)
+
+#### 3. Planner JSON Export/Import (`9b9c1ba`)
+
+- **서버**: `routes/planner.ts` —
+  - `GET /api/projects/:id/planner/export`: 버전이 박힌 JSON 다운로드(items + tag metadata). `Content-Disposition` 파일명 `planner-{projectSlug}-{yyyymmdd}.json`. `status='moved'` 아이템은 제외(converted_id 참조가 다른 DB에서 무의미)
+  - `POST /api/projects/:id/planner/import`: 버전·아이템 검증 후 `db.transaction()`로 원자적 롤백. 상태 정규화(pending/in_progress/done만 허용), 기존 태그 색상 보존
+- **클라이언트**: `PlannerList.tsx` — "New Item" 옆 Export/Import 버튼, 숨은 파일 입력, `ioBusy` 가드. `ProjectDetail`에서 object URL 다운로드 + 두 컬렉션(items, tags) 동시 refresh, 이미지 포함 아이템 경고 표시
+- **i18n**: Export/Import 라벨·툴팁·성공/에러 메시지·이미지 고지 등 키 9개 (ko/en)
+
+#### 4. TODO 드래그앤드랍 순서 변경 (`f630bc6`, `d68369b`, `f994a6e`, `269f700`)
+
+- **클라이언트**: `TodoList` — 아이템 사이(+맨 위/맨 아래)에 gap drop zone을 항상 렌더(높이 16px + ±8px 마이너스 마진으로 `space-y-3` 12px 갭 영역에 겹쳐 실제 레이아웃 변화 0). 드래그 중일 때만 accent 가로선 표시
+- **클라이언트**: `handleGapDragOver/Leave/Drop` + `dragOverGapIndex` 상태. 새 prop `onReorderTodos`로 순서 ID 배열 전달. `TodoItem.dataTransfer.effectAllowed='link'`로 의존성 DnD와 공존
+- **클라이언트**: `ProjectDetail.handleReorderTodos` — 전달받은 순서대로 priority `0..N-1`을 재할당하고 기존 `updateTodo` API로 batch 업데이트
+- **주의**: 드래그 중 DOM 구조가 바뀌면 Chromium이 "소스가 이동했다"고 판단해 dragstart를 중단함. gap 드롭존을 조건부 렌더링에서 상시 렌더링으로 전환, 소스 카드의 `scale-[0.98]` 변환 제거로 해결
+
+#### 5. TODO 스택 모드 + 상태 필터 탭 (`5985faa`, `56005db`, `a0f8db7`, `0e59d0b`, `f0b888e`)
+
+- **클라이언트**: `TodoList` — Layers 아이콘 토글로 iOS 알림 스택 스타일 접기. 모든 카드가 `position: absolute`로 6px 간격으로 겹치고 전면 카드만 노출, 클릭 시 펼침. `stackModeEnabled`/`stackCollapsed`를 localStorage에 영속화. 접힌 상태에서는 계층 평탄화, chain 헤더 숨김
+- **클라이언트**: `TodoList` — All/Active/Completed/Cancelled 필터 탭 + 카운트. 선택 필터 localStorage 저장. 'all' 외 필터에서는 계층 평탄화
+- **i18n**: 스택/필터 관련 번역 키 (ko/en)
+
+#### 6. 사이드바에서 프로젝트 생성/삭제 (`1e042f0`)
+
+- **클라이언트**: `Sidebar` — 워크스페이스 헤더 옆 `+` 버튼으로 기존 `ProjectForm` 모달 오픈. 각 행 hover 시 `X` 버튼 + confirm 다이얼로그로 삭제
+- **클라이언트**: `projects:changed` 이벤트로 `ProjectList`와 동기화. 활성 프로젝트 삭제 시 `/`로 이동
+
+#### 7. 결과 패널 변경 파일 헤더에 인라인 Diff 토글 (`5b2ffa0`)
+
+- **클라이언트**: `TodoItem` — 더 보기(⋮) 메뉴에만 있던 "View Diff"를 결과 패널의 변경 파일 헤더로 승격. 클릭 시 기존 diff 뷰어 확장/축소
+
+#### 8. Git 출력 한글 파일명 디코딩 (`fe0969e`)
+
+- **서버**: `src/server/lib/git.ts` **신규** — `createGit(baseDir)` 팩토리가 `core.quotePath=false`를 per-invocation config으로 설정해 한글·CJK·이모지 파일명이 `\xxx` escape로 깨지는 현상 제거
+- **서버**: `worktree-manager.ts`, `routes/execution.ts`, `routes/logs.ts`, `routes/discussions.ts`의 모든 `simpleGit(...)` 호출을 팩토리 경유로 이관
+
+#### 9. Claude strict 샌드박스의 워크트리 없는 프로젝트 적용 (`1f20d68`)
+
+- **서버**: `orchestrator.ts` — `.claude/settings.json` 생성 조건에서 `useWorktree && workDir !== projectPath` 게이트 제거. 비-git 프로젝트와 `use_worktree=false` 모두에서 workDir 스코프 허용 패턴이 주입되어 Read/Edit/Write이 거부되던 버그 수정
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/services/orchestrator.ts` | `resolveUseWorktree` 헬퍼, 메인 브랜치 동시성 게이트, 형제 재시도, Claude strict 샌드박스 조건 완화 |
+| `src/server/services/discussion-orchestrator.ts` | `can_implement` 에이전트 분기 + 전용 프롬프트 |
+| `src/server/services/worktree-manager.ts` | 모든 `simpleGit` 호출을 `createGit` 팩토리로 이관 |
+| `src/server/lib/git.ts` | **신규** — `core.quotePath=false` 적용 `createGit` 팩토리 |
+| `src/server/routes/planner.ts` | Export/Import 엔드포인트 추가 |
+| `src/server/routes/todos.ts` | `use_worktree` 필드 수신·검증 |
+| `src/server/routes/discussions.ts` | agent `can_implement` 필드 수신 |
+| `src/server/db/schema.ts` | `todos.use_worktree`, `discussion_agents.can_implement` 컬럼 |
+| `src/client/src/components/TodoList.tsx` | 스택 모드, 상태 필터 탭, gap drop zone 순서 변경 |
+| `src/client/src/components/TodoForm.tsx` | 워크트리 tri-state 라디오 |
+| `src/client/src/components/TodoItem.tsx` | 결과 패널 인라인 diff 토글, dragEffect `link` |
+| `src/client/src/components/AgentManager.tsx` | `can_implement` 체크박스 + Implementer 뱃지 |
+| `src/client/src/components/PlannerList.tsx` | Export/Import 버튼 + 파일 입력 |
+| `src/client/src/components/ProjectDetail.tsx` | reorder 핸들러, Export/Import 다운로드·업로드 핸들러 |
+| `src/client/src/components/Sidebar.tsx` | 프로젝트 생성/삭제 컨트롤 |
+
+### 아키텍처 결정
+
+1. **Worktree 설정 3-계층 tri-state**: `project.use_worktree`(레거시) 단일 계층을 확장할 때 "null=inherit / 0=force-main / 1=force-worktree" tri-state로 설계. 'inherit'을 null로 표현해 DB는 단일 컬럼으로 유지, 서버·UI에서 "설정 없음"을 명시적으로 판별 가능
+2. **메인 브랜치 todo의 동시성 격리**: `.git` 동시 조작 충돌을 피하기 위해 단독 실행이 필수. 서버가 강제 직렬화를 거는 대신 `canStartNow` 게이트 수준에서 시작을 deferred로 잡고, 다른 todo 완료 시 `startDependentChildren` 흐름에서 재시도하도록 해 기존 큐 로직을 재사용
+3. **can_implement는 최종 라운드와 공존**: 토론 중 커밋을 허용해도 최종 구현 라운드는 그대로 유지(`max_rounds+1`). 공유 워크트리/브랜치에 커밋이 자연스럽게 체인되므로 최종 라운드는 "남은 부분을 채워 넣고 끝내는" 역할로 재정의. 프롬프트 변형으로 "지금은 프로토타입만, 완성하려 하지 말라" 명시
+4. **Gap drop zone 상시 렌더링**: dragstart 직후 DOM 구조가 바뀌면 Chromium이 드래그 소스의 위치 이동으로 오인해 드래그를 중단. 드롭존 높이(16px) + ±8px 마이너스 마진으로 `space-y-3` 갭 영역과 정확히 겹치게 만들어 레이아웃 변화를 0으로 두고, 시각 표시는 내부 선 show/hide로만 처리
+5. **core.quotePath 전역 비활성화**: 한글/CJK/이모지 파일명을 git 호출 지점마다 수정하지 않고 `createGit` 팩토리에서 `config: ['core.quotePath=false']`로 일괄 적용. 모든 `simpleGit(...)` 호출을 팩토리 경유로 이관해 회귀 방지
+
+---
+
 ## 2026-04-18 — PTY 어댑터화(Gemini/Codex 대화 수정) + Todo UI 롤백
 
 ### 배경
