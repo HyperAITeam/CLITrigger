@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import simpleGit from 'simple-git';
+import { createGit } from '../lib/git.js';
 import { getTodosByProjectId, getTodoById, updateTodoStatus, updateTodo, deleteTaskLogsByTodoId } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { orchestrator } from '../services/orchestrator.js';
@@ -129,7 +129,7 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const git = simpleGit(project.path);
+    const git = createGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
     // Resolve actual branch (handle main vs master mismatch)
@@ -246,7 +246,7 @@ router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: 
       return;
     }
 
-    const git = simpleGit(project.path);
+    const git = createGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
     // Resolve actual branch (handle main vs master mismatch)

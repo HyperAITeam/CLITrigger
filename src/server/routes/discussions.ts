@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import simpleGit from 'simple-git';
+import { createGit } from '../lib/git.js';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
 import { discussionOrchestrator } from '../services/discussion-orchestrator.js';
@@ -516,7 +516,7 @@ router.post('/discussions/:id/merge', async (req: Request<{ id: string }>, res: 
       return;
     }
 
-    const git = simpleGit(project.path);
+    const git = createGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
     await git.checkout(defaultBranch);
@@ -572,7 +572,7 @@ router.get('/discussions/:id/diff', async (req: Request<{ id: string }>, res: Re
     const project = queries.getProjectById(discussion.project_id);
     const defaultBranch = project?.default_branch || 'main';
 
-    const git = simpleGit(discussion.worktree_path);
+    const git = createGit(discussion.worktree_path);
     const diff = await git.diff([`${defaultBranch}...HEAD`]);
     const diffStat = await git.diff([`${defaultBranch}...HEAD`, '--stat']);
 
