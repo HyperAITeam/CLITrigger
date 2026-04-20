@@ -13,8 +13,10 @@ import { getToolConfig, type CliTool } from '../cli-tools';
 interface TaskNodeDetailProps {
   todo: Todo;
   allTodos: Todo[];
+  projectIsGitRepo?: boolean;
+  projectUseWorktree?: boolean;
   onClose: () => void;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
@@ -32,6 +34,8 @@ interface TaskNodeDetailProps {
 export default function TaskNodeDetail({
   todo,
   allTodos,
+  projectIsGitRepo,
+  projectUseWorktree,
   onClose,
   onEdit,
   onStart,
@@ -170,12 +174,15 @@ export default function TaskNodeDetail({
           initialCliModel={todo.cli_model ?? undefined}
           initialDependsOn={todo.depends_on ?? undefined}
           initialMaxTurns={todo.max_turns ?? undefined}
+          initialUseWorktree={todo.use_worktree ?? null}
+          projectIsGitRepo={projectIsGitRepo}
+          projectUseWorktree={projectUseWorktree}
           existingImages={existingImages}
           todoId={todo.id}
           availableTodos={allTodos.filter(t => t.id !== todo.id)}
           onDeleteImage={async (imageId) => { await todosApi.deleteTodoImage(todo.id, imageId); }}
-          onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns) => {
-            await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns);
+          onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree) => {
+            await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree);
             if (newImages && newImages.length > 0) {
               await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
             }

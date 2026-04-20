@@ -82,6 +82,7 @@ export interface Todo {
   round_count?: number;
   position_x: number | null;
   position_y: number | null;
+  use_worktree: number | null;
   created_at: string;
   updated_at: string;
 }

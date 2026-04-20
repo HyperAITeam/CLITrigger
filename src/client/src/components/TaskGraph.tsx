@@ -86,11 +86,13 @@ interface TaskGraphProps {
   todos: Todo[];
   projectCliTool?: string;
   projectCliModel?: string;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number) => Promise<void>;
+  projectIsGitRepo?: boolean;
+  projectUseWorktree?: boolean;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -109,6 +111,8 @@ export default function TaskGraph({
   todos,
   projectCliTool,
   projectCliModel,
+  projectIsGitRepo,
+  projectUseWorktree,
   onAddTodo,
   onStartTodo,
   onStopTodo,
@@ -319,6 +323,8 @@ export default function TaskGraph({
         <TaskNodeDetail
           todo={selectedTodo}
           allTodos={todos}
+          projectIsGitRepo={projectIsGitRepo}
+          projectUseWorktree={projectUseWorktree}
           onClose={() => setSelectedTodoId(null)}
           onEdit={onEditTodo}
           onStart={onStartTodo}
@@ -342,9 +348,11 @@ export default function TaskGraph({
           <TodoForm
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
+            projectIsGitRepo={projectIsGitRepo}
+            projectUseWorktree={projectUseWorktree}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns) => {
-              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns);
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

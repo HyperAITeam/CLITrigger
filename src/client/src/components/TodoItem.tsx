@@ -128,10 +128,12 @@ interface TodoItemProps {
   todo: Todo;
   allTodos?: Todo[];
   projectCliTool?: string;
+  projectIsGitRepo?: boolean;
+  projectUseWorktree?: boolean;
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -159,7 +161,7 @@ interface TodoItemProps {
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onScheduleOnReset, resetsAt, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, projectIsGitRepo, projectUseWorktree, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onScheduleOnReset, resetsAt, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -430,14 +432,17 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, onStart,
         initialCliModel={todo.cli_model ?? undefined}
         initialDependsOn={todo.depends_on ?? undefined}
         initialMaxTurns={todo.max_turns ?? undefined}
+        initialUseWorktree={todo.use_worktree ?? null}
+        projectIsGitRepo={projectIsGitRepo}
+        projectUseWorktree={projectUseWorktree}
         existingImages={existingImages}
         todoId={todo.id}
         availableTodos={allTodos.filter(t => t.id !== todo.id)}
         onDeleteImage={async (imageId) => {
           await todosApi.deleteTodoImage(todo.id, imageId);
         }}
-        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns) => {
-          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns);
+        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree) => {
+          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree);
           if (newImages && newImages.length > 0) {
             await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
           }
