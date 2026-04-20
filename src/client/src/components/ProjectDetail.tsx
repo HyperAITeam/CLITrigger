@@ -192,9 +192,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     });
   }, [onEvent, sendNotification, t]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => {
     if (!id) return;
-    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn, max_turns: maxTurns ?? null });
+    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn, max_turns: maxTurns ?? null, use_worktree: useWorktree ?? null });
     if (images && images.length > 0) {
       const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
       newTodo.images = JSON.stringify(result.images);
@@ -236,8 +236,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number) => {
-    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn ?? null, max_turns: maxTurns ?? null });
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => {
+    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn ?? null, max_turns: maxTurns ?? null, use_worktree: useWorktree === undefined ? null : useWorktree });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 
@@ -717,6 +717,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           todos={todos}
           projectCliTool={project.cli_tool}
           projectCliModel={project.claude_model ?? undefined}
+          projectIsGitRepo={!!project.is_git_repo}
+          projectUseWorktree={project.use_worktree !== 0}
           onAddTodo={handleAddTodo}
           onStartTodo={handleStartTodo}
           onStopTodo={handleStopTodo}

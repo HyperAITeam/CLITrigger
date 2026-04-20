@@ -168,18 +168,20 @@ export interface Todo {
   total_tokens: number | null;
   position_x: number | null;
   position_y: number | null;
+  use_worktree: number | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number): Todo {
+export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null): Todo {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
+  const normalizedUseWorktree = useWorktree === 0 || useWorktree === 1 ? useWorktree : null;
   db.prepare(
-    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, now, now);
+    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, use_worktree, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, normalizedUseWorktree, now, now);
   return getTodoById(id)!;
 }
 
@@ -193,7 +195,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -218,6 +220,11 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.round_count !== undefined) { fields.push('round_count = ?'); values.push(updates.round_count); }
   if (updates.total_cost_usd !== undefined) { fields.push('total_cost_usd = ?'); values.push(updates.total_cost_usd); }
   if (updates.total_tokens !== undefined) { fields.push('total_tokens = ?'); values.push(updates.total_tokens); }
+  if (updates.use_worktree !== undefined) {
+    const v = updates.use_worktree === 0 || updates.use_worktree === 1 ? updates.use_worktree : null;
+    fields.push('use_worktree = ?');
+    values.push(v);
+  }
 
   if (fields.length === 0) return getTodoById(id);
 

@@ -14,7 +14,7 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
@@ -22,8 +22,11 @@ interface TodoFormProps {
   initialCliModel?: string;
   initialDependsOn?: string;
   initialMaxTurns?: number;
+  initialUseWorktree?: number | null;
   projectCliTool?: string;
   projectCliModel?: string;
+  projectIsGitRepo?: boolean;
+  projectUseWorktree?: boolean;
   existingImages?: ImageMeta[];
   todoId?: string;
   onDeleteImage?: (imageId: string) => void;
@@ -41,8 +44,11 @@ export default function TodoForm({
   initialCliModel,
   initialDependsOn,
   initialMaxTurns,
+  initialUseWorktree = null,
   projectCliTool = 'claude',
   projectCliModel = '',
+  projectIsGitRepo = false,
+  projectUseWorktree = true,
   existingImages = [],
   todoId,
   onDeleteImage,
@@ -54,6 +60,9 @@ export default function TodoForm({
   const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
   const [dependsOn, setDependsOn] = useState(initialDependsOn ?? '');
   const [maxTurns, setMaxTurns] = useState(initialMaxTurns?.toString() ?? '');
+  const [useWorktreeMode, setUseWorktreeMode] = useState<'inherit' | 'force-on' | 'force-off'>(
+    initialUseWorktree === 1 ? 'force-on' : initialUseWorktree === 0 ? 'force-off' : 'inherit'
+  );
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -136,7 +145,8 @@ export default function TodoForm({
     e.preventDefault();
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined);
+    const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -295,6 +305,54 @@ export default function TodoForm({
           <p className="text-2xs text-warm-400 mt-1">
             {t('todoForm.maxTurnsHint')}
           </p>
+        </div>
+      )}
+
+      {/* Worktree override (git repos only) */}
+      {projectIsGitRepo && (
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-warm-500 mb-1.5">
+            {t('todoForm.worktreeMode')}
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="useWorktreeMode"
+                checked={useWorktreeMode === 'inherit'}
+                onChange={() => setUseWorktreeMode('inherit')}
+              />
+              <span>
+                {t('todoForm.worktreeInherit')}
+                <span className="text-2xs text-warm-400 ml-1">
+                  ({projectUseWorktree ? t('todoForm.worktreeProjectDefaultOn') : t('todoForm.worktreeProjectDefaultOff')})
+                </span>
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="useWorktreeMode"
+                checked={useWorktreeMode === 'force-on'}
+                onChange={() => setUseWorktreeMode('force-on')}
+              />
+              <span>{t('todoForm.worktreeForceOn')}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="useWorktreeMode"
+                checked={useWorktreeMode === 'force-off'}
+                onChange={() => setUseWorktreeMode('force-off')}
+              />
+              <span>{t('todoForm.worktreeForceOff')}</span>
+            </label>
+          </div>
+          {(useWorktreeMode === 'force-off' || (useWorktreeMode === 'inherit' && !projectUseWorktree)) && (
+            <p className="text-2xs text-status-warning mt-1.5">
+              {t('todoForm.worktreeMainWarning')}
+            </p>
+          )}
         </div>
       )}
 

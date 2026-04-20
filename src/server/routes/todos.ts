@@ -16,7 +16,7 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns } = req.body;
+    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns, use_worktree } = req.body;
     if (!title) {
       res.status(400).json({ error: 'title is required' });
       return;
@@ -39,7 +39,8 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
     }
 
     const parsedMaxTurns = max_turns != null ? parseInt(max_turns, 10) : undefined;
-    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model, undefined, depends_on, parsedMaxTurns || undefined);
+    const normalizedUseWorktree = use_worktree === 0 || use_worktree === 1 ? use_worktree : null;
+    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model, undefined, depends_on, parsedMaxTurns || undefined, normalizedUseWorktree);
     res.status(201).json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -74,9 +75,18 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns, position_x, position_y } = req.body;
+    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns, position_x, position_y, use_worktree } = req.body;
     const parsedMaxTurns = max_turns !== undefined ? (max_turns != null ? parseInt(max_turns, 10) || null : null) : undefined;
-    const todo = updateTodo(req.params.id, { title, description, priority, cli_tool, cli_model, depends_on, position_x, position_y, ...(parsedMaxTurns !== undefined ? { max_turns: parsedMaxTurns } : {}) });
+    const normalizedUseWorktree = use_worktree === undefined
+      ? undefined
+      : use_worktree === 0 || use_worktree === 1
+        ? use_worktree
+        : null;
+    const todo = updateTodo(req.params.id, {
+      title, description, priority, cli_tool, cli_model, depends_on, position_x, position_y,
+      ...(parsedMaxTurns !== undefined ? { max_turns: parsedMaxTurns } : {}),
+      ...(normalizedUseWorktree !== undefined ? { use_worktree: normalizedUseWorktree } : {}),
+    });
     res.json(todo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
