@@ -712,6 +712,8 @@ const translations = {
     'git.worktrees': 'Worktrees',
     'git.cleanupWorktree': 'Cleanup',
     'git.confirmCleanupWorktree': 'Remove worktree and branch {name}?',
+    'git.deleteWorktreeAndBranch': 'Delete branch + worktree',
+    'git.confirmDeleteWorktreeAndBranch': 'Delete branch {name} and its worktree?',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -1432,6 +1434,8 @@ const translations = {
     'git.worktrees': '워크트리',
     'git.cleanupWorktree': '정리',
     'git.confirmCleanupWorktree': '워크트리와 브랜치 {name}을(를) 삭제하시겠습니까?',
+    'git.deleteWorktreeAndBranch': '브랜치 + 워크트리 삭제',
+    'git.confirmDeleteWorktreeAndBranch': '브랜치 {name}과(와) 연결된 워크트리를 함께 삭제할까요?',
 
     // Language & Theme
     'lang.toggle': 'EN',
