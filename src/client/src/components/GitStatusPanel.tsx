@@ -1114,16 +1114,30 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                     />
                   );
                 }
+                const branchName = contextMenu.branch;
                 return (
                   <MenuItem
                     danger
-                    label={`${t('git.delete')} ${contextMenu.branch}`}
+                    label={`${t('git.delete')} ${branchName}`}
                     onClick={() => {
-                      if (confirm(t('git.confirmDelete').replace('{name}', contextMenu.branch))) {
-                        exec(() => projectsApi.gitDeleteBranch(projectId, contextMenu.branch));
-                      } else {
+                      if (!confirm(t('git.confirmDelete').replace('{name}', branchName))) {
                         setContextMenu(null);
+                        return;
                       }
+                      exec(async () => {
+                        try {
+                          await projectsApi.gitDeleteBranch(projectId, branchName);
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : '';
+                          if (/not fully merged/i.test(msg)) {
+                            if (confirm(t('git.confirmForceDelete').replace('{name}', branchName))) {
+                              await projectsApi.gitDeleteBranch(projectId, branchName, true);
+                              return;
+                            }
+                          }
+                          throw err;
+                        }
+                      });
                     }}
                   />
                 );
