@@ -900,7 +900,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
 
   const MenuItem = ({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) => (
     <button
-      className={`w-full text-left px-3 py-1.5 hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors ${danger ? 'text-status-error' : 'text-warm-700 dark:text-warm-300'}`}
+      className={`w-full text-left px-3 py-1.5 hover:bg-theme-hover transition-colors ${danger ? 'text-status-error' : 'text-theme-text'}`}
       disabled={busy}
       onClick={onClick}
     >
