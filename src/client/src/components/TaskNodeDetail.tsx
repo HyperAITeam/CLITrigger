@@ -450,9 +450,9 @@ export default function TaskNodeDetail({
             </div>
             <pre className="h-48 overflow-auto bg-warm-800 rounded-lg p-3 font-mono text-2xs leading-relaxed">
               {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                let cls = 'text-warm-400';
-                if (line.startsWith('+') && !line.startsWith('+++')) cls = 'text-green-400';
-                else if (line.startsWith('-') && !line.startsWith('---')) cls = 'text-red-400';
+                let cls = 'text-warm-100';
+                if (line.startsWith('+') && !line.startsWith('+++')) cls = 'text-warm-100 bg-green-500/20';
+                else if (line.startsWith('-') && !line.startsWith('---')) cls = 'text-warm-100 bg-red-500/20';
                 else if (line.startsWith('@@')) cls = 'text-blue-400';
                 else if (line.startsWith('diff ')) cls = 'text-amber-300 font-bold';
                 return <div key={i} className={cls}>{line}</div>;

@@ -1066,10 +1066,10 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                 </div>
                 <div className="max-h-80 overflow-y-auto rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 font-mono text-xs leading-tight">
                   {diffData.diff ? diffData.diff.split('\n').map((line, i) => {
-                    let lineClass = 'text-warm-500';
+                    let lineClass = 'text-theme-text';
                     let fw = '';
-                    if (line.startsWith('+') && !line.startsWith('+++')) lineClass = 'text-status-success';
-                    else if (line.startsWith('-') && !line.startsWith('---')) lineClass = 'text-status-error';
+                    if (line.startsWith('+') && !line.startsWith('+++')) lineClass = 'text-theme-text bg-status-success/15';
+                    else if (line.startsWith('-') && !line.startsWith('---')) lineClass = 'text-theme-text bg-status-error/15';
                     else if (line.startsWith('@@')) lineClass = 'text-accent';
                     else if (line.startsWith('diff ')) { lineClass = 'text-warm-700'; fw = 'font-semibold'; }
                     return <div key={i} className={`whitespace-pre ${lineClass} ${fw}`}>{line}</div>;
