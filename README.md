@@ -28,9 +28,13 @@
 
 ---
 
-> In the age of AI-generated code, the developer's role is shifting toward supervision and review.
-> But **vibe coding without understanding** eventually hits a wall.
-> CLITrigger lets you run AI in parallel — while keeping you in full context of what's happening.
+> ### While you sleep, your AI is working.
+>
+> In the age of AI-generated code, the developer's role is shifting toward supervision and review. But **vibe coding without understanding** eventually hits a wall.
+>
+> CLITrigger takes the tasks you queued before bed and runs them overnight — multiple AI coding agents (**Claude Code · Codex · Gemini CLI**) working in parallel, each in its own isolated git worktree. Next morning, you just review the stack of diffs and **accept / reject**.
+>
+> **Parallel AI execution — without losing context.**
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
@@ -68,6 +72,33 @@ CLITrigger solves both problems:
 ```
 
 Each TODO runs in its **own isolated git worktree** — no conflicts, separate branches, independent commit history. You review the results and decide what to merge.
+
+---
+
+## The Workflow — Hand Off, Then Review
+
+**CLITrigger is built for "delegate and review" — not for staring at a progress bar.**
+
+### Scenario 1: The AI night shift — hand off at bedtime, pick up in the morning
+Before bed, dump unfinished work and sudden ideas into the Planner, convert them into TODOs or scheduled runs, then close the laptop. While you sleep, Claude / Gemini / Codex burn through your token quota in parallel worktrees. Next morning, sit down with coffee and review the diffs holistically — accept what makes sense, reject what doesn't, merge what's ready.
+
+**Your tokens never sleep. Neither does your codebase.**
+
+### Scenario 2: The background worker
+Stay focused on your main work while CLITrigger handles side quests in the background. Refactors, test coverage, doc updates, speculative features — the stuff you never have time for — gets done while you ship the critical path. Browser notifications (or phone alerts via Cloudflare Tunnel) surface completed tasks only when they need your attention.
+
+### The Core Loop
+
+```
+    Evening                 Overnight / Sidelined              Morning / Break
+  ───────────              ───────────────────────          ────────────────────
+   Capture         →         AI executes in parallel   →    Review holistically
+   • Planner                 • Worktree isolation           • Diff by diff
+   • TODOs                   • Rate-limit auto-recovery     • Log by log
+   • Schedules               • Multi-agent discussion       • Accept / Reject / Merge
+```
+
+Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recovery, multi-agent discussion, the built-in Git client — exists to support this loop: **capture → delegate → review**.
 
 ---
 
