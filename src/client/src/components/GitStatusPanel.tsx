@@ -1097,19 +1097,37 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                   setContextMenu(null);
                 }}
               />
-              {!contextMenu.isCurrent && (
-                <MenuItem
-                  danger
-                  label={`${t('git.delete')} ${contextMenu.branch}`}
-                  onClick={() => {
-                    if (confirm(t('git.confirmDelete').replace('{name}', contextMenu.branch))) {
-                      exec(() => projectsApi.gitDeleteBranch(projectId, contextMenu.branch));
-                    } else {
-                      setContextMenu(null);
-                    }
-                  }}
-                />
-              )}
+              {!contextMenu.isCurrent && (() => {
+                const wt = worktrees.find(w => w.branch === contextMenu.branch);
+                if (wt) {
+                  return (
+                    <MenuItem
+                      danger
+                      label={`${t('git.deleteWorktreeAndBranch')} ${contextMenu.branch}`}
+                      onClick={() => {
+                        if (confirm(t('git.confirmDeleteWorktreeAndBranch').replace('{name}', contextMenu.branch))) {
+                          exec(() => projectsApi.cleanupWorktree(projectId, wt.path, contextMenu.branch));
+                        } else {
+                          setContextMenu(null);
+                        }
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <MenuItem
+                    danger
+                    label={`${t('git.delete')} ${contextMenu.branch}`}
+                    onClick={() => {
+                      if (confirm(t('git.confirmDelete').replace('{name}', contextMenu.branch))) {
+                        exec(() => projectsApi.gitDeleteBranch(projectId, contextMenu.branch));
+                      } else {
+                        setContextMenu(null);
+                      }
+                    }}
+                  />
+                );
+              })()}
             </>
           )}
         </div>,
