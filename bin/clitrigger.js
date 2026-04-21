@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { createInterface } from 'readline/promises';
-import { execSync, spawn } from 'child_process';
 
 const CONFIG_DIR = path.join(os.homedir(), '.clitrigger');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -16,10 +15,8 @@ if (args[0] === 'config') {
 } else if (args[0] === '--help' || args[0] === '-h') {
   printHelp();
 } else {
-  const updated = await checkAutoUpdate();
-  if (!updated) {
-    await startServer();
-  }
+  checkForUpdateAsync();
+  await startServer();
 }
 
 async function startServer() {
@@ -164,61 +161,31 @@ function isNewerVersion(latest, current) {
   return false;
 }
 
-async function checkAutoUpdate() {
-  // 업데이트 직후 재시작된 프로세스면 스킵
-  if (process.env.CLITRIGGER_UPDATED === '1') {
-    delete process.env.CLITRIGGER_UPDATED;
-    return false;
-  }
+function checkForUpdateAsync() {
+  (async () => {
+    try {
+      const pkgPath = new URL('../package.json', import.meta.url);
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const currentVersion = pkg.version;
 
-  try {
-    if (!fs.existsSync(CONFIG_FILE)) return false;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('https://registry.npmjs.org/clitrigger/latest', {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      if (!res.ok) return;
+      const data = await res.json();
+      const latestVersion = data.version;
 
-    // 24시간 이내에 체크했으면 스킵
-    const now = Date.now();
-    const lastCheck = config.lastUpdateCheck || 0;
-    if (now - lastCheck < 24 * 60 * 60 * 1000) return false;
+      if (!isNewerVersion(latestVersion, currentVersion)) return;
 
-    // 체크 시간 저장 (네트워크 실패 시에도 반복 체크 방지)
-    config.lastUpdateCheck = now;
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-
-    // 현재 버전 읽기
-    const pkgPath = new URL('../package.json', import.meta.url);
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-    const currentVersion = pkg.version;
-
-    // npm registry에서 최신 버전 조회 (5초 타임아웃)
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch('https://registry.npmjs.org/clitrigger/latest', {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) return false;
-    const data = await res.json();
-    const latestVersion = data.version;
-
-    if (!isNewerVersion(latestVersion, currentVersion)) return false;
-
-    console.log(`\nUpdate available: v${currentVersion} -> v${latestVersion}, updating...`);
-    execSync('npm i -g clitrigger@latest', { stdio: 'inherit' });
-    console.log(`Updated to v${latestVersion}. Restarting...\n`);
-
-    // 업데이트된 코드로 재시작
-    const child = spawn(process.argv[0], process.argv.slice(1), {
-      stdio: 'inherit',
-      env: { ...process.env, CLITRIGGER_UPDATED: '1' },
-    });
-    child.on('exit', (code) => process.exit(code ?? 0));
-    return true;
-  } catch {
-    // 네트워크 오류, 타임아웃 등 — 무시하고 현재 버전으로 계속
-    return false;
-  }
+      console.log(`    Update available: ${latestVersion}  →  npm i -g clitrigger@latest`);
+    } catch {
+      // 네트워크 오류·타임아웃 — 조용히 무시
+    }
+  })();
 }
 
 function printHelp() {
