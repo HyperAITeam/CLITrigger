@@ -118,6 +118,4 @@ export function initWebSocket(server: Server): void {
     // Send welcome message
     ws.send(JSON.stringify({ type: 'connected', clientCount: broadcaster.getClientCount() }));
   });
-
-  console.log('WebSocket server initialized on /ws');
 }

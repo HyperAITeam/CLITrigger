@@ -429,7 +429,6 @@ export class LogStreamer {
                 resetsAt: this._resetsAt!,
                 status: event.rate_limit_info.status ?? null,
               });
-              console.log(`Rate limit info fetched: resets at ${new Date(this._resetsAt! * 1000).toLocaleString()}`);
             }
           } catch { /* not JSON, skip */ }
         }

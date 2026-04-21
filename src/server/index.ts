@@ -186,10 +186,13 @@ if (process.env.TUNNEL_ENABLED === 'true') {
     console.error('Failed to start tunnel:', err.message);
   });
   tunnelManager.on('url', (url: string) => {
-    console.log(`  Remote:  ${url}`);
+    console.log(`    Share with others      →  ${url}`);
+    console.log('                              (anyone with this link can reach your server — your password is the only guard)');
+    console.log('');
   });
   tunnelManager.on('error', (err: Error) => {
-    console.error('Tunnel error:', err.message);
+    console.error(`  ✖ Tunnel failed: ${err.message}`);
+    console.error('    External sharing is disabled. You can still use the local address above.');
   });
 }
 
@@ -247,14 +250,20 @@ const requestedPort = Number(PORT);
 
 function tryListen(port: number, attempt: number) {
   server.listen(port, () => {
+    const tunnelEnabled = process.env.TUNNEL_ENABLED === 'true';
     console.log('');
-    console.log('  CLITrigger is running!');
+    console.log('  ✔ CLITrigger is running');
     console.log('');
-    console.log(`  Local:   http://localhost:${port}`);
+    console.log(`    Open on this computer  →  http://localhost:${port}`);
     if (port !== requestedPort) {
-      console.log(`           (port ${requestedPort} was in use, using ${port} instead)`);
+      console.log(`                              (port ${requestedPort} was in use, using ${port} instead)`);
     }
-    // Tunnel URL is printed by tunnelManager 'url' event as "  Remote:  ..."
+    if (tunnelEnabled) {
+      console.log('    Share with others      →  (tunnel starting…)');
+    }
+    console.log('');
+    console.log('    Login with the password you set on first run.');
+    console.log('    Press Ctrl+C to stop.');
     console.log('');
     orchestrator.startStaleProcessChecker();
 
@@ -266,7 +275,7 @@ function tryListen(port: number, attempt: number) {
     if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_RETRIES) {
       server.removeAllListeners('error');
       const nextPort = port + 1;
-      console.log(`  Port ${port} in use, trying ${nextPort}...`);
+      console.log(`  ⚠ Port ${port} busy, trying ${nextPort}…`);
       tryListen(nextPort, attempt + 1);
     } else {
       console.error('Failed to start server:', err.message);
