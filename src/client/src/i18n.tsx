@@ -714,6 +714,7 @@ const translations = {
     'git.confirmCleanupWorktree': 'Remove worktree and branch {name}?',
     'git.deleteWorktreeAndBranch': 'Delete branch + worktree',
     'git.confirmDeleteWorktreeAndBranch': 'Delete branch {name} and its worktree?',
+    'git.confirmForceDelete': 'Branch {name} is not fully merged. Force delete anyway? Unmerged commits will be lost.',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -1436,6 +1437,7 @@ const translations = {
     'git.confirmCleanupWorktree': '워크트리와 브랜치 {name}을(를) 삭제하시겠습니까?',
     'git.deleteWorktreeAndBranch': '브랜치 + 워크트리 삭제',
     'git.confirmDeleteWorktreeAndBranch': '브랜치 {name}과(와) 연결된 워크트리를 함께 삭제할까요?',
+    'git.confirmForceDelete': '브랜치 {name}은(는) 어디에도 머지되지 않았습니다. 그래도 강제로 삭제할까요? 머지되지 않은 커밋은 사라집니다.',
 
     // Language & Theme
     'lang.toggle': 'EN',
