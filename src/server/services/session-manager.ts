@@ -43,7 +43,7 @@ export class SessionManager {
       } else {
         branchName = worktreeManager.sanitizeBranchName(`session-${session.title}`);
         try {
-          worktreePath = await worktreeManager.createWorktree(project.path, branchName);
+          worktreePath = await worktreeManager.createWorktree(project.path, branchName, !!project.npm_auto_install);
           workDir = worktreePath;
           queries.createSessionLog(sessionId, 'output', `Created worktree on branch ${branchName}`);
         } catch (err) {

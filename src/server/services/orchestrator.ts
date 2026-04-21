@@ -361,7 +361,7 @@ export class Orchestrator {
         // Create this task's own branch/worktree
         branchName = worktreeManager.sanitizeBranchName(todo.title);
         try {
-          worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+          worktreePath = await worktreeManager.createWorktree(projectPath, branchName, !!project.npm_auto_install);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           queries.updateTodoStatus(todoId, 'failed');
