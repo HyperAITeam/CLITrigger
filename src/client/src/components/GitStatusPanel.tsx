@@ -318,9 +318,9 @@ function CommitDiffViewer({
       <div className="flex-1 overflow-auto">
         <pre className="p-3 font-mono text-xs leading-relaxed">
           {diff ? diff.split('\n').map((line, i) => {
-            let className = 'text-warm-400';
-            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-green-400';
-            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-red-400';
+            let className = 'text-warm-100';
+            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-warm-100 bg-green-500/20';
+            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-warm-100 bg-red-500/20';
             else if (line.startsWith('@@')) className = 'text-blue-400';
             else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
             return <div key={i} className={className}>{line || '\u00A0'}</div>;
