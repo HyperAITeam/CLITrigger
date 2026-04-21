@@ -17,9 +17,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
+[![npm downloads](https://img.shields.io/npm/dm/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
+[![npm total downloads](https://img.shields.io/npm/dt/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
+[![GitHub stars](https://img.shields.io/github/stars/HyperAITeam/CLITrigger.svg?style=social)](https://github.com/HyperAITeam/CLITrigger/stargazers)
 
 </div>
 
@@ -235,6 +238,28 @@ npm run start:tunnel
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
 | [CICD.md](docs/CICD.md) | GitHub Actions CI/CD setup |
 | [TESTING.md](docs/TESTING.md) | Testing guide |
+
+---
+
+## Contributors
+
+Thanks to everyone who has contributed to CLITrigger!
+
+<a href="https://github.com/HyperAITeam/CLITrigger/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=HyperAITeam/CLITrigger" alt="Contributors" />
+</a>
+
+---
+
+## Star History
+
+<a href="https://star-history.com/#HyperAITeam/CLITrigger&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HyperAITeam/CLITrigger&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HyperAITeam/CLITrigger&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HyperAITeam/CLITrigger&type=Date" />
+  </picture>
+</a>
 
 ---
 
