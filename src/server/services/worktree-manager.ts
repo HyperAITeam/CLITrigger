@@ -74,7 +74,7 @@ export class WorktreeManager {
     }
   }
 
-  async createWorktree(projectPath: string, branchName: string): Promise<string> {
+  async createWorktree(projectPath: string, branchName: string, autoInstall = false): Promise<string> {
     const git = createGit(projectPath);
 
     // Compute worktree directory
@@ -117,10 +117,14 @@ export class WorktreeManager {
       await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
     }
 
-    // Auto-install dependencies in the background (non-blocking)
-    this.installDependencies(worktreePath).catch((err) => {
-      console.warn(`[worktree] dependency install failed:`, err);
-    });
+    // Auto-install dependencies in the background (non-blocking).
+    // Opt-in per project (npm_auto_install) — the worktree flow itself is language-agnostic,
+    // so npm-specific convenience must be explicitly enabled.
+    if (autoInstall) {
+      this.installDependencies(worktreePath).catch((err) => {
+        console.warn(`[worktree] dependency install failed:`, err);
+      });
+    }
 
     return worktreePath;
   }

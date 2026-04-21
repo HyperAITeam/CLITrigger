@@ -28,6 +28,7 @@ export interface Project {
   debug_logging: number;
   use_worktree: number;
   show_token_usage: number;
+  npm_auto_install: number;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;

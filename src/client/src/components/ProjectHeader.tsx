@@ -150,6 +150,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
   const [showTokenUsage, setShowTokenUsage] = useState(!!project.show_token_usage);
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
+  const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
@@ -252,6 +253,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         sandbox_mode: sandboxMode,
         debug_logging: debugLogging ? 1 : 0,
         use_worktree: useWorktree ? 1 : 0,
+        npm_auto_install: npmAutoInstall ? 1 : 0,
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
@@ -719,6 +721,21 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               {!useWorktree && (
                 <p className="text-2xs text-status-warning mt-2">{t('header.worktreeWarning')}</p>
               )}
+              <div className="mt-3 pt-3 border-t border-warm-200">
+                <label className={`flex items-start gap-2 ${useWorktree ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={npmAutoInstall}
+                    disabled={!useWorktree}
+                    onChange={(e) => setNpmAutoInstall(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-xs font-medium text-warm-700">{t('header.npmAutoInstallLabel')}</div>
+                    <div className="text-2xs text-warm-500 mt-0.5">{t('header.npmAutoInstallHint')}</div>
+                  </div>
+                </label>
+              </div>
             </div>
           ) : null}
 
