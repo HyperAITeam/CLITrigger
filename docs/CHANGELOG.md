@@ -1,5 +1,83 @@
 # Changelog
 
+## 2026-04-21 — v0.1.7 릴리스: npm install opt-in + Git UI 폴리시 + 기동 배너/업데이트 체크 재설계
+
+### 배경
+
+v0.1.6/v0.1.7 릴리스 라인에 맞춰 누적된 사용자 불만 지점들을 정리. 언어 불문 오케스트레이터인데 워크트리 생성마다 `npm install`이 돌아 Python/Go/Rust 프로젝트에도 불필요한 `node_modules/`가 생겼고, Git 탭에서 브랜치에 워크트리가 붙어 있으면 Delete가 실패해 두 번 조작해야 했고, 기동 배너의 "Local/Remote" 라벨과 diff 뷰어의 원색 텍스트/컨텍스트 메뉴 라벨 가독성처럼 손봐야 할 표면 이슈들을 일괄 해소. 24시간 쿨다운 기반 자동 재설치 업데이트 로직은 v0.1.7 직후 "재시작했는데도 새 배너가 안 뜬다"는 피드백을 받아 "매 기동 시 체크 + 원라인 힌트만 표시"로 재설계.
+
+### 주요 변경
+
+#### 1. 워크트리 `npm install` opt-in (`dd2b374`)
+
+- **DB**: `projects.npm_auto_install INTEGER DEFAULT 0` 컬럼 추가 (기본 OFF — 생태계 중립 유지)
+- **서버**: `WorktreeManager.createWorktree(..., autoInstall)` 파라미터 추가. `autoInstall=true`일 때만 루트/`src/client` `npm install` 실행. Todo/Discussion/Session 오케스트레이터가 모두 `!!project.npm_auto_install`을 전달
+- **서버**: `Project` 타입에 `npm_auto_install` 필드, `updateProject()` accept 목록 확장
+- **클라이언트**: `ProjectHeader` 설정 — 워크트리 패널 하위 체크박스 추가. 워크트리 격리 자체가 꺼져 있으면 disabled. `npm install`이라는 명시적 표현으로 생태계 종속성 가시화
+- **i18n**: `project.npmAutoInstall`, `project.npmAutoInstallHelp` (ko/en)
+
+#### 2. 브랜치 + 워크트리 동시 삭제 (`9105239`)
+
+- **클라이언트**: `GitStatusPanel` 브랜치 컨텍스트 메뉴 — 워크트리가 붙은 브랜치에서 일반 Delete는 git `cannot delete branch X used by worktree at ...` 에러로 실패하던 문제 해결. `worktrees.find`로 붙은 워크트리를 감지해 "Delete branch + worktree" 단일 항목으로 렌더, 기존 `cleanupWorktree(projectId, wt.path, branch)` 엔드포인트로 한 번의 왕복에 워크트리 제거 + 브랜치 강제 삭제. 워크트리가 없는 브랜치는 기존 plain Delete 유지
+- **i18n**: `git.deleteWorktreeAndBranch`, `git.confirmDeleteWorktreeAndBranch` (ko/en)
+
+#### 3. Diff 배경 tint 스타일 (`61ca6d6`)
+
+- **클라이언트**: 3개 diff 뷰어(`GitStatusPanel` CommitDiffViewer, `TaskNodeDetail`, `TodoItem`) — 추가/삭제 라인을 원색 green/red 텍스트로 찍던 방식을 GitHub 스타일로 변경. 텍스트는 앱 기본 색상 유지, 배경만 `bg-green-500/20` / `bg-red-500/20` (또는 `bg-status-success/15` / `bg-status-error/15`) 반투명 tint. `@@` hunk 헤더와 `diff` 파일 헤더의 blue/amber 강조색은 유지
+
+#### 4. 브랜치 컨텍스트 메뉴 테마 토큰 (`67f4381`)
+
+- **클라이언트**: `GitStatusPanel` MenuItem — 다크 모드에서 `text-warm-300`이 실제로는 `border-strong` CSS 변수로 resolve 되던 탓에 Checkout/Merge/Rebase 등 메뉴 라벨이 거의 안 보이던 문제 수정. `text-warm-700 dark:text-warm-300` → `text-theme-text`, `hover:bg-warm-100 dark:hover:bg-warm-800` → `hover:bg-theme-hover`로 교체. danger 변형(delete)의 `text-status-error`는 유지
+
+#### 5. 기동 배너 재설계 (`c0d3b96`)
+
+- **서버**: `tryListen` 배너 재구성 — "Local / Remote"라는 불투명한 라벨 대신 "Open on this computer" / "Share with others" 의도 기반 카피. `TUNNEL_ENABLED=true`일 때만 "(tunnel starting…)" placeholder, 이후 터널 URL 도착 시 "비밀번호가 유일한 보안 수단"이라는 보안 고지 추가. 로그인 리마인더 + Ctrl+C 종료 힌트 포함
+- **서버**: 터널 에러/EADDRINUSE 재시도 메시지는 ✖/⚠ 접두사로 친숙화
+- **서버**: 운영상 의미 없는 내부 dev 로그 2개 제거 — `WebSocket server initialized on /ws` (`src/server/websocket/index.ts`), `Rate limit info fetched: …` (`log-streamer.ts`). DB 저장/WebSocket 브로드캐스트는 변경 없음
+
+#### 6. 업데이트 체크 재설계 — fire-and-forget + 힌트만 (`26aa4f2`)
+
+- **CLI**: `bin/clitrigger.js` — 기존 24시간 쿨다운 + `execSync('npm i -g clitrigger@latest')` + `spawn` 재시작 체인을 제거하고, 매 기동마다 npm 레지스트리에 5초 타임아웃 비동기 조회만 수행 (`checkForUpdateAsync()`). 새 버전이 있으면 `Update available: <v>  ->  npm i -g clitrigger@latest` 한 줄 배너만 출력하고 업그레이드 시점은 사용자에게 위임
+- **CLI**: `lastUpdateCheck` 쿨다운 필드는 read 호환만 유지(무시). `CLITRIGGER_UPDATED` 재시작 루프 가드 환경변수 제거. 서버 부팅 경로가 더 이상 업데이트 체크를 await 하지 않음
+- **배경**: v0.1.7 출시 직후 24시간 이내 재시작한 사용자는 업데이트를 영영 못 봤고, 장시간 세션 중 `execSync` 설치 + 프로세스 재시작이 예기치 못한 중단을 유발
+
+#### 7. Planner 툴바 overflow 방지 (`0d2cade`, `47b29a8`)
+
+- **클라이언트**: `PlannerList` 툴바 — 좁은 화면에서 필터 select가 너비 밀어내기로 Export/Import/New 버튼을 오버플로우 시키던 문제. 컨테이너에 `min-w-0`, select에 `w-auto max-w-[10rem] shrink`, 버튼들에 `shrink-0` 적용으로 select가 먼저 줄어들고 버튼은 한 줄을 유지
+
+#### 8. CI 안정화 (`04f29bd`)
+
+- **클라이언트 typecheck**: recharts v3 범프 후 `TooltipProps<number, string>` 루트에서 `payload`/`label`이 노출되지 않아 `AnalyticsPanel`에 로컬 `ChartTooltipProps` 정의. `GitStatusPanel` `RefsSidebar`에서 스코프 밖 `setActionError` 대신 `onError` prop 사용. `PlannerItem`은 `<select>` 문자열을 `typeof item.status`로 캐스팅. `ProjectDetail.handleCleanupTodo`에서 `deleteBranch`를 optional로 변경해 `TodoList`/`ScheduleList`의 `(id) => Promise<void>` prop 시그니처 충족
+- **서버**: `model-sync.ts` — `BUILTIN_REGISTRY` 상수 추가. 러너 작업 디렉토리에서 `cli-models-registry.json`을 읽지 못할 때 폴백. 파일이 있으면 여전히 선호(런타임 업데이트 유지)
+- **클라이언트 테스트**: `StatusBadge`는 `animate-spin`(Loader2)만 사용하고 `animate-pulse`는 사용 안 함 — assertion/테스트명 정정
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `bin/clitrigger.js` | 자동 재설치 제거, fire-and-forget 업데이트 힌트 |
+| `src/server/index.ts` | 기동 배너 의도 기반 재구성 + 터널 URL 도착 시 보안 고지 |
+| `src/server/services/worktree-manager.ts` | `createWorktree(..., autoInstall)` 파라미터, 기본 OFF |
+| `src/server/services/orchestrator.ts` / `discussion-orchestrator.ts` / `session-manager.ts` | `project.npm_auto_install` 전달 |
+| `src/server/services/model-sync.ts` | `BUILTIN_REGISTRY` 폴백 |
+| `src/server/services/log-streamer.ts` / `src/server/websocket/index.ts` | 운영 무의미 로그 제거 |
+| `src/server/db/schema.ts` / `queries.ts` | `projects.npm_auto_install` 컬럼 |
+| `src/client/src/components/GitStatusPanel.tsx` | 브랜치+워크트리 동시 삭제, 메뉴 테마 토큰, diff tint |
+| `src/client/src/components/ProjectHeader.tsx` | npm install 하위 체크박스 |
+| `src/client/src/components/TaskNodeDetail.tsx` / `TodoItem.tsx` | diff tint 배경 |
+| `src/client/src/components/PlannerList.tsx` | 툴바 shrink/min-w 조정 |
+| `src/client/src/components/AnalyticsPanel.tsx` | recharts v3 로컬 tooltip 타입 |
+| `src/client/src/__tests__/components/StatusBadge.test.tsx` | animate-spin 기준 assertion |
+
+### 아키텍처 결정
+
+1. **npm install 기본 OFF**: CLITrigger는 언어 불문 오케스트레이터이므로 `package.json` 존재만으로 자동 설치를 트리거하던 기존 동작은 pnpm/yarn/bun 프로젝트와 비-JS 프로젝트에 부적절. 옵트인 토글로 전환하되 명칭을 `npm_auto_install`로 명시해 "생태계에 종속적인 선택"임을 UI/API 양쪽에서 가시화
+2. **업데이트는 힌트만, 설치는 사용자 결정**: 장시간 워크플로우 중에 `execSync` + 프로세스 재시작이 개입하는 것은 오케스트레이터 특성상 너무 비싼 대가. 쿨다운 기반 24시간 게이트 역시 빠른 릴리스 루프에서 역효과. "매 기동 시 1라인 힌트"가 재시작 빈도가 낮은 서버에도 충분히 전달됨
+3. **브랜치 + 워크트리 복합 삭제는 기존 엔드포인트 재사용**: `cleanupWorktree`가 이미 워크트리 제거 + 브랜치 강제 삭제를 수행하므로 새 엔드포인트 없이 UI에서 분기만 추가. API 표면 확장을 피함
+4. **Diff 색상은 배경 tint**: 원색 텍스트가 app default text color/다크 모드 카드 배경과 싸우는 문제는 GitHub 관례(텍스트 그대로 + 배경 tint)로 해결. 라이트/다크 일관된 가독성 확보
+
+---
+
 ## 2026-04-20 — 할일별 워크트리 오버라이드 + DnD 순서 변경 + 에이전트 구현 권한 + Planner Export/Import + Todo 스택/필터 UI
 
 ### 배경
