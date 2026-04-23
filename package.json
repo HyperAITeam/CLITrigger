@@ -33,6 +33,8 @@
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
     "typecheck:client": "cd src/client && npx tsc --noEmit",
     "build:plugin": "npm run build && npx esbuild dist/server/index.js --bundle --platform=node --format=esm --outfile=plugin-build/server/server.js --external:better-sqlite3 --external:node-pty",
+    "docs:erd": "tsx scripts/generate-erd.ts",
+    "docs:erd:check": "tsx scripts/generate-erd.ts --check",
     "postuninstall": "node bin/postuninstall.js"
   },
   "dependencies": {

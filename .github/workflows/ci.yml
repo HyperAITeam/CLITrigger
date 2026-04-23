@@ -34,6 +34,23 @@ jobs:
       - name: Typecheck client
         run: npm run typecheck:client
 
+  erd-check:
+    name: ERD Up-to-Date Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify docs/ERD.md matches src/server/db/schema.ts
+        run: npm run docs:erd:check
+
   test-server:
     name: Server Tests
     runs-on: ubuntu-latest
