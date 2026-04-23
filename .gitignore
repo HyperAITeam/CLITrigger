@@ -24,6 +24,7 @@ dist/
 Thumbs.db
 Desktop.ini
 .DS_Store
+*.stackdump
 
 # Logs
 logs/
