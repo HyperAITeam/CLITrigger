@@ -1,5 +1,89 @@
 # Changelog
 
+## 2026-04-27 — Morning Review Queue + Git 탭 워크스페이스 재설계 + Planner Markdown 포맷
+
+### 배경
+
+"밤새 위임하고 아침에 리뷰" 워크플로우가 늘어나면서 프로젝트 탭을 일일이 클릭해 결과물을 훑어보는 동선이 비효율적이었다. 한 화면에서 모든 프로젝트의 최근 todo를 비용/diff/요약과 함께 모아 보고 키 입력만으로 승인·discard 할 수 있어야 했다. Git 탭은 좁은 사이드바에 욱여넣은 파일 상태 영역이 스테이징/커밋에 답답해, Fork/SourceTree 식으로 워크스페이스 뷰를 분리. 4개 분할 영역도 고정 비율을 사용자 조절형으로 바꿔 GUI 클라이언트 수준의 조작성을 확보. Planner의 JSON Export/Import는 GitHub/Obsidian에서 그대로 못 읽는다는 불만을 받아 Markdown 포맷으로 교체.
+
+### 주요 변경
+
+#### 1. 크로스-프로젝트 Morning Review Queue (`ce1efba`, `3e3d5a3`)
+
+- **클라이언트**: 새 `/review` 페이지(`ReviewQueue.tsx`, `ReviewCard.tsx`) — 모든 프로젝트의 최근 todo를 단일 카드 스택으로 집계. 카드마다 프로젝트 라벨, 마지막 어시스턴트 한 줄 요약, 토큰, diff 통계, risk 배지(low/medium/high), status 배지 노출
+- **클라이언트**: 키보드 네비게이션 — `j`/`k`/화살표로 포커스 이동, `Enter`로 우측 슬라이드인 상세 패널, `m` merge, `d` discard, `Esc`로 닫기. N개 todo가 O(N) 키 입력으로 처리되도록 설계. 시간 윈도우 셀렉터(12h/24h/7d) + 필터 칩(All/Risky/Quick wins/Failed) + 상단 sticky token 리본 (총 토큰 + CLI별 K/M 표기 분해)
+- **클라이언트**: `Sidebar`에 Review Queue 링크 + 24시간 pending 카운트 배지 추가. 우측 상세 패널은 임베드 모드 `LogViewer`를 그대로 재사용
+- **서버**: `routes/review.ts` — `GET /api/review/queue`, `GET /api/review/summary` 두 엔드포인트. since(절대 시각) 또는 hours(상대, 기본 24h, 30일 캡)로 윈도우 지정, statuses 쉼표 필터(default `completed,failed,stopped`). 서버 사이드 risk 분류기(failed 또는 diff_lines>300 → high, ≥50 → medium)
+- **서버**: `services/review-capture.ts` — `pickSummaryFromLogs(todoId)`으로 가장 최근 라운드의 마지막 어시스턴트 라인을 240자 트리밍해 `todos.summary`에 저장. `computeDiffStats(worktreePath, defaultBranch)`로 `git diff <main>...HEAD --shortstat`을 파싱해 files/lines를 `todos.diff_files`/`diff_lines`에 저장. 오케스트레이터의 `runTodo` 성공/실패 두 경로 모두에서 `captureReviewMetadata(todoId).catch(...)` 형태로 호출(베스트 에포트, 실패해도 무시)
+- **DB**: `todos.summary TEXT`, `todos.diff_lines INTEGER`, `todos.diff_files INTEGER` 3개 컬럼을 기존 additive-migration 패턴으로 추가
+- **재사용**: 카드 액션은 기존 `mergeTodo` / `continueTodo` / `cleanupTodo` API 그대로 사용 — 새 mutating 엔드포인트 추가 없음
+- **UI 디테일** (`3e3d5a3` 후속): Summary 카드/CLI별 분해 모두 비용(USD) 대신 토큰 합계로 표기. `formatCost` → `formatTokens`(K/M 단위)로 교체, i18n 키 `review.cost.*` → `review.tokens.*` 리네임. 비용은 보통 0에 수렴해서 의미가 작고, 모델 다양성을 고려할 때 토큰량이 더 직관적
+- **i18n**: ko/en 39개 키 추가
+
+#### 2. Git 탭 워크스페이스 뷰 재설계 (`67f2941`)
+
+- **클라이언트**: `GitStatusPanel`에 `WorkspaceMenu`(좌측 사이드바) — File Status / History 두 모드 전환, 선택 상태는 프로젝트별 localStorage(`git-workspace:{projectId}`) 영속화
+- **클라이언트**: `WorkingChangesView` — 좌측에 staged + unstaged 파일 리스트 세로 스플릿, 우측에 working tree diff 뷰어, 하단에 커밋 메시지 textarea + "커밋 후 origin/<branch>로 push" 체크박스. Cmd/Ctrl+Enter 커밋 단축키
+- **클라이언트**: `ChangedFileRow` / `WorkingDiffViewer` — untracked 파일을 가짜 new-file diff로 처리, binary/empty diff fallback 추가
+- **클라이언트**: History 뷰는 좌측 file-status 블록을 제거하고 커밋 그래프 + 컬럼이 메인 패널 전체 폭을 차지하도록 단순화. 사용하지 않게 된 `FileStatusSection`/`fileStatusLabel` 헬퍼 제거
+- **i18n**: 워크스페이스 메뉴, 파일 패널, 커밋 옵션, diff empty state 등 ko/en 22개 키
+
+#### 3. Git 탭 다크 모드 팔레트 정정 (`1ecc04c`)
+
+- **클라이언트**: 새 워크스페이스 뷰의 일부 요소가 `dark:text-warm-100..300`처럼 배경 토큰(warm-100..300)을 텍스트 색에 매핑하던 탓에 다크 모드에서 텍스트가 거의 안 보이던 문제. warm 팔레트는 이미 CSS 변수로 라이트/다크 자동 전환되므로 `dark:` 오버라이드 자체가 불필요 + 잘못된 매핑이었음
+- **클라이언트**: unstaged 헤더, 커밋 바(textarea/divider/체크박스 라벨), 커밋 히스토리 헤더의 `dark:` 텍스트/border/배경 오버라이드 제거. `WorkspaceMenu` inactive 항목/뱃지도 자동 스왑 토큰만 사용하도록 단순화. `WorkingDiffViewer`만 터미널 느낌을 위해 고정 다크 배경(`bg-[#1A1A1A]`) + gray-* 텍스트 유지
+
+#### 4. Git 탭 분할 영역 사용자 조절 (`a7c46e8`)
+
+- **클라이언트**: 4개 고정 비율 분할 영역(좌측 워크스페이스 사이드바 ↔ 메인, 커밋 히스토리 ↔ 커밋 상세 패널, 커밋 상세의 파일 리스트 ↔ diff 뷰어, working view의 파일 패널 ↔ diff)에 드래그 핸들 추가. 새 `Resizer` 컴포넌트(axis x/y, hover 시 accent 색)
+- **클라이언트**: localStorage 영속화 키 4개(`sidebar-w`, `detail-h-pct`, `detail-fl-w`, `working-pct`). min/max 클램프로 패널 0px 축소 방지. 기존 고정 클래스(`w-56`, `w-60`, `w-[55%]`)와 인라인 50% 스타일을 동적 flex/style 로 교체
+
+#### 5. Planner 포맷: JSON → Markdown (`1a1b61c`)
+
+- **서버**: `routes/planner.ts` — `serializePlannerMarkdown` / `parsePlannerMarkdown` 추가. status별 섹션(`## Pending` / `## In Progress` / `## Done`)에 GFM 체크박스(`- [x]` / `- [ ]`)로 아이템 직렬화, description은 들여쓴 본문 블록, tags/priority/due는 HTML 주석 메타(`<!-- tags:a,b priority:high due:2026-04-30 -->`)로 round-trip 보장
+- **서버**: `GET /export`는 이제 `text/markdown` 컨텐트 타입과 `.md` 파일명으로 응답. `POST /import`는 라우트 레벨 `express.text({ type: ['text/markdown', ...] })` 본문 파서로 raw 텍스트를 받고, 파싱 결과 검증 후 atomic 트랜잭션 import
+- **클라이언트**: `api/planner.ts` — `PlannerExportPayload`/`PlannerExportItem` 타입 제거, `importPlanner(file)`이 raw markdown 문자열을 받아 `Content-Type: text/markdown`으로 POST. fallback 파일명 확장자 `.json` → `.md`
+- **클라이언트**: `ProjectDetail`은 더 이상 `JSON.parse`하지 않고 파일 텍스트 본문을 그대로 전송. `PlannerList` 파일 input의 `accept`가 `.md,.markdown,text/markdown`로 변경
+- **i18n**: 툴팁/에러 문구를 "Markdown"으로 통일. `planner.importInvalidJson` → `planner.importInvalidMarkdown`
+- **호환성**: 이전 `.json` Export 파일은 더 이상 import되지 않음 — dual-format 호환층은 두지 않은 클린 교체
+
+#### 6. Planner 카드에 Markdown 드래그-드롭 import (`e27b954`)
+
+- **클라이언트**: `PlannerList`에 카드 영역 한정 드래그-드롭 임포트 — `.md`/`.markdown` 확장자 또는 `text/markdown` MIME만 허용, 그 외는 alert 후 무시. counter 기반 `isDragOver` 상태로 nested `dragenter`/`dragleave` 처리. Upload 아이콘 + 힌트 오버레이는 `pointer-events-none`이라 underlying 카드까지 드래그 이벤트가 도달
+- **클라이언트**: 기존 import 핸들러를 그대로 재사용해 서버 변경 없음. `ioBusy` 락은 파일 피커 import 경로와 공유
+- **i18n**: ko/en `planner.dropHint`, `planner.dropHintSub`, `planner.dropInvalidFile`
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/server/routes/review.ts` | (신규) `/queue`, `/summary` 엔드포인트 + risk 분류기 |
+| `src/server/services/review-capture.ts` | (신규) 마지막 어시스턴트 요약 + diff stats 캡처 (best-effort) |
+| `src/server/services/orchestrator.ts` | success/failure 두 경로에서 `captureReviewMetadata` 호출 |
+| `src/server/db/schema.ts` | `todos.summary` / `diff_lines` / `diff_files` 컬럼 |
+| `src/server/db/queries.ts` | `getReviewQueue` / `getReviewSummary` cross-project 조인 |
+| `src/server/index.ts` | `/api/review` 라우터 마운트 |
+| `src/server/routes/planner.ts` | Markdown 직렬화/파싱, `text/markdown` 응답 + 본문 파서 |
+| `src/client/src/components/ReviewQueue.tsx` / `ReviewCard.tsx` | (신규) Review Queue 페이지 + 카드 |
+| `src/client/src/components/Sidebar.tsx` | Review Queue 링크 + 24h pending 배지 |
+| `src/client/src/components/GitStatusPanel.tsx` | 워크스페이스 메뉴, WorkingChangesView, 4개 Resizer, 다크 팔레트 정정 |
+| `src/client/src/components/PlannerList.tsx` | `.md`/`.markdown` accept + 드래그-드롭 오버레이 |
+| `src/client/src/components/ProjectDetail.tsx` | Planner import에 raw text 전송 |
+| `src/client/src/api/planner.ts` | Markdown 임포트로 시그니처 변경 |
+| `src/client/src/api/review.ts` | (신규) review API 클라이언트 |
+| `src/client/src/App.tsx` | `/review` 라우트 |
+| `src/client/src/i18n.tsx` | review/Markdown/워크스페이스 메뉴 키 일괄 |
+
+### 아키텍처 결정
+
+1. **Review Queue는 새 mutating 엔드포인트 없음**: 카드의 3개 액션(merge/discard/continue)은 기존 todo API로 충분히 표현 가능. 신규 엔드포인트는 read-only(`/queue`, `/summary`)에 한정해 표면적을 최소화
+2. **요약/diff stats는 캡처 시점에 비정규화**: `task_logs`/`git diff` 매번 재계산하는 대신 종료 직후 한 번 캡처해 `todos`에 저장. 24시간 윈도우 쿼리는 N개 todo에 대해 N번의 git 셸 호출이 아니라 단일 SQL 조인으로 처리. 오케스트레이터는 best-effort `.catch(() => {})`로 호출해 캡처 실패가 todo 자체 실패를 유발하지 않게 격리
+3. **risk 분류는 서버 사이드**: 클라이언트가 동일 임계값을 다시 구현하지 않도록 `low/medium/high` 라벨을 응답에 포함. 변경 시 한 곳만 손대면 됨
+4. **Planner Markdown 클린 교체**: `.json`/`.md` 듀얼 포맷 호환층은 의도적으로 두지 않음 — DB 스키마는 동일하므로 변경 비용은 파일 형식뿐이고, 호환층은 파서/프론트 양쪽에 부담만 늘림. v1 마커는 `> Version 1` 인용구로 본문에 표기
+5. **Git 탭은 사용자 비율 + localStorage**: GUI 클라이언트(SourceTree/Fork) 사용자 멘탈 모델에 맞춰 4개 분할 모두 조절 가능하게 풀고, 각 프로젝트 단위가 아닌 글로벌 키로 영속화 — 화면 해상도 기반 선호는 프로젝트 간 일관되는 게 자연스러움
+
+---
+
 ## 2026-04-21 — v0.1.7 릴리스: npm install opt-in + Git UI 폴리시 + 기동 배너/업데이트 체크 재설계
 
 ### 배경
