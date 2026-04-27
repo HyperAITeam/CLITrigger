@@ -773,6 +773,21 @@ function WorkingChangesView({
   const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [committing, setCommitting] = useState(false);
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [fileListPct, setFileListPct] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0.55;
+    const raw = window.localStorage.getItem('clitrigger:git:working-pct');
+    const v = raw ? parseFloat(raw) : NaN;
+    return isNaN(v) ? 0.55 : Math.max(0.3, Math.min(0.8, v));
+  });
+  useEffect(() => { localStorage.setItem('clitrigger:git:working-pct', String(fileListPct)); }, [fileListPct]);
+  const handleHResize = useCallback((clientX: number) => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const pct = (clientX - rect.left) / rect.width;
+    setFileListPct(Math.max(0.3, Math.min(0.8, pct)));
+  }, []);
+
   const selectedFile = useMemo(() => {
     if (!selectedKey) return null;
     const [pane, path] = selectedKey.split('::');
@@ -848,9 +863,9 @@ function WorkingChangesView({
   }
 
   return (
-    <div className="h-full flex min-h-0">
+    <div ref={wrapperRef} className="h-full flex min-h-0">
       {/* Left: file lists + commit bar */}
-      <div className="w-[55%] min-w-[360px] flex flex-col border-r border-warm-200 min-h-0">
+      <div style={{ width: `${fileListPct * 100}%`, minWidth: 360 }} className="shrink-0 flex flex-col min-h-0">
         {/* Staged pane */}
         <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
           <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
@@ -947,6 +962,8 @@ function WorkingChangesView({
           </div>
         </div>
       </div>
+
+      <Resizer axis="x" onResize={handleHResize} />
 
       {/* Right: diff viewer */}
       <div className="flex-1 min-w-0">
@@ -1443,6 +1460,48 @@ function WorkspaceMenu({
   );
 }
 
+// --- Resizer ---
+
+function Resizer({ axis, onResize }: { axis: 'x' | 'y'; onResize: (clientX: number, clientY: number) => void }) {
+  return (
+    <div
+      onMouseDown={(e) => {
+        e.preventDefault();
+        document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize';
+        document.body.style.userSelect = 'none';
+        const onMove = (ev: MouseEvent) => onResize(ev.clientX, ev.clientY);
+        const onUp = () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      }}
+      role="separator"
+      aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
+      className={
+        axis === 'x'
+          ? 'w-1 mx-1 shrink-0 cursor-col-resize bg-warm-200/60 hover:bg-accent transition-colors rounded'
+          : 'h-1 my-0.5 shrink-0 cursor-row-resize bg-warm-200/60 hover:bg-accent transition-colors'
+      }
+    />
+  );
+}
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function readNumber(key: string, fallback: number, lo: number, hi: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
+  const v = parseFloat(raw);
+  return isNaN(v) ? fallback : clamp(v, lo, hi);
+}
+
 // --- Main component ---
 
 export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPanelProps) {
@@ -1477,6 +1536,35 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const historyAreaRef = useRef<HTMLDivElement>(null);
+  const detailAreaRef = useRef<HTMLDivElement>(null);
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => readNumber('clitrigger:git:sidebar-w', 224, 180, 480));
+  const [detailHeightPct, setDetailHeightPct] = useState<number>(() => readNumber('clitrigger:git:detail-h-pct', 0.5, 0.2, 0.8));
+  const [detailFileListWidth, setDetailFileListWidth] = useState<number>(() => readNumber('clitrigger:git:detail-fl-w', 240, 160, 500));
+
+  useEffect(() => { localStorage.setItem('clitrigger:git:sidebar-w', String(sidebarWidth)); }, [sidebarWidth]);
+  useEffect(() => { localStorage.setItem('clitrigger:git:detail-h-pct', String(detailHeightPct)); }, [detailHeightPct]);
+  useEffect(() => { localStorage.setItem('clitrigger:git:detail-fl-w', String(detailFileListWidth)); }, [detailFileListWidth]);
+
+  const handleSidebarResize = useCallback((clientX: number) => {
+    if (!outerRef.current) return;
+    const rect = outerRef.current.getBoundingClientRect();
+    setSidebarWidth(clamp(clientX - rect.left, 180, 480));
+  }, []);
+
+  const handleDetailHResize = useCallback((_x: number, clientY: number) => {
+    if (!historyAreaRef.current) return;
+    const rect = historyAreaRef.current.getBoundingClientRect();
+    setDetailHeightPct(clamp((rect.bottom - clientY) / rect.height, 0.2, 0.8));
+  }, []);
+
+  const handleDetailFileListResize = useCallback((clientX: number) => {
+    if (!detailAreaRef.current) return;
+    const rect = detailAreaRef.current.getBoundingClientRect();
+    setDetailFileListWidth(clamp(clientX - rect.left, 160, 500));
+  }, []);
 
   const fetchRefs = useCallback(async () => {
     try {
@@ -1631,9 +1719,9 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
         </div>
       )}
 
-      <div className="flex gap-3 flex-1 min-h-0">
+      <div ref={outerRef} className="flex flex-1 min-h-0">
         {/* Left sidebar: Workspace menu + Refs */}
-        <div className="w-56 shrink-0 flex flex-col gap-2 min-h-0">
+        <div style={{ width: sidebarWidth }} className="shrink-0 flex flex-col gap-2 min-h-0">
           <div className="card p-3 shrink-0">
             <WorkspaceMenu
               view={view}
@@ -1645,6 +1733,8 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
             <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} onError={setSidebarError} />
           </div>
         </div>
+
+        <Resizer axis="x" onResize={handleSidebarResize} />
 
         {/* Main view */}
         <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
@@ -1703,7 +1793,16 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
               )}
 
               {commits.length > 0 && (
-                <div className={`overflow-y-auto ${selectedCommit ? '' : 'flex-1'}`} ref={scrollRef} style={selectedCommit ? { height: '50%' } : undefined}>
+                <div ref={historyAreaRef} className="flex-1 flex flex-col min-h-0">
+                <div
+                  className="overflow-y-auto"
+                  ref={scrollRef}
+                  style={
+                    selectedCommit
+                      ? { flex: `${(1 - detailHeightPct) * 100} 1 0`, minHeight: 0 }
+                      : { flex: '1 1 0', minHeight: 0 }
+                  }
+                >
                   <div className="relative flex">
                     <div className="shrink-0 sticky left-0">
                       <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
@@ -1765,27 +1864,36 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                     )}
                   </div>
                 </div>
-              )}
 
-              {/* Commit detail panel */}
-              {selectedCommit && (
-                <div className="flex min-h-0 border-t border-warm-200" style={{ height: '50%' }}>
-                  <div className="w-60 shrink-0 border-r border-warm-100 overflow-hidden">
-                    <CommitFileList
-                      files={commitFiles}
-                      loading={commitFilesLoading}
-                      selectedFile={selectedFile}
-                      onFileClick={handleFileClick}
-                      commitHash={selectedCommit.hash}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
-                    <CommitDiffViewer
-                      diff={fileDiff}
-                      loading={fileDiffLoading}
-                      selectedFile={selectedFile}
-                    />
-                  </div>
+                {/* Commit detail panel */}
+                {selectedCommit && (
+                  <>
+                    <Resizer axis="y" onResize={handleDetailHResize} />
+                    <div
+                      ref={detailAreaRef}
+                      className="flex min-h-0"
+                      style={{ flex: `${detailHeightPct * 100} 1 0`, minHeight: 0 }}
+                    >
+                      <div style={{ width: detailFileListWidth }} className="shrink-0 overflow-hidden">
+                        <CommitFileList
+                          files={commitFiles}
+                          loading={commitFilesLoading}
+                          selectedFile={selectedFile}
+                          onFileClick={handleFileClick}
+                          commitHash={selectedCommit.hash}
+                        />
+                      </div>
+                      <Resizer axis="x" onResize={handleDetailFileListResize} />
+                      <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
+                        <CommitDiffViewer
+                          diff={fileDiff}
+                          loading={fileDiffLoading}
+                          selectedFile={selectedFile}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 </div>
               )}
             </>
