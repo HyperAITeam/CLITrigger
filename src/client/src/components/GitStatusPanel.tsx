@@ -195,15 +195,6 @@ function CommitGraphSvg({ graphNodes, totalRows }: { graphNodes: GraphNode[]; to
 
 // --- File status icon ---
 
-function fileStatusLabel(index: string, workingDir: string): { label: string; color: string } {
-  if (index === '?' || workingDir === '?') return { label: 'U', color: 'text-warm-400' };
-  if (index === 'A' || workingDir === 'A') return { label: 'A', color: 'text-status-success' };
-  if (index === 'D' || workingDir === 'D') return { label: 'D', color: 'text-status-error' };
-  if (index === 'R' || workingDir === 'R') return { label: 'R', color: 'text-purple-500' };
-  if (index === 'C' || workingDir === 'C') return { label: 'C', color: 'text-blue-500' };
-  return { label: 'M', color: 'text-accent' };
-}
-
 function commitFileStatusLabel(status: string): { label: string; color: string } {
   switch (status) {
     case 'A': return { label: 'A', color: 'text-status-success' };
@@ -648,10 +639,111 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
   );
 }
 
-// --- File Status Panel ---
+// --- Working Changes View (File Status full view) ---
 
-function FileStatusSection({
+function fileStatusName(index: string, working_dir: string): { label: string; color: string; type: 'staged' | 'unstaged' | 'untracked' } {
+  const isUntracked = index === '?' && working_dir === '?';
+  if (isUntracked) return { label: 'U', color: 'text-warm-400', type: 'untracked' };
+  const staged = index !== ' ' && index !== '?';
+  const unstaged = working_dir !== ' ' && working_dir !== '?';
+  const ch = staged ? index : working_dir;
+  let color = 'text-accent';
+  let label = ch;
+  if (ch === 'A') color = 'text-status-success';
+  else if (ch === 'D') color = 'text-status-error';
+  else if (ch === 'R') color = 'text-purple-500';
+  else if (ch === 'C') color = 'text-blue-500';
+  else { color = 'text-accent'; label = 'M'; }
+  return { label, color, type: staged ? 'staged' : 'unstaged' };
+}
+
+function ChangedFileRow({
+  file,
+  pane,
+  selected,
+  onClick,
+}: {
+  file: GitStatusFile;
+  pane: 'staged' | 'unstaged';
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const status = pane === 'staged'
+    ? fileStatusName(file.index, ' ')
+    : fileStatusName(' ', file.working_dir === '?' ? '?' : file.working_dir);
+  const finalStatus = pane === 'unstaged' && file.index === '?' && file.working_dir === '?'
+    ? { label: 'U', color: 'text-warm-400' }
+    : status;
+
+  return (
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-2 px-3 py-1 cursor-pointer text-xs select-none transition-colors ${
+        selected ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 dark:hover:bg-warm-800/40 text-warm-700 dark:text-warm-200'
+      }`}
+    >
+      <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold ${
+        pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-100 dark:bg-warm-800'
+      } ${finalStatus.color}`}>
+        {pane === 'staged' ? '+' : finalStatus.label === 'U' ? '+' : '−'}
+      </span>
+      <span className="truncate flex-1" title={file.path}>{file.path}</span>
+    </div>
+  );
+}
+
+function WorkingDiffViewer({ diff, loading, file }: { diff: string; loading: boolean; file: GitStatusFile | null }) {
+  const { t } = useI18n();
+
+  if (!file) {
+    return (
+      <div className="h-full flex items-center justify-center bg-warm-900/95 text-warm-400">
+        <span className="text-sm">{t('git.selectFileForDiff')}</span>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-warm-900/95 text-warm-400">
+        <span className="text-xs">{t('git.loadingDiff')}</span>
+      </div>
+    );
+  }
+
+  const isUntracked = file.index === '?' && file.working_dir === '?';
+
+  return (
+    <div className="h-full flex flex-col bg-warm-900/95">
+      <div className="px-3 py-2 border-b border-warm-700/60 shrink-0 flex items-center gap-2">
+        <span className="text-xs font-mono text-warm-200 truncate" title={file.path}>{file.path}</span>
+        {isUntracked && <span className="text-2xs text-warm-400 italic">{t('git.untrackedNewFile')}</span>}
+      </div>
+      <div className="flex-1 overflow-auto">
+        {diff ? (
+          <pre className="p-3 font-mono text-xs leading-relaxed">
+            {diff.split('\n').map((line, i) => {
+              let className = 'text-warm-100';
+              if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-warm-100 bg-green-500/20';
+              else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-warm-100 bg-red-500/20';
+              else if (line.startsWith('@@')) className = 'text-blue-400';
+              else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
+              return <div key={i} className={className}>{line || ' '}</div>;
+            })}
+          </pre>
+        ) : (
+          <div className="p-6 text-center text-xs text-warm-500 italic">
+            {isUntracked ? t('git.untrackedNewFile') : t('git.noFilesChanged')}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkingChangesView({
   projectId,
+  branchName,
   files,
   busy,
   setBusy,
@@ -659,6 +751,7 @@ function FileStatusSection({
   onError,
 }: {
   projectId: string;
+  branchName: string;
   files: GitStatusFile[];
   busy: boolean;
   setBusy: (b: boolean) => void;
@@ -666,10 +759,57 @@ function FileStatusSection({
   onError: (msg: string | null) => void;
 }) {
   const { t } = useI18n();
+  const staged = useMemo(() => files.filter(f => f.index !== ' ' && f.index !== '?'), [files]);
+  const unstaged = useMemo(() =>
+    files.filter(f => (f.working_dir !== ' ' && f.working_dir !== '?') || (f.index === '?' && f.working_dir === '?'))
+      .filter(f => !(f.index !== ' ' && f.index !== '?' && f.working_dir === ' ')),
+    [files]
+  );
 
-  const staged = files.filter(f => f.index !== ' ' && f.index !== '?');
-  const unstaged = files.filter(f => f.working_dir !== ' ' && f.working_dir !== '?' && (f.index === ' ' || f.index === '?'));
-  const untracked = files.filter(f => f.index === '?' && f.working_dir === '?');
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [diff, setDiff] = useState<string>('');
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [pushAfterCommit, setPushAfterCommit] = useState(false);
+  const [committing, setCommitting] = useState(false);
+
+  const selectedFile = useMemo(() => {
+    if (!selectedKey) return null;
+    const [pane, path] = selectedKey.split('::');
+    if (pane === 'staged') return staged.find(f => f.path === path) || null;
+    return unstaged.find(f => f.path === path) || null;
+  }, [selectedKey, staged, unstaged]);
+  const selectedPane: 'staged' | 'unstaged' | null = selectedKey ? (selectedKey.split('::')[0] as 'staged' | 'unstaged') : null;
+
+  // Auto-select first file when none is selected
+  useEffect(() => {
+    if (selectedKey) return;
+    if (staged.length > 0) setSelectedKey(`staged::${staged[0].path}`);
+    else if (unstaged.length > 0) setSelectedKey(`unstaged::${unstaged[0].path}`);
+  }, [selectedKey, staged, unstaged]);
+
+  // Clear selection if the file no longer exists
+  useEffect(() => {
+    if (!selectedKey) return;
+    const [pane, path] = selectedKey.split('::');
+    const list = pane === 'staged' ? staged : unstaged;
+    if (!list.some(f => f.path === path)) setSelectedKey(null);
+  }, [selectedKey, staged, unstaged]);
+
+  // Fetch diff when selection changes
+  useEffect(() => {
+    if (!selectedFile || !selectedPane) {
+      setDiff('');
+      return;
+    }
+    let cancelled = false;
+    setDiffLoading(true);
+    projectsApi.gitDiff(projectId, selectedFile.path, selectedPane === 'staged')
+      .then(r => { if (!cancelled) setDiff(r.diff); })
+      .catch(() => { if (!cancelled) setDiff(''); })
+      .finally(() => { if (!cancelled) setDiffLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, selectedFile, selectedPane]);
 
   const exec = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -677,104 +817,141 @@ function FileStatusSection({
     try { await fn(); onRefresh(); } catch (err) { onError(err instanceof Error ? err.message : 'Operation failed'); } finally { setBusy(false); }
   };
 
+  const handleCommit = async () => {
+    if (!commitMessage.trim() || staged.length === 0) return;
+    setCommitting(true);
+    setBusy(true);
+    onError(null);
+    try {
+      await projectsApi.gitCommit(projectId, commitMessage.trim());
+      if (pushAfterCommit) {
+        try { await projectsApi.gitPush(projectId); } catch (err) {
+          onError(err instanceof Error ? `Commit OK, push failed: ${err.message}` : 'Push failed');
+        }
+      }
+      setCommitMessage('');
+      onRefresh();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Commit failed');
+    } finally {
+      setCommitting(false);
+      setBusy(false);
+    }
+  };
+
   if (files.length === 0) {
     return (
-      <div className="px-3 py-2 text-xs text-warm-400 text-center">
-        {t('git.noChanges')}
+      <div className="h-full flex items-center justify-center bg-theme-bg">
+        <span className="text-sm text-warm-400">{t('git.workingTreeClean')}</span>
       </div>
     );
   }
 
-
-  const FileRow = ({ file, type }: { file: GitStatusFile; type: 'staged' | 'unstaged' | 'untracked' }) => {
-    const status = type === 'staged'
-      ? fileStatusLabel(file.index, ' ')
-      : fileStatusLabel(' ', file.working_dir);
-
-    return (
-      <div className="flex items-center gap-1.5 px-2 py-0.5 hover:bg-warm-50 rounded group text-xs">
-        <span className={`font-mono font-bold text-2xs w-3 text-center ${status.color}`}>{status.label}</span>
-        <span className="truncate flex-1 text-warm-600">{file.path}</span>
-        <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-          {type === 'staged' && (
+  return (
+    <div className="h-full flex min-h-0">
+      {/* Left: file lists + commit bar */}
+      <div className="w-[55%] min-w-[360px] flex flex-col border-r border-warm-100 dark:border-warm-700 min-h-0">
+        {/* Staged pane */}
+        <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
+          <div className="px-3 py-2 border-b border-warm-100 dark:border-warm-700 flex items-center justify-between shrink-0 bg-warm-50/50 dark:bg-warm-800/30">
+            <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">
+              {t('git.stagedFiles')} <span className="text-warm-400 font-normal">({staged.length})</span>
+            </span>
             <button
-              className="text-2xs text-warm-400 hover:text-warm-600"
-              disabled={busy}
-              onClick={() => exec(() => projectsApi.gitUnstage(projectId, [file.path]))}
-            >{t('git.unstage')}</button>
-          )}
-          {type === 'unstaged' && (
-            <>
-              <button
-                className="text-2xs text-accent hover:underline"
-                disabled={busy}
-                onClick={() => exec(() => projectsApi.gitStage(projectId, [file.path]))}
-              >{t('git.stage')}</button>
-              <button
-                className="text-2xs text-status-error hover:underline"
-                disabled={busy}
-                onClick={() => { if (confirm(t('git.confirmDiscardFile'))) exec(() => projectsApi.gitDiscard(projectId, [file.path])); }}
-              >{t('git.discard')}</button>
-            </>
-          )}
-          {type === 'untracked' && (
+              className="text-2xs text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200 disabled:opacity-40"
+              disabled={busy || staged.length === 0}
+              onClick={() => exec(() => projectsApi.gitUnstage(projectId, staged.map(f => f.path)))}
+            >
+              {t('git.unstageAllShort')}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {staged.length === 0 ? (
+              <div className="p-3 text-2xs text-warm-400 italic">—</div>
+            ) : (
+              staged.map(f => (
+                <ChangedFileRow
+                  key={`s-${f.path}`}
+                  file={f}
+                  pane="staged"
+                  selected={selectedKey === `staged::${f.path}`}
+                  onClick={() => setSelectedKey(`staged::${f.path}`)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Unstaged pane */}
+        <div className="flex flex-col min-h-0 border-t border-warm-100 dark:border-warm-700" style={{ flex: '1 1 0' }}>
+          <div className="px-3 py-2 border-b border-warm-100 dark:border-warm-700 flex items-center justify-between shrink-0 bg-warm-50/50 dark:bg-warm-800/30">
+            <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">
+              {t('git.unstagedFiles')} <span className="text-warm-400 font-normal">({unstaged.length})</span>
+            </span>
             <button
-              className="text-2xs text-accent hover:underline"
-              disabled={busy}
-              onClick={() => exec(() => projectsApi.gitStage(projectId, [file.path]))}
-            >{t('git.stage')}</button>
-          )}
+              className="text-2xs text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200 disabled:opacity-40"
+              disabled={busy || unstaged.length === 0}
+              onClick={() => exec(() => projectsApi.gitStage(projectId, unstaged.map(f => f.path)))}
+            >
+              {t('git.stageAllShort')}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {unstaged.length === 0 ? (
+              <div className="p-3 text-2xs text-warm-400 italic">—</div>
+            ) : (
+              unstaged.map(f => (
+                <ChangedFileRow
+                  key={`u-${f.path}`}
+                  file={f}
+                  pane="unstaged"
+                  selected={selectedKey === `unstaged::${f.path}`}
+                  onClick={() => setSelectedKey(`unstaged::${f.path}`)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Commit bar */}
+        <div className="border-t border-warm-200 dark:border-warm-700 shrink-0 bg-theme-bg">
+          <textarea
+            className="w-full px-3 py-2 text-sm bg-transparent text-warm-700 dark:text-warm-100 border-0 focus:outline-none resize-none placeholder:text-warm-400"
+            rows={3}
+            placeholder={t('git.commitMessage')}
+            value={commitMessage}
+            onChange={e => setCommitMessage(e.target.value)}
+            onKeyDown={e => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCommit();
+            }}
+            disabled={committing}
+          />
+          <div className="px-3 py-2 border-t border-warm-100 dark:border-warm-700 flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-2xs text-warm-600 dark:text-warm-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={pushAfterCommit}
+                onChange={e => setPushAfterCommit(e.target.checked)}
+                className="h-3 w-3"
+                disabled={committing}
+              />
+              {t('git.pushImmediately').replace('{remote}', `origin/${branchName || 'main'}`)}
+            </label>
+            <button
+              className="ml-auto btn-primary text-xs px-3 py-1.5 disabled:opacity-50"
+              onClick={handleCommit}
+              disabled={committing || busy || !commitMessage.trim() || staged.length === 0}
+            >
+              {committing ? '...' : t('git.commitButton')}
+            </button>
+          </div>
         </div>
       </div>
-    );
-  };
 
-  return (
-    <div className="space-y-1">
-      {/* Staged */}
-      {staged.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-2xs font-semibold text-status-success uppercase tracking-wider">{t('git.staged')} ({staged.length})</span>
-            <button
-              className="text-2xs text-warm-400 hover:text-warm-600"
-              disabled={busy}
-              onClick={() => exec(() => projectsApi.gitUnstage(projectId, staged.map(f => f.path)))}
-            >{t('git.unstageAll')}</button>
-          </div>
-          {staged.map(f => <FileRow key={`s-${f.path}`} file={f} type="staged" />)}
-        </div>
-      )}
-
-      {/* Unstaged */}
-      {unstaged.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-2xs font-semibold text-accent uppercase tracking-wider">{t('git.unstaged')} ({unstaged.length})</span>
-            <button
-              className="text-2xs text-warm-400 hover:text-warm-600"
-              disabled={busy}
-              onClick={() => exec(() => projectsApi.gitStage(projectId, unstaged.map(f => f.path)))}
-            >{t('git.stageAll')}</button>
-          </div>
-          {unstaged.map(f => <FileRow key={`u-${f.path}`} file={f} type="unstaged" />)}
-        </div>
-      )}
-
-      {/* Untracked */}
-      {untracked.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-2xs font-semibold text-warm-400 uppercase tracking-wider">{t('git.untracked')} ({untracked.length})</span>
-            <button
-              className="text-2xs text-warm-400 hover:text-warm-600"
-              disabled={busy}
-              onClick={() => exec(() => projectsApi.gitStage(projectId, untracked.map(f => f.path)))}
-            >{t('git.stageAll')}</button>
-          </div>
-          {untracked.map(f => <FileRow key={`t-${f.path}`} file={f} type="untracked" />)}
-        </div>
-      )}
+      {/* Right: diff viewer */}
+      <div className="flex-1 min-w-0">
+        <WorkingDiffViewer diff={diff} loading={diffLoading} file={selectedFile} />
+      </div>
     </div>
   );
 }
@@ -1212,10 +1389,73 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffDay / 365)}y`;
 }
 
+// --- Workspace view selector ---
+
+type WorkspaceView = 'fileStatus' | 'history';
+
+function WorkspaceMenu({
+  view,
+  onChange,
+  fileChangeCount,
+}: {
+  view: WorkspaceView;
+  onChange: (v: WorkspaceView) => void;
+  fileChangeCount: number;
+}) {
+  const { t } = useI18n();
+
+  const Item = ({ id, label, badge }: { id: WorkspaceView; label: string; badge?: number }) => {
+    const active = view === id;
+    return (
+      <button
+        onClick={() => onChange(id)}
+        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded transition-colors ${
+          active
+            ? 'bg-accent text-white'
+            : 'text-warm-600 dark:text-warm-300 hover:bg-warm-100 dark:hover:bg-warm-800/60'
+        }`}
+      >
+        <span className="flex-1 text-left truncate">{label}</span>
+        {badge !== undefined && badge > 0 && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+            active ? 'bg-white/20 text-white' : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+          }`}>
+            {badge}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="px-2 text-[10px] font-bold text-warm-400 uppercase tracking-widest flex items-center gap-2">
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+        {t('git.workspace')}
+      </div>
+      <div className="space-y-0.5">
+        <Item id="fileStatus" label={t('git.viewFileStatus')} badge={fileChangeCount} />
+        <Item id="history" label={t('git.viewHistory')} />
+      </div>
+    </div>
+  );
+}
+
 // --- Main component ---
 
 export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPanelProps) {
   const { t } = useI18n();
+  const [view, setView] = useState<WorkspaceView>(() => {
+    if (typeof window === 'undefined') return 'history';
+    const saved = window.localStorage.getItem(`git-view:${project.id}`);
+    return (saved === 'fileStatus' || saved === 'history') ? saved : 'history';
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(`git-view:${project.id}`, view);
+  }, [view, project.id]);
+
   const [commits, setCommits] = useState<GitLogEntry[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -1225,6 +1465,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const [tags, setTags] = useState<string[]>([]);
   const [stashCount, setStashCount] = useState(0);
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
+  const [currentBranch, setCurrentBranch] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [sidebarError, setSidebarError] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<GitLogEntry | null>(null);
@@ -1252,6 +1493,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
     try {
       const result = await projectsApi.getGitStatusTree(project.id);
       setStatusFiles(result.files);
+      setCurrentBranch(result.branch || '');
     } catch {
       // non-critical
     }
@@ -1390,155 +1632,163 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       )}
 
       <div className="flex gap-3 flex-1 min-h-0">
-        {/* Left sidebar: Refs + File Status */}
+        {/* Left sidebar: Workspace menu + Refs */}
         <div className="w-56 shrink-0 flex flex-col gap-2 min-h-0">
-          <div className="card overflow-y-auto p-3 flex-shrink-0" style={{ maxHeight: '45%' }}>
+          <div className="card p-3 shrink-0">
+            <WorkspaceMenu
+              view={view}
+              onChange={setView}
+              fileChangeCount={statusFiles.length}
+            />
+          </div>
+          <div className="card overflow-y-auto p-3 flex-1 min-h-0">
             <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} onError={setSidebarError} />
           </div>
-          <div className="card overflow-y-auto p-2 flex-1 min-h-0">
-            <div className="px-2 py-1 text-[11px] font-semibold text-warm-500 uppercase tracking-wider border-b border-warm-100 mb-1">
-              {t('git.fileStatus')} ({statusFiles.length})
-            </div>
-            <FileStatusSection
+        </div>
+
+        {/* Main view */}
+        <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
+          {view === 'fileStatus' ? (
+            <WorkingChangesView
               projectId={project.id}
+              branchName={currentBranch}
               files={statusFiles}
               busy={busy}
               setBusy={setBusy}
               onRefresh={refresh}
               onError={setSidebarError}
             />
-          </div>
-        </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-warm-100">
+                <span className="text-sm font-semibold text-warm-700 dark:text-warm-200">{t('git.commitHistory')}</span>
+                <button
+                  onClick={refresh}
+                  disabled={loading}
+                  className="btn-ghost text-xs flex items-center gap-1.5"
+                >
+                  <svg className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                  </svg>
+                  {t('git.refresh')}
+                </button>
+              </div>
 
-        {/* Main commit history */}
-        <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-warm-100">
-            <span className="text-sm font-semibold text-warm-700">{t('git.commitHistory')}</span>
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="btn-ghost text-xs flex items-center gap-1.5"
-            >
-              <svg className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
-              </svg>
-              {t('git.refresh')}
-            </button>
-          </div>
+              {/* Column headers */}
+              <div className="flex items-center px-4 py-1.5 border-b border-warm-50 text-2xs text-warm-400 uppercase tracking-wider">
+                <div className="w-24 shrink-0">{t('git.graph')}</div>
+                <div className="flex-1 min-w-0">{t('git.description')}</div>
+                <div className="w-14 text-right shrink-0">{t('git.date')}</div>
+                <div className="shrink-0 ml-2">{t('git.author')}</div>
+                <div className="w-16 text-right shrink-0">{t('git.hash')}</div>
+              </div>
 
-          {/* Column headers */}
-          <div className="flex items-center px-4 py-1.5 border-b border-warm-50 text-2xs text-warm-400 uppercase tracking-wider">
-            <div className="w-24 shrink-0">{t('git.graph')}</div>
-            <div className="flex-1 min-w-0">{t('git.description')}</div>
-            <div className="w-14 text-right shrink-0">{t('git.date')}</div>
-            <div className="shrink-0 ml-2">{t('git.author')}</div>
-            <div className="w-16 text-right shrink-0">{t('git.hash')}</div>
-          </div>
-
-          {error && (
-            <div className="p-6 text-center">
-              <p className="text-status-error text-sm">{error}</p>
-            </div>
-          )}
-
-          {initialLoading && !error && (
-            <div className="p-6 text-center">
-              <p className="text-warm-500 text-sm">{t('detail.loading')}</p>
-            </div>
-          )}
-
-          {!initialLoading && !error && commits.length === 0 && (
-            <div className="p-6 text-center">
-              <p className="text-warm-500 text-sm">{t('git.noCommits')}</p>
-            </div>
-          )}
-
-          {commits.length > 0 && (
-            <div className={`overflow-y-auto ${selectedCommit ? '' : 'flex-1'}`} ref={scrollRef} style={selectedCommit ? { height: '50%' } : undefined}>
-              <div className="relative flex">
-                <div className="shrink-0 sticky left-0">
-                  <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
+              {error && (
+                <div className="p-6 text-center">
+                  <p className="text-status-error text-sm">{error}</p>
                 </div>
+              )}
 
-                <div className="flex-1 min-w-0">
-                  {commits.map((commit) => {
-                    const isSelected = selectedCommit?.hash === commit.hash;
-                    return (
-                      <div
-                        key={commit.hash}
-                        onClick={() => handleCommitClick(commit)}
-                        className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/50 ${
-                          isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
-                        }`}
-                        style={{ height: ROW_HEIGHT }}
-                      >
-                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                          {commit.refs.length > 0 && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              {commit.refs.map((ref, ri) => (
-                                <RefBadge key={ri} refStr={ref} />
-                              ))}
-                            </div>
-                          )}
-                          <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
-                        </div>
+              {initialLoading && !error && (
+                <div className="p-6 text-center">
+                  <p className="text-warm-500 text-sm">{t('detail.loading')}</p>
+                </div>
+              )}
 
-                        <div className="w-14 text-right shrink-0">
-                          <span className="text-[11px] text-warm-400" title={commit.date}>
-                            {relativeTime(commit.date)}
-                          </span>
-                        </div>
+              {!initialLoading && !error && commits.length === 0 && (
+                <div className="p-6 text-center">
+                  <p className="text-warm-500 text-sm">{t('git.noCommits')}</p>
+                </div>
+              )}
 
-                        <div className="shrink-0 ml-2">
-                          <span className="text-[11px] text-warm-500">
-                            {commit.author}
-                          </span>
-                        </div>
+              {commits.length > 0 && (
+                <div className={`overflow-y-auto ${selectedCommit ? '' : 'flex-1'}`} ref={scrollRef} style={selectedCommit ? { height: '50%' } : undefined}>
+                  <div className="relative flex">
+                    <div className="shrink-0 sticky left-0">
+                      <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
+                    </div>
 
-                        <div className="w-16 text-right shrink-0">
-                          <span
-                            className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
-                            title={commit.hash}
-                            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(commit.hash); }}
+                    <div className="flex-1 min-w-0">
+                      {commits.map((commit) => {
+                        const isSelected = selectedCommit?.hash === commit.hash;
+                        return (
+                          <div
+                            key={commit.hash}
+                            onClick={() => handleCommitClick(commit)}
+                            className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/50 ${
+                              isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
+                            }`}
+                            style={{ height: ROW_HEIGHT }}
                           >
-                            {commit.hash.substring(0, 7)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                              {commit.refs.length > 0 && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {commit.refs.map((ref, ri) => (
+                                    <RefBadge key={ri} refStr={ref} />
+                                  ))}
+                                </div>
+                              )}
+                              <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
+                            </div>
+
+                            <div className="w-14 text-right shrink-0">
+                              <span className="text-[11px] text-warm-400" title={commit.date}>
+                                {relativeTime(commit.date)}
+                              </span>
+                            </div>
+
+                            <div className="shrink-0 ml-2">
+                              <span className="text-[11px] text-warm-500">
+                                {commit.author}
+                              </span>
+                            </div>
+
+                            <div className="w-16 text-right shrink-0">
+                              <span
+                                className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
+                                title={commit.hash}
+                                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(commit.hash); }}
+                              >
+                                {commit.hash.substring(0, 7)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div ref={sentinelRef} className="h-8 flex items-center justify-center">
+                    {loading && (
+                      <span className="text-xs text-warm-400">{t('git.loadMore')}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div ref={sentinelRef} className="h-8 flex items-center justify-center">
-                {loading && (
-                  <span className="text-xs text-warm-400">{t('git.loadMore')}</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Commit detail panel */}
-          {selectedCommit && (
-            <div className="flex min-h-0 border-t border-warm-200" style={{ height: '50%' }}>
-              <div className="w-60 shrink-0 border-r border-warm-100 overflow-hidden">
-                <CommitFileList
-                  files={commitFiles}
-                  loading={commitFilesLoading}
-                  selectedFile={selectedFile}
-                  onFileClick={handleFileClick}
-                  commitHash={selectedCommit.hash}
-                />
-              </div>
-              <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
-                <CommitDiffViewer
-                  diff={fileDiff}
-                  loading={fileDiffLoading}
-                  selectedFile={selectedFile}
-                />
-              </div>
-            </div>
+              {/* Commit detail panel */}
+              {selectedCommit && (
+                <div className="flex min-h-0 border-t border-warm-200" style={{ height: '50%' }}>
+                  <div className="w-60 shrink-0 border-r border-warm-100 overflow-hidden">
+                    <CommitFileList
+                      files={commitFiles}
+                      loading={commitFilesLoading}
+                      selectedFile={selectedFile}
+                      onFileClick={handleFileClick}
+                      commitHash={selectedCommit.hash}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
+                    <CommitDiffViewer
+                      diff={fileDiff}
+                      loading={fileDiffLoading}
+                      selectedFile={selectedFile}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
