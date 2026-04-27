@@ -494,7 +494,8 @@ Planner는 CRUD + 태그 + 우선순위 기반의 경량 작업 관리 기능입
 - 이미지 첨부
 - **TODO로 변환**: CLI 도구/모델 선택하여 즉시 TODO 생성
 - **스케줄로 변환**: cron 표현식 설정하여 반복 실행 스케줄 생성
-- **JSON Export/Import**: 프로젝트·설치 간 Planner 상태를 JSON으로 내보내고 불러오기. Export는 items + tag 메타데이터를 버전 박힌 JSON으로 다운로드(`planner-{projectSlug}-{yyyymmdd}.json`), Import는 원자적 트랜잭션으로 삽입하며 기존 태그 색상을 보존. 이미지 첨부는 Export에 포함되지 않음(아이템 저장만 보존)
+- **Markdown Export/Import**: 프로젝트·설치 간 Planner 상태를 Markdown으로 내보내고 불러오기. Export는 status별 섹션(`## Pending` / `## In Progress` / `## Done`) + GFM 체크박스 + HTML 주석 메타(tags/priority/due)로 직렬화하여 다운로드(`planner-{projectSlug}-{yyyymmdd}.md`). GitHub/Obsidian/Markdown 뷰어에서 그대로 열람·편집 가능. Import는 원자적 트랜잭션으로 삽입하며 기존 태그 색상을 보존. 이미지 첨부는 Export에 포함되지 않음(아이템 저장만 보존)
+- **드래그-드롭 Import**: Planner 카드 영역에 `.md`/`.markdown` 파일을 드래그하면 즉시 Import 시작. 다른 확장자/MIME은 alert로 거부
 
 ### 16. 실행 분석 대시보드 (Analytics)
 
@@ -734,6 +735,50 @@ gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세
 
 ---
 
+### 28. Morning Review Queue (크로스-프로젝트)
+
+밤새 위임한 결과물을 다음날 아침에 한 번에 훑어보기 위한 단일 화면입니다. 모든 프로젝트의 최근 todo를 카드 스택으로 모으고 키보드만으로 승인/discard 결정을 내릴 수 있습니다.
+
+#### 진입 방법
+
+좌측 **사이드바의 "Review Queue"** 링크를 클릭. 24시간 이내 미처리(running 외) todo 개수가 배지로 표시됩니다.
+
+#### 카드 구성
+
+각 카드는 한 todo에 해당하며 다음을 노출합니다:
+- 프로젝트 라벨, 제목, 상태 배지, risk 배지(low/medium/high)
+- 마지막 어시스턴트 메시지의 한 줄 요약(최대 240자)
+- 토큰 합계, diff files / lines
+- 마지막 갱신 시각
+
+#### 키보드 조작
+
+| 키 | 동작 |
+|----|------|
+| `j`/`k` 또는 `↑`/`↓` | 카드 포커스 이동 |
+| `Enter` | 우측 상세 패널 열기(임베드 LogViewer) |
+| `m` | 머지 |
+| `d` | discard (워크트리 정리) |
+| `Esc` | 상세 패널 닫기 |
+
+#### 필터
+
+- **시간 윈도우**: 12h / 24h / 7d
+- **필터 칩**: All / Risky / Quick wins / Failed
+- **상단 토큰 리본**: 윈도우 내 총 토큰 + CLI별 K/M 분해 표기 (sticky)
+
+#### Risk 분류 기준
+
+서버에서 다음 규칙으로 자동 분류합니다:
+- `failed` 상태 → **high**
+- diff_lines > 300 → **high**
+- diff_lines ≥ 50 → **medium**
+- 그 외 → **low**
+
+> Review Queue는 새 mutating API를 추가하지 않습니다. merge/discard/continue 모두 기존 todo 엔드포인트(`/api/todos/:id/merge`, `/api/projects/:id/worktree-cleanup`, `/api/todos/:id/continue`)를 그대로 사용합니다.
+
+---
+
 ## 상태 설명
 
 | 상태 | 색상 | 의미 |
@@ -929,8 +974,10 @@ git worktree prune   # 깨진 worktree 정리
 | PUT | /api/planner/:id | Planner 아이템 수정 |
 | DELETE | /api/planner/:id | Planner 아이템 삭제 |
 | GET | /api/projects/:id/planner/tags | Planner 태그 목록 |
-| GET | /api/projects/:id/planner/export | Planner 상태를 JSON으로 Export |
-| POST | /api/projects/:id/planner/import | Planner JSON Import (원자적 삽입) |
+| GET | /api/projects/:id/planner/export | Planner 상태를 Markdown으로 Export |
+| POST | /api/projects/:id/planner/import | Planner Markdown Import (원자적 삽입, `text/markdown` 본문) |
+| GET | /api/review/queue | 크로스-프로젝트 todo 큐 (since/hours, statuses 필터 + risk 분류) |
+| GET | /api/review/summary | 윈도우 내 토큰/CLI별 분해 요약 |
 | POST | /api/planner/:id/convert-to-todo | TODO로 변환 |
 | POST | /api/planner/:id/convert-to-schedule | 스케줄로 변환 |
 | GET | /api/notion/:projectId/test | Notion 연결 테스트 |
