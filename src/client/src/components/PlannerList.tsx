@@ -43,7 +43,9 @@ export default function PlannerList({
   const [convertItem, setConvertItem] = useState<PlannerItemType | null>(null);
   const [convertMode, setConvertMode] = useState<'todo' | 'schedule'>('todo');
   const [ioBusy, setIoBusy] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragCounterRef = useRef(0);
 
   const handleExportClick = async () => {
     if (!onExport || ioBusy) return;
@@ -60,6 +62,54 @@ export default function PlannerList({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !onImport) return;
+    setIoBusy(true);
+    try { await onImport(file); } finally { setIoBusy(false); }
+  };
+
+  const isMarkdownFile = (file: File): boolean => {
+    if (/\.(md|markdown)$/i.test(file.name)) return true;
+    if (file.type === 'text/markdown') return true;
+    return false;
+  };
+
+  const dragHasFiles = (e: React.DragEvent<HTMLDivElement>): boolean => {
+    return Array.from(e.dataTransfer.types).includes('Files');
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!onImport || ioBusy) return;
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragCounterRef.current++;
+    setIsDragOver(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!onImport || ioBusy) return;
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!onImport) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    if (!onImport) return;
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+    if (ioBusy) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!isMarkdownFile(file)) {
+      window.alert(t('planner.dropInvalidFile'));
+      return;
+    }
     setIoBusy(true);
     try { await onImport(file); } finally { setIoBusy(false); }
   };
@@ -216,7 +266,29 @@ export default function PlannerList({
       )}
 
       {/* Table */}
-      <div className="card">
+      <div
+        className="card relative"
+        onDragEnter={onImport ? handleDragEnter : undefined}
+        onDragOver={onImport ? handleDragOver : undefined}
+        onDragLeave={onImport ? handleDragLeave : undefined}
+        onDrop={onImport ? handleDrop : undefined}
+      >
+        {isDragOver && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none rounded-xl border-2 border-dashed"
+            style={{
+              borderColor: 'var(--color-accent, #3b82f6)',
+              backgroundColor: 'var(--color-bg-secondary, rgba(59, 130, 246, 0.08))',
+              backdropFilter: 'blur(2px)',
+            }}
+          >
+            <div className="text-center">
+              <Upload size={32} className="inline-block mb-2" style={{ color: 'var(--color-accent, #3b82f6)' }} />
+              <div className="text-sm font-semibold">{t('planner.dropHint')}</div>
+              <div className="text-xs text-warm-500 mt-1">{t('planner.dropHintSub')}</div>
+            </div>
+          </div>
+        )}
         {/* Table header — clickable for sort */}
         <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl select-none" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
           <div className="w-[14px] flex-shrink-0" />
