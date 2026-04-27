@@ -54,9 +54,9 @@ const translations = {
     'review.risk.low': 'Low risk',
     'review.risk.medium': 'Medium risk',
     'review.risk.high': 'High risk',
-    'review.cost.total': 'Total cost',
-    'review.cost.todos': 'Todos',
-    'review.cost.byCli': 'By CLI tool',
+    'review.tokens.total': 'Total tokens',
+    'review.tokens.todos': 'Todos',
+    'review.tokens.byCli': 'By CLI tool',
 
     // Project List
     'projects.title': 'All Projects',
@@ -839,9 +839,9 @@ const translations = {
     'review.risk.low': '낮은 위험',
     'review.risk.medium': '중간 위험',
     'review.risk.high': '높은 위험',
-    'review.cost.total': '총 비용',
-    'review.cost.todos': 'Todo 수',
-    'review.cost.byCli': 'CLI별',
+    'review.tokens.total': '총 토큰',
+    'review.tokens.todos': 'Todo 수',
+    'review.tokens.byCli': 'CLI별',
 
     // Project List
     'projects.title': '전체 프로젝트',

@@ -29,9 +29,11 @@ const FILTERS: Array<{ id: FilterMode; key: string }> = [
   { id: 'failed', key: 'review.filter.failed' },
 ];
 
-function formatCost(usd: number): string {
-  if (usd < 0.01) return '<$0.01';
-  return `$${usd.toFixed(2)}`;
+function formatTokens(n: number): string {
+  if (!n) return '0';
+  if (n < 1_000) return String(n);
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(n < 10_000 ? 1 : 0)}K`;
+  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
 }
 
 function applyFilter(items: ReviewItem[], filter: FilterMode): ReviewItem[] {
@@ -227,15 +229,15 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
         >
           <div>
             <div className="text-2xs uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-              {t('review.cost.total')}
+              {t('review.tokens.total')}
             </div>
             <div className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              {summary ? formatCost(summary.total_cost_usd) : '—'}
+              {summary ? formatTokens(summary.total_tokens) : '—'}
             </div>
           </div>
           <div>
             <div className="text-2xs uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-              {t('review.cost.todos')}
+              {t('review.tokens.todos')}
             </div>
             <div className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               {summary?.total_todos ?? '—'}
@@ -244,12 +246,12 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
           {summary && summary.by_cli.length > 0 && (
             <div className="flex-1 min-w-[200px]">
               <div className="text-2xs uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>
-                {t('review.cost.byCli')}
+                {t('review.tokens.byCli')}
               </div>
               <div className="flex gap-3 text-xs flex-wrap">
                 {summary.by_cli.map((c) => (
                   <span key={c.cli_tool} style={{ color: 'var(--color-text-secondary)' }}>
-                    {c.cli_tool}: <strong>{formatCost(c.total_cost_usd)}</strong> ({c.count})
+                    {c.cli_tool}: <strong>{formatTokens(c.total_tokens)}</strong> ({c.count})
                   </span>
                 ))}
               </div>
