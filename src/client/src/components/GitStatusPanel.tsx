@@ -661,12 +661,16 @@ function ChangedFileRow({
   file,
   pane,
   selected,
+  checked,
   onClick,
+  onToggleCheck,
 }: {
   file: GitStatusFile;
   pane: 'staged' | 'unstaged';
   selected: boolean;
+  checked: boolean;
   onClick: () => void;
+  onToggleCheck: (e: React.MouseEvent | React.ChangeEvent) => void;
 }) {
   const status = pane === 'staged'
     ? fileStatusName(file.index, ' ')
@@ -682,6 +686,14 @@ function ChangedFileRow({
         selected ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 text-warm-700'
       }`}
     >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggleCheck}
+        onClick={e => e.stopPropagation()}
+        className="h-3 w-3 shrink-0 cursor-pointer"
+        aria-label={file.path}
+      />
       <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold ${
         pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-200'
       } ${finalStatus.color}`}>
@@ -767,11 +779,48 @@ function WorkingChangesView({
   );
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [stagedChecked, setStagedChecked] = useState<Set<string>>(() => new Set());
+  const [unstagedChecked, setUnstagedChecked] = useState<Set<string>>(() => new Set());
   const [diff, setDiff] = useState<string>('');
   const [diffLoading, setDiffLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [committing, setCommitting] = useState(false);
+
+  // Drop checked entries that no longer exist in their pane
+  useEffect(() => {
+    setStagedChecked(prev => {
+      const valid = new Set(staged.map(f => f.path));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach(p => { if (valid.has(p)) next.add(p); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [staged]);
+  useEffect(() => {
+    setUnstagedChecked(prev => {
+      const valid = new Set(unstaged.map(f => f.path));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach(p => { if (valid.has(p)) next.add(p); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [unstaged]);
+
+  const toggleStagedCheck = useCallback((path: string) => {
+    setStagedChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  }, []);
+  const toggleUnstagedCheck = useCallback((path: string) => {
+    setUnstagedChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  }, []);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [fileListPct, setFileListPct] = useState<number>(() => {
@@ -875,9 +924,17 @@ function WorkingChangesView({
             <button
               className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || staged.length === 0}
-              onClick={() => exec(() => projectsApi.gitUnstage(projectId, staged.map(f => f.path)))}
+              onClick={() => {
+                const target = stagedChecked.size > 0
+                  ? staged.filter(f => stagedChecked.has(f.path)).map(f => f.path)
+                  : staged.map(f => f.path);
+                if (target.length === 0) return;
+                exec(() => projectsApi.gitUnstage(projectId, target));
+              }}
             >
-              {t('git.unstageAllShort')}
+              {stagedChecked.size > 0
+                ? `${t('git.unstageSelectedShort')} (${stagedChecked.size})`
+                : t('git.unstageAllShort')}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -890,7 +947,9 @@ function WorkingChangesView({
                   file={f}
                   pane="staged"
                   selected={selectedKey === `staged::${f.path}`}
+                  checked={stagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`staged::${f.path}`)}
+                  onToggleCheck={() => toggleStagedCheck(f.path)}
                 />
               ))
             )}
@@ -906,9 +965,17 @@ function WorkingChangesView({
             <button
               className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || unstaged.length === 0}
-              onClick={() => exec(() => projectsApi.gitStage(projectId, unstaged.map(f => f.path)))}
+              onClick={() => {
+                const target = unstagedChecked.size > 0
+                  ? unstaged.filter(f => unstagedChecked.has(f.path)).map(f => f.path)
+                  : unstaged.map(f => f.path);
+                if (target.length === 0) return;
+                exec(() => projectsApi.gitStage(projectId, target));
+              }}
             >
-              {t('git.stageAllShort')}
+              {unstagedChecked.size > 0
+                ? `${t('git.stageSelectedShort')} (${unstagedChecked.size})`
+                : t('git.stageAllShort')}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -921,7 +988,9 @@ function WorkingChangesView({
                   file={f}
                   pane="unstaged"
                   selected={selectedKey === `unstaged::${f.path}`}
+                  checked={unstagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`unstaged::${f.path}`)}
+                  onToggleCheck={() => toggleUnstagedCheck(f.path)}
                 />
               ))
             )}
