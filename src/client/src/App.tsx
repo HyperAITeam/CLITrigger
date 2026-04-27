@@ -8,6 +8,7 @@ import Layout from './components/Layout';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import DiscussionDetail from './components/DiscussionDetail';
+import ReviewQueue from './components/ReviewQueue';
 
 function App() {
   const { authenticated, authRequired, loading, login, logout } = useAuth();
@@ -84,6 +85,12 @@ function App() {
             path="/"
             element={
               <ProjectList onEvent={onEvent} />
+            }
+          />
+          <Route
+            path="/review"
+            element={
+              <ReviewQueue onEvent={onEvent} />
             }
           />
           <Route

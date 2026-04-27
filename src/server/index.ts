@@ -29,6 +29,7 @@ import discussionsRouter from './routes/discussions.js';
 import analyticsRouter from './routes/analytics.js';
 import sessionsRouter from './routes/sessions.js';
 import plannerRouter from './routes/planner.js';
+import reviewRouter from './routes/review.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
 import { logStreamer } from './services/log-streamer.js';
@@ -167,6 +168,7 @@ app.use('/api', discussionsRouter);
 app.use('/api', analyticsRouter);
 app.use('/api', sessionsRouter);
 app.use('/api', plannerRouter);
+app.use('/api/review', reviewRouter);
 mountPluginRoutes(app);
 
 // --- Scheduler ---
