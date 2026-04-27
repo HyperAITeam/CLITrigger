@@ -107,7 +107,7 @@ export interface ReviewSummary {
   total_cost_usd: number;
   total_tokens: number;
   by_status: Record<string, number>;
-  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number; total_tokens: number }>;
 }
 
 export interface ReviewQueueResponse {

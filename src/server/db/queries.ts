@@ -1215,7 +1215,7 @@ export interface ReviewSummary {
   total_cost_usd: number;
   total_tokens: number;
   by_status: Record<string, number>;
-  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number; total_tokens: number }>;
 }
 
 export function getReviewSummary(sinceIso: string, statuses: string[]): ReviewSummary {
@@ -1244,13 +1244,14 @@ export function getReviewSummary(sinceIso: string, statuses: string[]): ReviewSu
   const byCliRows = db.prepare(
     `SELECT COALESCE(t.cli_tool, p.cli_tool, 'claude') AS cli_tool,
             COUNT(*) AS count,
-            COALESCE(SUM(t.total_cost_usd), 0) AS total_cost_usd
+            COALESCE(SUM(t.total_cost_usd), 0) AS total_cost_usd,
+            COALESCE(SUM(t.total_tokens), 0) AS total_tokens
        FROM todos t
        JOIN projects p ON p.id = t.project_id
       WHERE t.status IN (${placeholders}) AND t.updated_at >= ?
       GROUP BY COALESCE(t.cli_tool, p.cli_tool, 'claude')
-      ORDER BY total_cost_usd DESC`
-  ).all(...statuses, sinceIso) as Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+      ORDER BY total_tokens DESC`
+  ).all(...statuses, sinceIso) as Array<{ cli_tool: string; count: number; total_cost_usd: number; total_tokens: number }>;
 
   return {
     total_todos: totals.n,
