@@ -107,6 +107,9 @@ Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recove
 ### Parallel Worktree Execution
 Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
 
+### Morning Review Queue
+A single cross-project triage screen for the "delegate overnight, review next morning" loop. Aggregates every recent TODO across all your projects into a card stack with project label, last-assistant summary, token totals, diff stats, and a server-classified risk badge (low / medium / high based on status and diff size). Keyboard-only operation: `j`/`k` to navigate, `Enter` for the embedded log viewer, `m` to merge, `d` to discard, `Esc` to close — N todos become O(N) keypresses. Time-window selector (12h / 24h / 7d), filter chips (All / Risky / Quick wins / Failed), and a sticky token ribbon with CLI breakdown.
+
 ### Multi-Agent Discussion
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus.
 
@@ -124,7 +127,7 @@ Schedule tasks for off-peak hours to avoid rate limits. Supports recurring cron 
 </div>
 
 ### Planner
-A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. JSON export/import lets you move plans across machines or share with teammates.
+A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
@@ -140,7 +143,7 @@ Per-project cost and execution stats powered by Recharts — stacked bar chart b
 </div>
 
 ### Built-in Git Client
-A full Git client lives inside the web UI — commit graph, action toolbar, file-status sidebar, worktree list, branch context menu (checkout / merge / rebase / fetch / pull / push / rename / delete), and a commit detail panel with file-level diff viewer. Non-ASCII filenames (Korean, CJK, emoji) render correctly in diff and status output.
+A full Git client lives inside the web UI with a Fork/SourceTree-style layout — a workspace menu switches between **File Status** (staged/unstaged file lists, working-tree diff viewer, commit message + push toggle, Cmd/Ctrl+Enter to commit) and **History** (commit graph, action toolbar, worktree list, VS Code-style branch context menu with checkout / merge / rebase / fetch / pull / push / rename / delete, and a commit detail panel with file-level diff viewer). Every split is user-resizable and persisted to localStorage. Non-ASCII filenames (Korean, CJK, emoji) render correctly in diff and status output.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
