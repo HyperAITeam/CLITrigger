@@ -679,11 +679,11 @@ function ChangedFileRow({
     <div
       onClick={onClick}
       className={`flex items-center gap-2 px-3 py-1 cursor-pointer text-xs select-none transition-colors ${
-        selected ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 dark:hover:bg-warm-800/40 text-warm-700 dark:text-warm-200'
+        selected ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 text-warm-700'
       }`}
     >
       <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold ${
-        pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-100 dark:bg-warm-800'
+        pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-200'
       } ${finalStatus.color}`}>
         {pane === 'staged' ? '+' : finalStatus.label === 'U' ? '+' : '−'}
       </span>
@@ -697,7 +697,7 @@ function WorkingDiffViewer({ diff, loading, file }: { diff: string; loading: boo
 
   if (!file) {
     return (
-      <div className="h-full flex items-center justify-center bg-warm-900/95 text-warm-400">
+      <div className="h-full flex items-center justify-center bg-[#1A1A1A] text-gray-400">
         <span className="text-sm">{t('git.selectFileForDiff')}</span>
       </div>
     );
@@ -705,7 +705,7 @@ function WorkingDiffViewer({ diff, loading, file }: { diff: string; loading: boo
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-warm-900/95 text-warm-400">
+      <div className="h-full flex items-center justify-center bg-[#1A1A1A] text-gray-400">
         <span className="text-xs">{t('git.loadingDiff')}</span>
       </div>
     );
@@ -714,25 +714,25 @@ function WorkingDiffViewer({ diff, loading, file }: { diff: string; loading: boo
   const isUntracked = file.index === '?' && file.working_dir === '?';
 
   return (
-    <div className="h-full flex flex-col bg-warm-900/95">
-      <div className="px-3 py-2 border-b border-warm-700/60 shrink-0 flex items-center gap-2">
-        <span className="text-xs font-mono text-warm-200 truncate" title={file.path}>{file.path}</span>
-        {isUntracked && <span className="text-2xs text-warm-400 italic">{t('git.untrackedNewFile')}</span>}
+    <div className="h-full flex flex-col bg-[#1A1A1A]">
+      <div className="px-3 py-2 border-b border-gray-700 shrink-0 flex items-center gap-2">
+        <span className="text-xs font-mono text-gray-100 truncate" title={file.path}>{file.path}</span>
+        {isUntracked && <span className="text-2xs text-gray-400 italic">{t('git.untrackedNewFile')}</span>}
       </div>
       <div className="flex-1 overflow-auto">
         {diff ? (
           <pre className="p-3 font-mono text-xs leading-relaxed">
             {diff.split('\n').map((line, i) => {
-              let className = 'text-warm-100';
-              if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-warm-100 bg-green-500/20';
-              else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-warm-100 bg-red-500/20';
+              let className = 'text-gray-200';
+              if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-gray-100 bg-green-500/20';
+              else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-gray-100 bg-red-500/20';
               else if (line.startsWith('@@')) className = 'text-blue-400';
               else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
               return <div key={i} className={className}>{line || ' '}</div>;
             })}
           </pre>
         ) : (
-          <div className="p-6 text-center text-xs text-warm-500 italic">
+          <div className="p-6 text-center text-xs text-gray-400 italic">
             {isUntracked ? t('git.untrackedNewFile') : t('git.noFilesChanged')}
           </div>
         )}
@@ -850,15 +850,15 @@ function WorkingChangesView({
   return (
     <div className="h-full flex min-h-0">
       {/* Left: file lists + commit bar */}
-      <div className="w-[55%] min-w-[360px] flex flex-col border-r border-warm-100 dark:border-warm-700 min-h-0">
+      <div className="w-[55%] min-w-[360px] flex flex-col border-r border-warm-200 min-h-0">
         {/* Staged pane */}
         <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
-          <div className="px-3 py-2 border-b border-warm-100 dark:border-warm-700 flex items-center justify-between shrink-0 bg-warm-50/50 dark:bg-warm-800/30">
-            <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">
+          <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
+            <span className="text-xs font-semibold text-warm-700">
               {t('git.stagedFiles')} <span className="text-warm-400 font-normal">({staged.length})</span>
             </span>
             <button
-              className="text-2xs text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200 disabled:opacity-40"
+              className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || staged.length === 0}
               onClick={() => exec(() => projectsApi.gitUnstage(projectId, staged.map(f => f.path)))}
             >
@@ -883,13 +883,13 @@ function WorkingChangesView({
         </div>
 
         {/* Unstaged pane */}
-        <div className="flex flex-col min-h-0 border-t border-warm-100 dark:border-warm-700" style={{ flex: '1 1 0' }}>
-          <div className="px-3 py-2 border-b border-warm-100 dark:border-warm-700 flex items-center justify-between shrink-0 bg-warm-50/50 dark:bg-warm-800/30">
-            <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">
+        <div className="flex flex-col min-h-0 border-t border-warm-200" style={{ flex: '1 1 0' }}>
+          <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
+            <span className="text-xs font-semibold text-warm-700">
               {t('git.unstagedFiles')} <span className="text-warm-400 font-normal">({unstaged.length})</span>
             </span>
             <button
-              className="text-2xs text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200 disabled:opacity-40"
+              className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || unstaged.length === 0}
               onClick={() => exec(() => projectsApi.gitStage(projectId, unstaged.map(f => f.path)))}
             >
@@ -914,9 +914,9 @@ function WorkingChangesView({
         </div>
 
         {/* Commit bar */}
-        <div className="border-t border-warm-200 dark:border-warm-700 shrink-0 bg-theme-bg">
+        <div className="border-t border-warm-200 shrink-0 bg-theme-bg">
           <textarea
-            className="w-full px-3 py-2 text-sm bg-transparent text-warm-700 dark:text-warm-100 border-0 focus:outline-none resize-none placeholder:text-warm-400"
+            className="w-full px-3 py-2 text-sm bg-transparent text-warm-800 border-0 focus:outline-none resize-none placeholder:text-warm-400"
             rows={3}
             placeholder={t('git.commitMessage')}
             value={commitMessage}
@@ -926,8 +926,8 @@ function WorkingChangesView({
             }}
             disabled={committing}
           />
-          <div className="px-3 py-2 border-t border-warm-100 dark:border-warm-700 flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-2xs text-warm-600 dark:text-warm-300 cursor-pointer select-none">
+          <div className="px-3 py-2 border-t border-warm-200 flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-2xs text-warm-600 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={pushAfterCommit}
@@ -1412,13 +1412,13 @@ function WorkspaceMenu({
         className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded transition-colors ${
           active
             ? 'bg-accent text-white'
-            : 'text-warm-600 dark:text-warm-300 hover:bg-warm-100 dark:hover:bg-warm-800/60'
+            : 'text-warm-600 hover:bg-warm-200/60'
         }`}
       >
         <span className="flex-1 text-left truncate">{label}</span>
         {badge !== undefined && badge > 0 && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-            active ? 'bg-white/20 text-white' : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+            active ? 'bg-white/20 text-white' : 'bg-warm-200 text-warm-600'
           }`}>
             {badge}
           </span>
@@ -1662,7 +1662,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
             <>
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-warm-100">
-                <span className="text-sm font-semibold text-warm-700 dark:text-warm-200">{t('git.commitHistory')}</span>
+                <span className="text-sm font-semibold text-warm-700">{t('git.commitHistory')}</span>
                 <button
                   onClick={refresh}
                   disabled={loading}
