@@ -496,14 +496,11 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
   const handleImportPlanner = useCallback(async (file: File) => {
     if (!id) return;
     try {
-      const text = await file.text();
-      let payload: plannerApi.PlannerExportPayload;
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        throw new Error(t('planner.importInvalidJson'));
+      const markdown = await file.text();
+      if (!markdown.trim()) {
+        throw new Error(t('planner.importInvalidMarkdown'));
       }
-      const result = await plannerApi.importPlanner(id, payload);
+      const result = await plannerApi.importPlanner(id, markdown);
       const [tags, items] = await Promise.all([plannerApi.getPlannerTags(id), plannerApi.getPlannerItems(id)]);
       setPlannerTags(tags);
       setPlannerItems(items);

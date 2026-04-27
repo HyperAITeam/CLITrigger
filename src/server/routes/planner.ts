@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, text } from 'express';
 import path from 'path';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
@@ -21,16 +21,173 @@ interface ExportedTag {
   color: string;
 }
 
-interface ExportPayload {
-  version: number;
-  exported_at: string;
-  project_name: string;
+function sanitizeFilenamePart(input: string): string {
+  return input.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project';
+}
+
+const STATUS_SECTIONS: Array<{ header: string; status: string }> = [
+  { header: 'Pending', status: 'pending' },
+  { header: 'In Progress', status: 'in_progress' },
+  { header: 'Done', status: 'done' },
+];
+
+function serializePlannerMarkdown(
+  projectName: string,
+  exportedAt: string,
+  items: ExportedItem[],
+  tags: ExportedTag[]
+): string {
+  const out: string[] = [];
+  out.push(`# Planner Export: ${projectName}`);
+  out.push('');
+  out.push(`> Version 1 · Exported ${exportedAt}`);
+  out.push('');
+
+  if (tags.length > 0) {
+    out.push('## Tags');
+    out.push('');
+    for (const tag of tags) {
+      out.push(`- \`${tag.name}\` (${tag.color})`);
+    }
+    out.push('');
+  }
+
+  for (const sec of STATUS_SECTIONS) {
+    const sectionItems = items.filter((i) => i.status === sec.status);
+    if (sectionItems.length === 0) continue;
+    out.push(`## ${sec.header}`);
+    out.push('');
+    for (const item of sectionItems) {
+      const checkbox = sec.status === 'done' ? '[x]' : '[ ]';
+      const meta: string[] = [];
+      if (item.tags.length > 0) meta.push(`tags:${item.tags.join(',')}`);
+      meta.push(`priority:${item.priority}`);
+      if (item.due_date) meta.push(`due:${item.due_date}`);
+      const metaStr = meta.length > 0 ? ` <!-- ${meta.join(' ')} -->` : '';
+      const safeTitle = item.title.trim() || '(untitled)';
+      out.push(`- ${checkbox} **${safeTitle}**${metaStr}`);
+      if (item.description && item.description.trim()) {
+        out.push('');
+        for (const dline of item.description.split(/\r?\n/)) {
+          out.push(`  ${dline}`);
+        }
+      }
+      out.push('');
+    }
+  }
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '\n');
+}
+
+interface ParsedMarkdown {
   items: ExportedItem[];
   tags: ExportedTag[];
 }
 
-function sanitizeFilenamePart(input: string): string {
-  return input.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project';
+function parsePlannerMarkdown(md: string): ParsedMarkdown {
+  const lines = md.replace(/\r\n/g, '\n').split('\n');
+  const result: ParsedMarkdown = { items: [], tags: [] };
+
+  type Section = { header: string; lines: string[] };
+  const sections: Section[] = [];
+  let current: Section | null = null;
+  for (const line of lines) {
+    const m = line.match(/^##\s+(.+?)\s*$/);
+    if (m) {
+      current = { header: m[1].trim(), lines: [] };
+      sections.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+
+  for (const section of sections) {
+    const header = section.header.toLowerCase();
+
+    if (header === 'tags') {
+      for (const line of section.lines) {
+        const m = line.match(/^-\s+`([^`]+)`\s*\(([^)]+)\)\s*$/);
+        if (m) result.tags.push({ name: m[1].trim(), color: m[2].trim() });
+      }
+      continue;
+    }
+
+    let status: string | null = null;
+    if (header === 'pending') status = 'pending';
+    else if (header === 'in progress') status = 'in_progress';
+    else if (header === 'done') status = 'done';
+    if (!status) continue;
+
+    let i = 0;
+    while (i < section.lines.length) {
+      const line = section.lines[i];
+      const itemMatch = line.match(/^-\s+\[([ xX])\]\s*(.*)$/);
+      if (!itemMatch) { i++; continue; }
+
+      let rest = itemMatch[2];
+      let metadata = '';
+      const metaMatch = rest.match(/^(.*?)\s*<!--\s*(.*?)\s*-->\s*$/);
+      if (metaMatch) {
+        rest = metaMatch[1];
+        metadata = metaMatch[2];
+      }
+      rest = rest.trim();
+      const boldMatch = rest.match(/^\*\*(.+)\*\*$/);
+      if (boldMatch) rest = boldMatch[1].trim();
+      const title = rest === '(untitled)' ? '' : rest;
+
+      const item: ExportedItem = {
+        title,
+        description: null,
+        tags: [],
+        due_date: null,
+        status,
+        priority: 0,
+      };
+
+      if (metadata) {
+        for (const pair of metadata.split(/\s+/)) {
+          const idx = pair.indexOf(':');
+          if (idx <= 0) continue;
+          const key = pair.slice(0, idx);
+          const value = pair.slice(idx + 1);
+          if (key === 'tags' && value) {
+            item.tags = value.split(',').map((s) => s.trim()).filter(Boolean);
+          } else if (key === 'priority') {
+            const n = parseInt(value, 10);
+            if (!isNaN(n)) item.priority = n;
+          } else if (key === 'due') {
+            item.due_date = value;
+          }
+        }
+      }
+
+      i++;
+      const descLines: string[] = [];
+      while (i < section.lines.length) {
+        const next = section.lines[i];
+        if (/^-\s+\[[ xX]\]/.test(next)) break;
+        if (next.trim() === '') {
+          descLines.push('');
+          i++;
+          continue;
+        }
+        if (/^\s{2,}/.test(next)) {
+          descLines.push(next.replace(/^ {2}/, ''));
+          i++;
+        } else {
+          break;
+        }
+      }
+      while (descLines.length && descLines[0] === '') descLines.shift();
+      while (descLines.length && descLines[descLines.length - 1] === '') descLines.pop();
+      if (descLines.length > 0) item.description = descLines.join('\n');
+
+      if (item.title) result.items.push(item);
+    }
+  }
+
+  return result;
 }
 
 const router = Router();
@@ -270,7 +427,7 @@ router.post('/planner/:id/convert-to-schedule', (req: Request<{ id: string }>, r
   }
 });
 
-// GET /api/projects/:id/planner/export - download planner as JSON
+// GET /api/projects/:id/planner/export - download planner as Markdown
 router.get('/projects/:id/planner/export', (req: Request<{ id: string }>, res: Response) => {
   try {
     const project = queries.getProjectById(req.params.id);
@@ -302,27 +459,32 @@ router.get('/projects/:id/planner/export', (req: Request<{ id: string }>, res: R
         };
       });
 
-    const payload: ExportPayload = {
-      version: 1,
-      exported_at: new Date().toISOString(),
-      project_name: project.name,
+    const exportedAt = new Date().toISOString();
+    const md = serializePlannerMarkdown(
+      project.name,
+      exportedAt,
       items,
-      tags: tags.map((t) => ({ name: t.name, color: t.color })),
-    };
+      tags.map((t) => ({ name: t.name, color: t.color }))
+    );
 
-    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const filename = `planner-${sanitizeFilenamePart(project.name)}-${datePart}.json`;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    const datePart = exportedAt.slice(0, 10).replace(/-/g, '');
+    const filename = `planner-${sanitizeFilenamePart(project.name)}-${datePart}.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(JSON.stringify(payload, null, 2));
+    res.send(md);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
   }
 });
 
-// POST /api/projects/:id/planner/import - import planner JSON
-router.post('/projects/:id/planner/import', (req: Request<{ id: string }>, res: Response) => {
+// POST /api/projects/:id/planner/import - import planner Markdown
+const markdownBodyParser = text({
+  type: ['text/markdown', 'text/plain', 'text/*', 'application/octet-stream'],
+  limit: '50mb',
+});
+
+router.post('/projects/:id/planner/import', markdownBodyParser, (req: Request<{ id: string }>, res: Response) => {
   try {
     const project = queries.getProjectById(req.params.id);
     if (!project) {
@@ -330,26 +492,16 @@ router.post('/projects/:id/planner/import', (req: Request<{ id: string }>, res: 
       return;
     }
 
-    const payload = req.body as Partial<ExportPayload> | undefined;
-    if (!payload || typeof payload !== 'object') {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-    if (payload.version !== 1) {
-      res.status(400).json({ error: `Unsupported version: ${payload.version}` });
-      return;
-    }
-    if (!Array.isArray(payload.items)) {
-      res.status(400).json({ error: 'items must be an array' });
+    const md = typeof req.body === 'string' ? req.body : '';
+    if (!md.trim()) {
+      res.status(400).json({ error: 'Empty markdown body' });
       return;
     }
 
-    for (let i = 0; i < payload.items.length; i++) {
-      const item = payload.items[i];
-      if (!item || typeof item.title !== 'string' || !item.title.trim()) {
-        res.status(400).json({ error: `items[${i}].title is required` });
-        return;
-      }
+    const parsed = parsePlannerMarkdown(md);
+    if (parsed.items.length === 0 && parsed.tags.length === 0) {
+      res.status(400).json({ error: 'No planner items or tags found in markdown' });
+      return;
     }
 
     const existingTagNames = new Set(
@@ -361,32 +513,27 @@ router.post('/projects/:id/planner/import', (req: Request<{ id: string }>, res: 
     let importedTags = 0;
 
     const runImport = db.transaction(() => {
-      if (Array.isArray(payload.tags)) {
-        for (const tag of payload.tags) {
-          if (!tag || typeof tag.name !== 'string' || !tag.name.trim()) continue;
-          if (existingTagNames.has(tag.name)) continue;
-          const color = typeof tag.color === 'string' && tag.color ? tag.color : 'blue';
-          queries.upsertPlannerTag(req.params.id, tag.name, color);
-          existingTagNames.add(tag.name);
-          importedTags++;
-        }
+      for (const tag of parsed.tags) {
+        if (!tag.name) continue;
+        if (existingTagNames.has(tag.name)) continue;
+        const color = tag.color || 'blue';
+        queries.upsertPlannerTag(req.params.id, tag.name, color);
+        existingTagNames.add(tag.name);
+        importedTags++;
       }
 
-      for (const item of payload.items!) {
-        const tagsArr = Array.isArray(item.tags) ? item.tags.filter((t) => typeof t === 'string') : [];
-        const rawStatus = typeof item.status === 'string' ? item.status : 'pending';
-        const status = ALLOWED_IMPORT_STATUSES.has(rawStatus) ? rawStatus : 'pending';
-        const priority = typeof item.priority === 'number' ? item.priority : 0;
-        const description = typeof item.description === 'string' ? item.description : undefined;
-        const dueDate = typeof item.due_date === 'string' ? item.due_date : undefined;
+      for (const item of parsed.items) {
+        const status = ALLOWED_IMPORT_STATUSES.has(item.status) ? item.status : 'pending';
+        const description = item.description ?? undefined;
+        const dueDate = item.due_date ?? undefined;
 
         const created = queries.createPlannerItem(
           req.params.id,
           item.title,
           description,
-          tagsArr.length > 0 ? JSON.stringify(tagsArr) : undefined,
+          item.tags.length > 0 ? JSON.stringify(item.tags) : undefined,
           dueDate,
-          priority
+          item.priority
         );
 
         if (status !== 'pending') {

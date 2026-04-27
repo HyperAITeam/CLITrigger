@@ -176,7 +176,7 @@ export default function PlannerList({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".json,application/json"
+                accept=".md,.markdown,text/markdown"
                 className="hidden"
                 onChange={handleFileChange}
               />
