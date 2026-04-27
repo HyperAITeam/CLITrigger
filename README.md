@@ -209,7 +209,7 @@ clitrigger config password     # Change password
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/OSgoodYZ/CLITrigger.git
+git clone https://github.com/HyperAITeam/CLITrigger.git
 cd CLITrigger
 npm install
 cd src/client && npm install && cd ../..
