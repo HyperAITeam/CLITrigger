@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox } from 'lucide-react';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
+import * as reviewApi from '../api/review';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
@@ -26,6 +27,7 @@ interface ProjectStatus {
 export default function Sidebar({ onLogout, authRequired, connected, onEvent, onClose }: SidebarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
+  const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -60,8 +62,21 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           },
         }));
       }
+      if (event.type === 'todo:status-changed') {
+        loadReviewCount();
+      }
     });
   }, [onEvent]);
+
+  useEffect(() => {
+    loadReviewCount();
+  }, []);
+
+  function loadReviewCount() {
+    reviewApi.getReviewSummary({ hours: 24 })
+      .then((s) => setReviewCount(s.total_todos))
+      .catch(() => {});
+  }
 
   function loadProjects() {
     projectsApi.getProjects()
@@ -125,7 +140,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       </div>
 
       {/* Navigation */}
-      <nav className="px-3 mb-2">
+      <nav className="px-3 mb-2 space-y-0.5">
         <Link
           to="/"
           onClick={handleNav}
@@ -140,6 +155,29 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           )}
           <LayoutDashboard size={16} />
           {t('sidebar.home')}
+        </Link>
+        <Link
+          to="/review"
+          onClick={handleNav}
+          className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 active:scale-95 ${location.pathname === '/review' ? 'font-medium' : ''}`}
+          style={location.pathname === '/review'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
+            : { color: 'var(--color-text-tertiary)' }
+          }
+        >
+          {location.pathname === '/review' && (
+            <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+          )}
+          <Inbox size={16} />
+          <span className="flex-1">{t('sidebar.review')}</span>
+          {reviewCount !== null && reviewCount > 0 && (
+            <span
+              className="text-2xs px-1.5 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}
+            >
+              {reviewCount}
+            </span>
+          )}
         </Link>
       </nav>
 

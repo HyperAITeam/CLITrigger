@@ -171,6 +171,9 @@ export interface Todo {
   position_x: number | null;
   position_y: number | null;
   use_worktree: number | null;
+  summary: string | null;
+  diff_lines: number | null;
+  diff_files: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -197,7 +200,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree' | 'summary' | 'diff_lines' | 'diff_files'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -227,6 +230,9 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
     fields.push('use_worktree = ?');
     values.push(v);
   }
+  if (updates.summary !== undefined) { fields.push('summary = ?'); values.push(updates.summary); }
+  if (updates.diff_lines !== undefined) { fields.push('diff_lines = ?'); values.push(updates.diff_lines); }
+  if (updates.diff_files !== undefined) { fields.push('diff_files = ?'); values.push(updates.diff_files); }
 
   if (fields.length === 0) return getTodoById(id);
 
@@ -1177,6 +1183,82 @@ export function deletePlannerTag(projectId: string, name: string): void {
       db.prepare('UPDATE planner_items SET tags = ? WHERE id = ?').run(newTags, item.id);
     } catch { /* ignore */ }
   }
+}
+
+// ── Review Queue (cross-project) ──
+
+export interface ReviewQueueRow extends Todo {
+  project_name: string;
+  project_path: string;
+  project_default_branch: string;
+}
+
+export function getReviewQueue(sinceIso: string, statuses: string[]): ReviewQueueRow[] {
+  const db = getDatabase();
+  if (statuses.length === 0) return [];
+  const placeholders = statuses.map(() => '?').join(',');
+  return db.prepare(
+    `SELECT t.*,
+            p.name AS project_name,
+            p.path AS project_path,
+            p.default_branch AS project_default_branch
+       FROM todos t
+       JOIN projects p ON p.id = t.project_id
+      WHERE t.status IN (${placeholders})
+        AND t.updated_at >= ?
+      ORDER BY t.updated_at DESC`
+  ).all(...statuses, sinceIso) as ReviewQueueRow[];
+}
+
+export interface ReviewSummary {
+  total_todos: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  by_status: Record<string, number>;
+  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+}
+
+export function getReviewSummary(sinceIso: string, statuses: string[]): ReviewSummary {
+  const db = getDatabase();
+  if (statuses.length === 0) {
+    return { total_todos: 0, total_cost_usd: 0, total_tokens: 0, by_status: {}, by_cli: [] };
+  }
+  const placeholders = statuses.map(() => '?').join(',');
+
+  const totals = db.prepare(
+    `SELECT COUNT(*) AS n,
+            COALESCE(SUM(total_cost_usd), 0) AS cost,
+            COALESCE(SUM(total_tokens), 0) AS tokens
+       FROM todos
+      WHERE status IN (${placeholders}) AND updated_at >= ?`
+  ).get(...statuses, sinceIso) as { n: number; cost: number; tokens: number };
+
+  const byStatusRows = db.prepare(
+    `SELECT status, COUNT(*) AS n FROM todos
+      WHERE status IN (${placeholders}) AND updated_at >= ?
+      GROUP BY status`
+  ).all(...statuses, sinceIso) as Array<{ status: string; n: number }>;
+  const by_status: Record<string, number> = {};
+  for (const r of byStatusRows) by_status[r.status] = r.n;
+
+  const byCliRows = db.prepare(
+    `SELECT COALESCE(t.cli_tool, p.cli_tool, 'claude') AS cli_tool,
+            COUNT(*) AS count,
+            COALESCE(SUM(t.total_cost_usd), 0) AS total_cost_usd
+       FROM todos t
+       JOIN projects p ON p.id = t.project_id
+      WHERE t.status IN (${placeholders}) AND t.updated_at >= ?
+      GROUP BY COALESCE(t.cli_tool, p.cli_tool, 'claude')
+      ORDER BY total_cost_usd DESC`
+  ).all(...statuses, sinceIso) as Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+
+  return {
+    total_todos: totals.n,
+    total_cost_usd: totals.cost,
+    total_tokens: totals.tokens,
+    by_status,
+    by_cli: byCliRows,
+  };
 }
 
 // ── Cleanup ──

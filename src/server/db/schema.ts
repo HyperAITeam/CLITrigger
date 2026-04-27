@@ -255,6 +255,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'cli_models', column: 'source', definition: "TEXT DEFAULT 'seed'" },
     { table: 'discussion_agents', column: 'can_implement', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'npm_auto_install', definition: 'INTEGER DEFAULT 0' },
+    { table: 'todos', column: 'summary', definition: 'TEXT' },
+    { table: 'todos', column: 'diff_lines', definition: 'INTEGER' },
+    { table: 'todos', column: 'diff_files', definition: 'INTEGER' },
   ];
 
   for (const { table, column, definition } of migrations) {

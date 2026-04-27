@@ -9,6 +9,7 @@ import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
+import { captureReviewMetadata } from './review-capture.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -701,6 +702,7 @@ Complete the task in the current directory.`;
             try { queries.updateTodoStatus(todoId, 'failed'); } catch { /* ignore */ }
           }
 
+          captureReviewMetadata(todoId).catch(() => { /* ignore */ });
           broadcaster.broadcast({ type: 'todo:log', todoId, message: failMsg, logType: 'error' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
           this.broadcastProjectStatus(projectId);
@@ -723,6 +725,7 @@ Complete the task in the current directory.`;
             try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }
           }
 
+          captureReviewMetadata(todoId).catch(() => { /* ignore */ });
           broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
           this.broadcastProjectStatus(projectId);

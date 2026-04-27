@@ -84,8 +84,36 @@ export interface Todo {
   position_x: number | null;
   position_y: number | null;
   use_worktree: number | null;
+  total_cost_usd?: number | null;
+  total_tokens?: number | null;
+  summary?: string | null;
+  diff_lines?: number | null;
+  diff_files?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ReviewItem extends Todo {
+  project_name: string;
+  project_path: string;
+  project_default_branch: string;
+  risk: 'low' | 'medium' | 'high';
+}
+
+export interface ReviewSummary {
+  since: string;
+  statuses: string[];
+  total_todos: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  by_status: Record<string, number>;
+  by_cli: Array<{ cli_tool: string; count: number; total_cost_usd: number }>;
+}
+
+export interface ReviewQueueResponse {
+  since: string;
+  statuses: string[];
+  items: ReviewItem[];
 }
 
 export interface DiffResult {
