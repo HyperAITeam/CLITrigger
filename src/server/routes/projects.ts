@@ -194,12 +194,20 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id - get project by id
-router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
+router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
-    const project = getProjectById(req.params.id);
+    let project = getProjectById(req.params.id);
     if (!project) {
       res.status(404).json({ error: 'Project not found' });
       return;
+    }
+    if (!project.is_git_repo) {
+      try {
+        const isGitRepo = await worktreeManager.isGitRepository(project.path);
+        if (isGitRepo) {
+          project = updateProject(req.params.id, { is_git_repo: 1 }) ?? project;
+        }
+      } catch { /* best-effort; ignore failures */ }
     }
     res.json(project);
   } catch (err: unknown) {
