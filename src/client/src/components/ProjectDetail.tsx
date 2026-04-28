@@ -689,18 +689,18 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
       {/* Segmented tab control */}
       <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
-          { key: 'planner', label: t('tabs.planner'), count: plannerItems.length },
-          { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
-          { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
-          { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
-          { key: 'memory', label: t('tabs.memory') },
-          { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
           ...getPluginsWithTabs(project).map((plugin) => ({
             key: plugin.id,
             label: t(`tabs.${plugin.id}`) || plugin.displayName,
           })),
-          { key: 'analytics', label: t('tabs.analytics') },
+          { key: 'memory', label: t('tabs.memory') },
+          { key: 'planner', label: t('tabs.planner'), count: plannerItems.length },
+          { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
+          { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
+          { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
+          { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git') }] : []),
+          { key: 'analytics', label: t('tabs.analytics') },
         ].map((tab) => (
           <button
             key={tab.key}
