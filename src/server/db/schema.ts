@@ -258,6 +258,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'summary', definition: 'TEXT' },
     { table: 'todos', column: 'diff_lines', definition: 'INTEGER' },
     { table: 'todos', column: 'diff_files', definition: 'INTEGER' },
+    { table: 'planner_items', column: 'source_discussion_id', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

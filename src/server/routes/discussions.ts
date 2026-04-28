@@ -4,6 +4,7 @@ import fs from 'fs';
 import * as queries from '../db/queries.js';
 import { discussionOrchestrator } from '../services/discussion-orchestrator.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { extractActionItems, type ExtractedActionItem } from '../services/discussion-extractor.js';
 
 const router = Router();
 
@@ -640,6 +641,79 @@ router.post('/discussions/:id/cleanup', async (req: Request<{ id: string }>, res
     }
 
     res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Extract action-item suggestions from a completed discussion (preview only — does not persist).
+router.post('/discussions/:id/extract-planner-items', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const discussion = queries.getDiscussionById(req.params.id);
+    if (!discussion) {
+      res.status(404).json({ error: 'Discussion not found' });
+      return;
+    }
+    if (discussion.status !== 'completed') {
+      res.status(400).json({ error: 'Discussion must be completed before extracting action items' });
+      return;
+    }
+
+    const items = await extractActionItems(discussion.id);
+    res.json({ items });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Persist user-curated action items as planner items, linked back to the discussion.
+router.post('/discussions/:id/convert-to-planner', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const discussion = queries.getDiscussionById(req.params.id);
+    if (!discussion) {
+      res.status(404).json({ error: 'Discussion not found' });
+      return;
+    }
+
+    const rawItems = Array.isArray((req.body as { items?: unknown }).items) ? (req.body as { items: unknown[] }).items : null;
+    if (!rawItems || rawItems.length === 0) {
+      res.status(400).json({ error: 'items is required and must be a non-empty array' });
+      return;
+    }
+
+    const items: ExtractedActionItem[] = [];
+    for (const entry of rawItems) {
+      if (!entry || typeof entry !== 'object') continue;
+      const e = entry as Record<string, unknown>;
+      const title = typeof e.title === 'string' ? e.title.trim() : '';
+      if (!title) continue;
+      const description = typeof e.description === 'string' ? e.description : '';
+      let priority = typeof e.priority === 'number' ? Math.round(e.priority) : 1;
+      if (priority < 0) priority = 0;
+      if (priority > 3) priority = 3;
+      items.push({ title, description, priority });
+    }
+
+    if (items.length === 0) {
+      res.status(400).json({ error: 'No valid items to convert' });
+      return;
+    }
+
+    const created = items.map((item) =>
+      queries.createPlannerItem(
+        discussion.project_id,
+        item.title,
+        item.description || undefined,
+        undefined,
+        undefined,
+        item.priority,
+        discussion.id
+      )
+    );
+
+    res.json({ created });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
