@@ -291,8 +291,19 @@ export default function ReviewCard({
               <Loader2 size={16} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
             </div>
           ) : !diffData.available ? (
-            <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {t(reasonKey(diffData.reason))}
+            <div className="px-4 py-6 space-y-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              <div className="text-center">{t(reasonKey(diffData.reason))}</div>
+              {diffData.debug && (
+                <pre
+                  className="text-xs font-mono whitespace-pre-wrap break-all p-2 rounded"
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-tertiary)' }}
+                >
+{`worktree_path: ${diffData.debug.worktree_path ?? '(null)'}
+worktree_exists: ${diffData.debug.worktree_exists}
+branch_name: ${diffData.debug.branch_name ?? '(null)'}
+project_path: ${diffData.debug.project_path ?? '(null)'}`}
+                </pre>
+              )}
             </div>
           ) : diffData.files.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
