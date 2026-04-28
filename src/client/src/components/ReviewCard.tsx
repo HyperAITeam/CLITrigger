@@ -1,12 +1,18 @@
-import { useState } from 'react';
-import { CheckCircle, XCircle, MinusCircle, AlertTriangle, GitBranch, FolderGit2, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { CheckCircle, XCircle, MinusCircle, AlertTriangle, GitBranch, FolderGit2, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import type { ReviewItem } from '../types';
+import type { CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
+import * as reviewApi from '../api/review';
+import type { ReviewDiffResponse } from '../api/review';
+import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 
 interface ReviewCardProps {
   item: ReviewItem;
   focused: boolean;
+  expanded: boolean;
   onFocus: () => void;
+  onToggleExpand: () => void;
   onOpen: () => void;
   onApprove: () => Promise<void> | void;
   onContinue: (prompt: string) => Promise<void> | void;
@@ -45,18 +51,102 @@ function StatusIcon({ status }: { status: ReviewItem['status'] }) {
   return <AlertTriangle size={14} className="text-status-warning" />;
 }
 
-export default function ReviewCard({ item, focused, onFocus, onOpen, onApprove, onContinue, onDiscard, busy }: ReviewCardProps) {
+function reasonKey(reason: 'todo-not-found' | 'no-branch' | 'branch-missing' | 'base-branch-missing'): string {
+  switch (reason) {
+    case 'todo-not-found': return 'review.diff.notFound';
+    case 'no-branch': return 'review.diff.noBranch';
+    case 'branch-missing': return 'review.diff.branchMissing';
+    case 'base-branch-missing': return 'review.diff.baseBranchMissing';
+  }
+}
+
+export default function ReviewCard({
+  item,
+  focused,
+  expanded,
+  onFocus,
+  onToggleExpand,
+  onOpen,
+  onApprove,
+  onContinue,
+  onDiscard,
+  busy,
+}: ReviewCardProps) {
   const { t } = useI18n();
   const [showContinue, setShowContinue] = useState(false);
   const [continuePrompt, setContinuePrompt] = useState('');
   const risk = RISK_STYLES[item.risk];
 
+  const [diffData, setDiffData] = useState<ReviewDiffResponse | null>(null);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<string>('');
+  const [fileDiffLoading, setFileDiffLoading] = useState(false);
+
   const canApprove = item.status === 'completed' && !!item.branch_name && !!item.worktree_path;
   const canContinue = item.status === 'completed' && !!item.worktree_path;
 
+  // Fetch file list lazily on first expand
+  useEffect(() => {
+    if (!expanded || diffData !== null) return;
+    let cancelled = false;
+    setFilesLoading(true);
+    reviewApi.getReviewDiff(item.id)
+      .then((res) => {
+        if (cancelled) return;
+        setDiffData(res);
+        if (res.available && res.files.length > 0) {
+          setSelectedFile(res.files[0].path);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDiffData({ available: false, reason: 'branch-missing' });
+      })
+      .finally(() => {
+        if (!cancelled) setFilesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [expanded, diffData, item.id]);
+
+  // Fetch unified diff for the selected file
+  useEffect(() => {
+    if (!expanded || !selectedFile) return;
+    let cancelled = false;
+    setFileDiffLoading(true);
+    setFileDiff('');
+    reviewApi.getReviewFileDiff(item.id, selectedFile)
+      .then((res) => {
+        if (cancelled) return;
+        setFileDiff(res.available ? res.diff : '');
+      })
+      .catch(() => {
+        if (!cancelled) setFileDiff('');
+      })
+      .finally(() => {
+        if (!cancelled) setFileDiffLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [expanded, selectedFile, item.id]);
+
+  const handleCardClick = useCallback(() => {
+    onFocus();
+    onToggleExpand();
+  }, [onFocus, onToggleExpand]);
+
+  // Convert ReviewDiffFile -> CommitFile shape so we can reuse <CommitFileList>
+  const fileListItems: CommitFile[] = diffData?.available
+    ? diffData.files.map((f) => ({
+        path: f.path,
+        status: f.status,
+        additions: f.insertions,
+        deletions: f.deletions,
+      }))
+    : [];
+
   return (
     <div
-      onClick={onFocus}
+      onClick={handleCardClick}
       className={`card p-4 cursor-pointer transition-all ${focused ? 'ring-2' : ''}`}
       style={{
         borderColor: focused ? 'var(--color-accent)' : undefined,
@@ -78,7 +168,10 @@ export default function ReviewCard({ item, focused, onFocus, onOpen, onApprove, 
               </>
             )}
           </div>
-          <h3 className="font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{item.title}</h3>
+          <h3 className="font-medium truncate flex items-center gap-1.5" style={{ color: 'var(--color-text-primary)' }}>
+            {expanded ? <ChevronDown size={14} className="flex-shrink-0 opacity-60" /> : <ChevronRight size={14} className="flex-shrink-0 opacity-60" />}
+            <span className="truncate">{item.title}</span>
+          </h3>
         </div>
         <div className="flex-shrink-0 flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
           <StatusIcon status={item.status} />
@@ -184,6 +277,60 @@ export default function ReviewCard({ item, focused, onFocus, onOpen, onApprove, 
               {busy ? <Loader2 size={12} className="animate-spin" /> : t('review.send')}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Inline diff expansion */}
+      {expanded && (
+        <div
+          className="mt-3 rounded-lg overflow-hidden"
+          style={{ border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-primary)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!diffData || filesLoading ? (
+            <div className="h-24 flex items-center justify-center">
+              <Loader2 size={16} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+            </div>
+          ) : !diffData.available ? (
+            <div className="px-4 py-6 space-y-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              <div className="text-center">{t(reasonKey(diffData.reason))}</div>
+              {diffData.debug && (
+                <pre
+                  className="text-xs font-mono whitespace-pre-wrap break-all p-2 rounded"
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-tertiary)' }}
+                >
+{`worktree_path: ${diffData.debug.worktree_path ?? '(null)'}
+worktree_exists: ${diffData.debug.worktree_exists}
+branch_name: ${diffData.debug.branch_name ?? '(null)'}
+project_path: ${diffData.debug.project_path ?? '(null)'}
+default_branch: ${diffData.debug.default_branch ?? '(null)'}
+resolved_base: ${diffData.debug.resolved_base ?? '(null)'}`}
+                </pre>
+              )}
+            </div>
+          ) : diffData.files.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              {t('review.diff.empty')}
+            </div>
+          ) : (
+            <div className="flex" style={{ height: 384 }}>
+              <div className="w-56 shrink-0 border-r overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
+                <CommitFileList
+                  files={fileListItems}
+                  loading={false}
+                  selectedFile={selectedFile}
+                  onFileClick={(p) => setSelectedFile(p)}
+                />
+              </div>
+              <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
+                <CommitDiffViewer
+                  diff={fileDiff}
+                  loading={fileDiffLoading}
+                  selectedFile={selectedFile}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
