@@ -30,13 +30,15 @@ export interface ReviewDiffFile {
   status: string;
 }
 
-export type ReviewDiffReason = 'todo-not-found' | 'no-branch' | 'branch-missing';
+export type ReviewDiffReason = 'todo-not-found' | 'no-branch' | 'branch-missing' | 'base-branch-missing';
 
 export interface ReviewDiffDebug {
   worktree_path: string | null;
   worktree_exists: boolean;
   branch_name: string | null;
   project_path: string | null;
+  default_branch: string | null;
+  resolved_base: string | null;
 }
 
 export type ReviewDiffResponse =

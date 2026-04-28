@@ -126,6 +126,8 @@ interface DiffDebug {
   worktree_exists: boolean;
   branch_name: string | null;
   project_path: string | null;
+  default_branch: string | null;
+  resolved_base: string | null;
 }
 
 type DiffContext = {
@@ -138,24 +140,43 @@ type DiffContext = {
 
 type DiffContextErr = {
   ok: false;
-  reason: 'todo-not-found' | 'no-branch' | 'branch-missing';
+  reason: 'todo-not-found' | 'no-branch' | 'branch-missing' | 'base-branch-missing';
   debug: DiffDebug;
 };
 
+/**
+ * Resolve the project's base branch, falling back to master/main if the configured
+ * default_branch doesn't exist in the repo. Mirrors the helper pattern used in
+ * routes/execution.ts:137 and :254 so behavior stays consistent across endpoints.
+ */
+async function resolveBaseBranch(gitDir: string, configured: string): Promise<string | null> {
+  try {
+    const branches = await createGit(gitDir).branchLocal();
+    if (branches.all.includes(configured)) return configured;
+    return branches.all.find((b) => b === 'master' || b === 'main') ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffContextErr> {
-  const emptyDebug: DiffDebug = { worktree_path: null, worktree_exists: false, branch_name: null, project_path: null };
+  const emptyDebug: DiffDebug = {
+    worktree_path: null, worktree_exists: false, branch_name: null,
+    project_path: null, default_branch: null, resolved_base: null,
+  };
   const todo = getTodoById(todoId);
   if (!todo) return { ok: false, reason: 'todo-not-found', debug: emptyDebug };
   const project = getProjectById(todo.project_id);
+  const defaultBranch = project?.default_branch || 'main';
   const debug: DiffDebug = {
     worktree_path: todo.worktree_path ?? null,
     worktree_exists: !!(todo.worktree_path && fs.existsSync(todo.worktree_path)),
     branch_name: todo.branch_name ?? null,
     project_path: project?.path ?? null,
+    default_branch: defaultBranch,
+    resolved_base: null,
   };
   if (!project) return { ok: false, reason: 'todo-not-found', debug };
-
-  const defaultBranch = project.default_branch || 'main';
 
   // The branch ref is the durable handle — it survives `git worktree remove`.
   // Strategy: if we have a branch name, use the project repo with the branch as target
@@ -173,7 +194,10 @@ async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffCon
       if (debug.worktree_exists) {
         gitDir = todo.worktree_path as string;
         target = 'HEAD';
-        return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch, debug };
+        const resolved = await resolveBaseBranch(gitDir, defaultBranch);
+        debug.resolved_base = resolved;
+        if (!resolved) return { ok: false, reason: 'base-branch-missing', debug };
+        return { ok: true, gitDir, range: `${resolved}...${target}`, defaultBranch, debug };
       }
       return { ok: false, reason: 'branch-missing', debug };
     }
@@ -185,7 +209,11 @@ async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffCon
     return { ok: false, reason: 'no-branch', debug };
   }
 
-  return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch, debug };
+  const resolved = await resolveBaseBranch(gitDir, defaultBranch);
+  debug.resolved_base = resolved;
+  if (!resolved) return { ok: false, reason: 'base-branch-missing', debug };
+
+  return { ok: true, gitDir, range: `${resolved}...${target}`, defaultBranch, debug };
 }
 
 router.get('/diff/:todoId', async (req: Request, res: Response) => {

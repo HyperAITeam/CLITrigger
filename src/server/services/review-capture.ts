@@ -63,7 +63,13 @@ export async function computeDiffStats(
         return null;
       }
     }
-    const stat = await git.diff([`${defaultBranch}...${target}`, '--shortstat']);
+    // Resolve base branch with master/main fallback, mirroring routes/review.ts.
+    const branches = await git.branchLocal();
+    const resolvedBase = branches.all.includes(defaultBranch)
+      ? defaultBranch
+      : (branches.all.find((b) => b === 'master' || b === 'main') ?? null);
+    if (!resolvedBase) return null;
+    const stat = await git.diff([`${resolvedBase}...${target}`, '--shortstat']);
     const m = stat.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/);
     if (!m) return { files: 0, lines: 0 };
     const files = parseInt(m[1], 10) || 0;

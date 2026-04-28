@@ -51,11 +51,12 @@ function StatusIcon({ status }: { status: ReviewItem['status'] }) {
   return <AlertTriangle size={14} className="text-status-warning" />;
 }
 
-function reasonKey(reason: 'todo-not-found' | 'no-branch' | 'branch-missing'): string {
+function reasonKey(reason: 'todo-not-found' | 'no-branch' | 'branch-missing' | 'base-branch-missing'): string {
   switch (reason) {
     case 'todo-not-found': return 'review.diff.notFound';
     case 'no-branch': return 'review.diff.noBranch';
     case 'branch-missing': return 'review.diff.branchMissing';
+    case 'base-branch-missing': return 'review.diff.baseBranchMissing';
   }
 }
 
@@ -301,7 +302,9 @@ export default function ReviewCard({
 {`worktree_path: ${diffData.debug.worktree_path ?? '(null)'}
 worktree_exists: ${diffData.debug.worktree_exists}
 branch_name: ${diffData.debug.branch_name ?? '(null)'}
-project_path: ${diffData.debug.project_path ?? '(null)'}`}
+project_path: ${diffData.debug.project_path ?? '(null)'}
+default_branch: ${diffData.debug.default_branch ?? '(null)'}
+resolved_base: ${diffData.debug.resolved_base ?? '(null)'}`}
                 </pre>
               )}
             </div>
