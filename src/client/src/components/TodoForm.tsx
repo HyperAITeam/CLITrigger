@@ -3,8 +3,10 @@ import { Image as ImageIcon, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
-import type { ImageMeta, Todo } from '../types';
+import type { ImageMeta, MemoryInjectMode, Todo } from '../types';
 import { getTodoImageUrl } from '../api/todos';
+import { parseMemoryNodeIds } from '../api/memory';
+import MemoryInjectControl from './MemoryInjectControl';
 
 export interface PendingImage {
   id: string;
@@ -14,7 +16,7 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[]) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
@@ -23,6 +25,9 @@ interface TodoFormProps {
   initialDependsOn?: string;
   initialMaxTurns?: number;
   initialUseWorktree?: number | null;
+  initialMemoryInjectMode?: MemoryInjectMode;
+  initialMemoryNodeIds?: string | null;
+  projectId?: string;
   projectCliTool?: string;
   projectCliModel?: string;
   projectIsGitRepo?: boolean;
@@ -45,6 +50,9 @@ export default function TodoForm({
   initialDependsOn,
   initialMaxTurns,
   initialUseWorktree = null,
+  initialMemoryInjectMode = 'none',
+  initialMemoryNodeIds = null,
+  projectId,
   projectCliTool = 'claude',
   projectCliModel = '',
   projectIsGitRepo = false,
@@ -63,6 +71,8 @@ export default function TodoForm({
   const [useWorktreeMode, setUseWorktreeMode] = useState<'inherit' | 'force-on' | 'force-off'>(
     initialUseWorktree === 1 ? 'force-on' : initialUseWorktree === 0 ? 'force-off' : 'inherit'
   );
+  const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initialMemoryInjectMode);
+  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(parseMemoryNodeIds(initialMemoryNodeIds));
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -146,7 +156,7 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue);
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, memoryNodeIds);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -379,6 +389,17 @@ export default function TodoForm({
               {t('todoForm.dependsOnHint')}
             </p>
           )}
+        </div>
+      )}
+
+      {projectId && (
+        <div className="mb-4">
+          <MemoryInjectControl
+            projectId={projectId}
+            mode={memoryInjectMode}
+            selectedIds={memoryNodeIds}
+            onChange={(mode, ids) => { setMemoryInjectMode(mode); setMemoryNodeIds(ids); }}
+          />
         </div>
       )}
 

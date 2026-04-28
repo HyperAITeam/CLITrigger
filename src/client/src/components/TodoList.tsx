@@ -20,15 +20,16 @@ const FILTER_STATUSES: Record<StatusFilter, Todo['status'][] | null> = {
 
 interface TodoListProps {
   todos: Todo[];
+  projectId?: string;
   projectCliTool?: string;
   projectCliModel?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
@@ -63,6 +64,7 @@ function wouldCreateCycle(todos: Todo[], sourceId: string, targetId: string): bo
 
 export default function TodoList({
   todos,
+  projectId,
   projectCliTool,
   projectCliModel,
   projectIsGitRepo,
@@ -366,6 +368,7 @@ export default function TodoList({
         </div>
         <TaskGraph
           todos={todos}
+          projectId={projectId}
           projectCliTool={projectCliTool}
           projectCliModel={projectCliModel}
           projectIsGitRepo={projectIsGitRepo}
@@ -451,13 +454,14 @@ export default function TodoList({
       {showForm && (
         <div className="mb-5 animate-slide-up">
           <TodoForm
+            projectId={projectId}
             projectCliTool={projectCliTool}
             projectCliModel={projectCliModel}
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree) => {
-              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree);
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

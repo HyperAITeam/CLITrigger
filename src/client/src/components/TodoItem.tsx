@@ -133,7 +133,7 @@ interface TodoItemProps {
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -433,6 +433,9 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         initialDependsOn={todo.depends_on ?? undefined}
         initialMaxTurns={todo.max_turns ?? undefined}
         initialUseWorktree={todo.use_worktree ?? null}
+        initialMemoryInjectMode={todo.memory_inject_mode ?? 'none'}
+        initialMemoryNodeIds={todo.memory_node_ids ?? null}
+        projectId={todo.project_id}
         projectIsGitRepo={projectIsGitRepo}
         projectUseWorktree={projectUseWorktree}
         existingImages={existingImages}
@@ -441,8 +444,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         onDeleteImage={async (imageId) => {
           await todosApi.deleteTodoImage(todo.id, imageId);
         }}
-        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree) => {
-          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree);
+        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds) => {
+          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds);
           if (newImages && newImages.length > 0) {
             await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
           }

@@ -198,6 +198,35 @@ export function initDatabase(db: Database.Database): void {
       color TEXT NOT NULL DEFAULT 'default',
       UNIQUE(project_id, name)
     );
+
+    CREATE TABLE IF NOT EXISTS memory_nodes (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      tags TEXT,
+      position_x REAL,
+      position_y REAL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS memory_edges (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      from_node_id TEXT NOT NULL REFERENCES memory_nodes(id) ON DELETE CASCADE,
+      to_node_id TEXT NOT NULL REFERENCES memory_nodes(id) ON DELETE CASCADE,
+      relation_type TEXT NOT NULL DEFAULT 'related',
+      label TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(from_node_id, to_node_id, relation_type)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memory_nodes_project ON memory_nodes(project_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_edges_project ON memory_edges(project_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_edges_from ON memory_edges(from_node_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_edges_to ON memory_edges(to_node_id);
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -259,6 +288,11 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'diff_lines', definition: 'INTEGER' },
     { table: 'todos', column: 'diff_files', definition: 'INTEGER' },
     { table: 'planner_items', column: 'source_discussion_id', definition: 'TEXT' },
+    { table: 'todos', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
+    { table: 'todos', column: 'memory_node_ids', definition: 'TEXT' },
+    { table: 'discussions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
+    { table: 'discussions', column: 'memory_node_ids', definition: 'TEXT' },
+    { table: 'projects', column: 'memory_default_mode', definition: "TEXT DEFAULT 'none'" },
   ];
 
   for (const { table, column, definition } of migrations) {

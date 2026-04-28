@@ -6,6 +6,8 @@ import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
 import { getExecutionHookPlugins } from '../plugins/registry.js';
+import { applyMemoryInjection } from './memory-inject-hook.js';
+import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
@@ -558,6 +560,20 @@ Complete the task in the current directory.`;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         queries.createTaskLog(todoId, 'error', `Plugin "${plugin.id}" hook failed: ${msg}`);
+      }
+    }
+
+    // Inject long-term memory if configured for this todo
+    const memMode = ((todo.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
+    if (memMode !== 'none') {
+      const memBlock = applyMemoryInjection({
+        projectId: project.id,
+        mode: memMode,
+        nodeIds: parseMemoryNodeIds(todo.memory_node_ids),
+        log: (type, message) => queries.createTaskLog(todoId, type, message, roundNumber),
+      });
+      if (memBlock) {
+        prompt = `${memBlock}\n\n${prompt}`;
       }
     }
 

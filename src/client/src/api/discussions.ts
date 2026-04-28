@@ -8,6 +8,8 @@ export interface DiscussionInput {
   max_rounds?: number;
   auto_implement?: boolean;
   implement_agent_id?: string;
+  memory_inject_mode?: 'none' | 'all' | 'selected';
+  memory_node_ids?: string[];
 }
 
 export interface DiscussionUpdateInput {
@@ -17,6 +19,8 @@ export interface DiscussionUpdateInput {
   max_rounds?: number;
   auto_implement?: boolean;
   implement_agent_id?: string | null;
+  memory_inject_mode?: 'none' | 'all' | 'selected';
+  memory_node_ids?: string[];
 }
 
 // ── Agents ──

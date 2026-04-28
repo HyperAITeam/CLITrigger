@@ -5,6 +5,8 @@ import { claudeManager } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
+import { applyMemoryInjection } from './memory-inject-hook.js';
+import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
 
 export class DiscussionOrchestrator {
   /**
@@ -227,7 +229,21 @@ export class DiscussionOrchestrator {
 
     // Build prompt
     const allMessages = queries.getDiscussionMessages(discussionId);
-    const prompt = this.buildTurnPrompt(discussion, agent, message, allMessages, isImplementation, canImplement);
+    let prompt = this.buildTurnPrompt(discussion, agent, message, allMessages, isImplementation, canImplement);
+
+    // Inject long-term memory if configured for this discussion
+    const memMode = ((discussion.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
+    if (memMode !== 'none') {
+      const memBlock = applyMemoryInjection({
+        projectId: project.id,
+        mode: memMode,
+        nodeIds: parseMemoryNodeIds(discussion.memory_node_ids),
+        log: (type, msg) => queries.createDiscussionLog(discussionId, messageId, type, msg),
+      });
+      if (memBlock) {
+        prompt = `${memBlock}\n\n${prompt}`;
+      }
+    }
 
     const cliTool = (agent?.cli_tool || project.cli_tool || 'claude') as CliTool;
     const cliModel = agent?.cli_model || project.claude_model || undefined;

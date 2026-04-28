@@ -174,19 +174,21 @@ export interface Todo {
   summary: string | null;
   diff_lines: number | null;
   diff_files: number | null;
+  memory_inject_mode: string | null;
+  memory_node_ids: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null): Todo {
+export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: string, memoryNodeIds?: string | null): Todo {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   const normalizedUseWorktree = useWorktree === 0 || useWorktree === 1 ? useWorktree : null;
   db.prepare(
-    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, use_worktree, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, normalizedUseWorktree, now, now);
+    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, normalizedUseWorktree, memoryInjectMode ?? 'none', memoryNodeIds ?? null, now, now);
   return getTodoById(id)!;
 }
 
@@ -200,7 +202,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree' | 'summary' | 'diff_lines' | 'diff_files'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree' | 'summary' | 'diff_lines' | 'diff_files' | 'memory_inject_mode' | 'memory_node_ids'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -233,6 +235,8 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.summary !== undefined) { fields.push('summary = ?'); values.push(updates.summary); }
   if (updates.diff_lines !== undefined) { fields.push('diff_lines = ?'); values.push(updates.diff_lines); }
   if (updates.diff_files !== undefined) { fields.push('diff_files = ?'); values.push(updates.diff_files); }
+  if (updates.memory_inject_mode !== undefined) { fields.push('memory_inject_mode = ?'); values.push(updates.memory_inject_mode); }
+  if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
 
   if (fields.length === 0) return getTodoById(id);
 
@@ -742,21 +746,24 @@ export interface Discussion {
   agent_ids: string;
   auto_implement: number;
   implement_agent_id: string | null;
+  memory_inject_mode: string | null;
+  memory_node_ids: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function createDiscussion(
   projectId: string, title: string, description: string, agentIds: string[], maxRounds = 3,
-  autoImplement = false, implementAgentId?: string
+  autoImplement = false, implementAgentId?: string,
+  memoryInjectMode: string = 'none', memoryNodeIds: string | null = null
 ): Discussion {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, auto_implement, implement_agent_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), autoImplement ? 1 : 0, implementAgentId || null, now, now);
+    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, auto_implement, implement_agent_id, memory_inject_mode, memory_node_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), autoImplement ? 1 : 0, implementAgentId || null, memoryInjectMode, memoryNodeIds, now, now);
   return getDiscussionById(id)!;
 }
 
@@ -770,7 +777,7 @@ export function getDiscussionById(id: string): Discussion | undefined {
   return db.prepare('SELECT * FROM discussions WHERE id = ?').get(id) as Discussion | undefined;
 }
 
-export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids' | 'auto_implement' | 'implement_agent_id'>>): Discussion | undefined {
+export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids'>>): Discussion | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -786,6 +793,8 @@ export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, '
   if (updates.agent_ids !== undefined) { fields.push('agent_ids = ?'); values.push(updates.agent_ids); }
   if (updates.auto_implement !== undefined) { fields.push('auto_implement = ?'); values.push(updates.auto_implement); }
   if (updates.implement_agent_id !== undefined) { fields.push('implement_agent_id = ?'); values.push(updates.implement_agent_id); }
+  if (updates.memory_inject_mode !== undefined) { fields.push('memory_inject_mode = ?'); values.push(updates.memory_inject_mode); }
+  if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
 
   if (fields.length === 0) return getDiscussionById(id);
 
@@ -1283,4 +1292,162 @@ export function cleanOldLogs(daysToKeep: number): number {
   const discussionResult = db.prepare('DELETE FROM discussion_logs WHERE created_at < ?').run(cutoff);
   const sessionResult = db.prepare('DELETE FROM session_logs WHERE created_at < ?').run(cutoff);
   return taskResult.changes + discussionResult.changes + sessionResult.changes;
+}
+
+// ── Memory (LLM-Wiki) ──
+
+export type MemoryRelationType = 'related' | 'precedes' | 'example_of' | 'counter_example' | 'refines';
+
+export interface MemoryNode {
+  id: string;
+  project_id: string;
+  title: string;
+  body: string;
+  tags: string | null;
+  position_x: number | null;
+  position_y: number | null;
+  pinned: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryEdge {
+  id: string;
+  project_id: string;
+  from_node_id: string;
+  to_node_id: string;
+  relation_type: MemoryRelationType;
+  label: string | null;
+  created_at: string;
+}
+
+export function createMemoryNode(
+  projectId: string,
+  title: string,
+  body: string,
+  tags?: string | null,
+  pinned: number = 0,
+): MemoryNode {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, now, now);
+  return getMemoryNodeById(id)!;
+}
+
+export function getMemoryNodesByProjectId(projectId: string): MemoryNode[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM memory_nodes WHERE project_id = ? ORDER BY pinned DESC, updated_at DESC').all(projectId) as MemoryNode[];
+}
+
+export function getMemoryNodeById(id: string): MemoryNode | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM memory_nodes WHERE id = ?').get(id) as MemoryNode | undefined;
+}
+
+export function getMemoryNodesByIds(ids: string[]): MemoryNode[] {
+  if (ids.length === 0) return [];
+  const db = getDatabase();
+  const placeholders = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM memory_nodes WHERE id IN (${placeholders})`).all(...ids) as MemoryNode[];
+}
+
+export function updateMemoryNode(
+  id: string,
+  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned'>>,
+): MemoryNode | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.body !== undefined) { fields.push('body = ?'); values.push(updates.body); }
+  if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
+  if (updates.pinned !== undefined) { fields.push('pinned = ?'); values.push(updates.pinned ? 1 : 0); }
+
+  if (fields.length === 0) return getMemoryNodeById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE memory_nodes SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getMemoryNodeById(id);
+}
+
+export function updateMemoryNodePosition(id: string, x: number, y: number): void {
+  const db = getDatabase();
+  db.prepare('UPDATE memory_nodes SET position_x = ?, position_y = ?, updated_at = ? WHERE id = ?')
+    .run(x, y, new Date().toISOString(), id);
+}
+
+export function deleteMemoryNode(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM memory_nodes WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+export function createMemoryEdge(
+  projectId: string,
+  fromNodeId: string,
+  toNodeId: string,
+  relationType: MemoryRelationType = 'related',
+  label?: string | null,
+): MemoryEdge {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO memory_edges (id, project_id, from_node_id, to_node_id, relation_type, label, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, fromNodeId, toNodeId, relationType, label ?? null, now);
+  return getMemoryEdgeById(id)!;
+}
+
+export function getMemoryEdgeById(id: string): MemoryEdge | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM memory_edges WHERE id = ?').get(id) as MemoryEdge | undefined;
+}
+
+export function getMemoryEdgesByProjectId(projectId: string): MemoryEdge[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM memory_edges WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as MemoryEdge[];
+}
+
+export function getMemoryEdgesForNodes(nodeIds: string[]): MemoryEdge[] {
+  if (nodeIds.length === 0) return [];
+  const db = getDatabase();
+  const placeholders = nodeIds.map(() => '?').join(',');
+  return db.prepare(
+    `SELECT * FROM memory_edges
+      WHERE from_node_id IN (${placeholders})
+        AND to_node_id IN (${placeholders})`
+  ).all(...nodeIds, ...nodeIds) as MemoryEdge[];
+}
+
+export function updateMemoryEdge(
+  id: string,
+  updates: Partial<Pick<MemoryEdge, 'relation_type' | 'label'>>,
+): MemoryEdge | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.relation_type !== undefined) { fields.push('relation_type = ?'); values.push(updates.relation_type); }
+  if (updates.label !== undefined) { fields.push('label = ?'); values.push(updates.label); }
+
+  if (fields.length === 0) return getMemoryEdgeById(id);
+
+  values.push(id);
+  db.prepare(`UPDATE memory_edges SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getMemoryEdgeById(id);
+}
+
+export function deleteMemoryEdge(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM memory_edges WHERE id = ?').run(id);
+  return result.changes > 0;
 }

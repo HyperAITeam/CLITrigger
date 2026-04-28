@@ -20,6 +20,7 @@ import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import AnalyticsPanel from './AnalyticsPanel';
 import PlannerList from './PlannerList';
+import MemoryList from './MemoryList';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -192,9 +193,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     });
   }, [onEvent, sendNotification, t]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => {
     if (!id) return;
-    const newTodo = await todosApi.createTodo(id, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn, max_turns: maxTurns ?? null, use_worktree: useWorktree ?? null });
+    const newTodo = await todosApi.createTodo(id, {
+      title, description, cli_tool: cliTool, cli_model: cliModel,
+      depends_on: dependsOn, max_turns: maxTurns ?? null, use_worktree: useWorktree ?? null,
+      ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
+      ...(memoryNodeIds ? { memory_node_ids: memoryNodeIds } : {}),
+    });
     if (images && images.length > 0) {
       const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
       newTodo.images = JSON.stringify(result.images);
@@ -236,8 +242,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null) => {
-    const updated = await todosApi.updateTodo(todoId, { title, description, cli_tool: cliTool, cli_model: cliModel, depends_on: dependsOn ?? null, max_turns: maxTurns ?? null, use_worktree: useWorktree === undefined ? null : useWorktree });
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => {
+    const updated = await todosApi.updateTodo(todoId, {
+      title, description, cli_tool: cliTool, cli_model: cliModel,
+      depends_on: dependsOn ?? null, max_turns: maxTurns ?? null,
+      use_worktree: useWorktree === undefined ? null : useWorktree,
+      ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
+      ...(memoryNodeIds ? { memory_node_ids: memoryNodeIds } : {}),
+    });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
 
@@ -681,6 +693,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
           { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
           { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
+          { key: 'memory', label: t('tabs.memory') },
           { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
           ...getPluginsWithTabs(project).map((plugin) => ({
             key: plugin.id,
@@ -712,6 +725,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
       {activeTab === 'tasks' && (
         <TodoList
           todos={todos}
+          projectId={id}
           projectCliTool={project.cli_tool}
           projectCliModel={project.claude_model ?? undefined}
           projectIsGitRepo={!!project.is_git_repo}
@@ -798,6 +812,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onMergeRun={handleMergeTodo}
           onCleanupRun={handleCleanupTodo}
         />
+      )}
+      {activeTab === 'memory' && id && (
+        <MemoryList projectId={id} />
       )}
       {activeTab === 'planner' && (
         <PlannerList
