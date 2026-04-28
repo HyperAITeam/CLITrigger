@@ -307,6 +307,7 @@ export interface PlannerItem {
   images: string | null;
   converted_type: string | null;
   converted_id: string | null;
+  source_discussion_id: string | null;
   created_at: string;
   updated_at: string;
 }

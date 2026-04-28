@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X, Image as ImageIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X, Image as ImageIcon, MessagesSquare } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
@@ -244,6 +245,17 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             <span className="text-2xs text-purple-500">
               → {item.converted_type === 'todo' ? t('planner.movedToTodo') : t('planner.movedToSchedule')}
             </span>
+          )}
+          {item.source_discussion_id && (
+            <Link
+              to={`/projects/${item.project_id}/discussions/${item.source_discussion_id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-2xs text-accent hover:underline mt-0.5"
+              title={t('planner.fromDiscussion')}
+            >
+              <MessagesSquare size={11} />
+              {t('planner.fromDiscussion')}
+            </Link>
           )}
         </div>
 

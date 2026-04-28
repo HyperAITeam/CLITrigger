@@ -116,3 +116,17 @@ export function getDiscussionDiff(id: string): Promise<DiffResult> {
 export function cleanupDiscussion(id: string): Promise<{ success: boolean }> {
   return post(`/api/discussions/${id}/cleanup`);
 }
+
+export interface ExtractedActionItem {
+  title: string;
+  description: string;
+  priority: number;
+}
+
+export function extractPlannerItems(id: string): Promise<{ items: ExtractedActionItem[] }> {
+  return post(`/api/discussions/${id}/extract-planner-items`);
+}
+
+export function convertToPlanner(id: string, items: ExtractedActionItem[]): Promise<{ created: unknown[] }> {
+  return post(`/api/discussions/${id}/convert-to-planner`, { items });
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from './Modal';
-import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight, ClipboardList } from 'lucide-react';
 import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, DiscussionLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
@@ -46,8 +46,11 @@ function getEditableDiscussionConfig(status: DiscussionWithMessages['status']) {
   return { canEdit: false, allowAdvancedFields: false };
 }
 
+type DraftItem = discussionsApi.ExtractedActionItem & { selected: boolean };
+
 export default function DiscussionDetail({ onEvent, connected }: DiscussionDetailProps) {
   const { id, discussionId } = useParams<{ id: string; discussionId: string }>();
+  const navigate = useNavigate();
   const { t, lang } = useI18n();
   const { sendNotification } = useNotification();
   const [discussion, setDiscussion] = useState<DiscussionWithMessages | null>(null);
@@ -61,6 +64,10 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState('');
   const [failureLogs, setFailureLogs] = useState<DiscussionLog[]>([]);
+  const [extractOpen, setExtractOpen] = useState(false);
+  const [extractLoading, setExtractLoading] = useState(false);
+  const [extractItems, setExtractItems] = useState<DraftItem[]>([]);
+  const [extractSaving, setExtractSaving] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const toggleCollapse = useCallback((msgId: string) => {
@@ -217,6 +224,47 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     setDiscussion(updated);
     setErrorMessage('');
   }, [discussionId]);
+
+  const handleOpenExtract = useCallback(async () => {
+    if (!discussionId) return;
+    setExtractOpen(true);
+    setExtractLoading(true);
+    setExtractItems([]);
+    try {
+      const { items } = await discussionsApi.extractPlannerItems(discussionId);
+      setExtractItems(items.map((it) => ({ ...it, selected: true })));
+      setErrorMessage('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : (lang === 'ko' ? '추출에 실패했습니다.' : 'Extraction failed.'));
+      setExtractOpen(false);
+    } finally {
+      setExtractLoading(false);
+    }
+  }, [discussionId, lang]);
+
+  const handleConfirmExtract = useCallback(async () => {
+    if (!discussionId || !id) return;
+    const selected = extractItems.filter((it) => it.selected && it.title.trim()).map((it) => ({
+      title: it.title.trim(),
+      description: it.description,
+      priority: it.priority,
+    }));
+    if (selected.length === 0) {
+      setErrorMessage(lang === 'ko' ? '항목을 하나 이상 선택해 주세요.' : 'Select at least one item.');
+      return;
+    }
+    setExtractSaving(true);
+    try {
+      await discussionsApi.convertToPlanner(discussionId, selected);
+      setExtractOpen(false);
+      setExtractItems([]);
+      navigate(`/projects/${id}?tab=planner`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : (lang === 'ko' ? 'Planner 변환에 실패했습니다.' : 'Failed to create planner items.'));
+    } finally {
+      setExtractSaving(false);
+    }
+  }, [discussionId, id, extractItems, lang, navigate]);
 
   const handleUpdateDiscussion = useCallback(async (values: discussionsApi.DiscussionInput) => {
     if (!discussionId || !discussion) return;
@@ -453,6 +501,12 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
             {t('todos.merge')}
           </button>
         )}
+        {discussion.status === 'completed' && (
+          <button onClick={handleOpenExtract} className="btn-primary text-sm">
+            <ClipboardList size={16} />
+            {t('discussions.toPlanner')}
+          </button>
+        )}
         {canCleanup && (
           <button onClick={handleCleanup} className="btn-danger text-sm">
             <Trash2 size={16} />
@@ -654,6 +708,83 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
               ))}
             </div>
             <button onClick={() => setShowImplementModal(false)} className="btn btn-sm text-xs text-warm-500 w-full">{t('header.cancel')}</button>
+          </div>
+        </Modal>
+      )}
+
+      {extractOpen && (
+        <Modal open onClose={() => !extractSaving && setExtractOpen(false)} size="lg">
+          <div className="glass-card rounded-2xl p-6 shadow-elevated space-y-4 max-h-[85vh] flex flex-col">
+            <div>
+              <h3 className="text-sm font-semibold text-warm-700">{t('discussions.extractTitle')}</h3>
+              <p className="text-xs text-warm-400 mt-1">{t('discussions.extractHint')}</p>
+            </div>
+
+            {extractLoading ? (
+              <div className="py-12 text-center text-sm text-warm-400">
+                {t('discussions.extractLoading')}
+              </div>
+            ) : extractItems.length === 0 ? (
+              <div className="py-12 text-center text-sm text-warm-400">
+                {t('discussions.extractEmpty')}
+              </div>
+            ) : (
+              <div className="space-y-2 overflow-y-auto pr-1">
+                {extractItems.map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-2 p-3 rounded-lg border border-warm-200">
+                    <input
+                      type="checkbox"
+                      checked={item.selected}
+                      onChange={(e) => setExtractItems((prev) => prev.map((it, i) => i === idx ? { ...it, selected: e.target.checked } : it))}
+                      className="mt-1.5 cursor-pointer"
+                    />
+                    <div className="flex-1 space-y-1.5">
+                      <input
+                        type="text"
+                        value={item.title}
+                        onChange={(e) => setExtractItems((prev) => prev.map((it, i) => i === idx ? { ...it, title: e.target.value } : it))}
+                        className="w-full text-sm font-medium bg-transparent border-b border-warm-200 focus:border-accent outline-none py-1"
+                        placeholder={t('plannerForm.titlePlaceholder')}
+                      />
+                      <textarea
+                        value={item.description}
+                        onChange={(e) => setExtractItems((prev) => prev.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))}
+                        rows={2}
+                        className="w-full text-xs text-warm-500 bg-transparent border border-warm-200 rounded p-1.5 focus:border-accent outline-none resize-none"
+                        placeholder={t('plannerForm.descPlaceholder')}
+                      />
+                      <select
+                        value={item.priority}
+                        onChange={(e) => setExtractItems((prev) => prev.map((it, i) => i === idx ? { ...it, priority: Number(e.target.value) } : it))}
+                        className="text-xs bg-transparent border border-warm-200 rounded px-2 py-1"
+                      >
+                        <option value={0}>{t('discussions.priorityLow')}</option>
+                        <option value={1}>{t('discussions.priorityMedium')}</option>
+                        <option value={2}>{t('discussions.priorityHigh')}</option>
+                        <option value={3}>{t('discussions.priorityUrgent')}</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-warm-200">
+              <button
+                onClick={() => setExtractOpen(false)}
+                disabled={extractSaving}
+                className="btn btn-sm text-xs text-warm-500"
+              >
+                {t('header.cancel')}
+              </button>
+              <button
+                onClick={handleConfirmExtract}
+                disabled={extractSaving || extractLoading || extractItems.filter((it) => it.selected).length === 0}
+                className="btn-primary text-sm"
+              >
+                {extractSaving ? t('discussions.extractSaving') : t('discussions.extractConfirm')}
+              </button>
+            </div>
           </div>
         </Modal>
       )}
