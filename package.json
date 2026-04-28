@@ -38,6 +38,8 @@
     "postuninstall": "node bin/postuninstall.js"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "@types/iarna__toml": "^2.0.5",
     "better-sqlite3": "^11.7.0",
     "cloudflared": "^0.7.1",
     "cors": "^2.8.5",
