@@ -32,13 +32,20 @@ export interface ReviewDiffFile {
 
 export type ReviewDiffReason = 'todo-not-found' | 'no-branch' | 'branch-missing';
 
+export interface ReviewDiffDebug {
+  worktree_path: string | null;
+  worktree_exists: boolean;
+  branch_name: string | null;
+  project_path: string | null;
+}
+
 export type ReviewDiffResponse =
-  | { available: true; files: ReviewDiffFile[]; defaultBranch: string }
-  | { available: false; reason: ReviewDiffReason };
+  | { available: true; files: ReviewDiffFile[]; defaultBranch: string; debug?: ReviewDiffDebug }
+  | { available: false; reason: ReviewDiffReason; debug?: ReviewDiffDebug };
 
 export type ReviewFileDiffResponse =
   | { available: true; diff: string }
-  | { available: false; reason: ReviewDiffReason };
+  | { available: false; reason: ReviewDiffReason; debug?: ReviewDiffDebug };
 
 export function getReviewDiff(todoId: string): Promise<ReviewDiffResponse> {
   return get(`/api/review/diff/${encodeURIComponent(todoId)}`);

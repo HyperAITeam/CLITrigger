@@ -121,49 +121,71 @@ async function listDiffFiles(git: ReturnType<typeof createGit>, range: string): 
   }));
 }
 
+interface DiffDebug {
+  worktree_path: string | null;
+  worktree_exists: boolean;
+  branch_name: string | null;
+  project_path: string | null;
+}
+
 type DiffContext = {
   ok: true;
   gitDir: string;
   range: string;
   defaultBranch: string;
+  debug: DiffDebug;
 };
 
 type DiffContextErr = {
   ok: false;
   reason: 'todo-not-found' | 'no-branch' | 'branch-missing';
+  debug: DiffDebug;
 };
 
 async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffContextErr> {
+  const emptyDebug: DiffDebug = { worktree_path: null, worktree_exists: false, branch_name: null, project_path: null };
   const todo = getTodoById(todoId);
-  if (!todo) return { ok: false, reason: 'todo-not-found' };
+  if (!todo) return { ok: false, reason: 'todo-not-found', debug: emptyDebug };
   const project = getProjectById(todo.project_id);
-  if (!project) return { ok: false, reason: 'todo-not-found' };
+  const debug: DiffDebug = {
+    worktree_path: todo.worktree_path ?? null,
+    worktree_exists: !!(todo.worktree_path && fs.existsSync(todo.worktree_path)),
+    branch_name: todo.branch_name ?? null,
+    project_path: project?.path ?? null,
+  };
+  if (!project) return { ok: false, reason: 'todo-not-found', debug };
 
   const defaultBranch = project.default_branch || 'main';
 
-  // Prefer the worktree as the git dir (fastest, deals with detached states), but
-  // fall back to the project repo when the worktree was cleaned up by the CLI or user.
   // The branch ref is the durable handle — it survives `git worktree remove`.
-  const useWorktree = todo.worktree_path && fs.existsSync(todo.worktree_path);
-  const gitDir = useWorktree ? (todo.worktree_path as string) : project.path;
-
-  // Determine the target ref. If the worktree is alive, HEAD inside it points at the
-  // task's branch; otherwise we need an explicit branch name in the project repo.
+  // Strategy: if we have a branch name, use the project repo with the branch as target
+  // (works whether or not the worktree dir is alive). If the worktree is alive but
+  // there's no branch_name, fall back to its HEAD.
+  let gitDir: string;
   let target: string;
-  if (useWorktree) {
-    target = 'HEAD';
-  } else {
-    if (!todo.branch_name) return { ok: false, reason: 'no-branch' };
+  if (todo.branch_name) {
+    gitDir = project.path;
     const git = createGit(gitDir);
     try {
       await git.raw(['rev-parse', '--verify', todo.branch_name]);
     } catch {
-      return { ok: false, reason: 'branch-missing' };
+      // Branch missing in project repo — try the worktree as last resort.
+      if (debug.worktree_exists) {
+        gitDir = todo.worktree_path as string;
+        target = 'HEAD';
+        return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch, debug };
+      }
+      return { ok: false, reason: 'branch-missing', debug };
     }
     target = todo.branch_name;
+  } else if (debug.worktree_exists) {
+    gitDir = todo.worktree_path as string;
+    target = 'HEAD';
+  } else {
+    return { ok: false, reason: 'no-branch', debug };
   }
 
-  return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch };
+  return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch, debug };
 }
 
 router.get('/diff/:todoId', async (req: Request, res: Response) => {
@@ -171,11 +193,11 @@ router.get('/diff/:todoId', async (req: Request, res: Response) => {
     const ctx = await resolveDiffContext(String(req.params.todoId));
     if (!ctx.ok) {
       const status = ctx.reason === 'todo-not-found' ? 404 : 200;
-      return res.status(status).json({ available: false, reason: ctx.reason });
+      return res.status(status).json({ available: false, reason: ctx.reason, debug: ctx.debug });
     }
     const git = createGit(ctx.gitDir);
     const files = await listDiffFiles(git, ctx.range);
-    res.json({ available: true, files, defaultBranch: ctx.defaultBranch });
+    res.json({ available: true, files, defaultBranch: ctx.defaultBranch, debug: ctx.debug });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -191,7 +213,7 @@ router.get('/diff/:todoId/file', async (req: Request, res: Response) => {
     const ctx = await resolveDiffContext(String(req.params.todoId));
     if (!ctx.ok) {
       const status = ctx.reason === 'todo-not-found' ? 404 : 200;
-      return res.status(status).json({ available: false, reason: ctx.reason });
+      return res.status(status).json({ available: false, reason: ctx.reason, debug: ctx.debug });
     }
     const git = createGit(ctx.gitDir);
     // Whitelist: only allow paths reported by numstat for this branch range.
