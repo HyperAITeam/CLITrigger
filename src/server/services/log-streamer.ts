@@ -16,11 +16,18 @@ export interface TokenUsage {
 
 const CONTEXT_EXHAUSTION_PATTERN = /context.*(window|limit|length|exceeded)|conversation.*(too long|limit)|token.*(limit|exceeded)|max.*context|context_length_exceeded/i;
 
+/** Matches API quota / capacity / rate-limit errors that should trigger CLI fallback after a threshold. */
+const QUOTA_EXHAUSTION_PATTERN = /exhausted your (capacity|quota)|quota.*(reset|exceeded|exhausted)|rate.?limit.*exceeded|429.*quota/i;
+
+/** Threshold-based quota fallback: N hits within W ms force-kills the CLI so the orchestrator falls back. */
+const QUOTA_WINDOW_MS = 60_000;
+const QUOTA_THRESHOLD = 3;
+
 /** Pattern to identify genuine error lines from stderr (everything else is treated as normal output) */
 const STDERR_ERROR_PATTERN = /^(fatal|error|Error|ERROR|FATAL)[\s:]|Permission denied|ENOENT|EACCES|exited (?:with )?(?:code |status )?[1-9]|command not found|No such file|segmentation fault/i;
 
 function classifyStderrLine(line: string): 'error' | 'output' {
-  if (STDERR_ERROR_PATTERN.test(line) || CONTEXT_EXHAUSTION_PATTERN.test(line)) return 'error';
+  if (STDERR_ERROR_PATTERN.test(line) || CONTEXT_EXHAUSTION_PATTERN.test(line) || QUOTA_EXHAUSTION_PATTERN.test(line)) return 'error';
   return 'output';
 }
 
@@ -29,6 +36,10 @@ export class LogStreamer {
   private tokenUsageMap: Map<string, TokenUsage> = new Map();
   /** Tracks whether context exhaustion was detected for a task */
   private contextExhaustedMap: Map<string, boolean> = new Map();
+  /** Per-todo timestamps (ms) of recent quota-exhaustion hits, used for threshold-based fallback */
+  private quotaHitTimestamps: Map<string, number[]> = new Map();
+  /** Callback invoked when the quota threshold is crossed; set by the orchestrator. */
+  private onQuotaThresholdHit: ((todoId: string) => void) | null = null;
   /** Current round number per task (for multi-round "continue" feature) */
   private roundMap: Map<string, number> = new Map();
   /**
@@ -60,6 +71,34 @@ export class LogStreamer {
     return this.roundMap.get(todoId) ?? 1;
   }
 
+  /** Register a callback the orchestrator uses to kill a CLI process once the quota threshold is crossed. */
+  setQuotaKillCallback(cb: (todoId: string) => void): void {
+    this.onQuotaThresholdHit = cb;
+  }
+
+  /**
+   * Record a quota-exhaustion hit for a task. When QUOTA_THRESHOLD hits land within
+   * QUOTA_WINDOW_MS, mark the todo as exhausted (so the orchestrator's fallback branch fires)
+   * and ask the registered callback to kill the running CLI process.
+   */
+  private recordQuotaHit(todoId: string): void {
+    const now = Date.now();
+    const arr = this.quotaHitTimestamps.get(todoId) ?? [];
+    const fresh = arr.filter((t) => now - t < QUOTA_WINDOW_MS);
+    fresh.push(now);
+    this.quotaHitTimestamps.set(todoId, fresh);
+    if (fresh.length >= QUOTA_THRESHOLD) {
+      this.contextExhaustedMap.set(todoId, true);
+      this.quotaHitTimestamps.delete(todoId);
+      const msg = `Quota exhaustion threshold hit (${QUOTA_THRESHOLD} times in ${QUOTA_WINDOW_MS / 1000}s) — switching CLI`;
+      try {
+        this.log(todoId, 'error', msg);
+        broadcaster.broadcast({ type: 'todo:log', todoId, message: msg, logType: 'error' });
+      } catch { /* ignore */ }
+      try { this.onQuotaThresholdHit?.(todoId); } catch { /* ignore */ }
+    }
+  }
+
   /** Internal: create a task log tagged with the current round number. */
   private log(todoId: string, logType: string, message: string): ReturnType<typeof queries.createTaskLog> {
     return queries.createTaskLog(todoId, logType, message, this.getRound(todoId));
@@ -88,6 +127,7 @@ export class LogStreamer {
       for (const line of lines) {
         if (!line.trim()) continue;
         if (isPlainTextNoise(line, noiseState)) continue;
+        if (QUOTA_EXHAUSTION_PATTERN.test(line)) this.recordQuotaHit(todoId);
         try {
           if (commitPattern.test(line)) {
             this.log(todoId, 'commit', line.trim());
@@ -115,6 +155,7 @@ export class LogStreamer {
 
     stdout.on('end', () => {
       if (stdoutBuffer.trim() && !isPlainTextNoise(stdoutBuffer, noiseState)) {
+        if (QUOTA_EXHAUSTION_PATTERN.test(stdoutBuffer)) this.recordQuotaHit(todoId);
         try {
           if (commitPattern.test(stdoutBuffer)) {
             this.log(todoId, 'commit', stdoutBuffer.trim());
@@ -152,6 +193,7 @@ export class LogStreamer {
           this.contextExhaustedMap.set(todoId, true);
         }
         if (isPlainTextNoise(line, noiseState)) continue;
+        if (QUOTA_EXHAUSTION_PATTERN.test(line)) this.recordQuotaHit(todoId);
         const logType = classifyStderrLine(line.trim());
         try {
           this.log(todoId, logType, line.trim());
@@ -172,6 +214,7 @@ export class LogStreamer {
         if (CONTEXT_EXHAUSTION_PATTERN.test(stderrBuffer)) {
           this.contextExhaustedMap.set(todoId, true);
         }
+        if (QUOTA_EXHAUSTION_PATTERN.test(stderrBuffer)) this.recordQuotaHit(todoId);
         const logType = classifyStderrLine(stderrBuffer.trim());
         try {
           this.log(todoId, logType, stderrBuffer.trim());
@@ -243,6 +286,7 @@ export class LogStreamer {
       if (CONTEXT_EXHAUSTION_PATTERN.test(line)) {
         this.contextExhaustedMap.set(todoId, true);
       }
+      if (QUOTA_EXHAUSTION_PATTERN.test(line)) this.recordQuotaHit(todoId);
       try {
         this.log(todoId, 'error', line);
         broadcaster.broadcast({ type: 'todo:log', todoId, message: line, logType: 'error' });
@@ -312,6 +356,7 @@ export class LogStreamer {
           if (CONTEXT_EXHAUSTION_PATTERN.test(errorMsg)) {
             this.contextExhaustedMap.set(todoId, true);
           }
+          if (QUOTA_EXHAUSTION_PATTERN.test(errorMsg)) this.recordQuotaHit(todoId);
           try {
             this.log(todoId, 'error', errorMsg);
             broadcaster.broadcast({ type: 'todo:log', todoId, message: errorMsg, logType: 'error' });
@@ -326,6 +371,7 @@ export class LogStreamer {
             if (CONTEXT_EXHAUSTION_PATTERN.test(resultText)) {
               this.contextExhaustedMap.set(todoId, true);
             }
+            if (QUOTA_EXHAUSTION_PATTERN.test(resultText)) this.recordQuotaHit(todoId);
           }
           // Extract token usage data
           const usage = this.tokenUsageMap.get(todoId);
@@ -479,6 +525,7 @@ export class LogStreamer {
     if (!usage) return null;
     this.tokenUsageMap.delete(todoId);
     this.contextExhaustedMap.delete(todoId);
+    this.quotaHitTimestamps.delete(todoId);
     // Return null if nothing was parsed
     if (usage.input_tokens === null && usage.output_tokens === null && usage.total_cost === null) {
       return null;

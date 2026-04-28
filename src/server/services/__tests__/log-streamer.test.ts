@@ -92,4 +92,46 @@ describe('LogStreamer', () => {
 
     expect(queries.createTaskLog).not.toHaveBeenCalled();
   });
+
+  it('should trigger quota kill callback after 3 quota hits within window', () => {
+    const killCb = vi.fn();
+    streamer.setQuotaKillCallback(killCb);
+    streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
+
+    const quotaLine = 'Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 1s..\n';
+    mockStderr.emit('data', quotaLine);
+    mockStderr.emit('data', quotaLine);
+    expect(killCb).not.toHaveBeenCalled();
+    expect(streamer.isContextExhausted('todo-1')).toBe(false);
+
+    streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
+    mockStderr.emit('data', quotaLine);
+    expect(killCb).toHaveBeenCalledTimes(1);
+    expect(killCb).toHaveBeenCalledWith('todo-1');
+    expect(streamer.isContextExhausted('todo-1')).toBe(true);
+  });
+
+  it('should detect quota errors on stdout as well as stderr', () => {
+    const killCb = vi.fn();
+    streamer.setQuotaKillCallback(killCb);
+    streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
+
+    const quotaLine = 'You have exhausted your capacity on this model.\n';
+    mockStdout.emit('data', quotaLine);
+    mockStdout.emit('data', quotaLine);
+    mockStdout.emit('data', quotaLine);
+
+    expect(killCb).toHaveBeenCalledWith('todo-1');
+  });
+
+  it('should not trigger fallback on a single transient quota hit', () => {
+    const killCb = vi.fn();
+    streamer.setQuotaKillCallback(killCb);
+    streamer.streamToDb('todo-1', mockStdout as any, mockStderr as any);
+
+    mockStderr.emit('data', 'You have exhausted your capacity on this model.\n');
+
+    expect(killCb).not.toHaveBeenCalled();
+    expect(streamer.isContextExhausted('todo-1')).toBe(false);
+  });
 });
