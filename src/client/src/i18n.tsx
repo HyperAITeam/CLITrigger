@@ -58,8 +58,8 @@ const translations = {
     'review.tokens.todos': 'Todos',
     'review.tokens.byCli': 'By CLI tool',
     'review.diff.empty': 'No changes against the base branch.',
-    'review.diff.cleaned': 'Diff unavailable — worktree was cleaned up.',
-    'review.diff.missing': 'Diff unavailable — worktree folder is gone.',
+    'review.diff.noBranch': 'Diff unavailable — this todo has no branch (ran on the main branch).',
+    'review.diff.branchMissing': 'Diff unavailable — branch was deleted.',
     'review.diff.notFound': 'Todo not found.',
 
     // Project List
@@ -847,8 +847,8 @@ const translations = {
     'review.tokens.todos': 'Todo 수',
     'review.tokens.byCli': 'CLI별',
     'review.diff.empty': '베이스 브랜치 대비 변경 사항이 없습니다.',
-    'review.diff.cleaned': 'Worktree가 정리되어 diff를 표시할 수 없습니다.',
-    'review.diff.missing': 'Worktree 폴더가 사라져 diff를 표시할 수 없습니다.',
+    'review.diff.noBranch': '브랜치 없이 메인 브랜치에서 실행된 todo라 diff를 표시할 수 없습니다.',
+    'review.diff.branchMissing': '브랜치가 삭제되어 diff를 표시할 수 없습니다.',
     'review.diff.notFound': 'Todo를 찾을 수 없습니다.',
 
     // Project List

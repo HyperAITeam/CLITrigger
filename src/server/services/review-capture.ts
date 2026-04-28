@@ -38,17 +38,32 @@ export function pickSummaryFromLogs(todoId: string): string | null {
 }
 
 /**
- * Compute diff stats for a worktree against its project's default branch.
- * Returns null if the worktree is missing or git fails.
+ * Compute diff stats for a todo's branch against its project's default branch.
+ * Prefers the worktree (alive at capture time), but falls back to the project repo
+ * with the branch ref so stats still get persisted even if the CLI removed the
+ * worktree under us. Returns null only when no usable git context can be found.
  */
 export async function computeDiffStats(
   worktreePath: string | null,
   defaultBranch: string,
+  projectPath?: string | null,
+  branchName?: string | null,
 ): Promise<{ files: number; lines: number } | null> {
-  if (!worktreePath || !fs.existsSync(worktreePath)) return null;
+  const useWorktree = !!(worktreePath && fs.existsSync(worktreePath));
+  const gitDir = useWorktree ? (worktreePath as string) : (projectPath || '');
+  if (!gitDir) return null;
+  const target = useWorktree ? 'HEAD' : (branchName || '');
+  if (!target) return null;
   try {
-    const git = createGit(worktreePath);
-    const stat = await git.diff([`${defaultBranch}...HEAD`, '--shortstat']);
+    const git = createGit(gitDir);
+    if (!useWorktree) {
+      try {
+        await git.raw(['rev-parse', '--verify', target]);
+      } catch {
+        return null;
+      }
+    }
+    const stat = await git.diff([`${defaultBranch}...${target}`, '--shortstat']);
     const m = stat.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/);
     if (!m) return { files: 0, lines: 0 };
     const files = parseInt(m[1], 10) || 0;
@@ -72,7 +87,12 @@ export async function captureReviewMetadata(todoId: string): Promise<void> {
     const defaultBranch = project?.default_branch || 'main';
 
     const summary = pickSummaryFromLogs(todoId);
-    const diff = await computeDiffStats(todo.worktree_path, defaultBranch);
+    const diff = await computeDiffStats(
+      todo.worktree_path,
+      defaultBranch,
+      project?.path,
+      todo.branch_name,
+    );
 
     const updates: Parameters<typeof queries.updateTodo>[1] = {};
     if (summary !== null) updates.summary = summary;
