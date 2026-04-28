@@ -61,6 +61,11 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
   const [openItem, setOpenItem] = useState<ReviewItem | null>(null);
   const [openLogs, setOpenLogs] = useState<TaskLog[]>([]);
   const [openLoading, setOpenLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
 
   const filtered = useMemo(() => applyFilter(items, filter), [items, filter]);
 
@@ -180,8 +185,13 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
       } else if (e.key === 'Enter') {
         const cur = filtered[focusIdx];
         if (cur) handleOpen(cur);
+      } else if (e.key === ' ' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const cur = filtered[focusIdx];
+        if (cur) toggleExpand(cur.id);
       } else if (e.key === 'Escape') {
         if (openItem) setOpenItem(null);
+        else if (expandedId) setExpandedId(null);
       } else if (e.key === 'm') {
         const cur = filtered[focusIdx];
         if (cur && cur.status === 'completed' && cur.branch_name) handleApprove(cur);
@@ -192,7 +202,7 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [filtered, focusIdx, openItem, handleApprove, handleDiscard, handleOpen]);
+  }, [filtered, focusIdx, openItem, expandedId, toggleExpand, handleApprove, handleDiscard, handleOpen]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -315,7 +325,9 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
                 <ReviewCard
                   item={item}
                   focused={idx === focusIdx}
+                  expanded={expandedId === item.id}
                   onFocus={() => setFocusIdx(idx)}
+                  onToggleExpand={() => toggleExpand(item.id)}
                   onOpen={() => handleOpen(item)}
                   onApprove={() => handleApprove(item)}
                   onContinue={(p) => handleContinue(item, p)}

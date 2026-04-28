@@ -57,6 +57,10 @@ const translations = {
     'review.tokens.total': 'Total tokens',
     'review.tokens.todos': 'Todos',
     'review.tokens.byCli': 'By CLI tool',
+    'review.diff.empty': 'No changes against the base branch.',
+    'review.diff.cleaned': 'Diff unavailable — worktree was cleaned up.',
+    'review.diff.missing': 'Diff unavailable — worktree folder is gone.',
+    'review.diff.notFound': 'Todo not found.',
 
     // Project List
     'projects.title': 'All Projects',
@@ -842,6 +846,10 @@ const translations = {
     'review.tokens.total': '총 토큰',
     'review.tokens.todos': 'Todo 수',
     'review.tokens.byCli': 'CLI별',
+    'review.diff.empty': '베이스 브랜치 대비 변경 사항이 없습니다.',
+    'review.diff.cleaned': 'Worktree가 정리되어 diff를 표시할 수 없습니다.',
+    'review.diff.missing': 'Worktree 폴더가 사라져 diff를 표시할 수 없습니다.',
+    'review.diff.notFound': 'Todo를 찾을 수 없습니다.',
 
     // Project List
     'projects.title': '전체 프로젝트',

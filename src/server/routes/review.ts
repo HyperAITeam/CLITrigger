@@ -1,5 +1,7 @@
+import fs from 'fs';
 import { Router, Request, Response } from 'express';
-import { getReviewQueue, getReviewSummary, type ReviewQueueRow } from '../db/queries.js';
+import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, type ReviewQueueRow } from '../db/queries.js';
+import { createGit } from '../lib/git.js';
 
 const router = Router();
 
@@ -58,6 +60,116 @@ router.get('/summary', (req: Request, res: Response) => {
     const statuses = parseStatuses(req);
     const summary = getReviewSummary(since, statuses);
     res.json({ since, statuses, ...summary });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+interface DiffFile {
+  path: string;
+  insertions: number;
+  deletions: number;
+  binary: boolean;
+  status: string;
+}
+
+function parseNumstat(raw: string): Array<{ path: string; insertions: number; deletions: number; binary: boolean }> {
+  const out: Array<{ path: string; insertions: number; deletions: number; binary: boolean }> = [];
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('\t');
+    if (parts.length < 3) continue;
+    const [insRaw, delRaw, ...pathParts] = parts;
+    const path = pathParts.join('\t');
+    const binary = insRaw === '-' || delRaw === '-';
+    out.push({
+      path,
+      insertions: binary ? 0 : parseInt(insRaw, 10) || 0,
+      deletions: binary ? 0 : parseInt(delRaw, 10) || 0,
+      binary,
+    });
+  }
+  return out;
+}
+
+function parseNameStatus(raw: string): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    const parts = line.split('\t');
+    if (parts.length < 2) continue;
+    const code = parts[0];
+    // With -M0 we don't expect R/C, but be defensive: rename emits old + new path.
+    const path = parts[parts.length - 1];
+    map.set(path, code.charAt(0));
+  }
+  return map;
+}
+
+async function listDiffFiles(git: ReturnType<typeof createGit>, defaultBranch: string): Promise<DiffFile[]> {
+  // -M0 disables rename detection so each rename surfaces as A + D, keeping path strings concrete.
+  const range = `${defaultBranch}...HEAD`;
+  const [numstat, nameStatus] = await Promise.all([
+    git.diff([range, '-M0', '--numstat']),
+    git.diff([range, '-M0', '--name-status']),
+  ]);
+  const statusMap = parseNameStatus(nameStatus);
+  return parseNumstat(numstat).map((f) => ({
+    ...f,
+    status: statusMap.get(f.path) || 'M',
+  }));
+}
+
+async function resolveDiffContext(todoId: string): Promise<
+  | { ok: true; worktreePath: string; defaultBranch: string }
+  | { ok: false; reason: 'todo-not-found' | 'worktree-cleaned' | 'worktree-missing' }
+> {
+  const todo = getTodoById(todoId);
+  if (!todo) return { ok: false, reason: 'todo-not-found' };
+  if (!todo.worktree_path) return { ok: false, reason: 'worktree-cleaned' };
+  if (!fs.existsSync(todo.worktree_path)) return { ok: false, reason: 'worktree-missing' };
+  const project = getProjectById(todo.project_id);
+  const defaultBranch = project?.default_branch || 'main';
+  return { ok: true, worktreePath: todo.worktree_path, defaultBranch };
+}
+
+router.get('/diff/:todoId', async (req: Request, res: Response) => {
+  try {
+    const ctx = await resolveDiffContext(String(req.params.todoId));
+    if (!ctx.ok) {
+      const status = ctx.reason === 'todo-not-found' ? 404 : 200;
+      return res.status(status).json({ available: false, reason: ctx.reason });
+    }
+    const git = createGit(ctx.worktreePath);
+    const files = await listDiffFiles(git, ctx.defaultBranch);
+    res.json({ available: true, files, defaultBranch: ctx.defaultBranch });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+router.get('/diff/:todoId/file', async (req: Request, res: Response) => {
+  try {
+    const filePath = (req.query.path as string | undefined)?.trim();
+    if (!filePath) {
+      return res.status(400).json({ error: 'path query is required' });
+    }
+    const ctx = await resolveDiffContext(String(req.params.todoId));
+    if (!ctx.ok) {
+      const status = ctx.reason === 'todo-not-found' ? 404 : 200;
+      return res.status(status).json({ available: false, reason: ctx.reason });
+    }
+    const git = createGit(ctx.worktreePath);
+    // Whitelist: only allow paths reported by numstat for this branch range.
+    const allowed = new Set((await listDiffFiles(git, ctx.defaultBranch)).map((f) => f.path));
+    if (!allowed.has(filePath)) {
+      return res.status(400).json({ error: 'path not in diff' });
+    }
+    const diff = await git.diff([`${ctx.defaultBranch}...HEAD`, '-M0', '--', filePath]);
+    res.json({ available: true, diff });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
