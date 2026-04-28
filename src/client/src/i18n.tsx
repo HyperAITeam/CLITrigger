@@ -60,6 +60,7 @@ const translations = {
     'review.diff.empty': 'No changes against the base branch.',
     'review.diff.noBranch': 'Diff unavailable — this todo has no branch (ran on the main branch).',
     'review.diff.branchMissing': 'Diff unavailable — branch was deleted.',
+    'review.diff.baseBranchMissing': 'Diff unavailable — base branch not found in repo. Check the project\'s default_branch setting.',
     'review.diff.notFound': 'Todo not found.',
 
     // Project List
@@ -849,6 +850,7 @@ const translations = {
     'review.diff.empty': '베이스 브랜치 대비 변경 사항이 없습니다.',
     'review.diff.noBranch': '브랜치 없이 메인 브랜치에서 실행된 todo라 diff를 표시할 수 없습니다.',
     'review.diff.branchMissing': '브랜치가 삭제되어 diff를 표시할 수 없습니다.',
+    'review.diff.baseBranchMissing': '베이스 브랜치를 repo에서 찾을 수 없어 diff를 표시할 수 없습니다. 프로젝트 default_branch 설정을 확인하세요.',
     'review.diff.notFound': 'Todo를 찾을 수 없습니다.',
 
     // Project List
