@@ -888,3 +888,15 @@ Complete the task in the current directory.`;
 }
 
 export const orchestrator = new Orchestrator();
+
+// Quota-driven CLI fallback: when log-streamer detects repeated quota errors,
+// kill the running CLI process so the existing exit-code fallback path triggers
+// `getNextFallbackCli` and switches to the next CLI in the chain.
+logStreamer.setQuotaKillCallback((todoId) => {
+  try {
+    const todo = queries.getTodoById(todoId);
+    if (todo?.process_pid && todo.process_pid > 0) {
+      claudeManager.stopClaude(todo.process_pid).catch(() => { /* ignore */ });
+    }
+  } catch { /* ignore */ }
+});
