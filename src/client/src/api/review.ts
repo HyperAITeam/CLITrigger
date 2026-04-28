@@ -21,3 +21,38 @@ export function getReviewQueue(query: ReviewQuery = {}): Promise<ReviewQueueResp
 export function getReviewSummary(query: ReviewQuery = {}): Promise<ReviewSummary> {
   return get(`/api/review/summary${buildQuery(query)}`);
 }
+
+export interface ReviewDiffFile {
+  path: string;
+  insertions: number;
+  deletions: number;
+  binary: boolean;
+  status: string;
+}
+
+export type ReviewDiffReason = 'todo-not-found' | 'no-branch' | 'branch-missing' | 'base-branch-missing';
+
+export interface ReviewDiffDebug {
+  worktree_path: string | null;
+  worktree_exists: boolean;
+  branch_name: string | null;
+  project_path: string | null;
+  default_branch: string | null;
+  resolved_base: string | null;
+}
+
+export type ReviewDiffResponse =
+  | { available: true; files: ReviewDiffFile[]; defaultBranch: string; debug?: ReviewDiffDebug }
+  | { available: false; reason: ReviewDiffReason; debug?: ReviewDiffDebug };
+
+export type ReviewFileDiffResponse =
+  | { available: true; diff: string }
+  | { available: false; reason: ReviewDiffReason; debug?: ReviewDiffDebug };
+
+export function getReviewDiff(todoId: string): Promise<ReviewDiffResponse> {
+  return get(`/api/review/diff/${encodeURIComponent(todoId)}`);
+}
+
+export function getReviewFileDiff(todoId: string, path: string): Promise<ReviewFileDiffResponse> {
+  return get(`/api/review/diff/${encodeURIComponent(todoId)}/file?path=${encodeURIComponent(path)}`);
+}

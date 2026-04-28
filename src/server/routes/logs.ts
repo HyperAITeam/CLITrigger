@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { createGit } from '../lib/git.js';
+import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 import fs from 'fs';
 import { getTaskLogsByTodoId, getTodoById, getTodosByProjectId } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
@@ -81,8 +81,14 @@ router.get('/todos/:id/diff', async (req: Request<{ id: string }>, res: Response
     const defaultBranch = project?.default_branch || 'main';
 
     const git = createGit(todo.worktree_path);
-    const diff = await git.diff([`${defaultBranch}...HEAD`]);
-    const diffStat = await git.diff([`${defaultBranch}...HEAD`, '--stat']);
+    const resolvedBase = await resolveLocalBaseBranch(git, defaultBranch);
+    if (!resolvedBase) {
+      res.status(400).json({ error: 'Base branch not found in repository' });
+      return;
+    }
+    const range = `${resolvedBase}...HEAD`;
+    const diff = await git.diff([range]);
+    const diffStat = await git.diff([range, '--stat']);
 
     // Parse stats from diffstat
     let files_changed = 0;
@@ -144,8 +150,13 @@ router.get('/todos/:id/result', async (req: Request<{ id: string }>, res: Respon
       const git = createGit(todo.worktree_path);
 
       try {
+        const resolvedBase = await resolveLocalBaseBranch(git, defaultBranch);
+        if (!resolvedBase) {
+          throw new Error('Base branch not found in repository');
+        }
+        const range = `${resolvedBase}...HEAD`;
         // Get changed files with status
-        const nameStatus = await git.diff([`${defaultBranch}...HEAD`, '--name-status']);
+        const nameStatus = await git.diff([range, '--name-status']);
         if (nameStatus.trim()) {
           changed_files = nameStatus.trim().split('\n').map(line => {
             const parts = line.split('\t');
@@ -158,7 +169,7 @@ router.get('/todos/:id/result', async (req: Request<{ id: string }>, res: Respon
         }
 
         // Get diff stats
-        const diffStat = await git.diff([`${defaultBranch}...HEAD`, '--stat']);
+        const diffStat = await git.diff([range, '--stat']);
         const statMatch = diffStat.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/);
         if (statMatch) {
           diff_stats.files_changed = parseInt(statMatch[1], 10) || 0;
