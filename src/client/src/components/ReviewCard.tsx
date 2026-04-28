@@ -51,11 +51,11 @@ function StatusIcon({ status }: { status: ReviewItem['status'] }) {
   return <AlertTriangle size={14} className="text-status-warning" />;
 }
 
-function reasonKey(reason: 'todo-not-found' | 'worktree-cleaned' | 'worktree-missing'): string {
+function reasonKey(reason: 'todo-not-found' | 'no-branch' | 'branch-missing'): string {
   switch (reason) {
     case 'todo-not-found': return 'review.diff.notFound';
-    case 'worktree-cleaned': return 'review.diff.cleaned';
-    case 'worktree-missing': return 'review.diff.missing';
+    case 'no-branch': return 'review.diff.noBranch';
+    case 'branch-missing': return 'review.diff.branchMissing';
   }
 }
 
@@ -100,7 +100,7 @@ export default function ReviewCard({
       })
       .catch(() => {
         if (cancelled) return;
-        setDiffData({ available: false, reason: 'worktree-missing' });
+        setDiffData({ available: false, reason: 'branch-missing' });
       })
       .finally(() => {
         if (!cancelled) setFilesLoading(false);

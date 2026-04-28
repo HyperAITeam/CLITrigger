@@ -108,9 +108,8 @@ function parseNameStatus(raw: string): Map<string, string> {
   return map;
 }
 
-async function listDiffFiles(git: ReturnType<typeof createGit>, defaultBranch: string): Promise<DiffFile[]> {
+async function listDiffFiles(git: ReturnType<typeof createGit>, range: string): Promise<DiffFile[]> {
   // -M0 disables rename detection so each rename surfaces as A + D, keeping path strings concrete.
-  const range = `${defaultBranch}...HEAD`;
   const [numstat, nameStatus] = await Promise.all([
     git.diff([range, '-M0', '--numstat']),
     git.diff([range, '-M0', '--name-status']),
@@ -122,17 +121,49 @@ async function listDiffFiles(git: ReturnType<typeof createGit>, defaultBranch: s
   }));
 }
 
-async function resolveDiffContext(todoId: string): Promise<
-  | { ok: true; worktreePath: string; defaultBranch: string }
-  | { ok: false; reason: 'todo-not-found' | 'worktree-cleaned' | 'worktree-missing' }
-> {
+type DiffContext = {
+  ok: true;
+  gitDir: string;
+  range: string;
+  defaultBranch: string;
+};
+
+type DiffContextErr = {
+  ok: false;
+  reason: 'todo-not-found' | 'no-branch' | 'branch-missing';
+};
+
+async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffContextErr> {
   const todo = getTodoById(todoId);
   if (!todo) return { ok: false, reason: 'todo-not-found' };
-  if (!todo.worktree_path) return { ok: false, reason: 'worktree-cleaned' };
-  if (!fs.existsSync(todo.worktree_path)) return { ok: false, reason: 'worktree-missing' };
   const project = getProjectById(todo.project_id);
-  const defaultBranch = project?.default_branch || 'main';
-  return { ok: true, worktreePath: todo.worktree_path, defaultBranch };
+  if (!project) return { ok: false, reason: 'todo-not-found' };
+
+  const defaultBranch = project.default_branch || 'main';
+
+  // Prefer the worktree as the git dir (fastest, deals with detached states), but
+  // fall back to the project repo when the worktree was cleaned up by the CLI or user.
+  // The branch ref is the durable handle — it survives `git worktree remove`.
+  const useWorktree = todo.worktree_path && fs.existsSync(todo.worktree_path);
+  const gitDir = useWorktree ? (todo.worktree_path as string) : project.path;
+
+  // Determine the target ref. If the worktree is alive, HEAD inside it points at the
+  // task's branch; otherwise we need an explicit branch name in the project repo.
+  let target: string;
+  if (useWorktree) {
+    target = 'HEAD';
+  } else {
+    if (!todo.branch_name) return { ok: false, reason: 'no-branch' };
+    const git = createGit(gitDir);
+    try {
+      await git.raw(['rev-parse', '--verify', todo.branch_name]);
+    } catch {
+      return { ok: false, reason: 'branch-missing' };
+    }
+    target = todo.branch_name;
+  }
+
+  return { ok: true, gitDir, range: `${defaultBranch}...${target}`, defaultBranch };
 }
 
 router.get('/diff/:todoId', async (req: Request, res: Response) => {
@@ -142,8 +173,8 @@ router.get('/diff/:todoId', async (req: Request, res: Response) => {
       const status = ctx.reason === 'todo-not-found' ? 404 : 200;
       return res.status(status).json({ available: false, reason: ctx.reason });
     }
-    const git = createGit(ctx.worktreePath);
-    const files = await listDiffFiles(git, ctx.defaultBranch);
+    const git = createGit(ctx.gitDir);
+    const files = await listDiffFiles(git, ctx.range);
     res.json({ available: true, files, defaultBranch: ctx.defaultBranch });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -162,13 +193,13 @@ router.get('/diff/:todoId/file', async (req: Request, res: Response) => {
       const status = ctx.reason === 'todo-not-found' ? 404 : 200;
       return res.status(status).json({ available: false, reason: ctx.reason });
     }
-    const git = createGit(ctx.worktreePath);
+    const git = createGit(ctx.gitDir);
     // Whitelist: only allow paths reported by numstat for this branch range.
-    const allowed = new Set((await listDiffFiles(git, ctx.defaultBranch)).map((f) => f.path));
+    const allowed = new Set((await listDiffFiles(git, ctx.range)).map((f) => f.path));
     if (!allowed.has(filePath)) {
       return res.status(400).json({ error: 'path not in diff' });
     }
-    const diff = await git.diff([`${ctx.defaultBranch}...HEAD`, '-M0', '--', filePath]);
+    const diff = await git.diff([ctx.range, '-M0', '--', filePath]);
     res.json({ available: true, diff });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
