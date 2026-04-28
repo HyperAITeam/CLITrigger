@@ -94,6 +94,7 @@ export default function DiscussionList({
       {showForm && (
         <DiscussionForm
           agents={agents}
+          projectId={projectId}
           mode="create"
           submitting={creating}
           onSubmit={handleCreate}

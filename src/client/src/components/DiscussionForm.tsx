@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { DiscussionAgent } from '../types';
+import type { DiscussionAgent, MemoryInjectMode } from '../types';
 import type { DiscussionInput } from '../api/discussions';
 import { useI18n } from '../i18n';
+import MemoryInjectControl from './MemoryInjectControl';
 
 export interface DiscussionFormValues {
   title: string;
@@ -10,10 +11,13 @@ export interface DiscussionFormValues {
   max_rounds: number;
   auto_implement: boolean;
   implement_agent_id: string;
+  memory_inject_mode: MemoryInjectMode;
+  memory_node_ids: string[];
 }
 
 interface DiscussionFormProps {
   agents: DiscussionAgent[];
+  projectId?: string;
   initialValues?: Partial<DiscussionFormValues>;
   mode: 'create' | 'edit';
   allowAdvancedFields?: boolean;
@@ -29,10 +33,13 @@ const DEFAULT_VALUES: DiscussionFormValues = {
   max_rounds: 3,
   auto_implement: false,
   implement_agent_id: '',
+  memory_inject_mode: 'none',
+  memory_node_ids: [],
 };
 
 export default function DiscussionForm({
   agents,
+  projectId,
   initialValues,
   mode,
   allowAdvancedFields = true,
@@ -101,6 +108,8 @@ export default function DiscussionForm({
       max_rounds: values.max_rounds,
       auto_implement: allowAdvancedFields ? values.auto_implement : false,
       implement_agent_id: allowAdvancedFields && values.auto_implement ? values.implement_agent_id : undefined,
+      memory_inject_mode: allowAdvancedFields ? values.memory_inject_mode : 'none',
+      memory_node_ids: allowAdvancedFields && values.memory_inject_mode === 'selected' ? values.memory_node_ids : [],
     });
   };
 
@@ -298,6 +307,17 @@ export default function DiscussionForm({
             />
             <p className="text-2xs text-warm-400 mt-1.5">{t('discussions.roundExplain')}</p>
           </div>
+
+          {projectId && (
+            <div>
+              <MemoryInjectControl
+                projectId={projectId}
+                mode={values.memory_inject_mode}
+                selectedIds={values.memory_node_ids}
+                onChange={(mode, ids) => setValues(prev => ({ ...prev, memory_inject_mode: mode, memory_node_ids: ids }))}
+              />
+            </div>
+          )}
 
           <div>
             <label className="flex items-center gap-2 cursor-pointer">

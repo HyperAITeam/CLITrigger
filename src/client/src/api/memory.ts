@@ -1,0 +1,78 @@
+import { get, post, put, del } from './client';
+import type { MemoryNode, MemoryEdge, MemoryGraph, MemoryRelationType, MemoryInjectMode } from '../types';
+
+export function getMemoryGraph(projectId: string): Promise<MemoryGraph> {
+  return get(`/api/projects/${projectId}/memory/graph`);
+}
+
+export function getMemoryNodes(projectId: string): Promise<MemoryNode[]> {
+  return get(`/api/projects/${projectId}/memory/nodes`);
+}
+
+export function createMemoryNode(
+  projectId: string,
+  data: { title: string; body?: string; tags?: string[]; pinned?: boolean },
+): Promise<MemoryNode> {
+  return post(`/api/projects/${projectId}/memory/nodes`, data);
+}
+
+export function updateMemoryNode(
+  nodeId: string,
+  data: { title?: string; body?: string; tags?: string[] | null; pinned?: boolean },
+): Promise<MemoryNode> {
+  return put(`/api/memory/nodes/${nodeId}`, data);
+}
+
+export function updateMemoryNodePosition(nodeId: string, x: number, y: number): Promise<void> {
+  return put(`/api/memory/nodes/${nodeId}/position`, { position_x: x, position_y: y });
+}
+
+export function deleteMemoryNode(nodeId: string): Promise<void> {
+  return del(`/api/memory/nodes/${nodeId}`);
+}
+
+export function createMemoryEdge(
+  projectId: string,
+  data: { from_node_id: string; to_node_id: string; relation_type?: MemoryRelationType; label?: string | null },
+): Promise<MemoryEdge> {
+  return post(`/api/projects/${projectId}/memory/edges`, data);
+}
+
+export function updateMemoryEdge(
+  edgeId: string,
+  data: { relation_type?: MemoryRelationType; label?: string | null },
+): Promise<MemoryEdge> {
+  return put(`/api/memory/edges/${edgeId}`, data);
+}
+
+export function deleteMemoryEdge(edgeId: string): Promise<void> {
+  return del(`/api/memory/edges/${edgeId}`);
+}
+
+export function previewMemoryInjection(
+  projectId: string,
+  mode: MemoryInjectMode,
+  nodeIds: string[] = [],
+): Promise<{ prompt: string; nodeCount: number; edgeCount: number }> {
+  return post(`/api/projects/${projectId}/memory/preview`, { mode, nodeIds });
+}
+
+export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseMemoryTags(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}

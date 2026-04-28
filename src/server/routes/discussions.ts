@@ -8,7 +8,7 @@ import { extractActionItems, type ExtractedActionItem } from '../services/discus
 
 const router = Router();
 
-const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id'] as const;
+const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id', 'memory_inject_mode', 'memory_node_ids'] as const;
 const LIMITED_EDITABLE_DISCUSSION_FIELDS = ['title', 'description'] as const;
 const RUNNABLE_DISCUSSION_STATUSES = new Set(['pending', 'failed']);
 const LIMITED_EDIT_DISCUSSION_STATUSES = new Set(['paused', 'completed']);
@@ -22,6 +22,8 @@ interface DiscussionPayload {
   max_rounds: number;
   auto_implement: boolean;
   implement_agent_id: string | null;
+  memory_inject_mode: 'none' | 'all' | 'selected';
+  memory_node_ids: string[];
 }
 
 function parseDiscussionAgentIds(agentIdsJson: string): string[] {
@@ -47,6 +49,18 @@ function buildDiscussionResponse(discussion: queries.Discussion) {
 
 function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionPayload {
   const parsedMaxRounds = typeof input.max_rounds === 'number' ? input.max_rounds : Number(input.max_rounds);
+  const rawMemMode = input.memory_inject_mode;
+  const memMode: 'none' | 'all' | 'selected' = rawMemMode === 'all' || rawMemMode === 'selected' ? rawMemMode : 'none';
+  const rawMemIds = input.memory_node_ids;
+  let memIds: string[] = [];
+  if (Array.isArray(rawMemIds)) {
+    memIds = rawMemIds.filter((v): v is string => typeof v === 'string' && v.length > 0);
+  } else if (typeof rawMemIds === 'string' && rawMemIds) {
+    try {
+      const parsed = JSON.parse(rawMemIds);
+      if (Array.isArray(parsed)) memIds = parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
+    } catch { /* ignore */ }
+  }
 
   return {
     title: typeof input.title === 'string' ? input.title.trim() : '',
@@ -57,6 +71,8 @@ function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionP
     implement_agent_id: typeof input.implement_agent_id === 'string' && input.implement_agent_id.trim()
       ? input.implement_agent_id.trim()
       : null,
+    memory_inject_mode: memMode,
+    memory_node_ids: memIds,
   };
 }
 
@@ -211,6 +227,7 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       return;
     }
 
+    const memNodeIdsJson = payload.memory_node_ids.length > 0 ? JSON.stringify(payload.memory_node_ids) : null;
     const discussion = queries.createDiscussion(
       req.params.id,
       payload.title,
@@ -218,7 +235,9 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       payload.agent_ids,
       payload.max_rounds,
       payload.auto_implement,
-      payload.implement_agent_id ?? undefined
+      payload.implement_agent_id ?? undefined,
+      payload.memory_inject_mode,
+      memNodeIdsJson,
     );
     res.status(201).json(discussion);
   } catch (err: unknown) {
@@ -286,6 +305,13 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
+    const existingMemIds = (() => {
+      if (!discussion.memory_node_ids) return [];
+      try {
+        const parsed = JSON.parse(discussion.memory_node_ids);
+        return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+      } catch { return []; }
+    })();
     const mergedPayload = normalizeDiscussionPayload({
       title: discussion.title,
       description: discussion.description,
@@ -293,6 +319,8 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       max_rounds: discussion.max_rounds,
       auto_implement: discussion.auto_implement === 1,
       implement_agent_id: discussion.implement_agent_id,
+      memory_inject_mode: discussion.memory_inject_mode || 'none',
+      memory_node_ids: existingMemIds,
       ...rawUpdates,
     });
 
@@ -302,7 +330,7 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
-    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id'>> = {};
+    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids'>> = {};
 
     if (rawUpdates.title !== undefined) {
       updates.title = mergedPayload.title;
@@ -321,6 +349,12 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
     }
     if (rawUpdates.implement_agent_id !== undefined || (rawUpdates.auto_implement !== undefined && !mergedPayload.auto_implement)) {
       updates.implement_agent_id = mergedPayload.auto_implement ? mergedPayload.implement_agent_id : null;
+    }
+    if (rawUpdates.memory_inject_mode !== undefined) {
+      updates.memory_inject_mode = mergedPayload.memory_inject_mode;
+    }
+    if (rawUpdates.memory_node_ids !== undefined) {
+      updates.memory_node_ids = mergedPayload.memory_node_ids.length > 0 ? JSON.stringify(mergedPayload.memory_node_ids) : null;
     }
 
     const updated = queries.updateDiscussion(discussion.id, updates);

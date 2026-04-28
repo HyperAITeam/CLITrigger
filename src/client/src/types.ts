@@ -89,6 +89,8 @@ export interface Todo {
   summary?: string | null;
   diff_lines?: number | null;
   diff_files?: number | null;
+  memory_inject_mode?: MemoryInjectMode | null;
+  memory_node_ids?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -231,6 +233,8 @@ export interface Discussion {
   agent_ids: string;
   auto_implement: number;
   implement_agent_id: string | null;
+  memory_inject_mode?: MemoryInjectMode | null;
+  memory_node_ids?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -338,4 +342,38 @@ export interface JiraSearchResult {
   maxResults: number;
   total: number;
   issues: JiraIssue[];
+}
+
+// ── Long-term Memory (LLM-Wiki) ──
+
+export type MemoryInjectMode = 'none' | 'all' | 'selected';
+
+export type MemoryRelationType = 'related' | 'precedes' | 'example_of' | 'counter_example' | 'refines';
+
+export interface MemoryNode {
+  id: string;
+  project_id: string;
+  title: string;
+  body: string;
+  tags: string | null;
+  position_x: number | null;
+  position_y: number | null;
+  pinned: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryEdge {
+  id: string;
+  project_id: string;
+  from_node_id: string;
+  to_node_id: string;
+  relation_type: MemoryRelationType;
+  label: string | null;
+  created_at: string;
+}
+
+export interface MemoryGraph {
+  nodes: MemoryNode[];
+  edges: MemoryEdge[];
 }

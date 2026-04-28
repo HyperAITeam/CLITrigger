@@ -351,6 +351,14 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   const canCleanup = !canStop && !!discussion.worktree_path;
   const { canEdit, allowAdvancedFields } = getEditableDiscussionConfig(discussion.status);
 
+  const parseInitialMemoryIds = (raw: string | null | undefined): string[] => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch { return []; }
+  };
+
   const initialEditValues: DiscussionFormValues = {
     title: discussion.title,
     description: discussion.description,
@@ -358,6 +366,8 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     max_rounds: discussion.max_rounds,
     auto_implement: discussion.auto_implement === 1,
     implement_agent_id: discussion.implement_agent_id || '',
+    memory_inject_mode: (discussion.memory_inject_mode as 'none' | 'all' | 'selected' | null) || 'none',
+    memory_node_ids: parseInitialMemoryIds(discussion.memory_node_ids),
   };
 
   const rounds = new Map<number, DiscussionMessage[]>();
@@ -671,6 +681,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
           <div className="max-h-[90vh] overflow-y-auto">
             <DiscussionForm
               agents={allowAdvancedFields ? projectAgents : discussion.agents}
+              projectId={discussion.project_id}
               initialValues={initialEditValues}
               mode="edit"
               allowAdvancedFields={allowAdvancedFields}
