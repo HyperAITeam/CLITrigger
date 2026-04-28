@@ -104,17 +104,28 @@ Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recove
 
 ## Features
 
-### Parallel Worktree Execution
-Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
-
-### Morning Review Queue
-A single cross-project triage screen for the "delegate overnight, review next morning" loop. Aggregates every recent TODO across all your projects into a card stack with project label, last-assistant summary, token totals, diff stats, and a server-classified risk badge (low / medium / high based on status and diff size). Keyboard-only operation: `j`/`k` to navigate, `Enter` for the embedded log viewer, `Space` / `→` to expand changed files and diffs inline, `m` to merge, `d` to discard, `Esc` to close — N todos become O(N) keypresses. Time-window selector (12h / 24h / 7d), filter chips (All / Risky / Quick wins / Failed), and a sticky token ribbon with CLI breakdown. Inline diffs survive worktree cleanup by falling back through branch ref → `master`/`main`.
-
-### Multi-Agent Discussion
-AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus. Or hit **Send to Planner** on a finished discussion to have the transcript distilled into curated planner items via a one-shot LLM extraction — review and edit before persisting.
+### Plugin System (Harness, Jira, GitHub, Notion, gstack)
+The **Harness** panel edits Claude / Gemini / Codex user config (settings, memory files, MCP servers) right in the browser — atomic writes with deep-merge preserve untouched fields, and a Codex `trustLevelMissing` warning surfaces when a project isn't trusted. Jira, GitHub, Notion integrations and gstack skill injection ship alongside as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
 
 ### Long-term Memory Graph
 A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` per task, preview the exact `<long_term_memory>` block before sending. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
+
+### Planner
+A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
+  <p><em>Inline editing, color-coded tags, image attachments, and one-click conversion to TODOs or schedules</em></p>
+</div>
+
+### Parallel Worktree Execution (Tasks)
+Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
+
+### Interactive Sessions
+Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in an embedded terminal, with optional worktree isolation per session. PTY output is filtered for spinner noise and classified into assistant / tool-use blocks so the Chat-mode log viewer stays readable.
+
+### Multi-Agent Discussion
+AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus. Or hit **Send to Planner** on a finished discussion to have the transcript distilled into curated planner items via a one-shot LLM extraction — review and edit before persisting.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
@@ -129,12 +140,12 @@ Schedule tasks for off-peak hours to avoid rate limits. Supports recurring cron 
   <p><em>Cron-based recurring and one-time scheduled task execution</em></p>
 </div>
 
-### Planner
-A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
+### Built-in Git Client
+A full Git client lives inside the web UI with a Fork/SourceTree-style layout — a workspace menu switches between **File Status** (staged/unstaged file lists, working-tree diff viewer, commit message + push toggle, Cmd/Ctrl+Enter to commit) and **History** (commit graph, action toolbar, worktree list, VS Code-style branch context menu with checkout / merge / rebase / fetch / pull / push / rename / delete, and a commit detail panel with file-level diff viewer). Every split is user-resizable and persisted to localStorage. Non-ASCII filenames (Korean, CJK, emoji) render correctly in diff and status output.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
-  <p><em>Inline editing, color-coded tags, image attachments, and one-click conversion to TODOs or schedules</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
+  <p><em>Commit graph, branch actions, file diffs — all in the browser</em></p>
 </div>
 
 ### Analytics
@@ -145,25 +156,14 @@ Per-project cost and execution stats powered by Recharts — stacked bar chart b
   <p><em>Cost and token usage broken down by CLI, status, and over time</em></p>
 </div>
 
-### Built-in Git Client
-A full Git client lives inside the web UI with a Fork/SourceTree-style layout — a workspace menu switches between **File Status** (staged/unstaged file lists, working-tree diff viewer, commit message + push toggle, Cmd/Ctrl+Enter to commit) and **History** (commit graph, action toolbar, worktree list, VS Code-style branch context menu with checkout / merge / rebase / fetch / pull / push / rename / delete, and a commit detail panel with file-level diff viewer). Every split is user-resizable and persisted to localStorage. Non-ASCII filenames (Korean, CJK, emoji) render correctly in diff and status output.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
-  <p><em>Commit graph, branch actions, file diffs — all in the browser</em></p>
-</div>
-
-### Interactive Sessions
-Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in an embedded terminal, with optional worktree isolation per session. PTY output is filtered for spinner noise and classified into assistant / tool-use blocks so the Chat-mode log viewer stays readable.
+### Morning Review Queue
+A single cross-project triage screen for the "delegate overnight, review next morning" loop. Aggregates every recent TODO across all your projects into a card stack with project label, last-assistant summary, token totals, diff stats, and a server-classified risk badge (low / medium / high based on status and diff size). Keyboard-only operation: `j`/`k` to navigate, `Enter` for the embedded log viewer, `Space` / `→` to expand changed files and diffs inline, `m` to merge, `d` to discard, `Esc` to close — N todos become O(N) keypresses. Time-window selector (12h / 24h / 7d), filter chips (All / Risky / Quick wins / Failed), and a sticky token ribbon with CLI breakdown. Inline diffs survive worktree cleanup by falling back through branch ref → `master`/`main`.
 
 ### Live Logs (Chat & Raw)
 WebSocket-based real-time log streaming with two view modes — Chat mode renders assistant messages as markdown with collapsible tool-use rows; Raw mode is a flat terminal view. Multi-round continue reuses the same worktree via the CLI's native `--continue` flag.
 
 ### Multi-CLI & Sandbox Mode
 Select Claude / Gemini / Codex per project, per TODO, or per discussion agent. Strict sandbox mode restricts CLI file access to the worktree directory using each CLI's native sandboxing (Claude settings.json, Codex `--full-auto`, Gemini prompt-level restriction).
-
-### Plugin System
-Jira, GitHub, Notion integrations, gstack skill injection, and a Harness panel for editing Claude / Gemini / Codex user config (settings, memory files, MCP servers — atomic writes with deep-merge) all ship as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
 
 ### Remote Access
 Access and control from anywhere via Cloudflare Tunnel. Browser notifications alert you when tasks or discussions complete, so you can walk away and come back.
