@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { createGit } from '../lib/git.js';
+import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
 import { discussionOrchestrator } from '../services/discussion-orchestrator.js';
@@ -518,8 +518,13 @@ router.post('/discussions/:id/merge', async (req: Request<{ id: string }>, res: 
 
     const git = createGit(project.path);
     const defaultBranch = project.default_branch || 'main';
+    const targetBranch = await resolveLocalBaseBranch(git, defaultBranch);
+    if (!targetBranch) {
+      res.status(400).json({ error: 'Base branch not found in repository' });
+      return;
+    }
 
-    await git.checkout(defaultBranch);
+    await git.checkout(targetBranch);
 
     try {
       const mergeResult = await git.merge([discussion.branch_name]);
@@ -573,8 +578,14 @@ router.get('/discussions/:id/diff', async (req: Request<{ id: string }>, res: Re
     const defaultBranch = project?.default_branch || 'main';
 
     const git = createGit(discussion.worktree_path);
-    const diff = await git.diff([`${defaultBranch}...HEAD`]);
-    const diffStat = await git.diff([`${defaultBranch}...HEAD`, '--stat']);
+    const resolvedBase = await resolveLocalBaseBranch(git, defaultBranch);
+    if (!resolvedBase) {
+      res.status(400).json({ error: 'Base branch not found in repository' });
+      return;
+    }
+    const range = `${resolvedBase}...HEAD`;
+    const diff = await git.diff([range]);
+    const diffStat = await git.diff([range, '--stat']);
 
     let files_changed = 0;
     let insertions = 0;

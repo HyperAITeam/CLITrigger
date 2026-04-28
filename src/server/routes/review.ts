@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { Router, Request, Response } from 'express';
 import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, type ReviewQueueRow } from '../db/queries.js';
-import { createGit } from '../lib/git.js';
+import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 
 const router = Router();
 
@@ -144,21 +144,6 @@ type DiffContextErr = {
   debug: DiffDebug;
 };
 
-/**
- * Resolve the project's base branch, falling back to master/main if the configured
- * default_branch doesn't exist in the repo. Mirrors the helper pattern used in
- * routes/execution.ts:137 and :254 so behavior stays consistent across endpoints.
- */
-async function resolveBaseBranch(gitDir: string, configured: string): Promise<string | null> {
-  try {
-    const branches = await createGit(gitDir).branchLocal();
-    if (branches.all.includes(configured)) return configured;
-    return branches.all.find((b) => b === 'master' || b === 'main') ?? null;
-  } catch {
-    return null;
-  }
-}
-
 async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffContextErr> {
   const emptyDebug: DiffDebug = {
     worktree_path: null, worktree_exists: false, branch_name: null,
@@ -194,7 +179,7 @@ async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffCon
       if (debug.worktree_exists) {
         gitDir = todo.worktree_path as string;
         target = 'HEAD';
-        const resolved = await resolveBaseBranch(gitDir, defaultBranch);
+        const resolved = await resolveLocalBaseBranch(createGit(gitDir), defaultBranch);
         debug.resolved_base = resolved;
         if (!resolved) return { ok: false, reason: 'base-branch-missing', debug };
         return { ok: true, gitDir, range: `${resolved}...${target}`, defaultBranch, debug };
@@ -209,7 +194,7 @@ async function resolveDiffContext(todoId: string): Promise<DiffContext | DiffCon
     return { ok: false, reason: 'no-branch', debug };
   }
 
-  const resolved = await resolveBaseBranch(gitDir, defaultBranch);
+  const resolved = await resolveLocalBaseBranch(createGit(gitDir), defaultBranch);
   debug.resolved_base = resolved;
   if (!resolved) return { ok: false, reason: 'base-branch-missing', debug };
 
