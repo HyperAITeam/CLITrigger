@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import * as queries from '../db/queries.js';
+import type { CliTool } from './cli-adapters.js';
 
 export interface ExtractedActionItem {
   title: string;
@@ -75,17 +76,37 @@ function safeParseItems(raw: string): ExtractedActionItem[] {
   return items;
 }
 
-function runClaudePrint(prompt: string, timeoutMs = 90_000): Promise<string> {
+interface CliInvocation {
+  command: string;
+  args: string[];
+  displayName: string;
+}
+
+function buildInvocation(cliTool: CliTool): CliInvocation {
+  switch (cliTool) {
+    case 'gemini':
+      return { command: 'gemini', args: ['--yolo', '--prompt='], displayName: 'Gemini' };
+    case 'codex':
+      return { command: 'codex', args: ['exec'], displayName: 'Codex' };
+    case 'claude':
+    default:
+      return { command: 'claude', args: ['--print'], displayName: 'Claude' };
+  }
+}
+
+function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 120_000): Promise<string> {
   return new Promise((resolve, reject) => {
+    const { command, args, displayName } = buildInvocation(cliTool);
     const isWin = process.platform === 'win32';
-    const cmd = isWin ? 'cmd.exe' : 'claude';
-    const args = isWin ? ['/c', 'claude', '--print', '-p', prompt] : ['--print', '-p', prompt];
+    const spawnCmd = isWin ? 'cmd.exe' : command;
+    const spawnArgs = isWin ? ['/c', command, ...args] : args;
+
     let stdout = '';
     let stderr = '';
     let settled = false;
 
-    const proc = spawn(cmd, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const proc = spawn(spawnCmd, spawnArgs, {
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
       cwd: process.env.HOME || process.env.USERPROFILE || '.',
     });
@@ -94,7 +115,7 @@ function runClaudePrint(prompt: string, timeoutMs = 90_000): Promise<string> {
       if (settled) return;
       settled = true;
       try { proc.kill(); } catch { /* ignore */ }
-      reject(new Error('Extraction timed out'));
+      reject(new Error(`${displayName} extraction timed out`));
     }, timeoutMs);
 
     proc.stdout.on('data', (c: Buffer) => { stdout += c.toString('utf8'); });
@@ -110,14 +131,37 @@ function runClaudePrint(prompt: string, timeoutMs = 90_000): Promise<string> {
       settled = true;
       clearTimeout(timer);
       if (code === 0) resolve(stdout);
-      else reject(new Error(`Claude exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
+      else reject(new Error(`${displayName} exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
     });
+
+    // Deliver prompt via stdin pipe to bypass Windows command-line length limits.
+    try {
+      proc.stdin.write(prompt + '\n');
+      proc.stdin.end();
+    } catch (err) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { proc.kill(); } catch { /* ignore */ }
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 
+function resolveCliTool(value: unknown): CliTool {
+  if (value === 'claude' || value === 'gemini' || value === 'codex') return value;
+  if (value) console.warn(`[discussion-extractor] Unknown cli_tool "${String(value)}", falling back to claude`);
+  return 'claude';
+}
+
 export async function extractActionItems(discussionId: string): Promise<ExtractedActionItem[]> {
+  const discussion = queries.getDiscussionById(discussionId);
+  if (!discussion) throw new Error('Discussion not found');
+  const project = queries.getProjectById(discussion.project_id);
+  const cliTool = resolveCliTool(project?.cli_tool);
+
   const transcript = buildTranscript(discussionId);
   const prompt = PROMPT_HEADER + transcript;
-  const raw = await runClaudePrint(prompt);
+  const raw = await runHeadless(cliTool, prompt);
   return safeParseItems(raw);
 }
