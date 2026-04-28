@@ -19,7 +19,7 @@ const REGISTRY_PATH = path.resolve(__dirname, '../data/cli-models-registry.json'
  * as a prefix on cli_versions.last_version so a bump causes maybeTriggerSync
  * to treat the current record as stale and resync on the next version probe.
  */
-const SYNC_ALGORITHM_VERSION = '4';
+const SYNC_ALGORITHM_VERSION = '5';
 
 function encodeStoredVersion(version: string): string {
   return `${SYNC_ALGORITHM_VERSION}|${version}`;
