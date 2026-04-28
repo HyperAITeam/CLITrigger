@@ -106,20 +106,20 @@ export function CommitDiffViewer({
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-3 py-2 border-b border-warm-100 shrink-0">
-        <span className="text-xs font-mono text-warm-600">{selectedFile}</span>
+    <div className="h-full flex flex-col bg-[#1A1A1A]">
+      <div className="px-3 py-2 border-b border-gray-700 shrink-0">
+        <span className="text-xs font-mono text-gray-100">{selectedFile}</span>
       </div>
       <div className="flex-1 overflow-auto">
         <pre className="p-3 font-mono text-xs leading-relaxed">
           {diff ? diff.split('\n').map((line, i) => {
-            let className = 'text-warm-100';
-            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-warm-100 bg-green-500/20';
-            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-warm-100 bg-red-500/20';
+            let className = 'text-gray-200';
+            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-gray-100 bg-green-500/20';
+            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-gray-100 bg-red-500/20';
             else if (line.startsWith('@@')) className = 'text-blue-400';
             else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
             return <div key={i} className={className}>{line || ' '}</div>;
-          }) : <span className="text-warm-500 italic">No changes</span>}
+          }) : <span className="text-gray-400 italic">No changes</span>}
         </pre>
       </div>
     </div>
