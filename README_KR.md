@@ -108,10 +108,13 @@ CLITrigger의 모든 기능 — Planner, Scheduler, 워크트리 격리, 한도 
 TODO를 작성하면 각 작업마다 격리된 git worktree가 자동 생성된다. Claude / Gemini / Codex CLI가 동시에 병렬로 실행되며, 의존성 체인을 설정하면 선행 작업 완료 후 자동으로 후속 작업이 실행되고 브랜치 병합까지 처리된다. 프로젝트별 워크트리 토글에 더해 TODO별 3단계 오버라이드(상속 / 강제 워크트리 / 강제 메인)로 세밀한 제어가 가능하고, 메인 브랜치 작업은 자동 직렬화되어 충돌을 막는다. 드래그 앤 드롭으로 순서를 바꾸고, iOS 스타일 스택 모드로 긴 목록도 깔끔하게 관리할 수 있다.
 
 ### Morning Review Queue (아침 리뷰 큐)
-"밤새 위임하고 아침에 리뷰" 루프를 위한 크로스-프로젝트 단일 트리아주 화면. 모든 프로젝트의 최근 TODO를 카드 스택으로 모아 프로젝트 라벨, 마지막 어시스턴트 한 줄 요약, 토큰 합계, diff 통계, 서버 분류 risk 배지(low / medium / high — 상태와 diff 크기 기반)를 한눈에 보여준다. 키보드 전용 조작: `j`/`k`로 이동, `Enter`로 임베드 로그 뷰어 열기, `m` 머지, `d` discard, `Esc`로 닫기 — N개 todo가 O(N) 키 입력으로 끝난다. 시간 윈도우(12h / 24h / 7d), 필터 칩(All / Risky / Quick wins / Failed), CLI별 분해가 표시되는 sticky 토큰 리본까지.
+"밤새 위임하고 아침에 리뷰" 루프를 위한 크로스-프로젝트 단일 트리아주 화면. 모든 프로젝트의 최근 TODO를 카드 스택으로 모아 프로젝트 라벨, 마지막 어시스턴트 한 줄 요약, 토큰 합계, diff 통계, 서버 분류 risk 배지(low / medium / high — 상태와 diff 크기 기반)를 한눈에 보여준다. 키보드 전용 조작: `j`/`k`로 이동, `Enter`로 임베드 로그 뷰어, `Space` / `→`로 변경 파일과 diff를 카드에서 바로 펼치기, `m` 머지, `d` discard, `Esc`로 닫기 — N개 todo가 O(N) 키 입력으로 끝난다. 시간 윈도우(12h / 24h / 7d), 필터 칩(All / Risky / Quick wins / Failed), CLI별 분해가 표시되는 sticky 토큰 리본까지. 워크트리가 정리된 뒤에도 브랜치 ref → `master`/`main` 폴백으로 인라인 diff를 끝까지 보여준다.
 
 ### 다중 AI 토론 (Discussion)
-아키텍트, 개발자, 리뷰어 등 역할이 다른 AI 에이전트들이 라운드 방식으로 토론한 뒤, 합의된 내용을 바탕으로 자동 구현까지 이어진다. 단일 AI의 판단보다 훨씬 검증된 설계 결과물이 나온다. **구현자(Implementer, `can_implement`)** 로 표시된 에이전트는 일반 턴에서도 코드를 커밋할 수 있고, 마지막 구현 라운드가 남은 작업을 정리해 마무리한다. 자동 구현(Auto-implement) 옵션을 켜면 토론 완료 즉시 코드 작성 라운드가 자동 실행된다.
+아키텍트, 개발자, 리뷰어 등 역할이 다른 AI 에이전트들이 라운드 방식으로 토론한 뒤, 합의된 내용을 바탕으로 자동 구현까지 이어진다. 단일 AI의 판단보다 훨씬 검증된 설계 결과물이 나온다. **구현자(Implementer, `can_implement`)** 로 표시된 에이전트는 일반 턴에서도 코드를 커밋할 수 있고, 마지막 구현 라운드가 남은 작업을 정리해 마무리한다. 자동 구현(Auto-implement) 옵션을 켜면 토론 완료 즉시 코드 작성 라운드가 자동 실행된다. 완료된 토론에서 **Send to Planner** 버튼을 누르면 트랜스크립트를 한방 LLM 호출로 추출해 액션 아이템을 Planner로 영속한다 — 저장 전 항목별 편집 가능.
+
+### 장기 메모리 그래프 (Long-term Memory)
+프로젝트별로 한 번 정리해 두면 TODO와 토론 프롬프트에 골라 주입할 수 있는 노드+엣지 지식 그래프. 매번 같은 도메인 컨텍스트를 붙여넣을 필요가 없다. List / Graph 뷰 토글(`@xyflow/react` + dagre 자동 레이아웃, drag-to-connect 엣지, `precedes`/`refines` 관계는 cycle 차단), todo마다 `None` / `All` / `Selected` 모드 선택, 전송 전 `<long_term_memory>` 블록 미리보기까지. CLI-agnostic — Claude / Gemini / Codex 모두 동일한 컨텍스트를 받으며 어댑터 변경이 필요 없다.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — 다중 AI 토론" width="800">
@@ -160,7 +163,7 @@ WebSocket으로 실행 로그를 실시간 스트리밍하며 두 가지 뷰를 
 Claude / Gemini / Codex CLI를 프로젝트·TODO·토론 에이전트별로 선택한다. 엄격(strict) 샌드박스 모드에서는 각 CLI의 네이티브 샌드박싱(Claude `settings.json`, Codex `--full-auto`, Gemini 프롬프트 단 제한)을 사용해 파일 접근을 워크트리 디렉토리로 제한한다.
 
 ### 플러그인 시스템
-Jira, GitHub, Notion 연동과 gstack 스킬 주입이 자가 완결형 플러그인으로 제공된다. `external-service`(REST 프록시 + 패널 탭)와 `execution-hook`(오케스트레이터 사전 실행 훅) 두 카테고리를 지원한다. 새 통합을 추가하려면 매니페스트와 `registerPlugin()` 호출만 있으면 되고, 코어 코드를 건드릴 필요가 없다.
+Jira, GitHub, Notion 연동, gstack 스킬 주입, 그리고 Claude / Gemini / Codex 사용자 설정(settings, 메모리 파일, MCP 서버 — atomic write + deep-merge)을 GUI에서 편집하는 Harness 패널까지 모두 자가 완결형 플러그인으로 제공된다. `external-service`(REST 프록시 + 패널 탭)와 `execution-hook`(오케스트레이터 사전 실행 훅) 두 카테고리를 지원한다. 새 통합을 추가하려면 매니페스트와 `registerPlugin()` 호출만 있으면 되고, 코어 코드를 건드릴 필요가 없다.
 
 ### 외부 접속
 Cloudflare Tunnel로 어디서든 폰·노트북으로 제어한다. 작업이나 토론이 완료되면 브라우저 알림이 울리므로, 자리를 비워도 상태를 놓치지 않는다.
