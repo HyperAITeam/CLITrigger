@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from './Modal';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight, ClipboardList } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, RotateCcw, Play, Pause, Code, GitMerge, Trash2, ChevronRight, ClipboardList, Loader2 } from 'lucide-react';
 import type { DiscussionWithMessages, DiscussionMessage, DiscussionAgent, DiscussionLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as discussionsApi from '../api/discussions';
@@ -713,7 +713,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
       )}
 
       {extractOpen && (
-        <Modal open onClose={() => !extractSaving && setExtractOpen(false)} size="lg">
+        <Modal open onClose={() => !extractSaving && !extractLoading && setExtractOpen(false)} size="lg">
           <div className="glass-card rounded-2xl p-6 shadow-elevated space-y-4 max-h-[85vh] flex flex-col">
             <div>
               <h3 className="text-sm font-semibold text-warm-700">{t('discussions.extractTitle')}</h3>
@@ -721,8 +721,10 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
             </div>
 
             {extractLoading ? (
-              <div className="py-12 text-center text-sm text-warm-400">
-                {t('discussions.extractLoading')}
+              <div className="py-12 flex flex-col items-center justify-center gap-3 text-sm text-warm-400">
+                <Loader2 size={32} className="animate-spin text-accent" />
+                <span>{t('discussions.extractLoading')}</span>
+                <span className="text-xs text-warm-300">{t('discussions.extractLoadingHint')}</span>
               </div>
             ) : extractItems.length === 0 ? (
               <div className="py-12 text-center text-sm text-warm-400">
@@ -772,8 +774,8 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-warm-200">
               <button
                 onClick={() => setExtractOpen(false)}
-                disabled={extractSaving}
-                className="btn btn-sm text-xs text-warm-500"
+                disabled={extractSaving || extractLoading}
+                className="btn btn-sm text-xs text-warm-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('header.cancel')}
               </button>
