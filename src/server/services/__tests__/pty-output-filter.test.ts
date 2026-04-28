@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNoiseLine, filterInteractivePtyOutput, createPtyFilterState } from '../pty-output-filter.js';
+import { isNoiseLine, filterInteractivePtyOutput, createPtyFilterState, isPlainTextNoise } from '../pty-output-filter.js';
 
 describe('pty-output-filter', () => {
   describe('isNoiseLine', () => {
@@ -285,6 +285,168 @@ describe('pty-output-filter', () => {
       expect(result).not.toContain('Haiku');
       expect(result).not.toContain('Germinating');
       expect(result).not.toContain('Context');
+    });
+  });
+
+  describe('multi-line noise blocks (Windows node-pty / xterm.js)', () => {
+    it('drops the entire xterm.js Parsing error dump including nested params and Int32Array rows', () => {
+      const state = createPtyFilterState();
+      const chunk = [
+        'I will list the files in the directory.',
+        'xterm.js: Parsing error: {',
+        'position: 31,',
+        'code: 20197,',
+        'currentState: 7,',
+        'collect: 0,',
+        'params: s3 {',
+        '  maxLength: 32,',
+        '  maxSubParamsLength: 32,',
+        '  params: Int32Array(32) [',
+        '    0, 5, 9, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0',
+        '  ],',
+        '  length: 1,',
+        '  _subParams: Int32Array(32) [',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0',
+        '  ],',
+        '  _subParamsLength: 0,',
+        '  _subParamsIdx: Uint16Array(32) [',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0, 0, 0, 0, 0,',
+        '    0, 0, 0, 0, 0',
+        '  ],',
+        '  _rejectDigits: false,',
+        '  _rejectSubDigits: false,',
+        '  _digitIsSub: false',
+        '},',
+        'abort: false',
+        '}',
+        '● Done!',
+        '',
+      ].join('\n');
+      const result = filterInteractivePtyOutput(chunk, state);
+      expect(result).toContain('I will list the files');
+      expect(result).toContain('● Done!');
+      expect(result).not.toContain('xterm.js');
+      expect(result).not.toContain('Int32Array');
+      expect(result).not.toContain('position');
+      expect(result).not.toContain('Uint16Array');
+      expect(result).not.toContain('_digitIsSub');
+    });
+
+    it('drops a node-pty conpty stack trace from path leader through Node.js version', () => {
+      const state = createPtyFilterState();
+      const chunk = [
+        'I will check the git status.',
+        'C:\\Users\\user\\AppData\\Roaming\\npm\\node_modules\\@google\\gemini-cli\\node_modules\\@lydell\\node-pty\\conpty_console_list_agent.js:11',
+        '    var consoleProcessList = getConsoleProcessList(shellPid);',
+        '    ^',
+        'Error: AttachConsole failed',
+        '    at Object.<anonymous> (C:\\Users\\user\\...conpty_console_list_agent.js:11:26)',
+        '    at Module._compile (node:internal/modules/cjs/loader:1730:14)',
+        '    at Object..js (node:internal/modules/cjs/loader:1895:10)',
+        '    at Module.load (node:internal/modules/cjs/loader:1465:32)',
+        '    at Function._load (node:internal/modules/cjs/loader:1282:12)',
+        '    at TracingChannel.traceSync (node:diagnostics_channel:322:14)',
+        '    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)',
+        '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)',
+        '    at node:internal/main/run_main_module:36:49',
+        'Node.js v22.17.0',
+        '● Continuing.',
+        '',
+      ].join('\n');
+      const result = filterInteractivePtyOutput(chunk, state);
+      expect(result).toContain('I will check the git status');
+      expect(result).toContain('● Continuing.');
+      expect(result).not.toContain('AttachConsole');
+      expect(result).not.toContain('conpty_console_list_agent');
+      expect(result).not.toContain('Node.js v22');
+      expect(result).not.toContain('TracingChannel');
+    });
+
+    it('preserves real ENOENT / Error: messages outside the conpty block', () => {
+      const state = createPtyFilterState();
+      const chunk = [
+        'Error: ENOENT: no such file or directory, open \'config.json\'',
+        'fatal: not a git repository',
+        'Permission denied: /etc/passwd',
+        '',
+      ].join('\n');
+      const result = filterInteractivePtyOutput(chunk, state);
+      expect(result).toContain('ENOENT');
+      expect(result).toContain('not a git repository');
+      expect(result).toContain('Permission denied');
+    });
+
+    it('isNoiseLine drops AttachConsole and conpty agent lines individually', () => {
+      expect(isNoiseLine('Error: AttachConsole failed')).toBe(true);
+      expect(isNoiseLine('    at Object.<anonymous> (.../conpty_console_list_agent.js:11:26)')).toBe(true);
+      expect(isNoiseLine('xterm.js: Parsing error: {')).toBe(true);
+      expect(isNoiseLine('Node.js v22.17.0')).toBe(true);
+      // Real errors must still pass through
+      expect(isNoiseLine('Error: ENOENT')).toBe(false);
+      expect(isNoiseLine('fatal: not a git repository')).toBe(false);
+    });
+
+    it('runaway block is force-released after the safety cap', () => {
+      const state = createPtyFilterState();
+      // Open an xterm.js block but never emit the closing '}' alone on a line.
+      const lines = ['xterm.js: Parsing error: {'];
+      for (let i = 0; i < 250; i++) lines.push(`  field${i}: ${i},`);
+      // After 200 lines the block guard force-exits; subsequent meaningful
+      // lines should pass through.
+      lines.push('● Survived the dump.');
+      lines.push('');
+      const result = filterInteractivePtyOutput(lines.join('\n'), state);
+      expect(result).toContain('● Survived');
+      expect(state.activeBlock).toBeNull();
+    });
+
+    it('isPlainTextNoise tracks block state across separate calls (per-line)', () => {
+      const state = createPtyFilterState();
+      // Simulate log-streamer invoking the filter line-by-line (no buffering).
+      expect(isPlainTextNoise('xterm.js: Parsing error: {', state)).toBe(true);
+      expect(isPlainTextNoise('  position: 31,', state)).toBe(true);
+      expect(isPlainTextNoise('  params: s3 {', state)).toBe(true);
+      expect(isPlainTextNoise('    maxLength: 32,', state)).toBe(true);
+      expect(isPlainTextNoise('  },', state)).toBe(true); // inner close — stays in block
+      expect(state.activeBlock).toBe('xterm-parse');
+      expect(isPlainTextNoise('  abort: false', state)).toBe(true);
+      expect(isPlainTextNoise('}', state)).toBe(true); // outer close — ends block
+      expect(state.activeBlock).toBeNull();
+      // Subsequent normal output passes through.
+      expect(isPlainTextNoise('I will create a new markdown file.', state)).toBe(false);
+    });
+
+    it('isPlainTextNoise drops conpty stack lines split across stdout/stderr', () => {
+      const state = createPtyFilterState();
+      // stdout side
+      expect(isPlainTextNoise('C:\\path\\node-pty\\conpty_console_list_agent.js:11', state)).toBe(true);
+      expect(isPlainTextNoise('  var consoleProcessList = getConsoleProcessList(shellPid);', state)).toBe(true);
+      // stderr side (different stream, same shared state)
+      expect(isPlainTextNoise('Error: AttachConsole failed', state)).toBe(true);
+      expect(isPlainTextNoise('    at Object.<anonymous> (...conpty_console_list_agent.js:11:26)', state)).toBe(true);
+      expect(isPlainTextNoise('Node.js v22.17.0', state)).toBe(true);
+      expect(state.activeBlock).toBeNull();
+      // Real output after the block.
+      expect(isPlainTextNoise('Successfully completed.', state)).toBe(false);
+    });
+
+    it('drops Int32Array element rows on their own (single-line fallback)', () => {
+      // These can leak when the block end fires early but the surrounding
+      // structure is still being printed.
+      expect(isNoiseLine('  Int32Array(32) [')).toBe(true);
+      expect(isNoiseLine('  Uint16Array(32) [')).toBe(true);
+      expect(isNoiseLine('  ],')).toBe(true);
+      expect(isNoiseLine('  s3 {')).toBe(true);
+      expect(isNoiseLine('  position: 31,')).toBe(true);
+      expect(isNoiseLine('  abort: false')).toBe(true);
     });
   });
 });
