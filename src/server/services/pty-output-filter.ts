@@ -3,14 +3,73 @@
  * Only active for interactive mode — headless/verbose use structured JSON.
  */
 
+export type NoiseBlockKind = 'xterm-parse' | 'conpty-stack' | null;
+
 export interface PtyFilterState {
   lineBuffer: string;
   recentLines: string[];
   inResponseBlock: boolean;
+  /** Active multi-line noise block being skipped (e.g. xterm.js parser dump, node-pty conpty stack trace). */
+  activeBlock: NoiseBlockKind;
+  /** Number of lines consumed inside the active block — used as a runaway guard. */
+  blockLineCount: number;
 }
 
 export function createPtyFilterState(): PtyFilterState {
-  return { lineBuffer: '', recentLines: [], inResponseBlock: false };
+  return {
+    lineBuffer: '',
+    recentLines: [],
+    inResponseBlock: false,
+    activeBlock: null,
+    blockLineCount: 0,
+  };
+}
+
+/** Hard cap on lines absorbed by a single noise block before forcing exit. */
+const MAX_BLOCK_LINES = 200;
+
+function detectBlockStart(line: string): NoiseBlockKind {
+  if (/^xterm\.js: Parsing error:/.test(line)) return 'xterm-parse';
+  if (/conpty_console_list_agent/.test(line)) return 'conpty-stack';
+  if (/^Error: AttachConsole failed/.test(line)) return 'conpty-stack';
+  if (/^var consoleProcessList = getConsoleProcessList/.test(line)) return 'conpty-stack';
+  return null;
+}
+
+function isBlockEnd(line: string, kind: NoiseBlockKind): boolean {
+  if (kind === 'xterm-parse') {
+    // Outer closing brace at column 0 closes the dump. Inner braces inside the
+    // params: s3 { ... } object have indentation, so this matches only the outer one.
+    return /^\}\s*$/.test(line);
+  }
+  if (kind === 'conpty-stack') {
+    // Stack trace ends with the Node.js version banner.
+    return /^Node\.js v\d/.test(line);
+  }
+  return false;
+}
+
+/**
+ * Advance the multi-line block state machine. Returns true if the line should
+ * be dropped because it starts/continues/ends a noise block. The end-marker
+ * line is dropped along with the rest of the block.
+ */
+function advanceBlockState(line: string, state: PtyFilterState): boolean {
+  if (state.activeBlock) {
+    state.blockLineCount++;
+    if (isBlockEnd(line, state.activeBlock) || state.blockLineCount >= MAX_BLOCK_LINES) {
+      state.activeBlock = null;
+      state.blockLineCount = 0;
+    }
+    return true;
+  }
+  const start = detectBlockStart(line);
+  if (start) {
+    state.activeBlock = start;
+    state.blockLineCount = 1;
+    return true;
+  }
+  return false;
 }
 
 // ── Noise detection patterns ──
@@ -73,6 +132,20 @@ const NOISE_PATTERNS: RegExp[] = [
   /^<\/?user_task>/,
   /^After completing the task.*commit/,
   /^IMPORTANT.*(?:working directory|Do NOT access)/i,
+  // Windows node-pty / ConPTY agent leakage (single-line fallback after block filter)
+  /^Node\.js v\d+\.\d+\.\d+\s*$/,
+  /^\s*at .*conpty_console_list_agent/,
+  /^\s*at (?:Object|Module|Function|TracingChannel)\.[^\s(]+ \(node:internal/,
+  /^\s*at node:internal\/main\/run_main_module/,
+  /^\s*at wrapModuleLoad \(node:internal/,
+  /^\s*\^\s*$/,
+  /\\node-pty\\conpty_console_list_agent\.js:\d+/,
+  // xterm.js parser-state dump field rows (fallback if block end fires early)
+  /^\s*(?:position|code|currentState|collect|params|length|maxLength|maxSubParamsLength|_subParams|_subParamsLength|_subParamsIdx|_rejectDigits|_rejectSubDigits|_digitIsSub|abort):\s/,
+  /^\s*Int32Array\(\d+\) \[/,
+  /^\s*Uint16Array\(\d+\) \[/,
+  /^\s*s3 \{\s*$/,
+  /^\s*\],?\s*$/,
 ];
 
 /**
@@ -132,6 +205,12 @@ export function isNoiseLine(line: string): boolean {
   // Empty / whitespace-only
   if (trimmed.length === 0) return true;
 
+  // Windows node-pty / xterm.js noise — drop BEFORE the generic Keep-signals guard,
+  // otherwise "Error: AttachConsole failed" would slip through the /^Error/ exception.
+  if (/^Error: AttachConsole failed/.test(trimmed)) return true;
+  if (/conpty_console_list_agent/.test(trimmed)) return true;
+  if (/^xterm\.js: Parsing error:/.test(trimmed)) return true;
+
   // Keep signals — check BEFORE noise patterns
   if (/^●\s/.test(trimmed)) return false;
   if (/^\[Tool:/.test(trimmed)) return false;
@@ -180,6 +259,13 @@ export function filterInteractivePtyOutput(chunk: string, state: PtyFilterState)
     const line = raw.trim();
     if (!line) continue;
 
+    // Multi-line noise block (xterm.js parser dump, conpty stack trace) —
+    // drop the entire block including its end marker.
+    if (advanceBlockState(line, state)) {
+      if (state.inResponseBlock) state.inResponseBlock = false;
+      continue;
+    }
+
     // Apply noise filter
     if (isNoiseLine(line)) {
       // Noise breaks a response block
@@ -218,4 +304,15 @@ function isSpinnerOrThinking(line: string): boolean {
   if (/^\(?think(?:ing)?\)?/i.test(trimmed)) return true;
   if (/^\(thought for \d+/.test(trimmed)) return true;
   return false;
+}
+
+/**
+ * Plain-text mode noise filter for headless Gemini/Codex runs whose stdout/stderr
+ * is consumed line-by-line outside the interactive PTY pipeline. Tracks the same
+ * multi-line noise blocks (xterm.js parser dumps, node-pty conpty stack traces)
+ * via the shared PtyFilterState. Returns true if the line should be dropped.
+ */
+export function isPlainTextNoise(line: string, state: PtyFilterState): boolean {
+  if (advanceBlockState(line, state)) return true;
+  return isNoiseLine(line);
 }

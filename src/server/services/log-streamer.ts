@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import * as queries from '../db/queries.js';
 import { broadcaster } from '../websocket/broadcaster.js';
+import { createPtyFilterState, isPlainTextNoise, type PtyFilterState } from './pty-output-filter.js';
 
 export interface TokenUsage {
   input_tokens: number | null;
@@ -30,9 +31,25 @@ export class LogStreamer {
   private contextExhaustedMap: Map<string, boolean> = new Map();
   /** Current round number per task (for multi-round "continue" feature) */
   private roundMap: Map<string, number> = new Map();
+  /**
+   * Per-task noise filter state for headless plain-text streams (Gemini/Codex).
+   * Shared across stdout and stderr so multi-line noise blocks (xterm.js parser
+   * dumps, node-pty conpty stack traces) are tracked even when the start and
+   * end markers arrive on different streams.
+   */
+  private noiseFilterMap: Map<string, PtyFilterState> = new Map();
   /** Latest rate limit reset time (Unix epoch seconds), shared across all tasks */
   private _resetsAt: number | null = null;
   private _rateLimitUsedPct: number | null = null;
+
+  private getNoiseFilter(todoId: string): PtyFilterState {
+    let state = this.noiseFilterMap.get(todoId);
+    if (!state) {
+      state = createPtyFilterState();
+      this.noiseFilterMap.set(todoId, state);
+    }
+    return state;
+  }
 
   /** Set the current round number for a task. Subsequent streamed logs will use this round. */
   setRound(todoId: string, roundNumber: number): void {
@@ -57,6 +74,7 @@ export class LogStreamer {
    */
   streamToDb(todoId: string, stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream): void {
     const commitPattern = /commit\s+[0-9a-f]{7,40}/i;
+    const noiseState = this.getNoiseFilter(todoId);
 
     stdout.setEncoding('utf8' as BufferEncoding);
     stderr.setEncoding('utf8' as BufferEncoding);
@@ -69,6 +87,7 @@ export class LogStreamer {
 
       for (const line of lines) {
         if (!line.trim()) continue;
+        if (isPlainTextNoise(line, noiseState)) continue;
         try {
           if (commitPattern.test(line)) {
             this.log(todoId, 'commit', line.trim());
@@ -95,7 +114,7 @@ export class LogStreamer {
     });
 
     stdout.on('end', () => {
-      if (stdoutBuffer.trim()) {
+      if (stdoutBuffer.trim() && !isPlainTextNoise(stdoutBuffer, noiseState)) {
         try {
           if (commitPattern.test(stdoutBuffer)) {
             this.log(todoId, 'commit', stdoutBuffer.trim());
@@ -132,6 +151,7 @@ export class LogStreamer {
         if (CONTEXT_EXHAUSTION_PATTERN.test(line)) {
           this.contextExhaustedMap.set(todoId, true);
         }
+        if (isPlainTextNoise(line, noiseState)) continue;
         const logType = classifyStderrLine(line.trim());
         try {
           this.log(todoId, logType, line.trim());
@@ -148,7 +168,7 @@ export class LogStreamer {
     });
 
     stderr.on('end', () => {
-      if (stderrBuffer.trim()) {
+      if (stderrBuffer.trim() && !isPlainTextNoise(stderrBuffer, noiseState)) {
         if (CONTEXT_EXHAUSTION_PATTERN.test(stderrBuffer)) {
           this.contextExhaustedMap.set(todoId, true);
         }
@@ -452,6 +472,9 @@ export class LogStreamer {
    * Get accumulated token usage for a task and clean up.
    */
   getTokenUsage(todoId: string): TokenUsage | null {
+    // Always clean up the noise-filter state, even when no token usage was
+    // recorded (Gemini/Codex paths never initialize tokenUsageMap).
+    this.noiseFilterMap.delete(todoId);
     const usage = this.tokenUsageMap.get(todoId);
     if (!usage) return null;
     this.tokenUsageMap.delete(todoId);
