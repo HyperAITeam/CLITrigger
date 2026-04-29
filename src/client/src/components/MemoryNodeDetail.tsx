@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
-import { Edit2, Trash2, Pin, X } from 'lucide-react';
-import type { MemoryNode, MemoryEdge, MemoryRelationType } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import { Edit2, Trash2, Pin, X, Link2, Plus } from 'lucide-react';
+import type { MemoryNode, MemoryEdge, MemoryRelationType, MemoryBacklink } from '../types';
 import { useI18n } from '../i18n';
-import { parseMemoryTags } from '../api/memory';
+import { parseMemoryTags, getMemoryBacklinks, insertMemoryWikilink } from '../api/memory';
 import MarkdownContent from './MarkdownContent';
 
 interface MemoryNodeDetailProps {
@@ -13,6 +13,8 @@ interface MemoryNodeDetailProps {
   onDelete: (node: MemoryNode) => void;
   onSelectNode?: (nodeId: string) => void;
   onClose: () => void;
+  /** Called when a wikilink is appended to this node's body (so parent can refresh state). */
+  onNodeUpdated?: (updated: MemoryNode) => void;
 }
 
 const RELATION_KEYS: Record<MemoryRelationType, string> = {
@@ -31,13 +33,49 @@ export default function MemoryNodeDetail({
   onDelete,
   onSelectNode,
   onClose,
+  onNodeUpdated,
 }: MemoryNodeDetailProps) {
   const { t } = useI18n();
   const tags = parseMemoryTags(node.tags);
   const nodeMap = useMemo(() => new Map(allNodes.map(n => [n.id, n])), [allNodes]);
+  const [backlinks, setBacklinks] = useState<MemoryBacklink[]>([]);
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const outgoing = edges.filter(e => e.from_node_id === node.id);
   const incoming = edges.filter(e => e.to_node_id === node.id);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMemoryBacklinks(node.id)
+      .then(b => { if (!cancelled) setBacklinks(b); })
+      .catch(err => console.error('Load backlinks failed', err));
+    return () => { cancelled = true; };
+  }, [node.id, node.body, node.title]);
+
+  const linkCandidates = useMemo(() => {
+    const q = linkSearch.toLowerCase();
+    return allNodes
+      .filter(n => n.id !== node.id)
+      .filter(n => !q || n.title.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [allNodes, node.id, linkSearch]);
+
+  const handleAddLink = async (target: MemoryNode) => {
+    if (adding) return;
+    setAdding(true);
+    try {
+      const updated = await insertMemoryWikilink(node.id, { targetNodeId: target.id });
+      onNodeUpdated?.(updated);
+      setLinkPickerOpen(false);
+      setLinkSearch('');
+    } catch (err) {
+      console.error('Insert wikilink failed', err);
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <div className="w-[420px] flex flex-col rounded-xl border border-warm-200 bg-warm-50 overflow-hidden">
@@ -56,6 +94,13 @@ export default function MemoryNodeDetail({
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setLinkPickerOpen(v => !v)}
+            className="p-1.5 hover:bg-warm-200 rounded"
+            title={t('memory.addLink')}
+          >
+            <Link2 size={14} />
+          </button>
           <button onClick={() => onEdit(node)} className="p-1.5 hover:bg-warm-200 rounded" title={t('memory.edit')}>
             <Edit2 size={14} />
           </button>
@@ -68,11 +113,63 @@ export default function MemoryNodeDetail({
         </div>
       </div>
 
+      {linkPickerOpen && (
+        <div className="border-b border-warm-200 bg-warm-100 p-3">
+          <input
+            value={linkSearch}
+            onChange={e => setLinkSearch(e.target.value)}
+            placeholder={t('memory.addLinkPlaceholder')}
+            className="w-full px-2 py-1.5 rounded border border-warm-300 bg-warm-50 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
+            autoFocus
+          />
+          <ul className="mt-2 max-h-[200px] overflow-y-auto space-y-1">
+            {linkCandidates.map(n => (
+              <li key={n.id}>
+                <button
+                  onClick={() => handleAddLink(n)}
+                  disabled={adding}
+                  className="w-full text-left px-2 py-1 rounded text-sm text-warm-700 hover:bg-warm-200 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Plus size={12} className="flex-shrink-0" />
+                  <span className="truncate">{n.title}</span>
+                </button>
+              </li>
+            ))}
+            {linkCandidates.length === 0 && (
+              <li className="px-2 py-1 text-xs text-warm-500">{t('memory.noResults')}</li>
+            )}
+          </ul>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4">
         {node.body ? (
-          <MarkdownContent content={node.body} />
+          <MarkdownContent
+            content={node.body}
+            memoryNodes={allNodes}
+            onSelectMemoryNode={onSelectNode}
+          />
         ) : (
           <p className="text-sm text-warm-500 italic">{t('memory.noBody')}</p>
+        )}
+
+        {backlinks.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-warm-200">
+            <h4 className="text-xs font-semibold text-warm-600 uppercase mb-2">{t('memory.backlinks')}</h4>
+            <ul className="space-y-2">
+              {backlinks.map(b => (
+                <li key={b.id} className="text-sm">
+                  <button
+                    onClick={() => onSelectNode?.(b.id)}
+                    className="text-warm-700 hover:underline font-medium"
+                  >
+                    {b.title}
+                  </button>
+                  <div className="text-xs text-warm-500 mt-0.5">{b.snippet}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {(outgoing.length > 0 || incoming.length > 0) && (

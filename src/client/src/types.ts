@@ -377,3 +377,14 @@ export interface MemoryGraph {
   nodes: MemoryNode[];
   edges: MemoryEdge[];
 }
+
+export interface MemoryBacklink {
+  id: string;
+  title: string;
+  snippet: string;
+}
+
+export interface MemoryWikilinkResolution {
+  title: string;
+  nodeId: string | null;
+}

@@ -19,6 +19,7 @@ import type { MemoryNode, MemoryEdge, MemoryRelationType } from '../types';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { parseMemoryTags } from '../api/memory';
+import { parseWikilinks } from '../lib/wikilinks';
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 90;
@@ -36,7 +37,7 @@ interface MemoryGraphProps {
   edges: MemoryEdge[];
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string | null) => void;
-  onCreateEdge: (fromId: string, toId: string) => Promise<void>;
+  onCreateEdge: (fromId: string, toId: string) => void | Promise<void>;
   onDeleteEdge: (edgeId: string) => Promise<void>;
   onEditEdge: (edge: MemoryEdge) => void;
   onUpdateNodePosition: (nodeId: string, x: number, y: number) => Promise<void>;
@@ -151,6 +152,23 @@ export default function MemoryGraph({
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: RELATION_COLOR[e.relation_type] ?? '#9CA3AF' },
       data: { edge: e },
     }));
+    // Wikilink-based virtual edges (dashed grey)
+    const titleToId = new Map<string, string>();
+    for (const n of rawNodes) titleToId.set(n.title.toLowerCase(), n.id);
+    for (const n of rawNodes) {
+      const refs = parseWikilinks(n.body || '');
+      for (const r of refs) {
+        const targetId = titleToId.get(r.title.toLowerCase());
+        if (!targetId || targetId === n.id) continue;
+        flowEdges.push({
+          id: `wl-${n.id}-${targetId}`,
+          source: n.id,
+          target: targetId,
+          type: 'straight',
+          style: { stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.55 },
+        });
+      }
+    }
     return { initialNodes: flowNodes, initialEdges: flowEdges };
   }, [rawNodes, rawEdges, selectedNodeId, handleSelect]);
 
