@@ -29,6 +29,7 @@ export interface Project {
   use_worktree: number;
   show_token_usage: number;
   npm_auto_install: number;
+  memory_auto_ingest: number;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;
@@ -359,6 +360,8 @@ export interface MemoryNode {
   position_x: number | null;
   position_y: number | null;
   pinned: number;
+  source_type: string | null;
+  source_id: string | null;
   created_at: string;
   updated_at: string;
 }

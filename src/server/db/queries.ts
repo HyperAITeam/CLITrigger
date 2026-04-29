@@ -34,6 +34,7 @@ export interface Project {
   use_worktree: number;
   show_token_usage: number;
   npm_auto_install: number;
+  memory_auto_ingest: number;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +60,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -93,6 +94,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree); }
   if (updates.show_token_usage !== undefined) { fields.push('show_token_usage = ?'); values.push(updates.show_token_usage); }
   if (updates.npm_auto_install !== undefined) { fields.push('npm_auto_install = ?'); values.push(updates.npm_auto_install); }
+  if (updates.memory_auto_ingest !== undefined) { fields.push('memory_auto_ingest = ?'); values.push(updates.memory_auto_ingest); }
 
   if (fields.length === 0) return getProjectById(id);
 
@@ -1307,6 +1309,8 @@ export interface MemoryNode {
   position_x: number | null;
   position_y: number | null;
   pinned: number;
+  source_type: string | null;
+  source_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1327,14 +1331,16 @@ export function createMemoryNode(
   body: string,
   tags?: string | null,
   pinned: number = 0,
+  sourceType?: string | null,
+  sourceId?: string | null,
 ): MemoryNode {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, now, now);
+    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, source_type, source_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, sourceType ?? null, sourceId ?? null, now, now);
   return getMemoryNodeById(id)!;
 }
 
@@ -1364,7 +1370,7 @@ export function getMemoryNodeByTitle(projectId: string, title: string): MemoryNo
 
 export function updateMemoryNode(
   id: string,
-  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned'>>,
+  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned' | 'source_type' | 'source_id'>>,
 ): MemoryNode | undefined {
   const db = getDatabase();
   const fields: string[] = [];
@@ -1374,6 +1380,8 @@ export function updateMemoryNode(
   if (updates.body !== undefined) { fields.push('body = ?'); values.push(updates.body); }
   if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
   if (updates.pinned !== undefined) { fields.push('pinned = ?'); values.push(updates.pinned ? 1 : 0); }
+  if (updates.source_type !== undefined) { fields.push('source_type = ?'); values.push(updates.source_type); }
+  if (updates.source_id !== undefined) { fields.push('source_id = ?'); values.push(updates.source_id); }
 
   if (fields.length === 0) return getMemoryNodeById(id);
 

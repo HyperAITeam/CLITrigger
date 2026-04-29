@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2, Pin, List as ListIcon, Network, GitBranch } from 'lucide-react';
-import type { MemoryNode, MemoryEdge, MemoryRelationType } from '../types';
+import { Plus, Edit2, Trash2, Pin, List as ListIcon, Network, GitBranch, Download, Wrench, Loader2, AlertCircle } from 'lucide-react';
+import type { MemoryNode, MemoryEdge, MemoryRelationType, Todo } from '../types';
 import { useI18n } from '../i18n';
 import {
   getMemoryGraph,
@@ -13,7 +13,10 @@ import {
   deleteMemoryEdge,
   insertMemoryWikilink,
   parseMemoryTags,
+  ingestMemory,
+  lintMemory,
 } from '../api/memory';
+import { getTodos } from '../api/todos';
 import Modal from './Modal';
 import MemoryForm from './MemoryForm';
 import MemoryGraph from './MemoryGraph';
@@ -48,6 +51,8 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const [pendingConnection, setPendingConnection] = useState<{ fromId: string; toId: string } | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [search, setSearch] = useState('');
+  const [showIngest, setShowIngest] = useState(false);
+  const [showLint, setShowLint] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +173,14 @@ export default function MemoryList({ projectId }: MemoryListProps) {
 
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
 
+  const handleIngestDone = () => {
+    setShowIngest(false);
+    getMemoryGraph(projectId).then(graph => {
+      setNodes(graph.nodes);
+      setEdges(graph.edges);
+    }).catch(err => console.error('Reload memory graph failed', err));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -194,6 +207,19 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           </button>
         </div>
 
+        <button
+          onClick={() => setShowLint(true)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
+          title={t('memory.lint.title')}
+        >
+          <Wrench size={12} /> {t('memory.lint')}
+        </button>
+        <button
+          onClick={() => setShowIngest(true)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
+        >
+          <Download size={12} /> {t('memory.ingest')}
+        </button>
         <button
           onClick={() => { setEditNode(null); setShowForm(true); }}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warm-700 text-warm-50 text-xs font-medium hover:bg-warm-800"
@@ -247,6 +273,9 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                       <div className="flex items-center gap-2">
                         {node.pinned === 1 && <Pin size={12} className="text-warm-500 flex-shrink-0" />}
                         <h3 className="font-medium text-sm text-warm-800 truncate">{node.title}</h3>
+                        {node.source_type && (
+                          <span className="px-1 py-0.5 rounded text-[9px] bg-warm-200 text-warm-500 flex-shrink-0">{t('memory.sourceAutoLabel')}</span>
+                        )}
                       </div>
                       {bodyPreview && (
                         <p className="text-xs text-warm-600 mt-1 line-clamp-2">{bodyPreview}</p>
@@ -340,6 +369,21 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           toNode={nodes.find(n => n.id === pendingConnection.toId)}
           onClose={() => setPendingConnection(null)}
           onChoose={handleResolveConnection}
+        />
+      )}
+
+      {showIngest && (
+        <IngestModal
+          projectId={projectId}
+          onClose={() => setShowIngest(false)}
+          onDone={handleIngestDone}
+        />
+      )}
+
+      {showLint && (
+        <LintModal
+          projectId={projectId}
+          onClose={() => setShowLint(false)}
         />
       )}
     </div>
@@ -475,6 +519,214 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
             className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50"
           >
             {t('memory.delete')}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── IngestModal ──
+
+interface IngestModalProps {
+  projectId: string;
+  onClose: () => void;
+  onDone: () => void;
+}
+
+function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<'task' | 'text'>('task');
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [selectedTodoId, setSelectedTodoId] = useState('');
+  const [pasteText, setPasteText] = useState('');
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ created: number; updated: number; edgesAdded: number } | null>(null);
+
+  useEffect(() => {
+    getTodos(projectId).then(all => {
+      setTodos(all.filter(td => td.status === 'completed'));
+    }).catch(() => {});
+  }, [projectId]);
+
+  const canRun = tab === 'task' ? !!selectedTodoId : pasteText.trim().length > 0;
+
+  const handleRun = async () => {
+    if (!canRun || running) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      let sourceText = '';
+      let sourceType: string | undefined;
+      let sourceId: string | undefined;
+
+      if (tab === 'task') {
+        const todo = todos.find(td => td.id === selectedTodoId);
+        if (!todo) return;
+        sourceText = `## Task: ${todo.title}\n${todo.description ?? ''}`;
+        sourceType = 'todo';
+        sourceId = todo.id;
+      } else {
+        sourceText = pasteText.trim();
+        sourceType = 'manual';
+      }
+
+      const res = await ingestMemory(projectId, { source_text: sourceText, source_type: sourceType, source_id: sourceId });
+      setResult(res);
+      setTimeout(onDone, 1500);
+    } catch (err) {
+      console.error('Ingest failed', err);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Modal open={true} onClose={onClose} size="md">
+      <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
+        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('memory.ingest.title')}</h3>
+
+        <div className="inline-flex rounded-lg border border-warm-200 overflow-hidden mb-4">
+          <button
+            onClick={() => setTab('task')}
+            className={`px-3 py-1.5 text-xs ${tab === 'task' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+          >
+            {t('memory.ingest.tabTask')}
+          </button>
+          <button
+            onClick={() => setTab('text')}
+            className={`px-3 py-1.5 text-xs ${tab === 'text' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+          >
+            {t('memory.ingest.tabText')}
+          </button>
+        </div>
+
+        {tab === 'task' ? (
+          <div>
+            {todos.length === 0 ? (
+              <p className="text-sm text-warm-500 py-4">{t('memory.ingest.noTasks')}</p>
+            ) : (
+              <select
+                value={selectedTodoId}
+                onChange={e => setSelectedTodoId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
+              >
+                <option value="">{t('memory.ingest.selectTask')}</option>
+                {todos.map(todo => (
+                  <option key={todo.id} value={todo.id}>{todo.title}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        ) : (
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder={t('memory.ingest.textPlaceholder')}
+            rows={8}
+            className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-warm-400"
+          />
+        )}
+
+        {result && (
+          <p className="mt-3 text-xs text-status-success">
+            {t('memory.ingest.success')
+              .replace('{created}', String(result.created))
+              .replace('{updated}', String(result.updated))
+              .replace('{edges}', String(result.edgesAdded))}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            disabled={running}
+            className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50"
+          >
+            {t('memory.cancel')}
+          </button>
+          <button
+            onClick={handleRun}
+            disabled={!canRun || running}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50"
+          >
+            {running && <Loader2 size={14} className="animate-spin" />}
+            {running ? t('memory.ingest.running') : t('memory.ingest.run')}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── LintModal ──
+
+interface LintModalProps {
+  projectId: string;
+  onClose: () => void;
+}
+
+function LintModal({ projectId, onClose }: LintModalProps) {
+  const { t } = useI18n();
+  const [running, setRunning] = useState(true);
+  const [issues, setIssues] = useState<{ type: string; node_titles: string[]; message: string }[]>([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    lintMemory(projectId)
+      .then(res => { setIssues(res.issues); })
+      .catch(err => { setError(err instanceof Error ? err.message : 'Error'); })
+      .finally(() => setRunning(false));
+  }, [projectId]);
+
+  const ISSUE_COLORS: Record<string, string> = {
+    contradiction: 'text-red-600 bg-red-50 border-red-200',
+    orphan: 'text-warm-500 bg-warm-100 border-warm-200',
+    duplicate: 'text-amber-600 bg-amber-50 border-amber-200',
+    stale: 'text-blue-600 bg-blue-50 border-blue-200',
+  };
+
+  return (
+    <Modal open={true} onClose={onClose} size="md">
+      <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
+        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('memory.lint.title')}</h3>
+
+        {running ? (
+          <div className="flex items-center gap-2 py-6 justify-center text-sm text-warm-500">
+            <Loader2 size={16} className="animate-spin" />
+            {t('memory.lint.running')}
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-2 text-sm text-red-600 py-4">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        ) : issues.length === 0 ? (
+          <p className="text-sm text-warm-600 py-4">{t('memory.lint.empty')}</p>
+        ) : (
+          <ul className="space-y-2 max-h-80 overflow-y-auto">
+            {issues.map((issue, i) => (
+              <li key={i} className={`rounded-lg border p-3 ${ISSUE_COLORS[issue.type] ?? 'text-warm-700 bg-warm-100 border-warm-200'}`}>
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70 mt-0.5">{issue.type}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium">{issue.message}</p>
+                    {issue.node_titles.length > 0 && (
+                      <p className="text-[10px] opacity-70 mt-0.5">{issue.node_titles.join(', ')}</p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100"
+          >
+            {t('memory.lint.close')}
           </button>
         </div>
       </div>

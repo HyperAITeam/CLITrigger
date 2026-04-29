@@ -12,6 +12,7 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
+import { ingestSource, buildSourceTextFromTodo } from './memory-ingest.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -742,6 +743,14 @@ Complete the task in the current directory.`;
           }
 
           captureReviewMetadata(todoId).catch(() => { /* ignore */ });
+          if (project.memory_auto_ingest) {
+            const sourceText = buildSourceTextFromTodo(todoId);
+            if (sourceText) {
+              ingestSource(projectId, sourceText, 'todo', todoId).catch((err) => {
+                console.error('[memory-ingest] auto-ingest failed:', err);
+              });
+            }
+          }
           broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
           this.broadcastProjectStatus(projectId);
