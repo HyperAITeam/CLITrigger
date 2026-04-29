@@ -3,14 +3,17 @@ import { X } from 'lucide-react';
 import type { MemoryNode } from '../types';
 import { useI18n } from '../i18n';
 import { parseMemoryTags } from '../api/memory';
+import WikilinkAutocomplete from './WikilinkAutocomplete';
 
 interface MemoryFormProps {
   editNode?: MemoryNode | null;
+  /** Other memory nodes in this project (used for `[[wikilink]]` autocomplete). */
+  allNodes?: MemoryNode[];
   onSave: (data: { title: string; body: string; tags: string[]; pinned: boolean }) => Promise<void>;
   onCancel: () => void;
 }
 
-export default function MemoryForm({ editNode, onSave, onCancel }: MemoryFormProps) {
+export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }: MemoryFormProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -19,6 +22,9 @@ export default function MemoryForm({ editNode, onSave, onCancel }: MemoryFormPro
   const [pinned, setPinned] = useState(false);
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // Filter out the node being edited so it can't link to itself
+  const linkableNodes = editNode ? allNodes.filter(n => n.id !== editNode.id) : allNodes;
 
   useEffect(() => {
     if (editNode) {
@@ -90,12 +96,22 @@ export default function MemoryForm({ editNode, onSave, onCancel }: MemoryFormPro
         <div>
           <label className="block text-xs text-warm-600 mb-1">{t('memory.form.body')}</label>
           <textarea
+            ref={bodyRef}
             value={body}
             onChange={e => setBody(e.target.value)}
             placeholder={t('memory.form.bodyPlaceholder')}
             rows={8}
             className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-warm-400 resize-y"
           />
+          <WikilinkAutocomplete
+            textareaRef={bodyRef}
+            value={body}
+            nodes={linkableNodes}
+            onChange={setBody}
+          />
+          <div className="mt-1 text-[11px] text-warm-500">
+            {t('memory.form.linkHint')}
+          </div>
         </div>
 
         <div>

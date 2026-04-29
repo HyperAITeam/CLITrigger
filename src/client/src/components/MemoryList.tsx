@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2, Pin, List as ListIcon, Network } from 'lucide-react';
+import { Plus, Edit2, Trash2, Pin, List as ListIcon, Network, GitBranch } from 'lucide-react';
 import type { MemoryNode, MemoryEdge, MemoryRelationType } from '../types';
 import { useI18n } from '../i18n';
 import {
@@ -11,12 +11,16 @@ import {
   createMemoryEdge,
   updateMemoryEdge,
   deleteMemoryEdge,
+  insertMemoryWikilink,
   parseMemoryTags,
 } from '../api/memory';
 import Modal from './Modal';
 import MemoryForm from './MemoryForm';
 import MemoryGraph from './MemoryGraph';
+import MemoryNetworkGraph from './MemoryNetworkGraph';
 import MemoryNodeDetail from './MemoryNodeDetail';
+
+type MemoryView = 'list' | 'hierarchical' | 'network';
 
 const VIEW_KEY = (projectId: string) => `memory-view:${projectId}`;
 
@@ -30,15 +34,18 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const { t } = useI18n();
   const [nodes, setNodes] = useState<MemoryNode[]>([]);
   const [edges, setEdges] = useState<MemoryEdge[]>([]);
-  const [view, setView] = useState<'list' | 'graph'>(() => {
+  const [view, setView] = useState<MemoryView>(() => {
     if (typeof window === 'undefined') return 'list';
     const saved = window.localStorage.getItem(VIEW_KEY(projectId));
-    return saved === 'graph' ? 'graph' : 'list';
+    if (saved === 'hierarchical' || saved === 'network' || saved === 'list') return saved;
+    if (saved === 'graph') return 'hierarchical'; // legacy value
+    return 'list';
   });
   const [showForm, setShowForm] = useState(false);
   const [editNode, setEditNode] = useState<MemoryNode | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editingEdge, setEditingEdge] = useState<MemoryEdge | null>(null);
+  const [pendingConnection, setPendingConnection] = useState<{ fromId: string; toId: string } | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [search, setSearch] = useState('');
 
@@ -119,6 +126,26 @@ export default function MemoryList({ projectId }: MemoryListProps) {
     }
   };
 
+  const handleConnectionRequest = (fromId: string, toId: string) => {
+    setPendingConnection({ fromId, toId });
+  };
+
+  const handleResolveConnection = async (kind: 'wikilink' | 'edge') => {
+    if (!pendingConnection) return;
+    const { fromId, toId } = pendingConnection;
+    if (kind === 'wikilink') {
+      try {
+        const updated = await insertMemoryWikilink(fromId, { targetNodeId: toId });
+        setNodes(prev => prev.map(n => n.id === updated.id ? updated : n));
+      } catch (err) {
+        console.error('Insert wikilink failed', err);
+      }
+    } else {
+      await handleCreateEdge(fromId, toId);
+    }
+    setPendingConnection(null);
+  };
+
   const handleDeleteEdge = async (edgeId: string) => {
     await deleteMemoryEdge(edgeId);
     setEdges(prev => prev.filter(e => e.id !== edgeId));
@@ -154,10 +181,16 @@ export default function MemoryList({ projectId }: MemoryListProps) {
             <ListIcon size={12} /> {t('memory.viewList')}
           </button>
           <button
-            onClick={() => setView('graph')}
-            className={`px-3 py-1.5 text-xs flex items-center gap-1 ${view === 'graph' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+            onClick={() => setView('hierarchical')}
+            className={`px-3 py-1.5 text-xs flex items-center gap-1 ${view === 'hierarchical' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
           >
-            <Network size={12} /> {t('memory.viewGraph')}
+            <GitBranch size={12} /> {t('memory.viewHierarchical')}
+          </button>
+          <button
+            onClick={() => setView('network')}
+            className={`px-3 py-1.5 text-xs flex items-center gap-1 ${view === 'network' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+          >
+            <Network size={12} /> {t('memory.viewNetwork')}
           </button>
         </div>
 
@@ -246,16 +279,27 @@ export default function MemoryList({ projectId }: MemoryListProps) {
       ) : (
         <div className="flex gap-4">
           <div className="flex-1">
-            <MemoryGraph
-              nodes={nodes}
-              edges={edges}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
-              onCreateEdge={handleCreateEdge}
-              onDeleteEdge={handleDeleteEdge}
-              onEditEdge={setEditingEdge}
-              onUpdateNodePosition={handleUpdatePosition}
-            />
+            {view === 'hierarchical' ? (
+              <MemoryGraph
+                nodes={nodes}
+                edges={edges}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={setSelectedNodeId}
+                onCreateEdge={handleConnectionRequest}
+                onDeleteEdge={handleDeleteEdge}
+                onEditEdge={setEditingEdge}
+                onUpdateNodePosition={handleUpdatePosition}
+              />
+            ) : (
+              <MemoryNetworkGraph
+                nodes={nodes}
+                edges={edges}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={setSelectedNodeId}
+                onCreateConnection={handleConnectionRequest}
+                onUpdateNodePosition={handleUpdatePosition}
+              />
+            )}
           </div>
           {selectedNode && (
             <MemoryNodeDetail
@@ -266,6 +310,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
               onDelete={handleDelete}
               onSelectNode={setSelectedNodeId}
               onClose={() => setSelectedNodeId(null)}
+              onNodeUpdated={updated => setNodes(prev => prev.map(n => n.id === updated.id ? updated : n))}
             />
           )}
         </div>
@@ -274,6 +319,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditNode(null); }} size="lg">
         <MemoryForm
           editNode={editNode}
+          allNodes={nodes}
           onSave={handleSave}
           onCancel={() => { setShowForm(false); setEditNode(null); }}
         />
@@ -287,7 +333,75 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           onDelete={async (id) => { await handleDeleteEdge(id); setEditingEdge(null); }}
         />
       )}
+
+      {pendingConnection && (
+        <ConnectionKindModal
+          fromNode={nodes.find(n => n.id === pendingConnection.fromId)}
+          toNode={nodes.find(n => n.id === pendingConnection.toId)}
+          onClose={() => setPendingConnection(null)}
+          onChoose={handleResolveConnection}
+        />
+      )}
     </div>
+  );
+}
+
+interface ConnectionKindModalProps {
+  fromNode?: MemoryNode;
+  toNode?: MemoryNode;
+  onClose: () => void;
+  onChoose: (kind: 'wikilink' | 'edge') => Promise<void>;
+}
+
+function ConnectionKindModal({ fromNode, toNode, onClose, onChoose }: ConnectionKindModalProps) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  if (!fromNode || !toNode) return null;
+  const handle = async (kind: 'wikilink' | 'edge') => {
+    if (busy) return;
+    setBusy(true);
+    try { await onChoose(kind); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal open={true} onClose={onClose} size="sm">
+      <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
+        <h3 className="text-base font-semibold text-warm-800 mb-1">{t('memory.connect.title')}</h3>
+        <p className="text-sm text-warm-600 mb-4">
+          <span className="font-medium">{fromNode.title}</span>
+          {' → '}
+          <span className="font-medium">{toNode.title}</span>
+        </p>
+
+        <div className="space-y-2">
+          <button
+            onClick={() => handle('wikilink')}
+            disabled={busy}
+            className="w-full text-left p-3 rounded-lg border border-warm-200 hover:border-warm-400 hover:bg-warm-100 disabled:opacity-50"
+          >
+            <div className="text-sm font-medium text-warm-800">{t('memory.connect.wikilink')}</div>
+            <div className="text-xs text-warm-500 mt-0.5">{t('memory.connect.wikilinkHint')}</div>
+          </button>
+          <button
+            onClick={() => handle('edge')}
+            disabled={busy}
+            className="w-full text-left p-3 rounded-lg border border-warm-200 hover:border-warm-400 hover:bg-warm-100 disabled:opacity-50"
+          >
+            <div className="text-sm font-medium text-warm-800">{t('memory.connect.edge')}</div>
+            <div className="text-xs text-warm-500 mt-0.5">{t('memory.connect.edgeHint')}</div>
+          </button>
+        </div>
+
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100"
+          >
+            {t('memory.cancel')}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

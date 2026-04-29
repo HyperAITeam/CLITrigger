@@ -1355,6 +1355,13 @@ export function getMemoryNodesByIds(ids: string[]): MemoryNode[] {
   return db.prepare(`SELECT * FROM memory_nodes WHERE id IN (${placeholders})`).all(...ids) as MemoryNode[];
 }
 
+export function getMemoryNodeByTitle(projectId: string, title: string): MemoryNode | undefined {
+  const db = getDatabase();
+  return db.prepare(
+    'SELECT * FROM memory_nodes WHERE project_id = ? AND title = ? COLLATE NOCASE LIMIT 1'
+  ).get(projectId, title) as MemoryNode | undefined;
+}
+
 export function updateMemoryNode(
   id: string,
   updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned'>>,

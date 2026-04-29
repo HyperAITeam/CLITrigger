@@ -1,5 +1,13 @@
 import { get, post, put, del } from './client';
-import type { MemoryNode, MemoryEdge, MemoryGraph, MemoryRelationType, MemoryInjectMode } from '../types';
+import type {
+  MemoryNode,
+  MemoryEdge,
+  MemoryGraph,
+  MemoryRelationType,
+  MemoryInjectMode,
+  MemoryBacklink,
+  MemoryWikilinkResolution,
+} from '../types';
 
 export function getMemoryGraph(projectId: string): Promise<MemoryGraph> {
   return get(`/api/projects/${projectId}/memory/graph`);
@@ -55,6 +63,24 @@ export function previewMemoryInjection(
   nodeIds: string[] = [],
 ): Promise<{ prompt: string; nodeCount: number; edgeCount: number }> {
   return post(`/api/projects/${projectId}/memory/preview`, { mode, nodeIds });
+}
+
+export function getMemoryBacklinks(nodeId: string): Promise<MemoryBacklink[]> {
+  return get(`/api/memory/nodes/${nodeId}/backlinks`);
+}
+
+export function insertMemoryWikilink(
+  sourceNodeId: string,
+  data: { targetNodeId?: string; targetTitle?: string },
+): Promise<MemoryNode> {
+  return post(`/api/memory/nodes/${sourceNodeId}/insert-link`, data);
+}
+
+export function resolveMemoryWikilinks(
+  projectId: string,
+  data: { body?: string; titles?: string[] },
+): Promise<MemoryWikilinkResolution[]> {
+  return post(`/api/projects/${projectId}/memory/wikilinks/resolve`, data);
 }
 
 export function parseMemoryNodeIds(raw: string | null | undefined): string[] {

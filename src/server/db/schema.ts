@@ -306,6 +306,14 @@ export function initDatabase(db: Database.Database): void {
   // Migrate legacy integration columns to plugin_configs table
   migratePluginConfigs(db);
 
+  // Deduplicate memory_nodes titles within a project, then enforce UNIQUE
+  dedupeMemoryNodeTitles(db);
+  try {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_nodes_project_title ON memory_nodes(project_id, title)');
+  } catch {
+    // unique index creation may fail if dedupe missed a corner case; leave index off rather than crash startup
+  }
+
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
 
@@ -386,6 +394,47 @@ function migratePluginConfigs(db: Database.Database): void {
   });
 
   migrate();
+}
+
+/**
+ * Suffix duplicate memory node titles within the same project (`-2`, `-3`, ...)
+ * so a (project_id, title) UNIQUE index can be enforced. Idempotent.
+ */
+function dedupeMemoryNodeTitles(db: Database.Database): void {
+  const dups = db.prepare(
+    `SELECT project_id, title, COUNT(*) as cnt
+       FROM memory_nodes
+      GROUP BY project_id, title
+     HAVING cnt > 1`
+  ).all() as Array<{ project_id: string; title: string; cnt: number }>;
+  if (dups.length === 0) return;
+
+  const selectGroup = db.prepare(
+    'SELECT id FROM memory_nodes WHERE project_id = ? AND title = ? ORDER BY created_at ASC, id ASC'
+  );
+  const titleExists = db.prepare(
+    'SELECT 1 FROM memory_nodes WHERE project_id = ? AND title = ? LIMIT 1'
+  );
+  const updateTitle = db.prepare(
+    'UPDATE memory_nodes SET title = ?, updated_at = ? WHERE id = ?'
+  );
+
+  const tx = db.transaction(() => {
+    for (const dup of dups) {
+      const rows = selectGroup.all(dup.project_id, dup.title) as Array<{ id: string }>;
+      // Keep the first row's title; rename the rest with numeric suffixes
+      for (let i = 1; i < rows.length; i++) {
+        let suffix = i + 1;
+        let candidate = `${dup.title}-${suffix}`;
+        while (titleExists.get(dup.project_id, candidate)) {
+          suffix += 1;
+          candidate = `${dup.title}-${suffix}`;
+        }
+        updateTitle.run(candidate, new Date().toISOString(), rows[i].id);
+      }
+    }
+  });
+  tx();
 }
 
 function seedCliModels(db: Database.Database): void {
