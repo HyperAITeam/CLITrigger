@@ -84,6 +84,9 @@ export default function MemoryNodeDetail({
           <div className="flex items-center gap-2 mb-1">
             {node.pinned === 1 && <Pin size={14} className="text-warm-500 flex-shrink-0" />}
             <h3 className="text-base font-semibold text-warm-800 truncate">{node.title}</h3>
+            {node.source_type && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-warm-200 text-warm-500 flex-shrink-0">auto</span>
+            )}
           </div>
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">

@@ -293,6 +293,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'discussions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
     { table: 'discussions', column: 'memory_node_ids', definition: 'TEXT' },
     { table: 'projects', column: 'memory_default_mode', definition: "TEXT DEFAULT 'none'" },
+    { table: 'projects', column: 'memory_auto_ingest', definition: 'INTEGER DEFAULT 0' },
+    { table: 'memory_nodes', column: 'source_type', definition: 'TEXT' },
+    { table: 'memory_nodes', column: 'source_id', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

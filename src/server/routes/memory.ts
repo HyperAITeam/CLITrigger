@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import * as queries from '../db/queries.js';
 import type { MemoryRelationType } from '../db/queries.js';
 import { buildMemoryBlock, type MemoryInjectMode } from '../services/memory-injector.js';
+import { ingestSource, lintWiki } from '../services/memory-ingest.js';
 import {
   appendWikilinkToBody,
   findBacklinks,
@@ -367,6 +368,48 @@ router.delete('/memory/edges/:edgeId', (req: Request<{ edgeId: string }>, res: R
     }
     queries.deleteMemoryEdge(req.params.edgeId);
     res.status(204).send();
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Ingest (LLM-driven wiki update from raw source) ──
+
+router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const { source_text, source_type, source_id } = req.body ?? {};
+    if (!source_text || typeof source_text !== 'string' || !source_text.trim()) {
+      res.status(400).json({ error: 'source_text is required' });
+      return;
+    }
+    const result = await ingestSource(
+      req.params.id,
+      source_text.trim(),
+      typeof source_type === 'string' ? source_type : null,
+      typeof source_id === 'string' ? source_id : null,
+    );
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Lint (LLM-driven wiki health check) ──
+
+router.post('/projects/:id/memory/lint', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const issues = await lintWiki(req.params.id);
+    res.json({ issues });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

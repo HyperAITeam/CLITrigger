@@ -93,6 +93,19 @@ export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
   }
 }
 
+export function ingestMemory(
+  projectId: string,
+  data: { source_text: string; source_type?: string; source_id?: string },
+): Promise<{ created: number; updated: number; edgesAdded: number; nodeIds: string[] }> {
+  return post(`/api/projects/${projectId}/memory/ingest`, data);
+}
+
+export function lintMemory(
+  projectId: string,
+): Promise<{ issues: { type: string; node_titles: string[]; message: string }[] }> {
+  return post(`/api/projects/${projectId}/memory/lint`, {});
+}
+
 export function parseMemoryTags(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
