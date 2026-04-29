@@ -109,6 +109,8 @@ UI and documentation are primarily in Korean. Commit messages use Korean or Engl
 
 ## UI Guidelines
 
+> 시각 디자인 결정(색상, 타이포그래피, spacing, 컴포넌트 스타일)은 `.claude/docs/design.md`를 기준 레퍼런스로 참조할 것.
+
 ### Floating elements must render via portal
 
 Tooltips, dropdowns, popovers, hover help boxes, context menus, and "more" menus MUST be rendered through `createPortal(..., document.body)` with `position: fixed` + viewport clamping (using the anchor element's `getBoundingClientRect`). Do NOT rely on `position: absolute` inside the component tree — header cards, list rows, badge rows, and worktree/todo containers all have `overflow`, `border-radius`, or `transform` ancestors that will clip the floating element.
