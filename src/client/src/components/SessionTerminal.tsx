@@ -117,7 +117,30 @@ export default function SessionTerminal({
       }
     });
 
+    // IME composition handling for mobile (iOS) Korean/CJK input.
+    // Without this, xterm's onData fires per-jamo on iOS Safari so typing
+    // "사과" arrives at the PTY as "ㅅㅏㄱㅗㅏ". We suppress onData during
+    // composition and send the composed text from compositionend.data, then
+    // shadow-suppress onData briefly because xterm's CompositionHelper also
+    // emits the composed text asynchronously (setTimeout 0) and would
+    // otherwise double-send.
+    let composing = false;
+    let lastCompositionEndAt = 0;
+    const handleCompStart = () => { composing = true; };
+    const handleCompEnd = (e: Event) => {
+      composing = false;
+      lastCompositionEndAt = Date.now();
+      const data = (e as CompositionEvent).data;
+      if (data) {
+        sendMessage({ type: 'session:terminal-input', sessionId, input: data });
+      }
+    };
+    container.addEventListener('compositionstart', handleCompStart, true);
+    container.addEventListener('compositionend', handleCompEnd, true);
+
     const onDataDisposable = term.onData((d) => {
+      if (composing) return;
+      if (Date.now() - lastCompositionEndAt < 50) return;
       sendMessage({ type: 'session:terminal-input', sessionId, input: d });
     });
 
@@ -132,6 +155,8 @@ export default function SessionTerminal({
       ro.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       onDataDisposable.dispose();
+      container.removeEventListener('compositionstart', handleCompStart, true);
+      container.removeEventListener('compositionend', handleCompEnd, true);
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
