@@ -50,8 +50,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const [pendingConnection, setPendingConnection] = useState<{ fromId: string; toId: string } | null>(null);
   const [showIngest, setShowIngest] = useState(false);
   const [showLint, setShowLint] = useState(false);
-  const [entriesOpen, setEntriesOpen] = useState(true);
-  const [sourcesOpen, setSourcesOpen] = useState(true);
+  const [subTab, setSubTab] = useState<'wiki' | 'sources'>('wiki');
 
   const reload = () => {
     getMemoryGraph(projectId)
@@ -95,12 +94,14 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const handleSelectNode = (id: string) => {
     setSelectedNodeId(id);
     setSelectedRawPath(null);
+    setSubTab('wiki');
     setRightPanel('editor');
   };
 
   const handleSelectRawFile = (relativePath: string) => {
     setSelectedRawPath(relativePath);
     setSelectedNodeId(null);
+    setSubTab('sources');
     setRightPanel('editor');
   };
 
@@ -159,19 +160,38 @@ export default function MemoryList({ projectId }: MemoryListProps) {
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-warm-800 mr-auto">{t('wiki.title')}</h2>
-        <button
-          onClick={() => setShowLint(true)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
-        >
-          <Wrench size={12} /> {t('wiki.lint')}
-        </button>
-        <button
-          onClick={() => setShowIngest(true)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
-        >
-          <Download size={12} /> {t('wiki.ingest')}
-        </button>
+        <h2 className="text-lg font-semibold text-warm-800">{t('wiki.title')}</h2>
+        <div className="ml-3 inline-flex rounded-lg border border-warm-200 overflow-hidden">
+          <button
+            onClick={() => setSubTab('wiki')}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium ${subTab === 'wiki' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+          >
+            <FileText size={12} /> {t('wiki.subTab.wiki')}
+          </button>
+          <button
+            onClick={() => setSubTab('sources')}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border-l border-warm-200 ${subTab === 'sources' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}
+          >
+            <Database size={12} /> {t('wiki.subTab.sources')}
+            {rawFiles.length > 0 && (
+              <span className={`text-[10px] ${subTab === 'sources' ? 'text-warm-200' : 'text-warm-400'}`}>{rawFiles.length}</span>
+            )}
+          </button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowLint(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
+          >
+            <Wrench size={12} /> {t('wiki.lint')}
+          </button>
+          <button
+            onClick={() => setShowIngest(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
+          >
+            <Download size={12} /> {t('wiki.ingest')}
+          </button>
+        </div>
       </div>
 
       {/* Main: sidebar + content */}
@@ -180,45 +200,28 @@ export default function MemoryList({ projectId }: MemoryListProps) {
         {/* ── Left Sidebar ── */}
         <div className="w-52 flex-shrink-0 border-r border-warm-200 bg-warm-50 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto py-1">
-
-            {/* SCHEMA */}
-            {schemaNode && (
-              <SidebarItem
-                node={schemaNode}
-                selected={selectedNodeId === schemaNode.id}
-                onClick={() => handleSelectNode(schemaNode.id)}
-                onDelete={handleDelete}
-                icon={<FileText size={12} className="text-warm-400 flex-shrink-0" />}
-              />
-            )}
-
-            {/* entries/ */}
-            <SectionHeader
-              label={t('wiki.section.entries')}
-              open={entriesOpen}
-              onToggle={() => setEntriesOpen(v => !v)}
-              count={entryNodes.length}
-            />
-            {entriesOpen && (
-              entryGroups.length === 0 ? (
-                <p className="px-4 py-2 text-[11px] text-warm-400 italic">empty — use Ingest</p>
-              ) : (
-                entryGroups.map(([group, groupNodes]) => (
-                  <TagGroup key={group} label={group} nodes={groupNodes} selectedId={selectedNodeId} onSelect={handleSelectNode} onDelete={handleDelete} />
-                ))
-              )
-            )}
-
-            {/* sources/ */}
-            <SectionHeader
-              label={t('wiki.section.sources')}
-              open={sourcesOpen}
-              onToggle={() => setSourcesOpen(v => !v)}
-              count={rawFiles.length}
-            />
-            {sourcesOpen && (
+            {subTab === 'wiki' ? (
+              <>
+                {schemaNode && (
+                  <SidebarItem
+                    node={schemaNode}
+                    selected={selectedNodeId === schemaNode.id}
+                    onClick={() => handleSelectNode(schemaNode.id)}
+                    onDelete={handleDelete}
+                    icon={<FileText size={12} className="text-warm-400 flex-shrink-0" />}
+                  />
+                )}
+                {entryGroups.length === 0 ? (
+                  <p className="px-4 py-2 text-[11px] text-warm-400 italic">empty — use Ingest</p>
+                ) : (
+                  entryGroups.map(([group, groupNodes]) => (
+                    <TagGroup key={group} label={group} nodes={groupNodes} selectedId={selectedNodeId} onSelect={handleSelectNode} onDelete={handleDelete} />
+                  ))
+                )}
+              </>
+            ) : (
               rawFiles.length === 0 ? (
-                <p className="px-4 py-2 text-[11px] text-warm-400 italic">{t('wiki.rawFile.empty')}</p>
+                <p className="px-4 py-2 text-[11px] text-warm-400 italic">{t('wiki.sources.noFiles')}</p>
               ) : (
                 sourceGroups.map(([sourceType, files]) => (
                   <RawSourceGroup
@@ -254,39 +257,57 @@ export default function MemoryList({ projectId }: MemoryListProps) {
             </div>
           )}
 
-          {rightPanel === 'editor' && selectedNode ? (
-            <InlineEditor
-              node={selectedNode}
-              allNodes={nodes}
-              rawFiles={rawFiles}
-              edges={edges}
-              onUpdated={handleNodeUpdated}
-              onDelete={handleDelete}
-              onSelectNode={handleSelectNode}
-              onSelectRawFile={handleSelectRawFile}
-            />
-          ) : selectedRawFile ? (
-            <RawFileViewer
-              projectId={projectId}
-              file={selectedRawFile}
-              allNodes={nodes}
-              onSelectNode={handleSelectNode}
-            />
-          ) : (
-            nodes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-8">
-                <p className="text-warm-700 font-medium mb-1">{t('wiki.empty')}</p>
-                <p className="text-sm text-warm-500">{t('wiki.emptyHint')}</p>
-              </div>
-            ) : (
-              <MemoryNetworkGraph
-                nodes={nodes}
+          {subTab === 'wiki' ? (
+            rightPanel === 'editor' && selectedNode ? (
+              <InlineEditor
+                node={selectedNode}
+                allNodes={nodes}
+                rawFiles={rawFiles}
                 edges={edges}
-                selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => { setSelectedNodeId(id); setSelectedRawPath(null); setRightPanel('editor'); }}
-                onCreateConnection={handleConnectionRequest}
-                onUpdateNodePosition={handleUpdatePosition}
+                onUpdated={handleNodeUpdated}
+                onDelete={handleDelete}
+                onSelectNode={handleSelectNode}
+                onSelectRawFile={handleSelectRawFile}
               />
+            ) : (
+              nodes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center px-8">
+                  <p className="text-warm-700 font-medium mb-1">{t('wiki.empty')}</p>
+                  <p className="text-sm text-warm-500">{t('wiki.emptyHint')}</p>
+                </div>
+              ) : (
+                <MemoryNetworkGraph
+                  nodes={nodes}
+                  edges={edges}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(id) => { if (id) handleSelectNode(id); else { setSelectedNodeId(null); setSelectedRawPath(null); } }}
+                  onCreateConnection={handleConnectionRequest}
+                  onUpdateNodePosition={handleUpdatePosition}
+                />
+              )
+            )
+          ) : (
+            selectedRawFile ? (
+              <RawFileViewer
+                projectId={projectId}
+                file={selectedRawFile}
+                allNodes={nodes}
+                onSelectNode={handleSelectNode}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center px-8">
+                {rawFiles.length === 0 ? (
+                  <>
+                    <Database size={32} className="text-warm-300 mb-3" />
+                    <p className="text-warm-700 font-medium mb-1">{t('wiki.sources.noFiles')}</p>
+                  </>
+                ) : (
+                  <>
+                    <FileText size={32} className="text-warm-300 mb-3" />
+                    <p className="text-sm text-warm-500">{t('wiki.sources.empty')}</p>
+                  </>
+                )}
+              </div>
             )
           )}
         </div>
