@@ -441,6 +441,116 @@ router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, 
 
 // ── Raw source viewer ──
 
+const RAW_SOURCE_TYPES = ['todo', 'discussion', 'manual'] as const;
+const RAW_DIR = '.clitrigger/raw';
+
+router.get('/projects/:id/memory/raw-files', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.path) {
+      res.json({ files: [] });
+      return;
+    }
+
+    const allNodes = queries.getMemoryNodesByProjectId(req.params.id);
+    const derivedByPath = new Map<string, string[]>();
+    for (const n of allNodes) {
+      if (!n.source_path) continue;
+      const list = derivedByPath.get(n.source_path);
+      if (list) list.push(n.id);
+      else derivedByPath.set(n.source_path, [n.id]);
+    }
+
+    const projectRoot = path.resolve(project.path);
+    const files: Array<{
+      source_type: string;
+      filename: string;
+      relative_path: string;
+      size: number;
+      mtime: string;
+      derived_node_ids: string[];
+    }> = [];
+
+    for (const sourceType of RAW_SOURCE_TYPES) {
+      const dir = path.join(projectRoot, RAW_DIR, sourceType);
+      if (!fs.existsSync(dir)) continue;
+      let entries: string[];
+      try {
+        entries = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      for (const filename of entries) {
+        if (filename.startsWith('.')) continue;
+        const absPath = path.join(dir, filename);
+        const resolvedAbs = path.resolve(absPath);
+        const resolvedDir = path.resolve(dir);
+        if (!resolvedAbs.startsWith(resolvedDir + path.sep)) continue;
+        let stat: fs.Stats;
+        try {
+          stat = fs.statSync(absPath);
+        } catch {
+          continue;
+        }
+        if (!stat.isFile()) continue;
+        const relativePath = `${RAW_DIR}/${sourceType}/${filename}`;
+        files.push({
+          source_type: sourceType,
+          filename,
+          relative_path: relativePath,
+          size: stat.size,
+          mtime: stat.mtime.toISOString(),
+          derived_node_ids: derivedByPath.get(relativePath) ?? [],
+        });
+      }
+    }
+
+    files.sort((a, b) => b.mtime.localeCompare(a.mtime));
+    res.json({ files });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+router.get('/projects/:id/memory/raw-files/content', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project || !project.path) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const relPathRaw = req.query.path;
+    if (typeof relPathRaw !== 'string' || !relPathRaw.trim()) {
+      res.status(400).json({ error: 'path query param is required' });
+      return;
+    }
+    const projectRoot = path.resolve(project.path);
+    const rawRoot = path.resolve(projectRoot, RAW_DIR);
+    const absPath = path.resolve(projectRoot, relPathRaw);
+    if (!absPath.startsWith(rawRoot + path.sep)) {
+      res.status(400).json({ error: 'Path must be within the raw sources directory' });
+      return;
+    }
+    if (!fs.existsSync(absPath)) {
+      res.status(404).json({ error: 'Raw file not found', path: relPathRaw });
+      return;
+    }
+    const stat = fs.statSync(absPath);
+    if (!stat.isFile()) {
+      res.status(400).json({ error: 'Path is not a file' });
+      return;
+    }
+    const content = fs.readFileSync(absPath, 'utf-8');
+    res.type('text/markdown; charset=utf-8').send(content);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 router.get('/memory/nodes/:nodeId/raw', (req: Request<{ nodeId: string }>, res: Response) => {
   try {
     const node = queries.getMemoryNodeById(req.params.nodeId);
