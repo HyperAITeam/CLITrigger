@@ -635,6 +635,8 @@ const translations = {
     'wiki.rawFile.derivedTitle': 'Derived Wiki Entries',
     'wiki.rawFile.noDerived': 'No wiki entries derived from this source',
     'wiki.rawFile.openSiblings': 'Show {n} entries from this source',
+    'wiki.rawFile.openExternal': 'Open in default app',
+    'wiki.rawFile.revealInFolder': 'Reveal in folder',
 
     // Planner
     'planner.title': 'Planner',
@@ -1559,6 +1561,8 @@ const translations = {
     'wiki.rawFile.derivedTitle': '이 원본에서 파생된 항목',
     'wiki.rawFile.noDerived': '이 원본에서 파생된 항목 없음',
     'wiki.rawFile.openSiblings': '이 원본에서 파생된 {n}개 항목 보기',
+    'wiki.rawFile.openExternal': '기본 앱으로 열기',
+    'wiki.rawFile.revealInFolder': '폴더에서 보기',
 
     // Planner
     'planner.title': '플래너',

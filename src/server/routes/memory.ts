@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import * as queries from '../db/queries.js';
@@ -546,6 +547,48 @@ router.get('/projects/:id/memory/raw-files/content', (req: Request<{ id: string 
     }
     const content = fs.readFileSync(absPath, 'utf-8');
     res.type('text/markdown; charset=utf-8').send(content);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+router.post('/projects/:id/memory/raw-files/open', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project || !project.path) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const { path: relPathRaw, mode } = req.body ?? {};
+    if (typeof relPathRaw !== 'string' || !relPathRaw.trim()) {
+      res.status(400).json({ error: 'path is required' });
+      return;
+    }
+    const projectRoot = path.resolve(project.path);
+    const rawRoot = path.resolve(projectRoot, RAW_DIR);
+    const absPath = path.resolve(projectRoot, relPathRaw);
+    if (!absPath.startsWith(rawRoot + path.sep)) {
+      res.status(400).json({ error: 'Path must be within the raw sources directory' });
+      return;
+    }
+    if (!fs.existsSync(absPath)) {
+      res.status(404).json({ error: 'Raw file not found', path: relPathRaw });
+      return;
+    }
+    // mode === 'reveal' → open the containing folder, else open the file itself
+    const target = mode === 'reveal' ? path.dirname(absPath) : absPath;
+    if (process.platform === 'win32') {
+      if (mode === 'reveal') {
+        exec(`explorer.exe /select,"${absPath}"`);
+      } else {
+        exec(`start "" "${target}"`, { windowsHide: true });
+      }
+    } else if (process.platform === 'darwin') {
+      exec(mode === 'reveal' ? `open -R "${absPath}"` : `open "${target}"`);
+    } else {
+      exec(`xdg-open "${target}"`);
+    }
+    res.json({ ok: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

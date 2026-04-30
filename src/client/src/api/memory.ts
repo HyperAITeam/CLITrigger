@@ -140,6 +140,14 @@ export async function getRawFileByPath(projectId: string, relativePath: string):
   return res.text();
 }
 
+export function openRawFileExternal(
+  projectId: string,
+  relativePath: string,
+  mode: 'open' | 'reveal' = 'open',
+): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${projectId}/memory/raw-files/open`, { path: relativePath, mode });
+}
+
 export function lintMemory(
   projectId: string,
 ): Promise<{ issues: { type: string; node_titles: string[]; message: string }[] }> {
