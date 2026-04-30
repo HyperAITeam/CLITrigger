@@ -13,7 +13,7 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { MemoryNode, MemoryEdge, MemoryRelationType } from '../types';
+import type { MemoryNode, MemoryEdge } from '../types';
 import { useI18n } from '../i18n';
 import { parseWikilinks } from '../lib/wikilinks';
 
@@ -29,12 +29,13 @@ interface Props {
 const NODE_RADIUS_BASE = 8;
 const NODE_RADIUS_MAX = 22;
 
-const RELATION_COLOR: Record<MemoryRelationType, string> = {
-  related: '#9CA3AF',
-  precedes: '#3B82F6',
-  example_of: '#10B981',
-  counter_example: '#EF4444',
-  refines: '#8B5CF6',
+// Single unified style for every edge (typed edges + wikilinks) — graph stays
+// readable; relation_type info still shows in InlineEditor's Connections list.
+const EDGE_STYLE = {
+  stroke: '#6B7280',
+  strokeWidth: 1,
+  strokeDasharray: '4 3',
+  opacity: 0.6,
 };
 
 interface SimNode {
@@ -132,12 +133,18 @@ function MemoryDot({ data }: { data: { node: MemoryNode; size: number; selected:
   const isHighlighted = node.pinned === 1 || highlight;
   const fill = selected ? '#3B82F6' : isHighlighted ? '#10B981' : '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
-  const handleStyle: React.CSSProperties = {
-    width: 8,
-    height: 8,
+  // Centered, invisible handles so edges anchor to node center (line through circle
+  // fill ⇒ visually emerges from node edge, not from a fixed top/bottom point).
+  const centeredHandle: React.CSSProperties = {
+    width: 1,
+    height: 1,
+    minWidth: 0,
+    minHeight: 0,
     background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.25)',
-    opacity: 0.6,
+    border: 'none',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
   };
   return (
     <div
@@ -145,9 +152,8 @@ function MemoryDot({ data }: { data: { node: MemoryNode; size: number; selected:
       style={{ width: size * 2 + 24, height: size * 2 + 24 }}
       className="flex items-center justify-center cursor-pointer group"
     >
-      {/* Handles anchor edges to the node and enable drag-to-connect */}
-      <Handle type="target" position={Position.Top} style={handleStyle} isConnectable />
-      <Handle type="source" position={Position.Bottom} style={handleStyle} isConnectable />
+      <Handle type="target" position={Position.Top} style={centeredHandle} isConnectable />
+      <Handle type="source" position={Position.Top} style={centeredHandle} isConnectable />
       <div
         style={{
           width: size * 2,
@@ -211,25 +217,41 @@ export default function MemoryNetworkGraph({
     return m;
   }, [degree]);
 
-  // Run force layout once on mount (or when raw nodes count changes drastically)
-  const initialPositions = useMemo(() => {
+  // Force-layout fallback positions. Only re-runs when nodes are added/removed —
+  // dragging existing nodes does NOT trigger a relayout.
+  const layoutFallback = useMemo(() => {
     const ids = rawNodes.map(n => n.id);
     const links: Array<[string, string]> = [
       ...rawEdges.map(e => [e.from_node_id, e.to_node_id] as [string, string]),
       ...wikilinkPairs.map(p => [p.from, p.to] as [string, string]),
     ];
-    const initial = new Map<string, { x: number; y: number }>();
+    const seed = new Map<string, { x: number; y: number }>();
     for (const n of rawNodes) {
       if (n.position_x != null && n.position_y != null) {
-        initial.set(n.id, { x: n.position_x, y: n.position_y });
+        seed.set(n.id, { x: n.position_x, y: n.position_y });
       }
     }
-    if (initial.size === ids.length && ids.length > 0) {
-      return initial;
+    if (seed.size === ids.length && ids.length > 0) {
+      return seed;
     }
-    return runForceLayout(ids, links, initial);
+    return runForceLayout(ids, links, seed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawNodes.length, rawEdges.length, wikilinkPairs.length]);
+
+  // Per-render display positions: prefer DB-saved coords, fall back to layout.
+  // Recomputes whenever rawNodes changes so a drag-stop persists immediately.
+  const displayPositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    for (const n of rawNodes) {
+      if (n.position_x != null && n.position_y != null) {
+        map.set(n.id, { x: n.position_x, y: n.position_y });
+      } else {
+        const fb = layoutFallback.get(n.id);
+        if (fb) map.set(n.id, fb);
+      }
+    }
+    return map;
+  }, [rawNodes, layoutFallback]);
 
   const handleSelect = useCallback((id: string) => {
     onSelectNode(id === selectedNodeId ? null : id);
@@ -242,7 +264,7 @@ export default function MemoryNetworkGraph({
   }, [search]);
 
   const initialNodes: Node[] = useMemo(() => rawNodes.map(n => {
-    const pos = initialPositions.get(n.id) ?? { x: 0, y: 0 };
+    const pos = displayPositions.get(n.id) ?? { x: 0, y: 0 };
     const deg = degree.get(n.id) ?? 0;
     const size = NODE_RADIUS_BASE + (deg / maxDegree) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
     const highlight = matchesSearch(n);
@@ -259,24 +281,23 @@ export default function MemoryNetworkGraph({
       },
       style: search.trim() && !highlight ? { opacity: 0.18 } : undefined,
     };
-  }), [rawNodes, initialPositions, degree, maxDegree, selectedNodeId, handleSelect, matchesSearch, search]);
+  }), [rawNodes, displayPositions, degree, maxDegree, selectedNodeId, handleSelect, matchesSearch, search]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const flowEdges: Edge[] = rawEdges.map(e => ({
       id: e.id,
       source: e.from_node_id,
       target: e.to_node_id,
-      style: {
-        stroke: RELATION_COLOR[e.relation_type] ?? '#9CA3AF',
-        strokeWidth: 1.5,
-      },
+      type: 'straight',
+      style: EDGE_STYLE,
     }));
     for (const p of wikilinkPairs) {
       flowEdges.push({
         id: p.key,
         source: p.from,
         target: p.to,
-        style: { stroke: '#6B7280', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.6 },
+        type: 'straight',
+        style: EDGE_STYLE,
       });
     }
     return flowEdges;
@@ -297,11 +318,11 @@ export default function MemoryNetworkGraph({
     layoutAppliedRef.current = true;
     for (const n of rawNodes) {
       if (n.position_x == null || n.position_y == null) {
-        const pos = initialPositions.get(n.id);
+        const pos = layoutFallback.get(n.id);
         if (pos) onUpdateNodePosition(n.id, pos.x, pos.y).catch(() => {});
       }
     }
-  }, [rawNodes, initialPositions, onUpdateNodePosition]);
+  }, [rawNodes, layoutFallback, onUpdateNodePosition]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
