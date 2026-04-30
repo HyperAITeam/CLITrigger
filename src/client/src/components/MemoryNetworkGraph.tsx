@@ -3,6 +3,8 @@ import {
   ReactFlow,
   Background,
   Controls,
+  Handle,
+  Position,
   type Node,
   type Edge,
   type Connection,
@@ -130,12 +132,22 @@ function MemoryDot({ data }: { data: { node: MemoryNode; size: number; selected:
   const isHighlighted = node.pinned === 1 || highlight;
   const fill = selected ? '#3B82F6' : isHighlighted ? '#10B981' : '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
+  const handleStyle: React.CSSProperties = {
+    width: 8,
+    height: 8,
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.25)',
+    opacity: 0.6,
+  };
   return (
     <div
       onClick={() => data.onSelect(node.id)}
       style={{ width: size * 2 + 24, height: size * 2 + 24 }}
       className="flex items-center justify-center cursor-pointer group"
     >
+      {/* Handles anchor edges to the node and enable drag-to-connect */}
+      <Handle type="target" position={Position.Top} style={handleStyle} isConnectable />
+      <Handle type="source" position={Position.Bottom} style={handleStyle} isConnectable />
       <div
         style={{
           width: size * 2,
