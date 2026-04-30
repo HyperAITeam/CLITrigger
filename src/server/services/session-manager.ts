@@ -68,8 +68,15 @@ export class SessionManager {
 
   /**
    * Start a session (always interactive mode).
+   *
+   * `opts.cols` / `opts.rows` come from the client xterm.js after FitAddon
+   * resolves. Spawning the PTY at the actual rendered size avoids the
+   * 200x50-default-then-resize race where Claude Code's TUI banner ends up
+   * misaligned in scrollback. If the caller doesn't supply dims (e.g.
+   * plugin or curl direct hit), fall back to 100x30 — small enough that a
+   * later wider client still renders the welcome banner cleanly.
    */
-  async startSession(sessionId: string): Promise<void> {
+  async startSession(sessionId: string, opts?: { cols?: number; rows?: number }): Promise<void> {
     const session = queries.getSessionById(sessionId);
     if (!session) throw new Error('Session not found');
 
@@ -124,6 +131,7 @@ export class SessionManager {
       const result = await claudeManager.startClaude(
         workDir, prompt, cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, undefined, false,
+        opts?.cols ?? 100, opts?.rows ?? 30,
       );
       pid = result.pid;
       exitPromise = result.exitPromise;

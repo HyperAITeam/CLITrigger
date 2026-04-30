@@ -118,7 +118,10 @@ router.delete('/sessions/:id', (req: Request<{ id: string }>, res: Response) => 
   }
 });
 
-// POST /api/sessions/:id/start — start session (always interactive)
+// POST /api/sessions/:id/start — start session (always interactive).
+// Accepts optional { cols, rows } so the client can spawn the PTY at the
+// xterm.js rendered size and avoid the 200x50-default-then-resize banner
+// glitches in Claude Code's TUI.
 router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const session = queries.getSessionById(req.params.id);
@@ -133,7 +136,27 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    await sessionManager.startSession(req.params.id);
+    const body = (req.body ?? {}) as { cols?: unknown; rows?: unknown };
+    const hasCols = body.cols !== undefined;
+    const hasRows = body.rows !== undefined;
+    let opts: { cols: number; rows: number } | undefined;
+    if (hasCols !== hasRows) {
+      res.status(400).json({ error: 'cols and rows must both be provided or both omitted' });
+      return;
+    }
+    if (hasCols && hasRows) {
+      const cols = body.cols;
+      const rows = body.rows;
+      if (!Number.isInteger(cols) || !Number.isInteger(rows) ||
+          (cols as number) < 20 || (cols as number) > 500 ||
+          (rows as number) < 10 || (rows as number) > 200) {
+        res.status(400).json({ error: 'cols must be 20-500, rows must be 10-200 (integers)' });
+        return;
+      }
+      opts = { cols: cols as number, rows: rows as number };
+    }
+
+    await sessionManager.startSession(req.params.id, opts);
 
     const updated = queries.getSessionById(req.params.id);
     res.json(updated);

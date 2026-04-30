@@ -1,13 +1,11 @@
 import { useState, useCallback } from 'react';
-import { ChevronRight, GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
+import { GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
 import EmptyState from './EmptyState';
 import type { Session } from '../types';
-import type { WsEvent } from '../hooks/useWebSocket';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import SessionForm from './SessionForm';
-import SessionTerminal from './SessionTerminal';
-import { CMD, CMD_FONT } from './terminal-theme';
+import { useSessionWindows } from './SessionWindowsHost';
 
 interface SessionListProps {
   projectId: string;
@@ -16,13 +14,9 @@ interface SessionListProps {
   projectCliModel?: string;
   isGitRepo?: boolean;
   onAddSession: (session: Session) => void;
-  onStartSession: (id: string) => Promise<void>;
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
-  onEvent: (cb: (event: WsEvent) => void) => () => void;
-  sendMessage: (event: object) => void;
-  subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -40,18 +34,14 @@ export default function SessionList({
   projectCliModel,
   isGitRepo,
   onAddSession,
-  onStartSession,
   onStopSession,
   onDeleteSession,
   onCleanupSession,
-  onEvent,
-  sendMessage,
-  subscribeBinary,
 }: SessionListProps) {
   const { t } = useI18n();
+  const { openOrFocus } = useSessionWindows();
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleCreate = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, useWorktree?: boolean) => {
     setCreating(true);
@@ -79,6 +69,7 @@ export default function SessionList({
         <button
           onClick={() => setShowForm(!showForm)}
           className="btn-primary text-xs py-2"
+          disabled={creating}
         >
           + {t('session.new')}
         </button>
@@ -101,7 +92,6 @@ export default function SessionList({
       ) : (
         <div className="space-y-3">
           {sessions.map((session, index) => {
-            const isExpanded = expandedId === session.id;
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
 
@@ -113,21 +103,20 @@ export default function SessionList({
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : session.id)}
+                  onClick={() => openOrFocus(session.id)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <ChevronRight size={12} className={`text-warm-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         <h3 className="text-sm font-semibold text-warm-700 truncate">{session.title}</h3>
                         <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
                           {t(`status.${session.status}`) || session.status}
                         </span>
                       </div>
                       {session.description && (
-                        <p className="text-xs text-warm-400 mt-1 ml-5 line-clamp-1">{session.description}</p>
+                        <p className="text-xs text-warm-400 mt-1 line-clamp-1">{session.description}</p>
                       )}
-                      <div className="flex items-center gap-2 mt-1 ml-5">
+                      <div className="flex items-center gap-2 mt-1">
                         <span className="text-2xs text-warm-300">
                           {session.cli_tool || 'claude'}
                           {session.cli_model ? ` / ${session.cli_model}` : ''}
@@ -143,10 +132,7 @@ export default function SessionList({
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                       {canStart && (
                         <button
-                          onClick={() => {
-                            onStartSession(session.id);
-                            setExpandedId(session.id);
-                          }}
+                          onClick={() => openOrFocus(session.id)}
                           className="p-1.5 text-status-success hover:bg-status-success/10 rounded transition-colors"
                           title={t('session.start')}
                         >
@@ -186,31 +172,6 @@ export default function SessionList({
                     </div>
                   </div>
                 </div>
-
-                {isExpanded && (
-                  <div className="overflow-hidden" style={{ borderTop: `1px solid ${CMD.separator}` }}>
-                    {/* Title bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', background: CMD.titleBg, padding: '8px 12px', gap: 8, userSelect: 'none' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
-                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
-                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
-                      </div>
-                      <span style={{ flex: 1, textAlign: 'center', color: CMD.titleText, fontSize: 12, fontFamily: CMD_FONT }}>
-                        {session.title}{session.cli_tool ? ` — ${session.cli_tool}${session.cli_model ? `/${session.cli_model}` : ''}` : ''}
-                      </span>
-                      <div style={{ width: 54 }} />
-                    </div>
-                    {/* xterm.js terminal — pixel-identical to running the CLI directly */}
-                    <SessionTerminal
-                      sessionId={session.id}
-                      isRunning={session.status === 'running'}
-                      sendMessage={sendMessage}
-                      subscribeBinary={subscribeBinary}
-                      onEvent={onEvent}
-                    />
-                  </div>
-                )}
               </div>
             );
           })}

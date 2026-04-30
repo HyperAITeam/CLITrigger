@@ -23,8 +23,8 @@ export function deleteSession(id: string): Promise<void> {
   return del(`/api/sessions/${id}`);
 }
 
-export function startSession(id: string): Promise<Session> {
-  return post(`/api/sessions/${id}/start`);
+export function startSession(id: string, dims?: { cols: number; rows: number }): Promise<Session> {
+  return post(`/api/sessions/${id}/start`, dims);
 }
 
 export function stopSession(id: string): Promise<Session> {
