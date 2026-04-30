@@ -115,6 +115,7 @@ export default {
         dropdown: '50',
         sticky: '60',
         modal: '100',
+        floating: '110',
         toast: '150',
         tooltip: '200',
       },

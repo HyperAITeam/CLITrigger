@@ -8,10 +8,22 @@ import type { WsEvent } from '../hooks/useWebSocket';
 interface SessionTerminalProps {
   sessionId: string;
   isRunning: boolean;
+  /**
+   * Gate for `session:subscribe`. SessionWindow flips this to true only
+   * after the PTY has been spawned at the fitted size (POST /start
+   * resolved). Prevents binary frames from arriving for a PTY that's
+   * still at the wrong size.
+   */
+  subscribed: boolean;
+  /**
+   * Fires once after FitAddon settles with the actual cols/rows. The
+   * window uses this to POST /start with the right dimensions.
+   */
+  onFitted?: (cols: number, rows: number) => void;
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
-  height?: number;
+  height?: number | string;
 }
 
 const TERMINAL_THEME = {
@@ -41,16 +53,21 @@ const TERMINAL_THEME = {
 export default function SessionTerminal({
   sessionId,
   isRunning,
+  subscribed,
+  onFitted,
   sendMessage,
   subscribeBinary,
   onEvent,
-  height = 420,
+  height = '100%',
 }: SessionTerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastResizeRef = useRef<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subscribedSentRef = useRef(false);
+  const onFittedRef = useRef(onFitted);
+  onFittedRef.current = onFitted;
   const [replaying, setReplaying] = useState(true);
 
   useEffect(() => {
@@ -74,19 +91,22 @@ export default function SessionTerminal({
     fitAddonRef.current = fitAddon;
 
     try { fitAddon.fit(); } catch { /* container may be 0×0 momentarily */ }
+    if (term.cols > 0 && term.rows > 0) {
+      onFittedRef.current?.(term.cols, term.rows);
+    }
 
     const sendResize = () => {
       const cols = term.cols;
       const rows = term.rows;
       if (cols === lastResizeRef.current.cols && rows === lastResizeRef.current.rows) return;
       lastResizeRef.current = { cols, rows };
+      // Server gates session:resize behind process_pid && running, so
+      // a resize fired before subscribe is a safe no-op.
       sendMessage({ type: 'session:resize', sessionId, cols, rows });
     };
-    sendResize();
 
-    // Subscribe to live binary frames first so any bytes arriving during
-    // replay aren't dropped — replay frames are also delivered as binary,
-    // and `session:replay-end` JSON event flips the spinner off.
+    // Binary frames may start arriving as soon as session:subscribe lands;
+    // attach the subscriber up front so nothing is dropped during replay.
     const unsubBinary = subscribeBinary(sessionId, (payload) => {
       try { term.write(payload); } catch { /* term disposed */ }
     });
@@ -96,8 +116,6 @@ export default function SessionTerminal({
         setReplaying(false);
       }
     });
-
-    sendMessage({ type: 'session:subscribe', sessionId });
 
     const onDataDisposable = term.onData((d) => {
       sendMessage({ type: 'session:terminal-input', sessionId, input: d });
@@ -120,10 +138,26 @@ export default function SessionTerminal({
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
+      subscribedSentRef.current = false;
     };
     // sessionId is stable per mount; props changing wouldn't preserve replay state anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // Send session:subscribe once `subscribed` flips to true (i.e. after the
+  // PTY has been spawned at the correct size). Also resend the current size
+  // so the freshly-spawned PTY learns about any container changes that
+  // happened between mount and subscribe.
+  useEffect(() => {
+    if (!subscribed || subscribedSentRef.current) return;
+    subscribedSentRef.current = true;
+    const term = termRef.current;
+    if (term && term.cols > 0 && term.rows > 0) {
+      lastResizeRef.current = { cols: 0, rows: 0 };
+      sendMessage({ type: 'session:resize', sessionId, cols: term.cols, rows: term.rows });
+    }
+    sendMessage({ type: 'session:subscribe', sessionId });
+  }, [subscribed, sessionId, sendMessage]);
 
   // Reflect running-state cursor blink without re-creating the terminal.
   useEffect(() => {
@@ -131,8 +165,8 @@ export default function SessionTerminal({
   }, [isRunning]);
 
   return (
-    <div style={{ position: 'relative', background: CMD.bg, padding: 8 }}>
-      {replaying && (
+    <div style={{ position: 'relative', background: CMD.bg, padding: 8, height, width: '100%' }}>
+      {replaying && subscribed && (
         <div
           style={{
             position: 'absolute',
@@ -148,7 +182,7 @@ export default function SessionTerminal({
           loading history…
         </div>
       )}
-      <div ref={containerRef} style={{ height, width: '100%' }} />
+      <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
     </div>
   );
 }
