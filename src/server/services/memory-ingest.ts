@@ -90,9 +90,10 @@ const DEFAULT_WIKI_SCHEMA = `# Wiki Schema
 ## Conventions
 - Titles: short noun phrases (≤60 chars)
 - Body: 2-5 sentences, factual, no filler
-- Use [[wikilinks]] to cross-reference related nodes
+- **Use [[Title]] wikilinks liberally inside body text** — every time the body mentions another node by name, wrap it as [[Title]]. This is the primary way connections are made.
 - Tags: first tag should be the entity type
-- Prefer updating existing nodes over creating new duplicates`;
+- Prefer updating existing nodes over creating new duplicates
+- Connections are the value of a wiki — a node with no inbound or outbound links is nearly useless. Always relate new entries to existing ones.`;
 
 const WIKI_SCHEMA_TAG = '__wiki_schema__';
 
@@ -295,9 +296,16 @@ Rules:
 - 0-10 total create+update operations. Quality over quantity. Skip if nothing new.
 - Match existing nodes by title (case-insensitive) before creating a new one.
 - body: 2-5 sentences, factual, no filler. Markdown allowed.
+- **Inside body, wrap every reference to another node as [[Exact Title]].** When you mention a node that exists in "Existing Wiki Pages" or that you are creating in this batch, write [[Title]] instead of plain text. Aim for 1-3 wikilinks per body when relevant nodes exist. Bodies that mention concepts but don't link them are low quality.
 - tags[0] must be an entity type from the schema (Feature/Decision/Bug/Pattern/Concept).
 - edges.relation_type: one of related|precedes|example_of|counter_example|refines
-- edges: only create when clearly implied. from_title/to_title must match existing or newly created nodes exactly.
+  - related: generic association
+  - precedes: A comes before B in time/sequence/dependency
+  - example_of: A is a concrete instance of pattern/concept B
+  - counter_example: A contradicts or is rejected in favor of B
+  - refines: A is a more specific or improved version of B
+- **Edges are the value of a wiki — generate them aggressively.** For each new or updated node, link it to at least one existing or newly-created node when topically related. If multiple relations apply (A is both an example_of and precedes B), pick the most specific one. from_title/to_title must match existing or newly created nodes exactly. Do not invent titles.
+- A node with zero inbound and outbound connections (no edges, no wikilinks pointing to or from it) is a code smell — fix it before output.
 - If nothing worth extracting, return {"create": [], "update": [], "edges": []}`;
 
 const LINT_PROMPT_HEADER = `You are auditing a project knowledge wiki for quality issues.

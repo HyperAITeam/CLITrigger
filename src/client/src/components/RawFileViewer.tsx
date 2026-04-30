@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, FileText, Loader2 } from 'lucide-react';
+import { ArrowRight, ExternalLink, FileText, FolderOpen, Loader2 } from 'lucide-react';
 import type { MemoryNode } from '../types';
-import { type RawFileEntry, getRawFileByPath, parseMemoryTags } from '../api/memory';
+import { type RawFileEntry, getRawFileByPath, openRawFileExternal, parseMemoryTags } from '../api/memory';
 import { useI18n } from '../i18n';
 
 interface RawFileViewerProps {
@@ -55,6 +55,20 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode 
         <span className="text-[11px] text-warm-500 flex-shrink-0">
           {formatSize(file.size)} · {formatMtime(file.mtime)}
         </span>
+        <button
+          onClick={() => openRawFileExternal(projectId, file.relative_path, 'open').catch(err => console.error(err))}
+          className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+          title={t('wiki.rawFile.openExternal')}
+        >
+          <ExternalLink size={13} />
+        </button>
+        <button
+          onClick={() => openRawFileExternal(projectId, file.relative_path, 'reveal').catch(err => console.error(err))}
+          className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+          title={t('wiki.rawFile.revealInFolder')}
+        >
+          <FolderOpen size={13} />
+        </button>
       </div>
       <div className="px-4 py-1 border-b border-warm-100">
         <code className="text-[10px] text-warm-500">{file.relative_path}</code>
