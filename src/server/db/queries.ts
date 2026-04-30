@@ -1262,6 +1262,82 @@ export function deletePlannerTag(projectId: string, name: string): void {
   }
 }
 
+// ── Favorites (global launcher) ──
+
+export interface Favorite {
+  id: string;
+  name: string;
+  type: 'executable' | 'command' | 'url';
+  target: string;
+  args: string | null;
+  cwd: string | null;
+  icon: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createFavorite(
+  name: string,
+  type: 'executable' | 'command' | 'url',
+  target: string,
+  args?: string | null,
+  cwd?: string | null,
+  icon?: string | null,
+  sortOrder = 0
+): Favorite {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO favorites (id, name, type, target, args, cwd, icon, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, type, target, args ?? null, cwd ?? null, icon ?? null, sortOrder, now, now);
+  return getFavoriteById(id)!;
+}
+
+export function getAllFavorites(): Favorite[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM favorites ORDER BY sort_order ASC, created_at ASC').all() as Favorite[];
+}
+
+export function getFavoriteById(id: string): Favorite | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM favorites WHERE id = ?').get(id) as Favorite | undefined;
+}
+
+export function updateFavorite(
+  id: string,
+  updates: Partial<Pick<Favorite, 'name' | 'type' | 'target' | 'args' | 'cwd' | 'icon' | 'sort_order'>>
+): Favorite | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.type !== undefined) { fields.push('type = ?'); values.push(updates.type); }
+  if (updates.target !== undefined) { fields.push('target = ?'); values.push(updates.target); }
+  if (updates.args !== undefined) { fields.push('args = ?'); values.push(updates.args); }
+  if (updates.cwd !== undefined) { fields.push('cwd = ?'); values.push(updates.cwd); }
+  if (updates.icon !== undefined) { fields.push('icon = ?'); values.push(updates.icon); }
+  if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(updates.sort_order); }
+
+  if (fields.length === 0) return getFavoriteById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE favorites SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getFavoriteById(id);
+}
+
+export function deleteFavorite(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM favorites WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
 // ── Review Queue (cross-project) ──
 
 export interface ReviewQueueRow extends Todo {
