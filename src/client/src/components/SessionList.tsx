@@ -103,7 +103,7 @@ export default function SessionList({
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
-                  onClick={() => openOrFocus(session.id)}
+                  onClick={() => openOrFocus(session.id, 'open')}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -132,7 +132,7 @@ export default function SessionList({
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                       {canStart && (
                         <button
-                          onClick={() => openOrFocus(session.id)}
+                          onClick={() => openOrFocus(session.id, 'start')}
                           className="p-1.5 text-status-success hover:bg-status-success/10 rounded transition-colors"
                           title={t('session.start')}
                         >

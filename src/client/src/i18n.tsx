@@ -734,6 +734,11 @@ const translations = {
     'session.model': 'Model',
     'session.worktree': 'Use worktree (isolated branch)',
     'session.cleanup': 'Clean up worktree',
+    'session.startInWindow': 'Start',
+    'session.starting': 'starting…',
+    'session.stopping': 'stopping…',
+    'session.startFailed': 'Failed to start',
+    'session.confirmStop': 'End this session? The running task will be terminated.',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -1660,6 +1665,11 @@ const translations = {
     'session.model': '모델',
     'session.worktree': '워크트리 사용 (격리된 브랜치)',
     'session.cleanup': '워크트리 삭제',
+    'session.startInWindow': '시작',
+    'session.starting': '시작하는 중…',
+    'session.stopping': '중지하는 중…',
+    'session.startFailed': '시작 실패',
+    'session.confirmStop': '이 세션을 종료할까요? 진행 중인 작업이 종료됩니다.',
 
     // Analytics
     'analytics.title': '실행 통계',
