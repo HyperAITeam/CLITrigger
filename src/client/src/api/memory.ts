@@ -95,7 +95,7 @@ export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
 
 export function ingestMemory(
   projectId: string,
-  data: { source_text?: string; source_type?: string; source_id?: string },
+  data: { source_text?: string; source_type?: string; source_id?: string; locale?: string },
 ): Promise<{ created: number; updated: number; edgesAdded: number; nodeIds: string[] }> {
   return post(`/api/projects/${projectId}/memory/ingest`, data);
 }

@@ -334,6 +334,7 @@ export async function ingestSource(
   sourceType: string | null,
   sourceId: string | null,
   titleHint?: string | null,
+  locale?: string | null,
 ): Promise<IngestResult> {
   const project = queries.getProjectById(projectId);
   if (!project) throw new Error('Project not found');
@@ -350,7 +351,12 @@ export async function ingestSource(
   const nodes = queries.getMemoryNodesByProjectId(projectId);
   const nodeSummary = buildNodeSummary(nodes);
 
+  const langRule = locale === 'en'
+    ? '- Write all titles, body text, tags, and edge labels in English.'
+    : '- Write all titles, body text, tags, and edge labels in Korean (한국어).';
+
   const prompt = INGEST_PROMPT_HEADER
+    .replace('Rules:\n', `Rules:\n${langRule}\n`)
     .replace('{SCHEMA}', schema)
     .replace('{NODES}', nodeSummary)
     .replace('{SOURCE}', sourceText.slice(0, 8000));

@@ -385,9 +385,10 @@ router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, 
       res.status(404).json({ error: 'Project not found' });
       return;
     }
-    const { source_text, source_type, source_id } = req.body ?? {};
+    const { source_text, source_type, source_id, locale } = req.body ?? {};
     const stype: string | null = typeof source_type === 'string' ? source_type : null;
     const sid: string | null = typeof source_id === 'string' ? source_id : null;
+    const localeStr: string | null = typeof locale === 'string' ? locale : null;
 
     let text: string;
     let titleHint: string | null = null;
@@ -433,6 +434,7 @@ router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, 
       stype === 'todo' || stype === 'discussion' ? stype : 'manual',
       sid,
       titleHint,
+      localeStr,
     );
     res.json(result);
   } catch (err: unknown) {
