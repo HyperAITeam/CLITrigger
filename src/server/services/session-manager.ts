@@ -1,10 +1,71 @@
 import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
-import { broadcaster } from '../websocket/broadcaster.js';
+import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 
+const RAW_FLUSH_BYTES = 4 * 1024;
+const RAW_FLUSH_MS = 100;
+const RAW_DB_CAP_BYTES = 2 * 1024 * 1024;
+
 export class SessionManager {
+  // Per-session pending-flush callback so we can drain the byte buffer when
+  // the PTY exits or the user stops the session.
+  private pendingFlushers: Map<string, () => void> = new Map();
+
+  /**
+   * Hook the raw PTY byte stream of `pid` into:
+   *   1. live binary WS frames to currently subscribed clients
+   *   2. batched (≥4KB or 100ms) appends to `session_raw_chunks` for replay
+   *
+   * Memory-bounded by the upstream ring buffer in claudeManager and by
+   * `trimSessionRawChunks` (~2MB rolling) on the DB side.
+   */
+  private subscribeRawForSession(sessionId: string, pid: number): void {
+    let pending: Buffer[] = [];
+    let pendingBytes = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = (): void => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (pending.length === 0) return;
+      const buf = Buffer.concat(pending);
+      pending = [];
+      pendingBytes = 0;
+      try {
+        queries.appendSessionRawChunk(sessionId, buf);
+        queries.trimSessionRawChunks(sessionId, RAW_DB_CAP_BYTES);
+      } catch { /* DB may be locked or session deleted; drop chunk */ }
+    };
+
+    claudeManager.subscribeRaw(pid, (chunk) => {
+      const buf = Buffer.from(chunk, 'utf8');
+      pending.push(buf);
+      pendingBytes += buf.length;
+
+      // Live broadcast — only currently-subscribed clients receive the bytes.
+      try {
+        broadcaster.sendBinaryToSubscribers(sessionId, encodeSessionFrame(sessionId, buf));
+      } catch { /* ignore */ }
+
+      if (pendingBytes >= RAW_FLUSH_BYTES) {
+        flush();
+      } else if (!timer) {
+        timer = setTimeout(flush, RAW_FLUSH_MS);
+      }
+    });
+
+    this.pendingFlushers.set(sessionId, flush);
+  }
+
+  private flushAndForgetRaw(sessionId: string): void {
+    const flusher = this.pendingFlushers.get(sessionId);
+    if (flusher) {
+      try { flusher(); } catch { /* ignore */ }
+      this.pendingFlushers.delete(sessionId);
+    }
+  }
+
   /**
    * Start a session (always interactive mode).
    */
@@ -67,8 +128,11 @@ export class SessionManager {
       pid = result.pid;
       exitPromise = result.exitPromise;
 
-      // Stream stdout/stderr to session_logs
-      this.streamToSessionLogs(sessionId, result.stdout, result.stderr);
+      // Subscribe to raw PTY bytes for the xterm.js terminal channel.
+      // The legacy stripped-text streamToSessionLogs path is intentionally
+      // skipped — Sessions now show the real terminal, and storing classified
+      // session_logs on every spinner frame is wasted DB churn.
+      this.subscribeRawForSession(sessionId, pid);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       queries.updateSessionStatus(sessionId, 'failed');
@@ -90,6 +154,9 @@ export class SessionManager {
 
     // Handle process exit
     exitPromise.then((exitCode) => {
+      // Flush any pending raw bytes before status update so re-opening the
+      // session immediately shows the final output.
+      this.flushAndForgetRaw(sessionId);
       const current = queries.getSessionById(sessionId);
       if (current && current.status === 'running') {
         const status = exitCode === 0 ? 'completed' : 'failed';
@@ -107,6 +174,7 @@ export class SessionManager {
         broadcaster.broadcast({ type: 'session:status-changed', sessionId, status });
       }
     }).catch(() => {
+      this.flushAndForgetRaw(sessionId);
       try {
         queries.updateSessionStatus(sessionId, 'failed');
         queries.updateSession(sessionId, { process_pid: 0 });
@@ -125,6 +193,7 @@ export class SessionManager {
     if (session.process_pid) {
       await claudeManager.stopClaude(session.process_pid);
     }
+    this.flushAndForgetRaw(sessionId);
 
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });

@@ -1037,6 +1037,60 @@ export function deleteSessionLogsBySessionId(sessionId: string): number {
   return result.changes;
 }
 
+// ── Session Raw Chunks (xterm.js terminal byte-level history) ──
+
+export interface SessionRawChunk {
+  session_id: string;
+  seq: number;
+  bytes: Buffer;
+  created_at: string;
+}
+
+export function appendSessionRawChunk(sessionId: string, bytes: Buffer): number {
+  const db = getDatabase();
+  const row = db.prepare(
+    'SELECT COALESCE(MAX(seq), -1) AS max_seq FROM session_raw_chunks WHERE session_id = ?'
+  ).get(sessionId) as { max_seq: number };
+  const seq = row.max_seq + 1;
+  db.prepare(
+    'INSERT INTO session_raw_chunks (session_id, seq, bytes) VALUES (?, ?, ?)'
+  ).run(sessionId, seq, bytes);
+  return seq;
+}
+
+export function getSessionRawChunks(sessionId: string): SessionRawChunk[] {
+  const db = getDatabase();
+  return db.prepare(
+    'SELECT session_id, seq, bytes, created_at FROM session_raw_chunks WHERE session_id = ? ORDER BY seq ASC'
+  ).all(sessionId) as SessionRawChunk[];
+}
+
+export function deleteSessionRawChunks(sessionId: string): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM session_raw_chunks WHERE session_id = ?').run(sessionId);
+  return result.changes;
+}
+
+/**
+ * Trim oldest chunks (lowest seq) until total stored bytes <= maxBytes.
+ * Returns the number of chunks deleted.
+ */
+export function trimSessionRawChunks(sessionId: string, maxBytes: number): number {
+  const db = getDatabase();
+  const rows = db.prepare(
+    'SELECT seq, length(bytes) AS len FROM session_raw_chunks WHERE session_id = ? ORDER BY seq ASC'
+  ).all(sessionId) as { seq: number; len: number }[];
+  let total = rows.reduce((s, r) => s + r.len, 0);
+  let deleted = 0;
+  for (const r of rows) {
+    if (total <= maxBytes) break;
+    db.prepare('DELETE FROM session_raw_chunks WHERE session_id = ? AND seq = ?').run(sessionId, r.seq);
+    total -= r.len;
+    deleted += 1;
+  }
+  return deleted;
+}
+
 // ── Planner Items ──
 
 const PLANNER_TAG_COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];

@@ -27,9 +27,10 @@ interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
   sendMessage: (event: object) => void;
+  subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
 }
 
-export default function ProjectDetail({ onEvent, connected, sendMessage }: ProjectDetailProps) {
+export default function ProjectDetail({ onEvent, connected, sendMessage, subscribeBinary }: ProjectDetailProps) {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -581,10 +582,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
     );
   }, []);
 
-  const handleSendSessionInput = useCallback((sessionId: string, input: string) => {
-    sendMessage({ type: 'session:stdin', sessionId, input });
-  }, [sendMessage]);
-
   const handleStartAll = useCallback(async () => {
     if (!id) return;
     await projectsApi.startProject(id);
@@ -766,8 +763,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onStopSession={handleStopSession}
           onDeleteSession={handleDeleteSession}
           onCleanupSession={handleCleanupSession}
-          onSendInput={handleSendSessionInput}
           onEvent={onEvent}
+          sendMessage={sendMessage}
+          subscribeBinary={subscribeBinary}
         />
       )}
       {activeTab === 'discussions' && id && (
