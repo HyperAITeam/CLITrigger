@@ -324,6 +324,23 @@ export interface PlannerTag {
   color: string;
 }
 
+// ── Favorites ──
+
+export type FavoriteType = 'executable' | 'command' | 'url';
+
+export interface Favorite {
+  id: string;
+  name: string;
+  type: FavoriteType;
+  target: string;
+  args: string | null;
+  cwd: string | null;
+  icon: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JiraIssue {
   key: string;
   fields: {

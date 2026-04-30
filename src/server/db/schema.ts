@@ -236,6 +236,19 @@ export function initDatabase(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memory_edges_project ON memory_edges(project_id);
     CREATE INDEX IF NOT EXISTS idx_memory_edges_from ON memory_edges(from_node_id);
     CREATE INDEX IF NOT EXISTS idx_memory_edges_to ON memory_edges(to_node_id);
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('executable','command','url')),
+      target TEXT NOT NULL,
+      args TEXT,
+      cwd TEXT,
+      icon TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs

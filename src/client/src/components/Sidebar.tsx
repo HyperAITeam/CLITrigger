@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox } from 'lucide-react';
-import type { Project } from '../types';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2 } from 'lucide-react';
+import type { Project, Favorite, FavoriteType } from '../types';
 import * as projectsApi from '../api/projects';
 import * as reviewApi from '../api/review';
+import * as favoritesApi from '../api/favorites';
+import type { FavoriteInput } from '../api/favorites';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
+import { useToast } from '../hooks/useToast';
 import type { WsEvent } from '../hooks/useWebSocket';
 import ProjectForm from './ProjectForm';
+import FavoriteForm from './FavoriteForm';
+import ToastContainer from './Toast';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -24,23 +29,83 @@ interface ProjectStatus {
   total: number;
 }
 
+function iconForType(type: FavoriteType) {
+  if (type === 'executable') return FileCode;
+  if (type === 'command') return Terminal;
+  return LinkIcon;
+}
+
 export default function Sidebar({ onLogout, authRequired, connected, onEvent, onClose }: SidebarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [showFavoriteForm, setShowFavoriteForm] = useState(false);
+  const [editingFavorite, setEditingFavorite] = useState<Favorite | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { t, toggleLang } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
+  const { toasts, error: toastError, dismiss } = useToast();
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
 
   useEffect(() => {
     loadProjects();
+    loadFavorites();
   }, []);
+
+  function loadFavorites() {
+    favoritesApi.listFavorites()
+      .then(setFavorites)
+      .catch(() => {});
+  }
+
+  const handleSubmitFavorite = async (data: FavoriteInput) => {
+    try {
+      if (editingFavorite) {
+        await favoritesApi.updateFavorite(editingFavorite.id, data);
+      } else {
+        await favoritesApi.createFavorite(data);
+      }
+      setShowFavoriteForm(false);
+      setEditingFavorite(null);
+      loadFavorites();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Failed to save favorite');
+    }
+  };
+
+  const handleLaunchFavorite = async (id: string) => {
+    try {
+      await favoritesApi.launchFavorite(id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('favorites.launchFailed');
+      toastError(`${t('favorites.launchFailed')}: ${message}`);
+    }
+  };
+
+  const handleDeleteFavorite = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(t('favorites.deleteConfirm'))) return;
+    try {
+      await favoritesApi.deleteFavorite(id);
+      setFavorites((prev) => prev.filter((f) => f.id !== id));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Failed to delete favorite');
+    }
+  };
+
+  const handleEditFavorite = (favorite: Favorite, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingFavorite(favorite);
+    setShowFavoriteForm(true);
+  };
 
   // Listen for projects:changed events from ProjectList
   useEffect(() => {
@@ -242,6 +307,66 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           onCancel={() => setShowForm(false)}
         />
       )}
+
+      {/* Favorites section */}
+      <div className="px-3 pt-3 pb-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="px-3 mb-2 flex items-center justify-between">
+            <span className="text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+              {t('sidebar.favorites')}
+            </span>
+            <button
+              onClick={() => { setEditingFavorite(null); setShowFavoriteForm(true); }}
+              className="flex items-center justify-center w-5 h-5 rounded-md transition-colors hover:bg-theme-hover"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              title={t('favorites.add')}
+            >
+              <Plus size={14} strokeWidth={2} />
+            </button>
+          </div>
+          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+            {favorites.map((favorite) => {
+              const Icon = iconForType(favorite.type);
+              return (
+                <button
+                  key={favorite.id}
+                  onClick={() => handleLaunchFavorite(favorite.id)}
+                  className="w-full relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group"
+                  style={{ color: 'var(--color-text-tertiary)' }}
+                  title={favorite.target}
+                >
+                  <Icon size={14} className="flex-shrink-0" />
+                  <span className="truncate flex-1 text-left">{favorite.name}</span>
+                  <span
+                    onClick={(e) => handleEditFavorite(favorite, e)}
+                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-theme-hover cursor-pointer"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    title={t('favorites.edit')}
+                  >
+                    <Edit2 size={11} strokeWidth={2} />
+                  </span>
+                  <span
+                    onClick={(e) => handleDeleteFavorite(favorite.id, e)}
+                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10 cursor-pointer"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    title={t('favorites.delete')}
+                  >
+                    <X size={12} strokeWidth={2} />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+      {showFavoriteForm && (
+        <FavoriteForm
+          initial={editingFavorite ?? undefined}
+          onSubmit={handleSubmitFavorite}
+          onCancel={() => { setShowFavoriteForm(false); setEditingFavorite(null); }}
+        />
+      )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       {/* Bottom section */}
       <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
