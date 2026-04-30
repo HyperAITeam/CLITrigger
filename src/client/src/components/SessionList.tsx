@@ -1,12 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { ChevronRight, GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
 import EmptyState from './EmptyState';
-import type { Session, SessionLog, TaskLog } from '../types';
+import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import SessionForm from './SessionForm';
-import LogViewer from './LogViewer';
+import SessionTerminal from './SessionTerminal';
 import { CMD, CMD_FONT } from './terminal-theme';
 
 interface SessionListProps {
@@ -20,8 +20,9 @@ interface SessionListProps {
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
-  onSendInput: (sessionId: string, input: string) => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  sendMessage: (event: object) => void;
+  subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,16 +32,6 @@ const STATUS_COLORS: Record<string, string> = {
   failed: 'bg-status-error/10 text-status-error',
   stopped: 'bg-amber-100 text-amber-700',
 };
-
-function sessionLogToTaskLog(log: SessionLog): TaskLog {
-  return {
-    id: log.id,
-    todo_id: log.session_id,
-    log_type: log.log_type as TaskLog['log_type'],
-    message: log.message,
-    created_at: log.created_at,
-  };
-}
 
 export default function SessionList({
   projectId,
@@ -53,54 +44,14 @@ export default function SessionList({
   onStopSession,
   onDeleteSession,
   onCleanupSession,
-  onSendInput,
   onEvent,
+  sendMessage,
+  subscribeBinary,
 }: SessionListProps) {
   const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [sessionLogs, setSessionLogs] = useState<Record<string, TaskLog[]>>({});
-  const sessionLogsRef = useRef(sessionLogs);
-  sessionLogsRef.current = sessionLogs;
-
-  // Load logs when expanding a session
-  useEffect(() => {
-    if (!expandedId) return;
-    sessionsApi.getSessionLogs(expandedId).then((logs) => {
-      setSessionLogs((prev) => ({
-        ...prev,
-        [expandedId]: logs.map(sessionLogToTaskLog),
-      }));
-    }).catch(() => {});
-  }, [expandedId]);
-
-  // Auto-expand running sessions
-  useEffect(() => {
-    const running = sessions.find((s) => s.status === 'running');
-    if (running && !expandedId) {
-      setExpandedId(running.id);
-    }
-  }, [sessions, expandedId]);
-
-  // Listen for session log events
-  useEffect(() => {
-    return onEvent((event) => {
-      if (event.type === 'session:log' && event.sessionId && event.message) {
-        const newLog: TaskLog = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          todo_id: event.sessionId,
-          log_type: (event.logType || 'output') as TaskLog['log_type'],
-          message: event.message,
-          created_at: new Date().toISOString(),
-        };
-        setSessionLogs((prev) => ({
-          ...prev,
-          [event.sessionId!]: [...(prev[event.sessionId!] || []), newLog],
-        }));
-      }
-    });
-  }, [onEvent]);
 
   const handleCreate = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, useWorktree?: boolean) => {
     setCreating(true);
@@ -118,10 +69,6 @@ export default function SessionList({
       setCreating(false);
     }
   }, [projectId, onAddSession]);
-
-  const handleSendInput = useCallback((todoId: string, input: string) => {
-    onSendInput(todoId, input);
-  }, [onSendInput]);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -157,7 +104,6 @@ export default function SessionList({
             const isExpanded = expandedId === session.id;
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
-            const logs = sessionLogs[session.id] || [];
 
             return (
               <div
@@ -255,22 +201,14 @@ export default function SessionList({
                       </span>
                       <div style={{ width: 54 }} />
                     </div>
-                    {/* Terminal body */}
-                    <div style={{ background: CMD.bg, padding: '12px 16px', fontFamily: CMD_FONT, fontSize: 12, lineHeight: '1.5', color: CMD.text }}>
-                      {session.branch_name && (
-                        <div style={{ marginBottom: 8 }}>
-                          <span style={{ color: CMD.prompt }}>$</span> <span style={{ color: CMD.bright }}>git</span> <span style={{ color: CMD.dim }}>branch</span>
-                          <div><span style={{ color: CMD.success }}>*</span> <span style={{ color: CMD.info }}>{session.branch_name}</span></div>
-                        </div>
-                      )}
-                      <LogViewer
-                        logs={logs}
-                        interactive={session.status === 'running'}
-                        todoId={session.id}
-                        onSendInput={session.status === 'running' ? handleSendInput : undefined}
-                        embedded
-                      />
-                    </div>
+                    {/* xterm.js terminal — pixel-identical to running the CLI directly */}
+                    <SessionTerminal
+                      sessionId={session.id}
+                      isRunning={session.status === 'running'}
+                      sendMessage={sendMessage}
+                      subscribeBinary={subscribeBinary}
+                      onEvent={onEvent}
+                    />
                   </div>
                 )}
               </div>

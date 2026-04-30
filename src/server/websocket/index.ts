@@ -1,10 +1,10 @@
 import { WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
-import { broadcaster } from './broadcaster.js';
+import { broadcaster, encodeSessionFrame } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
-import { getTodoById, createTaskLog, getSessionById, createSessionLog } from '../db/queries.js';
+import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
 
 export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -108,6 +108,52 @@ export function initWebSocket(server: Server): void {
                 logType: 'input',
               });
             }
+          }
+        }
+
+        // ── xterm.js terminal channel (Sessions tab) ──
+
+        // Subscribe a client to the high-frequency binary output for a session.
+        // On subscribe we replay persisted chunks (cross-restart) + the in-memory
+        // ring tail (live since last persisted), then send `session:replay-end`.
+        if (msg.type === 'session:subscribe' && typeof msg.sessionId === 'string') {
+          const session = getSessionById(msg.sessionId);
+          if (session) {
+            broadcaster.subscribe(ws, msg.sessionId);
+            try {
+              const chunks = getSessionRawChunks(msg.sessionId);
+              for (const c of chunks) {
+                ws.send(encodeSessionFrame(msg.sessionId, c.bytes), { binary: true });
+              }
+              if (session.process_pid) {
+                const tail = claudeManager.getRawHistory(session.process_pid);
+                if (tail) ws.send(encodeSessionFrame(msg.sessionId, tail), { binary: true });
+              }
+            } catch { /* ignore replay errors */ }
+            ws.send(JSON.stringify({ type: 'session:replay-end', sessionId: msg.sessionId }));
+          }
+        }
+
+        if (msg.type === 'session:unsubscribe' && typeof msg.sessionId === 'string') {
+          broadcaster.unsubscribe(ws, msg.sessionId);
+        }
+
+        // Raw keystrokes from xterm.js (CR, arrow keys, Ctrl+C, etc).
+        // Bypasses the `\n → submitSeq` translation that `writeToStdin` applies.
+        if (msg.type === 'session:terminal-input' && typeof msg.sessionId === 'string' && typeof msg.input === 'string') {
+          const session = getSessionById(msg.sessionId);
+          if (session && session.process_pid && session.status === 'running') {
+            claudeManager.writeStdinRaw(session.process_pid, msg.input);
+          }
+        }
+
+        if (msg.type === 'session:resize' && typeof msg.sessionId === 'string' &&
+            Number.isFinite(msg.cols) && Number.isFinite(msg.rows)) {
+          const session = getSessionById(msg.sessionId);
+          if (session && session.process_pid && session.status === 'running') {
+            const cols = Math.max(20, Math.min(500, msg.cols | 0));
+            const rows = Math.max(5, Math.min(200, msg.rows | 0));
+            claudeManager.resize(session.process_pid, cols, rows);
           }
         }
       } catch {

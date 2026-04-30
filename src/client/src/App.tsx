@@ -12,7 +12,7 @@ import ReviewQueue from './components/ReviewQueue';
 
 function App() {
   const { authenticated, authRequired, loading, login, logout } = useAuth();
-  const { connected, onEvent, sendMessage } = useWebSocket(authenticated);
+  const { connected, onEvent, sendMessage, subscribeBinary } = useWebSocket(authenticated);
   const { t } = useI18n();
 
   if (loading) {
@@ -96,7 +96,7 @@ function App() {
           <Route
             path="/projects/:id"
             element={
-              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} />
+              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} subscribeBinary={subscribeBinary} />
             }
           />
           <Route

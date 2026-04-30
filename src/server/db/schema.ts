@@ -176,6 +176,15 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS session_raw_chunks (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
+      bytes BLOB NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (session_id, seq)
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_raw_chunks_session ON session_raw_chunks(session_id);
+
     CREATE TABLE IF NOT EXISTS planner_items (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

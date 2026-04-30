@@ -13,4 +13,5 @@ export type WSEvent =
   | { type: 'discussion:commit'; discussionId: string; messageId: string; commitHash: string; message: string }
   | { type: 'session:status-changed'; sessionId: string; status: string }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
+  | { type: 'session:replay-end'; sessionId: string }
   | { type: 'rate-limit:updated'; resetsAt: number; status: string | null };
