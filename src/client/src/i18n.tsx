@@ -602,6 +602,12 @@ const translations = {
     'wiki.viewRaw': 'View Raw Source',
     'wiki.loading': 'Loading...',
     'wiki.close': 'Close',
+    'wiki.section.entries': 'entries/',
+    'wiki.section.sources': 'sources/',
+    'wiki.rawFile.empty': 'no raw files yet',
+    'wiki.rawFile.derivedTitle': 'Derived Wiki Entries',
+    'wiki.rawFile.noDerived': 'No wiki entries derived from this source',
+    'wiki.rawFile.openSiblings': 'Show {n} entries from this source',
 
     // Planner
     'planner.title': 'Planner',
@@ -1493,6 +1499,12 @@ const translations = {
     'wiki.viewRaw': 'Raw 원본 보기',
     'wiki.loading': '불러오는 중...',
     'wiki.close': '닫기',
+    'wiki.section.entries': 'entries/',
+    'wiki.section.sources': 'sources/',
+    'wiki.rawFile.empty': '아직 raw 파일이 없습니다',
+    'wiki.rawFile.derivedTitle': '이 원본에서 파생된 항목',
+    'wiki.rawFile.noDerived': '이 원본에서 파생된 항목 없음',
+    'wiki.rawFile.openSiblings': '이 원본에서 파생된 {n}개 항목 보기',
 
     // Planner
     'planner.title': '플래너',

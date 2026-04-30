@@ -113,6 +113,33 @@ export async function getMemoryNodeRaw(nodeId: string): Promise<string> {
   return res.text();
 }
 
+export interface RawFileEntry {
+  source_type: string;
+  filename: string;
+  relative_path: string;
+  size: number;
+  mtime: string;
+  derived_node_ids: string[];
+}
+
+export function getProjectRawFiles(projectId: string): Promise<{ files: RawFileEntry[] }> {
+  return get(`/api/projects/${projectId}/memory/raw-files`);
+}
+
+export async function getRawFileByPath(projectId: string, relativePath: string): Promise<string> {
+  const url = `/api/projects/${projectId}/memory/raw-files/content?path=${encodeURIComponent(relativePath)}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    let msg = `Failed to load raw file (${res.status})`;
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.text();
+}
+
 export function lintMemory(
   projectId: string,
 ): Promise<{ issues: { type: string; node_titles: string[]; message: string }[] }> {

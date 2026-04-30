@@ -18,11 +18,14 @@ import {
   ingestMemory,
   lintMemory,
   getMemoryNodeRaw,
+  getProjectRawFiles,
+  type RawFileEntry,
 } from '../api/memory';
 import { getTodos } from '../api/todos';
 import { getDiscussions } from '../api/discussions';
 import Modal from './Modal';
 import MemoryNetworkGraph from './MemoryNetworkGraph';
+import RawFileViewer from './RawFileViewer';
 
 const WIKI_SCHEMA_TAG = '__wiki_schema__';
 const RELATION_TYPES: MemoryRelationType[] = ['related', 'precedes', 'example_of', 'counter_example', 'refines'];
@@ -39,54 +42,65 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const { t } = useI18n();
   const [nodes, setNodes] = useState<MemoryNode[]>([]);
   const [edges, setEdges] = useState<MemoryEdge[]>([]);
+  const [rawFiles, setRawFiles] = useState<RawFileEntry[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedRawPath, setSelectedRawPath] = useState<string | null>(null);
   const [rightPanel, setRightPanel] = useState<'graph' | 'editor'>('graph');
   const [editingEdge, setEditingEdge] = useState<MemoryEdge | null>(null);
   const [pendingConnection, setPendingConnection] = useState<{ fromId: string; toId: string } | null>(null);
   const [showIngest, setShowIngest] = useState(false);
   const [showLint, setShowLint] = useState(false);
-  const [wikiOpen, setWikiOpen] = useState(true);
-  const [rawOpen, setRawOpen] = useState(true);
+  const [entriesOpen, setEntriesOpen] = useState(true);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
 
   const reload = () => {
     getMemoryGraph(projectId)
       .then(g => { setNodes(g.nodes); setEdges(g.edges); })
       .catch(err => console.error('Load memory graph failed', err));
+    getProjectRawFiles(projectId)
+      .then(r => setRawFiles(r.files))
+      .catch(err => console.error('Load raw files failed', err));
   };
 
   useEffect(() => { reload(); }, [projectId]);
 
   const schemaNode = useMemo(() => nodes.find(isSchemaNode), [nodes]);
-  const wikiNodes = useMemo(() => nodes.filter(n => !isSchemaNode(n) && !n.source_type), [nodes]);
-  const rawNodes = useMemo(() => nodes.filter(n => !isSchemaNode(n) && !!n.source_type), [nodes]);
+  const entryNodes = useMemo(() => nodes.filter(n => !isSchemaNode(n)), [nodes]);
 
-  // Group wiki nodes by first tag
-  const wikiGroups = useMemo(() => {
+  // Group entry nodes by first tag
+  const entryGroups = useMemo(() => {
     const groups = new Map<string, MemoryNode[]>();
-    for (const n of wikiNodes) {
+    for (const n of entryNodes) {
       const tags = parseMemoryTags(n.tags).filter(t => t !== WIKI_SCHEMA_TAG);
       const key = tags[0] ?? '—';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(n);
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [wikiNodes]);
+  }, [entryNodes]);
 
-  // Group raw nodes by source_type
-  const rawGroups = useMemo(() => {
-    const groups = new Map<string, MemoryNode[]>();
-    for (const n of rawNodes) {
-      const key = n.source_type ?? 'manual';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(n);
+  // Group raw files by source_type
+  const sourceGroups = useMemo(() => {
+    const groups = new Map<string, RawFileEntry[]>();
+    for (const f of rawFiles) {
+      if (!groups.has(f.source_type)) groups.set(f.source_type, []);
+      groups.get(f.source_type)!.push(f);
     }
-    return Array.from(groups.entries());
-  }, [rawNodes]);
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [rawFiles]);
 
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
+  const selectedRawFile = selectedRawPath ? rawFiles.find(f => f.relative_path === selectedRawPath) : null;
 
   const handleSelectNode = (id: string) => {
     setSelectedNodeId(id);
+    setSelectedRawPath(null);
+    setRightPanel('editor');
+  };
+
+  const handleSelectRawFile = (relativePath: string) => {
+    setSelectedRawPath(relativePath);
+    setSelectedNodeId(null);
     setRightPanel('editor');
   };
 
@@ -178,44 +192,44 @@ export default function MemoryList({ projectId }: MemoryListProps) {
               />
             )}
 
-            {/* wiki/ */}
+            {/* entries/ */}
             <SectionHeader
-              label="wiki/"
-              open={wikiOpen}
-              onToggle={() => setWikiOpen(v => !v)}
-              count={wikiNodes.length}
+              label={t('wiki.section.entries')}
+              open={entriesOpen}
+              onToggle={() => setEntriesOpen(v => !v)}
+              count={entryNodes.length}
             />
-            {wikiOpen && (
-              wikiGroups.length === 0 ? (
+            {entriesOpen && (
+              entryGroups.length === 0 ? (
                 <p className="px-4 py-2 text-[11px] text-warm-400 italic">empty — use Ingest</p>
               ) : (
-                wikiGroups.map(([group, groupNodes]) => (
+                entryGroups.map(([group, groupNodes]) => (
                   <TagGroup key={group} label={group} nodes={groupNodes} selectedId={selectedNodeId} onSelect={handleSelectNode} onDelete={handleDelete} />
                 ))
               )
             )}
 
-            {/* raw/ */}
-            {rawNodes.length > 0 && (
-              <>
-                <SectionHeader
-                  label="raw/"
-                  open={rawOpen}
-                  onToggle={() => setRawOpen(v => !v)}
-                  count={rawNodes.length}
-                />
-                {rawOpen && rawGroups.map(([sourceType, sourceNodes]) => (
-                  <TagGroup
+            {/* sources/ */}
+            <SectionHeader
+              label={t('wiki.section.sources')}
+              open={sourcesOpen}
+              onToggle={() => setSourcesOpen(v => !v)}
+              count={rawFiles.length}
+            />
+            {sourcesOpen && (
+              rawFiles.length === 0 ? (
+                <p className="px-4 py-2 text-[11px] text-warm-400 italic">{t('wiki.rawFile.empty')}</p>
+              ) : (
+                sourceGroups.map(([sourceType, files]) => (
+                  <RawSourceGroup
                     key={sourceType}
                     label={sourceType}
-                    nodes={sourceNodes}
-                    selectedId={selectedNodeId}
-                    onSelect={handleSelectNode}
-                    onDelete={handleDelete}
-                    icon={<Database size={10} className="text-warm-400" />}
+                    files={files}
+                    selectedPath={selectedRawPath}
+                    onSelect={handleSelectRawFile}
                   />
-                ))}
-              </>
+                ))
+              )
             )}
           </div>
         </div>
@@ -244,9 +258,18 @@ export default function MemoryList({ projectId }: MemoryListProps) {
             <InlineEditor
               node={selectedNode}
               allNodes={nodes}
+              rawFiles={rawFiles}
               edges={edges}
               onUpdated={handleNodeUpdated}
               onDelete={handleDelete}
+              onSelectNode={handleSelectNode}
+              onSelectRawFile={handleSelectRawFile}
+            />
+          ) : selectedRawFile ? (
+            <RawFileViewer
+              projectId={projectId}
+              file={selectedRawFile}
+              allNodes={nodes}
               onSelectNode={handleSelectNode}
             />
           ) : (
@@ -260,7 +283,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                 nodes={nodes}
                 edges={edges}
                 selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => { setSelectedNodeId(id); setRightPanel('editor'); }}
+                onSelectNode={(id) => { setSelectedNodeId(id); setSelectedRawPath(null); setRightPanel('editor'); }}
                 onCreateConnection={handleConnectionRequest}
                 onUpdateNodePosition={handleUpdatePosition}
               />
@@ -373,18 +396,55 @@ function SidebarItem({ node, selected, onClick, onDelete, icon }: {
   );
 }
 
+function RawSourceGroup({ label, files, selectedPath, onSelect }: {
+  label: string;
+  files: RawFileEntry[];
+  selectedPath: string | null;
+  onSelect: (relativePath: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-1 pl-5 pr-2 py-1 text-[11px] text-warm-500 hover:text-warm-700 hover:bg-warm-100 select-none"
+      >
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <Database size={10} className="text-warm-400" />
+        <span className="truncate font-mono">{label}/</span>
+        <span className="ml-auto text-warm-400">{files.length}</span>
+      </button>
+      {open && files.map(f => (
+        <div
+          key={f.relative_path}
+          onClick={() => onSelect(f.relative_path)}
+          className={`group flex items-center gap-1 pl-9 pr-2 py-1 cursor-pointer text-[12px] transition-colors ${selectedPath === f.relative_path ? 'bg-warm-200 text-warm-900' : 'text-warm-700 hover:bg-warm-100'}`}
+        >
+          <FileText size={10} className="text-warm-400 flex-shrink-0" />
+          <span className="truncate flex-1" title={f.filename}>{f.filename}</span>
+          {f.derived_node_ids.length > 0 && (
+            <span className="text-[9px] text-warm-400 flex-shrink-0">{f.derived_node_ids.length}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Inline Editor ──
 
 interface InlineEditorProps {
   node: MemoryNode;
   allNodes: MemoryNode[];
+  rawFiles: RawFileEntry[];
   edges: MemoryEdge[];
   onUpdated: (node: MemoryNode) => void;
   onDelete: (node: MemoryNode) => void;
   onSelectNode: (id: string) => void;
+  onSelectRawFile: (relativePath: string) => void;
 }
 
-function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode }: InlineEditorProps) {
+function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, onSelectNode, onSelectRawFile }: InlineEditorProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState(node.title);
   const [body, setBody] = useState(node.body ?? '');
@@ -429,6 +489,9 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
 
   const nodeEdges = edges.filter(e => e.from_node_id === node.id || e.to_node_id === node.id);
   const idToTitle = new Map(allNodes.map(n => [n.id, n.title]));
+
+  const sourceFile = node.source_path ? rawFiles.find(f => f.relative_path === node.source_path) : undefined;
+  const siblingCount = sourceFile ? sourceFile.derived_node_ids.length : 0;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -487,6 +550,17 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
           className="text-[11px] bg-transparent outline-none text-warm-500 placeholder-warm-400 w-16"
         />
       </div>
+
+      {/* Source file sibling chip */}
+      {sourceFile && siblingCount >= 2 && (
+        <button
+          onClick={() => onSelectRawFile(sourceFile.relative_path)}
+          className="mx-4 mt-2 inline-flex items-center gap-1.5 self-start px-2 py-0.5 rounded-full bg-warm-100 hover:bg-warm-200 text-[11px] text-warm-600 border border-warm-200"
+        >
+          <FileText size={10} />
+          {t('wiki.rawFile.openSiblings').replace('{n}', String(siblingCount))}
+        </button>
+      )}
 
       {/* Body editor */}
       <textarea
