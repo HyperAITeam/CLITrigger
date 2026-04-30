@@ -1,26 +1,104 @@
 # Changelog
 
-## 2026-04-30 — "장기기억" → "위키" UI 리네이밍
+## 2026-04-30 — 세션 실시간 터미널 UI + 위키 인제스트 + 즐겨찾기 런처
 
 ### 배경
 
-기능 자체가 Karpathy LLM Wiki 패턴 구현(노드+엣지+wikilink+Ingest/Lint)인데 한글 라벨이 "장기기억"이어서 사용자가 메모리 컴팩션 같은 기능으로 오해할 여지가 있었음. 영문 i18n에는 이미 "Wiki Health Check", "wiki looks healthy" 표현이 섞여 있어 표기 불일치도 존재. 동작 메타포에 맞게 UI 라벨/카피만 "Wiki" / "위키"로 통일.
+세션 탭의 CLI 출력을 스크래핑 후 라인별로 정제하는 방식에서 pixel-perfect xterm.js 렌더링으로 전환. Claude Code의 TUI 스타일이 정확하게 표시되고 ANSI 색상/커서 제어도 그대로 표시되어 실제 터미널과 동일한 경험을 제공. 동시에 PTY가 정확한 viewport 크기로 초기화되도록 floating window에서 크기를 측정 후 시작. 위키 그래프는 엣지 렌더 버그 + 드래그 동기화 지연 + 신경쓰지 않던 styled relation_type 시각화 + 낮은 edge density를 일괄 개선. 인제스트 프롬프트를 강화해서 LLM이 노드 간 연결과 wikilinks를 더 적극적으로 생성. 원본 raw 파일을 OS 기본 앱으로 열거나 탐색기로 reveal하는 기능. 마지막으로 자주 쓰는 외부 도구/명령/URL을 클릭 한 번에 실행하는 Global Favorites 런처를 사이드바에 추가. UI 라벨은 "장기기억" → "위키"로 통일.
 
-### 변경 범위
+### 주요 변경
 
-- **i18n 사전 리네이밍** (`src/client/src/i18n.tsx`): `memory.*` → `wiki.*`, `memoryInject.*` → `wikiInject.*`, `tabs.memory` → `tabs.wiki`. 값 표현도 "메모리"/"노드" → "항목", "Memory"/"node" → "entry/wiki"로 정리
-- **컴포넌트 t() 호출 치환**: `MemoryForm`/`MemoryGraph`/`MemoryList`/`MemoryNetworkGraph`/`MemoryNodeDetail`/`MemoryInjectControl`/`ProjectHeader`/`ProjectDetail` (8 파일)
-- **탭 key 변경**: `ProjectDetail.tsx`의 `{ key: 'memory' }` → `{ key: 'wiki' }` (라우팅 state 정합성 유지)
-- **문서 업데이트**: README, README_KR, CLAUDE.md (사용자 노출 표현만)
+#### 1. Sessions: 실시간 xterm.js 터미널 + Floating Window + 사이즈 피팅 (`3507c2d`, `7a61500`, `35c276c`)
 
-### 변경하지 않은 것 (의도적)
+- **세션 터미널 UI 재설계**:
+  - `SessionWindow.tsx` (new) — macOS-style titlebar drag, bottom-right resize handle, min 320×200. createPortal로 document.body에 렌더. Drag/resize는 gesture 중엔 style.transform 직접 쓰고 mouseup에 React state 커밋 (xterm canvas 안정성). 모바일 (<768px)은 fullscreen 모드, 데스크톱은 auto-offset cascading. 위치/크기는 per-session localStorage 저장
+  - `SessionWindowsHost.tsx` (new) — ProjectDetail 스코프 context provider. open window 추적, z-index 포커스 관리, 세션 삭제 시 auto-close, tab 전환 후에도 window 생존
+  - `useMediaQuery` hook (new) — viewport 미디어쿼리 subscription
+  - tailwind z-index 신규 slot: `floating: 110` (modal과 toast 사이)
+- **xterm.js 실시간 렌더링**:
+  - `SessionTerminal.tsx` — @xterm/xterm + FitAddon. 키스트로크/리사이즈를 WebSocket session:terminal-input / session:resize로 전달. 바이너리 프레임 수신 시 xterm에 write
+  - **DB**: 신규 `session_raw_chunks(session_id, seq, bytes)` 테이블. 255KB ring buffer per-PID. 세션마다 ~2MB rolling cap. FK CASCADE. 재시작 후에도 히스토리 재생
+  - **서버**: claude-manager에 per-pid raw subscriber Map + 256KB ring buffer. stripAnsi 전 fan-out (기존 stripped 경로는 untouched). writeStdinRaw — \n → submitSeq 변환 skip, 바이너리 키스트로크 그대로 전달
+  - **WebSocket**: broadcaster에 per-client subscription set 신규. sendBinaryToSubscribers (4MB backpressure auto-unsubscribe). 네 개 신규 메시지: session:subscribe (persisted 청크 replay → ring tail → session:replay-end), session:unsubscribe, session:terminal-input, session:resize
+  - **클라이언트**: useWebSocket이 바이너리 프레임 수신 시 per-sessionId 콜백 Map으로 dispatch (React state 우회, 성능 최적화). SessionTerminal은 FitAddon으로 viewport에 피팅
+- **Two-Phase PTY 시작** (크기 정확성):
+  - 기존: PTY spawn at 200×50, ~150ms 후 resize (box borders 오정렬)
+  - 개선: SessionWindow open → xterm fit → POST /api/sessions/:id/start with measured {cols, rows}
+  - `claudeManager.startClaude(...)` — optional `ptyCols`, `ptyRows` positional args end (기본 200×50, Todo/Discussion/Codex headless 호출 무변경)
+  - `sessionManager.startSession(id, opts?)` — opts.ptyCols/ptyRows 전달, fallback 100×30
+  - POST body: `{cols, rows}` 검증 (20-500 cols, 10-200 rows)
+- **세션 Window 생명주기 개선**:
+  - SessionWindow phase machine: `pendingFit` → `starting` → `subscribed` | `replay-only` (읽기-전용 열기) → `stopping` → error
+  - SessionWindowsHost.`openOrFocus(sessionId, intent='open'|'start')` — intent + intentNonce. replay-only 윈도우를 'start' intent로 re-focus 시 auto-start (예: 사용자가 조회 용도로 열었다가 ▶ 누른 경우)
+  - X 버튼: running+subscribed이면 확인 모달 → sessionsApi.stopSession → `stopping` phase → auto-close (session:status-changed listener). 아니면 그냥 close
+  - SessionList: row click → `openOrFocus(id, 'open')`, ▶ button → `openOrFocus(id, 'start')`
+  - i18n: session.startInWindow / starting / stopping / startFailed / confirmStop (ko/en)
+- **Deps**: `@xterm/xterm` + `@xterm/addon-fit` (client)
 
-- DB 테이블/컬럼: `memory_nodes`, `memory_edges`, `memory_inject_mode`, `memory_node_ids` 등 — 마이그레이션 리스크 회피
-- API 라우트: `/api/projects/:id/memory/*` — 기존 클라이언트 호환성
-- 프롬프트 XML 태그: `<long_term_memory>` — LLM이 의미 신호로 인식하므로 그대로 유지
-- 컴포넌트/서비스 파일명, TypeScript 타입(`MemoryNode`, `MemoryEdge`, `MemoryInjectMode` 등) — 내부 식별자
+#### 2. Wiki: 그래프 렌더링 + 드래그 동기화 + 엣지 스타일 통일 + 인제스트 강화 (`ec498d3`, `a423c4b`, `07a967c`)
 
-→ 사용자에게 보이는 라벨/탭 이름만 바뀌고, 디스크에 쌓인 데이터와 LLM 컨텍스트 동작은 100% 그대로.
+- **그래프 핸들 + 엣지 렌더링 fix** (`ec498d3`):
+  - `MemoryNetworkGraph.tsx` — MemoryDot 노드에 target(Top) + source(Bottom) Handle 추가 (투명 8×8, hoover 시 25% 흰 테두리). ReactFlow v12는 Handle 없으면 엣지 anchor 불가
+  - drag-to-connect 동작도 함께 복구
+- **엣지 스타일 통일 + 드래그 동기화 fix** (`a423c4b`):
+  - 5종 relation_type 컬러 실선 + wikilink 점선 혼재 → 모두 점선 회색 (#6B7280, dashed 4 3, opacity 0.6). type='straight' 명시로 default bezier 차단 (handle 방향 무시)
+  - relation_type 정보는 Connections 섹션에서 텍스트로 여전히 노출
+  - 핸들 중심 배치: Position.Top × 2 → translate(-50%,-50%) at 노드 center. 원형 fill이 line 안쪽 덮으므로 floating-edge 시각
+  - 드래그 위치 즉시 반영: initialPositions useMemo를 `[length, length, length]` deps only에서 (단일 노드 position_x/y 변경 무시) → `layoutFallback` (force, length deps) + `displayPositions` (rawNodes deps, DB 좌표 우선)로 2단계 분리
+- **Wiki Graph 인제스트 강화** (`07a967c`):
+  - INGEST_PROMPT_HEADER: edge rules "only when clearly implied" → "generate aggressively". 노드마다 최소 1개 연결 권장
+  - 본문 wikilinks 신규 규칙 — 다른 노드 언급 시 [[Exact Title]]로 감싸도록 강제, 1-3개 권장
+  - 5개 relation_type 각각 1줄 가이드: related/precedes/example_of/counter_example/refines
+  - "연결 0인 노드는 코드 스멜" self-check 라인
+  - DEFAULT_WIKI_SCHEMA Conventions: wikilink 'liberally' 사용, 연결 없는 노드 무용성 명시
+- **Raw 파일 열기/reveal** (`07a967c`):
+  - POST /api/projects/:id/memory/raw-files/open — `mode: 'open'|'reveal'` (Windows: start/explorer-select, macOS: open/open-R, Linux: xdg-open). Path traversal guard (project root + .clitrigger/raw/)
+  - `RawFileViewer` 헤더에 ExternalLink/FolderOpen 두 버튼
+  - i18n: wiki.rawFile.{openExternal,revealInFolder}
+
+#### 3. Wiki UI 라벨 통일 (`34c6b89`)
+
+- i18n 사전: `memory.*` → `wiki.*`, `memoryInject.*` → `wikiInject.*`, `tabs.memory` → `tabs.wiki`. "메모리"/"노드" → "항목", "Memory"/"node" → "entry/wiki"
+- 8개 컴포넌트 t() 호출 치환 (MemoryForm, MemoryGraph, MemoryList, MemoryNetworkGraph, MemoryNodeDetail, MemoryInjectControl, ProjectHeader, ProjectDetail)
+- ProjectDetail 탭 key: `memory` → `wiki`
+- 의도적으로 유지: DB 테이블/컬럼 (`memory_nodes`, `memory_edges`), API 라우트 (`/api/projects/:id/memory/*`), 파일명/타입명 (내부 식별자), XML 태그 `<long_term_memory>` (LLM 시맨틱)
+
+#### 4. Global Favorites Launcher (`cd81fea`)
+
+- **DB**: 신규 `favorites` 테이블 (id, name, type, target, args, cwd, icon, sort_order). type CHECK: 'executable' | 'command' | 'url'
+- **서버 라우트**: `/api/favorites` (CRUD) + `POST :id/launch`. Per-type dispatch — URL은 explorer.exe/open/xdg-open, .exe는 spawn(shell:false) (.bat/.cmd는 shell:true on Windows), shell 명령은 exec. 모두 detached + unref (fire-and-forget)
+- **클라이언트**: api/favorites.ts wrapper, Favorite/FavoriteType 타입
+- **UI**: Sidebar에 FAVORITES 섹션 (Projects와 bottom controls 사이). 각 row: icon + name, hover-revealed Edit/Delete. FavoriteForm 모달 — type toggle이 target/args/cwd 입력 전환. Per-type icons (FileCode/Terminal/Link)
+- **검증**: name + target 필수, URL은 http(s)://, target ≤4096 chars, args ≤64 항목, cwd 존재 확인 on launch. "비밀번호 알면 이들 도구 실행 가능" 보안 공지
+- **i18n**: ko/en 전체 (favorites.*, sidebar.favorites)
+
+### 수정된 주요 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/client/src/components/SessionWindow.tsx` | NEW — draggable/resizable floating window, macOS titlebar, corner resize |
+| `src/client/src/components/SessionWindowsHost.tsx` | NEW — context provider for window lifecycle + z-index + localStorage |
+| `src/client/src/components/SessionTerminal.tsx` | xterm.js 인스턴스 + FitAddon, binary frame subscription |
+| `src/client/src/hooks/useMediaQuery.ts` | NEW — viewport media query subscription |
+| `src/client/src/components/MemoryNetworkGraph.tsx` | Handle 추가 (ReactFlow v12 엣지 앵커링) |
+| `src/server/services/claude-manager.ts` | Raw byte ring buffer, writeStdinRaw, ptyCols/ptyRows args |
+| `src/server/services/session-manager.ts` | Raw chunk batching + DB flush, startSession(id, opts?) |
+| `src/server/websocket/broadcaster.ts` | Binary frame support, per-client subscriptions |
+| `src/server/db/schema.ts` | NEW `session_raw_chunks`, `favorites` 테이블 |
+| `src/server/db/queries.ts` | session_raw_chunks CRUD, favorites CRUD + launch |
+| `src/server/routes/sessions.ts` | POST :id/start body {cols, rows}, raw subscription endpoints |
+| `src/server/routes/memory.ts` | POST .../raw-files/open endpoint |
+| `src/client/src/i18n.tsx` | wiki.*, wikiInject.* 키 + favorites.* |
+| `src/client/src/api/sessions.ts` | startSession(id, dims?) |
+| `src/client/src/api/favorites.ts` | NEW — favorites CRUD + launch |
+
+### 아키텍처 결정
+
+1. **xterm.js 렌더링 경로**: Todo/Discussion의 chat-mode LogViewer는 유지 (structured Claude JSON), Session만 raw xterm로 pixel-perfect 표시. 두 경로 독립적
+2. **Raw channel ring buffer**: 재시작 후 히스토리 재생을 위해 DB 저장하되, 세션당 ~2MB rolling cap으로 메모리/DB 폭증 방지
+3. **Floating window portal**: 위키/Todos 탭 전환 후에도 window 생존해야 하므로 ProjectDetail body wrap이 아니라 document.body portal로 (tab switch 시 DOM이 destroy되지 않음)
+4. **Wiki 라벨 변경 + 내부 naming 유지**: 사용자에겐 메타포(Wiki)를 명확히, 시스템은 DB/API/파일명을 안정적으로 (migration 리스크 제거, LLM 시맨틱 신호 보존)
+5. **Favorites launcher**: Project-agnostic하므로 sidebar 글로벌 섹션 (project context 불필요). Fire-and-forget은 orphan process 회피
 
 ---
 
