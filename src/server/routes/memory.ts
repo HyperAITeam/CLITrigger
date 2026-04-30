@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import * as queries from '../db/queries.js';
 import type { MemoryRelationType } from '../db/queries.js';
 import { buildMemoryBlock, type MemoryInjectMode } from '../services/memory-injector.js';
-import { ingestSource, lintWiki } from '../services/memory-ingest.js';
+import { ingestSource, lintWiki, buildSourceTextFromTodo, buildSourceTextFromDiscussion } from '../services/memory-ingest.js';
 import {
   appendWikilinkToBody,
   findBacklinks,
@@ -383,17 +385,91 @@ router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, 
       return;
     }
     const { source_text, source_type, source_id } = req.body ?? {};
-    if (!source_text || typeof source_text !== 'string' || !source_text.trim()) {
-      res.status(400).json({ error: 'source_text is required' });
-      return;
+    const stype: string | null = typeof source_type === 'string' ? source_type : null;
+    const sid: string | null = typeof source_id === 'string' ? source_id : null;
+
+    let text: string;
+    let titleHint: string | null = null;
+
+    if (stype === 'todo' && sid) {
+      const todo = queries.getTodoById(sid);
+      if (!todo || todo.project_id !== project.id) {
+        res.status(404).json({ error: 'Todo not found' });
+        return;
+      }
+      const built = buildSourceTextFromTodo(sid);
+      if (!built) {
+        res.status(400).json({ error: 'Todo has no ingestable content yet' });
+        return;
+      }
+      text = built;
+      titleHint = todo.title;
+    } else if (stype === 'discussion' && sid) {
+      const discussion = queries.getDiscussionById(sid);
+      if (!discussion || discussion.project_id !== project.id) {
+        res.status(404).json({ error: 'Discussion not found' });
+        return;
+      }
+      const built = buildSourceTextFromDiscussion(sid);
+      if (!built) {
+        res.status(400).json({ error: 'Discussion has no ingestable content yet' });
+        return;
+      }
+      text = built;
+      titleHint = discussion.title;
+    } else {
+      // manual paste (or any direct source_text)
+      if (!source_text || typeof source_text !== 'string' || !source_text.trim()) {
+        res.status(400).json({ error: 'source_text is required for manual ingest' });
+        return;
+      }
+      text = source_text.trim();
     }
+
     const result = await ingestSource(
       req.params.id,
-      source_text.trim(),
-      typeof source_type === 'string' ? source_type : null,
-      typeof source_id === 'string' ? source_id : null,
+      text,
+      stype === 'todo' || stype === 'discussion' ? stype : 'manual',
+      sid,
+      titleHint,
     );
     res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Raw source viewer ──
+
+router.get('/memory/nodes/:nodeId/raw', (req: Request<{ nodeId: string }>, res: Response) => {
+  try {
+    const node = queries.getMemoryNodeById(req.params.nodeId);
+    if (!node) {
+      res.status(404).json({ error: 'Memory node not found' });
+      return;
+    }
+    if (!node.source_path) {
+      res.status(404).json({ error: 'No raw source associated with this node' });
+      return;
+    }
+    const project = queries.getProjectById(node.project_id);
+    if (!project || !project.path) {
+      res.status(404).json({ error: 'Project path unavailable' });
+      return;
+    }
+    // Path traversal guard: resolved path must be under project root
+    const absPath = path.resolve(project.path, node.source_path);
+    const projectRoot = path.resolve(project.path);
+    if (!absPath.startsWith(projectRoot + path.sep) && absPath !== projectRoot) {
+      res.status(400).json({ error: 'Invalid source path' });
+      return;
+    }
+    if (!fs.existsSync(absPath)) {
+      res.status(404).json({ error: 'Raw source file no longer exists', path: node.source_path });
+      return;
+    }
+    const content = fs.readFileSync(absPath, 'utf-8');
+    res.type('text/markdown; charset=utf-8').send(content);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

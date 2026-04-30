@@ -1,6 +1,82 @@
 import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 import * as queries from '../db/queries.js';
 import type { CliTool } from './cli-adapters.js';
+
+const RAW_DIR_NAME = '.clitrigger';
+const RAW_SUBDIR = 'raw';
+const VALID_SOURCE_TYPES = new Set(['todo', 'discussion', 'manual']);
+
+function ensureGitignore(projectPath: string, entry: string): void {
+  const gitignorePath = path.join(projectPath, '.gitignore');
+  try {
+    const content = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+    const lines = content.split(/\r?\n/);
+    if (!lines.some(l => l.trim() === entry)) {
+      const newline = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+      fs.appendFileSync(gitignorePath, `${newline}${entry}\n`);
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+function slugify(input: string, maxLen = 40): string {
+  if (!input) return 'untitled';
+  const cleaned = input
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, maxLen);
+  return cleaned || 'untitled';
+}
+
+function timestampStr(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/**
+ * Write the raw source text to <projectPath>/.clitrigger/raw/<sourceType>/<file>.md
+ * and return the project-relative path. Returns null on failure (non-fatal).
+ */
+function writeRawSnapshot(
+  project: queries.Project,
+  sourceType: string,
+  sourceId: string | null,
+  fullText: string,
+  titleHint: string,
+): string | null {
+  if (!VALID_SOURCE_TYPES.has(sourceType)) return null;
+  if (!project.path) return null;
+  try {
+    const baseDir = path.join(project.path, RAW_DIR_NAME, RAW_SUBDIR, sourceType);
+    fs.mkdirSync(baseDir, { recursive: true });
+    ensureGitignore(project.path, `${RAW_DIR_NAME}/`);
+
+    const ts = timestampStr();
+    const idPart = sourceId ? `-${sourceId.slice(0, 8)}` : '';
+    const slug = slugify(titleHint || sourceType);
+    const filename = `${ts}${idPart}-${slug}.md`;
+    const filePath = path.join(baseDir, filename);
+
+    // Defensive: ensure final resolved path is still inside baseDir
+    const resolvedFinal = path.resolve(filePath);
+    const resolvedBase = path.resolve(baseDir);
+    if (!resolvedFinal.startsWith(resolvedBase + path.sep) && resolvedFinal !== resolvedBase) {
+      return null;
+    }
+
+    fs.writeFileSync(filePath, fullText, 'utf-8');
+    const rel = path.relative(project.path, filePath).split(path.sep).join('/');
+    return rel;
+  } catch (err) {
+    console.warn('[memory-ingest] writeRawSnapshot failed:', err);
+    return null;
+  }
+}
 
 const DEFAULT_WIKI_SCHEMA = `# Wiki Schema
 
@@ -249,10 +325,18 @@ export async function ingestSource(
   sourceText: string,
   sourceType: string | null,
   sourceId: string | null,
+  titleHint?: string | null,
 ): Promise<IngestResult> {
   const project = queries.getProjectById(projectId);
   if (!project) throw new Error('Project not found');
   const cliTool = resolveCliTool(project.cli_tool);
+
+  // Step 1: persist raw snapshot (immutable). Failure is non-fatal.
+  let rawPath: string | null = null;
+  if (sourceType && VALID_SOURCE_TYPES.has(sourceType)) {
+    const hint = (titleHint && titleHint.trim()) || sourceText.split('\n').find(l => l.trim())?.trim().slice(0, 60) || sourceType;
+    rawPath = writeRawSnapshot(project, sourceType, sourceId, sourceText, hint);
+  }
 
   const schema = getOrCreateSchemaNode(projectId);
   const nodes = queries.getMemoryNodesByProjectId(projectId);
@@ -288,6 +372,7 @@ export async function ingestSource(
         0,
         sourceType,
         sourceId,
+        rawPath,
       );
       titleToId.set(title.toLowerCase(), node.id);
       createdIds.push(node.id);
@@ -366,20 +451,62 @@ export function buildSourceTextFromTodo(todoId: string): string | null {
   const logs = queries.getTaskLogsByTodoId(todoId);
   if (logs.length === 0) return null;
 
-  const latestRound = logs.reduce((max, l) => Math.max(max, l.round_number ?? 1), 1);
-  const inRound = logs.filter(l => (l.round_number ?? 1) === latestRound);
-
-  const assistantMessages = inRound
+  const assistantLogs = logs
     .filter(l => l.log_type === 'assistant' && l.message.trim())
-    .map(l => l.message.trim());
-
-  if (assistantMessages.length === 0) return null;
+    .sort((a, b) => (a.round_number ?? 1) - (b.round_number ?? 1));
+  if (assistantLogs.length === 0) return null;
 
   const lines: string[] = [];
-  lines.push(`## Task: ${todo.title}`);
-  if (todo.description) lines.push(todo.description.trim());
+  lines.push(`# Task: ${todo.title}`);
+  if (todo.description) {
+    lines.push('');
+    lines.push('## Description');
+    lines.push(todo.description.trim());
+  }
   lines.push('');
-  lines.push('## Output');
-  lines.push(assistantMessages.slice(-5).join('\n\n').slice(0, 6000));
+
+  // Group by round
+  const byRound = new Map<number, string[]>();
+  for (const l of assistantLogs) {
+    const r = l.round_number ?? 1;
+    if (!byRound.has(r)) byRound.set(r, []);
+    byRound.get(r)!.push(l.message.trim());
+  }
+  for (const [round, msgs] of [...byRound.entries()].sort(([a], [b]) => a - b)) {
+    lines.push(`## Round ${round}`);
+    lines.push(msgs.join('\n\n'));
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+export function buildSourceTextFromDiscussion(discussionId: string): string | null {
+  const discussion = queries.getDiscussionById(discussionId);
+  if (!discussion) return null;
+  const messages = queries.getDiscussionMessages(discussionId);
+  if (messages.length === 0) return null;
+
+  const completed = messages.filter(m => m.status === 'completed' && m.content && m.content.trim());
+  if (completed.length === 0) return null;
+
+  const lines: string[] = [];
+  lines.push(`# Discussion: ${discussion.title}`);
+  if (discussion.description) {
+    lines.push('');
+    lines.push('## Description');
+    lines.push(discussion.description.trim());
+  }
+  lines.push('');
+
+  let lastRound = -1;
+  for (const m of completed) {
+    if (m.round_number !== lastRound) {
+      lines.push(`## Round ${m.round_number}`);
+      lastRound = m.round_number;
+    }
+    lines.push(`### ${m.agent_name} (${m.role})`);
+    lines.push((m.content ?? '').trim());
+    lines.push('');
+  }
   return lines.join('\n');
 }

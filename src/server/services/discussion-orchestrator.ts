@@ -7,6 +7,23 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
+import { ingestSource, buildSourceTextFromDiscussion } from './memory-ingest.js';
+
+function maybeAutoIngestDiscussion(discussionId: string): void {
+  try {
+    const d = queries.getDiscussionById(discussionId);
+    if (!d) return;
+    const proj = queries.getProjectById(d.project_id);
+    if (!proj?.memory_auto_ingest) return;
+    const text = buildSourceTextFromDiscussion(discussionId);
+    if (!text) return;
+    ingestSource(proj.id, text, 'discussion', discussionId, d.title).catch((err) => {
+      console.error('[memory-ingest] discussion auto-ingest failed:', err);
+    });
+  } catch (err) {
+    console.error('[memory-ingest] discussion auto-ingest hook failed:', err);
+  }
+}
 
 export class DiscussionOrchestrator {
   /**
@@ -360,6 +377,7 @@ export class DiscussionOrchestrator {
       queries.updateDiscussion(discussionId, { current_agent_id: null });
       queries.createDiscussionLog(discussionId, null, 'info', 'Implementation completed. Discussion finished.');
       broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'completed', currentRound: currentMsg.round_number, currentAgentId: null });
+      maybeAutoIngestDiscussion(discussionId);
       return;
     }
 
@@ -415,6 +433,7 @@ export class DiscussionOrchestrator {
     queries.updateDiscussion(discussionId, { current_agent_id: null });
     queries.createDiscussionLog(discussionId, null, 'info', 'All discussion rounds completed.');
     broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'completed', currentRound: discussion.max_rounds, currentAgentId: null });
+    maybeAutoIngestDiscussion(discussionId);
   }
 
   /**

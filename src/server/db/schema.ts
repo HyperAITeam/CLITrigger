@@ -296,6 +296,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'memory_auto_ingest', definition: 'INTEGER DEFAULT 0' },
     { table: 'memory_nodes', column: 'source_type', definition: 'TEXT' },
     { table: 'memory_nodes', column: 'source_id', definition: 'TEXT' },
+    { table: 'memory_nodes', column: 'source_path', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

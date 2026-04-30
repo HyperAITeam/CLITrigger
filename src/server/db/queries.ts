@@ -1311,6 +1311,7 @@ export interface MemoryNode {
   pinned: number;
   source_type: string | null;
   source_id: string | null;
+  source_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1333,14 +1334,15 @@ export function createMemoryNode(
   pinned: number = 0,
   sourceType?: string | null,
   sourceId?: string | null,
+  sourcePath?: string | null,
 ): MemoryNode {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, source_type, source_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, sourceType ?? null, sourceId ?? null, now, now);
+    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, source_type, source_id, source_path, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, sourceType ?? null, sourceId ?? null, sourcePath ?? null, now, now);
   return getMemoryNodeById(id)!;
 }
 
@@ -1370,7 +1372,7 @@ export function getMemoryNodeByTitle(projectId: string, title: string): MemoryNo
 
 export function updateMemoryNode(
   id: string,
-  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned' | 'source_type' | 'source_id'>>,
+  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned' | 'source_type' | 'source_id' | 'source_path'>>,
 ): MemoryNode | undefined {
   const db = getDatabase();
   const fields: string[] = [];
@@ -1382,6 +1384,7 @@ export function updateMemoryNode(
   if (updates.pinned !== undefined) { fields.push('pinned = ?'); values.push(updates.pinned ? 1 : 0); }
   if (updates.source_type !== undefined) { fields.push('source_type = ?'); values.push(updates.source_type); }
   if (updates.source_id !== undefined) { fields.push('source_id = ?'); values.push(updates.source_id); }
+  if (updates.source_path !== undefined) { fields.push('source_path = ?'); values.push(updates.source_path); }
 
   if (fields.length === 0) return getMemoryNodeById(id);
 

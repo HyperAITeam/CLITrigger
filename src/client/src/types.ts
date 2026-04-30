@@ -362,6 +362,7 @@ export interface MemoryNode {
   pinned: number;
   source_type: string | null;
   source_id: string | null;
+  source_path: string | null;
   created_at: string;
   updated_at: string;
 }
