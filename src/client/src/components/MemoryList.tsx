@@ -3,7 +3,7 @@ import {
   ChevronDown, ChevronRight, Edit2, Trash2, Pin, Network,
   Download, Wrench, Loader2, AlertCircle, Save, FileText, Database,
 } from 'lucide-react';
-import type { MemoryNode, MemoryEdge, MemoryRelationType, Todo } from '../types';
+import type { MemoryNode, MemoryEdge, MemoryRelationType, Todo, Discussion } from '../types';
 import { useI18n } from '../i18n';
 import {
   getMemoryGraph,
@@ -17,8 +17,10 @@ import {
   parseMemoryTags,
   ingestMemory,
   lintMemory,
+  getMemoryNodeRaw,
 } from '../api/memory';
 import { getTodos } from '../api/todos';
+import { getDiscussions } from '../api/discussions';
 import Modal from './Modal';
 import MemoryNetworkGraph from './MemoryNetworkGraph';
 
@@ -390,6 +392,7 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
   const [tags, setTags] = useState<string[]>(parseMemoryTags(node.tags).filter(t => t !== WIKI_SCHEMA_TAG));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset when node changes
@@ -446,6 +449,15 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               {t('wiki.save')}
+            </button>
+          )}
+          {node.source_path && (
+            <button
+              onClick={() => setShowRaw(true)}
+              className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+              title={t('wiki.viewRaw')}
+            >
+              <FileText size={14} />
             </button>
           )}
           <button
@@ -511,7 +523,53 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
           </div>
         </div>
       )}
+
+      {showRaw && <RawSourceModal node={node} onClose={() => setShowRaw(false)} />}
     </div>
+  );
+}
+
+// ── Raw source modal ──
+
+interface RawSourceModalProps { node: MemoryNode; onClose: () => void; }
+
+function RawSourceModal({ node, onClose }: RawSourceModalProps) {
+  const { t } = useI18n();
+  const [content, setContent] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getMemoryNodeRaw(node.id)
+      .then(setContent)
+      .catch(err => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  }, [node.id]);
+
+  return (
+    <Modal open={true} onClose={onClose} size="lg">
+      <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-warm-800">{t('wiki.viewRaw')}</h3>
+          {node.source_path && (
+            <code className="text-[11px] text-warm-500 truncate max-w-[60%]">{node.source_path}</code>
+          )}
+        </div>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-warm-500 py-8 justify-center">
+            <Loader2 size={14} className="animate-spin" /> {t('wiki.loading')}
+          </div>
+        ) : error ? (
+          <p className="text-sm text-status-error py-4">{error}</p>
+        ) : (
+          <pre className="text-xs text-warm-800 bg-warm-100 rounded-lg p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">{content}</pre>
+        )}
+        <div className="flex justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.close')}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -606,36 +664,45 @@ interface IngestModalProps { projectId: string; onClose: () => void; onDone: () 
 
 function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<'task' | 'text'>('task');
+  const [tab, setTab] = useState<'task' | 'discussion' | 'text'>('task');
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [selectedTodoId, setSelectedTodoId] = useState('');
+  const [selectedDiscussionId, setSelectedDiscussionId] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState('');
   const [result, setResult] = useState<{ created: number; updated: number; edgesAdded: number } | null>(null);
 
   useEffect(() => {
     getTodos(projectId).then(all => setTodos(all.filter(td => td.status === 'completed'))).catch(() => {});
+    getDiscussions(projectId).then(all => setDiscussions(all.filter(d => d.status === 'completed'))).catch(() => {});
   }, [projectId]);
 
-  const canRun = tab === 'task' ? !!selectedTodoId : pasteText.trim().length > 0;
+  const canRun =
+    tab === 'task' ? !!selectedTodoId :
+    tab === 'discussion' ? !!selectedDiscussionId :
+    pasteText.trim().length > 0;
 
   const handleRun = async () => {
     if (!canRun || running) return;
-    setRunning(true); setResult(null);
+    setRunning(true); setResult(null); setError('');
     try {
-      let sourceText = '', sourceType: string | undefined, sourceId: string | undefined;
+      let payload: { source_text?: string; source_type?: string; source_id?: string };
       if (tab === 'task') {
-        const todo = todos.find(td => td.id === selectedTodoId);
-        if (!todo) return;
-        sourceText = `## Task: ${todo.title}\n${todo.description ?? ''}`;
-        sourceType = 'todo'; sourceId = todo.id;
+        payload = { source_type: 'todo', source_id: selectedTodoId };
+      } else if (tab === 'discussion') {
+        payload = { source_type: 'discussion', source_id: selectedDiscussionId };
       } else {
-        sourceText = pasteText.trim(); sourceType = 'manual';
+        payload = { source_type: 'manual', source_text: pasteText.trim() };
       }
-      const res = await ingestMemory(projectId, { source_text: sourceText, source_type: sourceType, source_id: sourceId });
+      const res = await ingestMemory(projectId, payload);
       setResult(res);
       setTimeout(onDone, 1500);
-    } catch (err) { console.error('Ingest failed', err); }
+    } catch (err) {
+      console.error('Ingest failed', err);
+      setError(err instanceof Error ? err.message : String(err));
+    }
     finally { setRunning(false); }
   };
 
@@ -645,6 +712,7 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
         <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.ingest.title')}</h3>
         <div className="inline-flex rounded-lg border border-warm-200 overflow-hidden mb-4">
           <button onClick={() => setTab('task')} className={`px-3 py-1.5 text-xs ${tab === 'task' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('wiki.ingest.tabTask')}</button>
+          <button onClick={() => setTab('discussion')} className={`px-3 py-1.5 text-xs ${tab === 'discussion' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('wiki.ingest.tabDiscussion')}</button>
           <button onClick={() => setTab('text')} className={`px-3 py-1.5 text-xs ${tab === 'text' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('wiki.ingest.tabText')}</button>
         </div>
         {tab === 'task' ? (
@@ -654,9 +722,17 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
               {todos.map(todo => <option key={todo.id} value={todo.id}>{todo.title}</option>)}
             </select>
           )
+        ) : tab === 'discussion' ? (
+          discussions.length === 0 ? <p className="text-sm text-warm-500 py-4">{t('wiki.ingest.noDiscussions')}</p> : (
+            <select value={selectedDiscussionId} onChange={e => setSelectedDiscussionId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm focus:outline-none">
+              <option value="">{t('wiki.ingest.selectDiscussion')}</option>
+              {discussions.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+            </select>
+          )
         ) : (
           <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder={t('wiki.ingest.textPlaceholder')} rows={8} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm resize-y focus:outline-none" />
         )}
+        {error && <p className="mt-3 text-xs text-status-error">{error}</p>}
         {result && (
           <p className="mt-3 text-xs text-status-success">
             {t('wiki.ingest.success').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)).replace('{edges}', String(result.edgesAdded))}

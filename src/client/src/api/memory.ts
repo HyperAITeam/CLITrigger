@@ -95,9 +95,22 @@ export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
 
 export function ingestMemory(
   projectId: string,
-  data: { source_text: string; source_type?: string; source_id?: string },
+  data: { source_text?: string; source_type?: string; source_id?: string },
 ): Promise<{ created: number; updated: number; edgesAdded: number; nodeIds: string[] }> {
   return post(`/api/projects/${projectId}/memory/ingest`, data);
+}
+
+export async function getMemoryNodeRaw(nodeId: string): Promise<string> {
+  const res = await fetch(`/api/memory/nodes/${nodeId}/raw`, { credentials: 'include' });
+  if (!res.ok) {
+    let msg = `Failed to load raw source (${res.status})`;
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.text();
 }
 
 export function lintMemory(

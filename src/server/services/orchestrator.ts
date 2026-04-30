@@ -746,7 +746,8 @@ Complete the task in the current directory.`;
           if (project.memory_auto_ingest) {
             const sourceText = buildSourceTextFromTodo(todoId);
             if (sourceText) {
-              ingestSource(projectId, sourceText, 'todo', todoId).catch((err) => {
+              const todo = queries.getTodoById(todoId);
+              ingestSource(projectId, sourceText, 'todo', todoId, todo?.title ?? null).catch((err) => {
                 console.error('[memory-ingest] auto-ingest failed:', err);
               });
             }
