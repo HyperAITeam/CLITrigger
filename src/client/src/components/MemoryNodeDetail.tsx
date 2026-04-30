@@ -18,11 +18,11 @@ interface MemoryNodeDetailProps {
 }
 
 const RELATION_KEYS: Record<MemoryRelationType, string> = {
-  related: 'memory.edge.relations.related',
-  precedes: 'memory.edge.relations.precedes',
-  example_of: 'memory.edge.relations.example_of',
-  counter_example: 'memory.edge.relations.counter_example',
-  refines: 'memory.edge.relations.refines',
+  related: 'wiki.edge.relations.related',
+  precedes: 'wiki.edge.relations.precedes',
+  example_of: 'wiki.edge.relations.example_of',
+  counter_example: 'wiki.edge.relations.counter_example',
+  refines: 'wiki.edge.relations.refines',
 };
 
 export default function MemoryNodeDetail({
@@ -100,14 +100,14 @@ export default function MemoryNodeDetail({
           <button
             onClick={() => setLinkPickerOpen(v => !v)}
             className="p-1.5 hover:bg-warm-200 rounded"
-            title={t('memory.addLink')}
+            title={t('wiki.addLink')}
           >
             <Link2 size={14} />
           </button>
-          <button onClick={() => onEdit(node)} className="p-1.5 hover:bg-warm-200 rounded" title={t('memory.edit')}>
+          <button onClick={() => onEdit(node)} className="p-1.5 hover:bg-warm-200 rounded" title={t('wiki.edit')}>
             <Edit2 size={14} />
           </button>
-          <button onClick={() => onDelete(node)} className="p-1.5 hover:bg-red-100 text-red-600 rounded" title={t('memory.delete')}>
+          <button onClick={() => onDelete(node)} className="p-1.5 hover:bg-red-100 text-red-600 rounded" title={t('wiki.delete')}>
             <Trash2 size={14} />
           </button>
           <button onClick={onClose} className="p-1.5 hover:bg-warm-200 rounded">
@@ -121,7 +121,7 @@ export default function MemoryNodeDetail({
           <input
             value={linkSearch}
             onChange={e => setLinkSearch(e.target.value)}
-            placeholder={t('memory.addLinkPlaceholder')}
+            placeholder={t('wiki.addLinkPlaceholder')}
             className="w-full px-2 py-1.5 rounded border border-warm-300 bg-warm-50 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
             autoFocus
           />
@@ -139,7 +139,7 @@ export default function MemoryNodeDetail({
               </li>
             ))}
             {linkCandidates.length === 0 && (
-              <li className="px-2 py-1 text-xs text-warm-500">{t('memory.noResults')}</li>
+              <li className="px-2 py-1 text-xs text-warm-500">{t('wiki.noResults')}</li>
             )}
           </ul>
         </div>
@@ -153,12 +153,12 @@ export default function MemoryNodeDetail({
             onSelectMemoryNode={onSelectNode}
           />
         ) : (
-          <p className="text-sm text-warm-500 italic">{t('memory.noBody')}</p>
+          <p className="text-sm text-warm-500 italic">{t('wiki.noBody')}</p>
         )}
 
         {backlinks.length > 0 && (
           <div className="mt-5 pt-4 border-t border-warm-200">
-            <h4 className="text-xs font-semibold text-warm-600 uppercase mb-2">{t('memory.backlinks')}</h4>
+            <h4 className="text-xs font-semibold text-warm-600 uppercase mb-2">{t('wiki.backlinks')}</h4>
             <ul className="space-y-2">
               {backlinks.map(b => (
                 <li key={b.id} className="text-sm">
@@ -177,10 +177,10 @@ export default function MemoryNodeDetail({
 
         {(outgoing.length > 0 || incoming.length > 0) && (
           <div className="mt-5 pt-4 border-t border-warm-200">
-            <h4 className="text-xs font-semibold text-warm-600 uppercase mb-2">{t('memory.connections')}</h4>
+            <h4 className="text-xs font-semibold text-warm-600 uppercase mb-2">{t('wiki.connections')}</h4>
             {outgoing.length > 0 && (
               <div className="mb-3">
-                <div className="text-xs text-warm-500 mb-1">{t('memory.outgoing')}</div>
+                <div className="text-xs text-warm-500 mb-1">{t('wiki.outgoing')}</div>
                 <ul className="space-y-1">
                   {outgoing.map(e => {
                     const target = nodeMap.get(e.to_node_id);
@@ -202,7 +202,7 @@ export default function MemoryNodeDetail({
             )}
             {incoming.length > 0 && (
               <div>
-                <div className="text-xs text-warm-500 mb-1">{t('memory.incoming')}</div>
+                <div className="text-xs text-warm-500 mb-1">{t('wiki.incoming')}</div>
                 <ul className="space-y-1">
                   {incoming.map(e => {
                     const src = nodeMap.get(e.from_node_id);

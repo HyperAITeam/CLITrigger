@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-04-30 — "장기기억" → "위키" UI 리네이밍
+
+### 배경
+
+기능 자체가 Karpathy LLM Wiki 패턴 구현(노드+엣지+wikilink+Ingest/Lint)인데 한글 라벨이 "장기기억"이어서 사용자가 메모리 컴팩션 같은 기능으로 오해할 여지가 있었음. 영문 i18n에는 이미 "Wiki Health Check", "wiki looks healthy" 표현이 섞여 있어 표기 불일치도 존재. 동작 메타포에 맞게 UI 라벨/카피만 "Wiki" / "위키"로 통일.
+
+### 변경 범위
+
+- **i18n 사전 리네이밍** (`src/client/src/i18n.tsx`): `memory.*` → `wiki.*`, `memoryInject.*` → `wikiInject.*`, `tabs.memory` → `tabs.wiki`. 값 표현도 "메모리"/"노드" → "항목", "Memory"/"node" → "entry/wiki"로 정리
+- **컴포넌트 t() 호출 치환**: `MemoryForm`/`MemoryGraph`/`MemoryList`/`MemoryNetworkGraph`/`MemoryNodeDetail`/`MemoryInjectControl`/`ProjectHeader`/`ProjectDetail` (8 파일)
+- **탭 key 변경**: `ProjectDetail.tsx`의 `{ key: 'memory' }` → `{ key: 'wiki' }` (라우팅 state 정합성 유지)
+- **문서 업데이트**: README, README_KR, CLAUDE.md (사용자 노출 표현만)
+
+### 변경하지 않은 것 (의도적)
+
+- DB 테이블/컬럼: `memory_nodes`, `memory_edges`, `memory_inject_mode`, `memory_node_ids` 등 — 마이그레이션 리스크 회피
+- API 라우트: `/api/projects/:id/memory/*` — 기존 클라이언트 호환성
+- 프롬프트 XML 태그: `<long_term_memory>` — LLM이 의미 신호로 인식하므로 그대로 유지
+- 컴포넌트/서비스 파일명, TypeScript 타입(`MemoryNode`, `MemoryEdge`, `MemoryInjectMode` 등) — 내부 식별자
+
+→ 사용자에게 보이는 라벨/탭 이름만 바뀌고, 디스크에 쌓인 데이터와 LLM 컨텍스트 동작은 100% 그대로.
+
+---
+
 ## 2026-04-28 — Long-term Memory 그래프 + Discussion → Planner 변환 + Harness CLI 설정 플러그인 + Review Queue 인라인 diff
 
 ### 배경

@@ -74,7 +74,7 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
     <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-warm-800">
-          {editNode ? t('memory.form.editTitle') : t('memory.form.newTitle')}
+          {editNode ? t('wiki.form.editTitle') : t('wiki.form.newTitle')}
         </h3>
         <button onClick={onCancel} className="p-1 hover:bg-warm-200 rounded">
           <X size={16} />
@@ -83,23 +83,23 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs text-warm-600 mb-1">{t('memory.form.title')}</label>
+          <label className="block text-xs text-warm-600 mb-1">{t('wiki.form.title')}</label>
           <input
             ref={titleRef}
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder={t('memory.form.titlePlaceholder')}
+            placeholder={t('wiki.form.titlePlaceholder')}
             className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
           />
         </div>
 
         <div>
-          <label className="block text-xs text-warm-600 mb-1">{t('memory.form.body')}</label>
+          <label className="block text-xs text-warm-600 mb-1">{t('wiki.form.body')}</label>
           <textarea
             ref={bodyRef}
             value={body}
             onChange={e => setBody(e.target.value)}
-            placeholder={t('memory.form.bodyPlaceholder')}
+            placeholder={t('wiki.form.bodyPlaceholder')}
             rows={8}
             className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-warm-400 resize-y"
           />
@@ -110,12 +110,12 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
             onChange={setBody}
           />
           <div className="mt-1 text-[11px] text-warm-500">
-            {t('memory.form.linkHint')}
+            {t('wiki.form.linkHint')}
           </div>
         </div>
 
         <div>
-          <label className="block text-xs text-warm-600 mb-1">{t('memory.form.tags')}</label>
+          <label className="block text-xs text-warm-600 mb-1">{t('wiki.form.tags')}</label>
           <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg border border-warm-200 bg-warm-0 min-h-[38px]">
             {tags.map(tag => (
               <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warm-200 text-xs text-warm-800">
@@ -130,7 +130,7 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
               onChange={e => setTagInput(e.target.value)}
               onKeyDown={handleTagKeyDown}
               onBlur={() => tagInput && addTag(tagInput)}
-              placeholder={tags.length === 0 ? t('memory.form.tagsPlaceholder') : ''}
+              placeholder={tags.length === 0 ? t('wiki.form.tagsPlaceholder') : ''}
               className="flex-1 min-w-[80px] bg-transparent text-sm focus:outline-none"
             />
           </div>
@@ -138,7 +138,7 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
 
         <label className="flex items-center gap-2 text-sm text-warm-700">
           <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
-          {t('memory.form.pinned')}
+          {t('wiki.form.pinned')}
         </label>
       </div>
 
@@ -148,13 +148,13 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
           disabled={!title.trim() || saving}
           className="px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? t('memory.saving') : t('memory.save')}
+          {saving ? t('wiki.saving') : t('wiki.save')}
         </button>
         <button
           onClick={onCancel}
           className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100"
         >
-          {t('memory.cancel')}
+          {t('wiki.cancel')}
         </button>
       </div>
     </div>

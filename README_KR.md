@@ -107,7 +107,7 @@ CLITrigger의 모든 기능 — Planner, Scheduler, 워크트리 격리, 한도 
 ### 플러그인 시스템 (Harness · Jira · GitHub · Notion · gstack)
 **Harness** 패널에서는 Claude / Gemini / Codex의 사용자 설정(settings, 메모리 파일, MCP 서버)을 IDE를 열지 않고 브라우저에서 바로 편집한다 — atomic write + deep-merge로 손대지 않은 필드는 그대로 유지하고, 프로젝트가 trusted 목록에 없으면 Codex `trustLevelMissing` 경고가 노출된다. Jira, GitHub, Notion 연동과 gstack 스킬 주입도 동일하게 자가 완결형 플러그인으로 함께 제공된다. `external-service`(REST 프록시 + 패널 탭)와 `execution-hook`(오케스트레이터 사전 실행 훅) 두 카테고리를 지원한다. 새 통합을 추가하려면 매니페스트와 `registerPlugin()` 호출만 있으면 되고, 코어 코드를 건드릴 필요가 없다.
 
-### 장기 메모리 그래프 (Long-term Memory)
+### 위키 (Karpathy LLM-Wiki 패턴)
 프로젝트별로 한 번 정리해 두면 TODO와 토론 프롬프트에 골라 주입할 수 있는 노드+엣지 지식 그래프. 매번 같은 도메인 컨텍스트를 붙여넣을 필요가 없다. List / Graph 뷰 토글(`@xyflow/react` + dagre 자동 레이아웃, drag-to-connect 엣지, `precedes`/`refines` 관계는 cycle 차단), todo마다 `None` / `All` / `Selected` 모드 선택, 전송 전 `<long_term_memory>` 블록 미리보기까지. CLI-agnostic — Claude / Gemini / Codex 모두 동일한 컨텍스트를 받으며 어댑터 변경이 필요 없다.
 
 ### Planner (플래너)

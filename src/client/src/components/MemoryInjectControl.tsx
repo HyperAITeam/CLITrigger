@@ -52,7 +52,7 @@ export default function MemoryInjectControl({
     setPreviewLoading(true);
     try {
       const res = await previewMemoryInjection(projectId, mode, selectedIds);
-      setPreviewText(res.prompt || t('memoryInject.empty'));
+      setPreviewText(res.prompt || t('wikiInject.empty'));
     } catch (err) {
       setPreviewText(err instanceof Error ? err.message : 'Preview failed');
     } finally {
@@ -68,7 +68,7 @@ export default function MemoryInjectControl({
   return (
     <div className="rounded-lg border border-warm-200 bg-warm-50 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-medium text-warm-800">{t('memoryInject.title')}</div>
+        <div className="text-sm font-medium text-warm-800">{t('wikiInject.title')}</div>
         {mode !== 'none' && (
           <button
             type="button"
@@ -76,7 +76,7 @@ export default function MemoryInjectControl({
             className="inline-flex items-center gap-1 text-xs text-warm-600 hover:text-warm-800"
           >
             {showPreview ? <EyeOff size={12} /> : <Eye size={12} />}
-            {t('memoryInject.previewToggle')}
+            {t('wikiInject.previewToggle')}
           </button>
         )}
       </div>
@@ -93,7 +93,7 @@ export default function MemoryInjectControl({
                 : 'bg-warm-100 text-warm-700 hover:bg-warm-200'
             }`}
           >
-            {t(`memoryInject.mode${m.charAt(0).toUpperCase() + m.slice(1)}`)}
+            {t(`wikiInject.mode${m.charAt(0).toUpperCase() + m.slice(1)}`)}
           </button>
         ))}
       </div>
@@ -101,15 +101,15 @@ export default function MemoryInjectControl({
       {mode === 'selected' && (
         <div className="mt-2">
           {!loaded ? (
-            <div className="text-xs text-warm-500">{t('memoryInject.loading')}</div>
+            <div className="text-xs text-warm-500">{t('wikiInject.loading')}</div>
           ) : nodes.length === 0 ? (
-            <div className="text-xs text-warm-500 italic">{t('memoryInject.empty')}</div>
+            <div className="text-xs text-warm-500 italic">{t('wikiInject.empty')}</div>
           ) : (
             <>
               <input
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
-                placeholder={t('memoryInject.searchPlaceholder')}
+                placeholder={t('wikiInject.searchPlaceholder')}
                 className="w-full px-2 py-1.5 rounded-md border border-warm-200 bg-warm-0 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400 mb-2"
               />
               <div className="max-h-48 overflow-y-auto border border-warm-200 rounded-md divide-y divide-warm-100">
@@ -124,11 +124,11 @@ export default function MemoryInjectControl({
                   </label>
                 ))}
                 {filtered.length === 0 && (
-                  <div className="text-xs text-warm-500 italic px-2 py-2">{t('memory.noResults')}</div>
+                  <div className="text-xs text-warm-500 italic px-2 py-2">{t('wiki.noResults')}</div>
                 )}
               </div>
               <div className="text-xs text-warm-500 mt-1.5">
-                {t('memoryInject.injectedCount').replace('{count}', String(selectedIds.length))}
+                {t('wikiInject.injectedCount').replace('{count}', String(selectedIds.length))}
               </div>
             </>
           )}
@@ -137,7 +137,7 @@ export default function MemoryInjectControl({
 
       {mode === 'all' && nodes.length > 0 && (
         <div className="text-xs text-warm-500 mt-1">
-          {t('memoryInject.allCount').replace('{count}', String(nodes.length))}
+          {t('wikiInject.allCount').replace('{count}', String(nodes.length))}
         </div>
       )}
 

@@ -774,7 +774,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           {/* Memory Auto-Ingest */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">Memory</h4>
-            <p className="text-2xs text-warm-500 mb-3">{t('memory.autoIngestHint')}</p>
+            <p className="text-2xs text-warm-500 mb-3">{t('wiki.autoIngestHint')}</p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -782,7 +782,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
                 onChange={(e) => setMemoryAutoIngest(e.target.checked)}
                 className="rounded"
               />
-              <span className="text-xs text-warm-600">{t('memory.autoIngest')}</span>
+              <span className="text-xs text-warm-600">{t('wiki.autoIngest')}</span>
             </label>
           </div>
 

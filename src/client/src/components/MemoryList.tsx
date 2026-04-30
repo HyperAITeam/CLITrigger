@@ -89,7 +89,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   };
 
   const handleDelete = async (node: MemoryNode) => {
-    if (!window.confirm(t('memory.deleteConfirm'))) return;
+    if (!window.confirm(t('wiki.deleteConfirm'))) return;
     await deleteMemoryNode(node.id);
     setNodes(prev => prev.filter(n => n.id !== node.id));
     setEdges(prev => prev.filter(e => e.from_node_id !== node.id && e.to_node_id !== node.id));
@@ -143,18 +143,18 @@ export default function MemoryList({ projectId }: MemoryListProps) {
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-warm-800 mr-auto">{t('memory.title')}</h2>
+        <h2 className="text-lg font-semibold text-warm-800 mr-auto">{t('wiki.title')}</h2>
         <button
           onClick={() => setShowLint(true)}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
         >
-          <Wrench size={12} /> {t('memory.lint')}
+          <Wrench size={12} /> {t('wiki.lint')}
         </button>
         <button
           onClick={() => setShowIngest(true)}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
         >
-          <Download size={12} /> {t('memory.ingest')}
+          <Download size={12} /> {t('wiki.ingest')}
         </button>
       </div>
 
@@ -250,8 +250,8 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           ) : (
             nodes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-8">
-                <p className="text-warm-700 font-medium mb-1">{t('memory.empty')}</p>
-                <p className="text-sm text-warm-500">{t('memory.emptyHint')}</p>
+                <p className="text-warm-700 font-medium mb-1">{t('wiki.empty')}</p>
+                <p className="text-sm text-warm-500">{t('wiki.emptyHint')}</p>
               </div>
             ) : (
               <MemoryNetworkGraph
@@ -445,13 +445,13 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-warm-700 text-warm-50 text-xs font-medium hover:bg-warm-800 disabled:opacity-50"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {t('memory.save')}
+              {t('wiki.save')}
             </button>
           )}
           <button
             onClick={() => onDelete(node)}
             className="p-1.5 rounded hover:bg-red-100 text-red-500"
-            title={t('memory.delete')}
+            title={t('wiki.delete')}
           >
             <Trash2 size={14} />
           </button>
@@ -481,7 +481,7 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
         ref={bodyRef}
         value={body}
         onChange={e => { setBody(e.target.value); setDirty(true); }}
-        placeholder={t('memory.form.bodyPlaceholder')}
+        placeholder={t('wiki.form.bodyPlaceholder')}
         className="flex-1 px-4 py-3 text-sm text-warm-800 bg-transparent resize-none outline-none font-mono leading-relaxed"
         style={{ minHeight: 0 }}
       />
@@ -489,7 +489,7 @@ function InlineEditor({ node, allNodes, edges, onUpdated, onDelete, onSelectNode
       {/* Connections */}
       {nodeEdges.length > 0 && (
         <div className="border-t border-warm-200 px-4 py-2 max-h-32 overflow-y-auto">
-          <p className="text-[10px] font-semibold text-warm-500 uppercase tracking-wide mb-1">{t('memory.connections')}</p>
+          <p className="text-[10px] font-semibold text-warm-500 uppercase tracking-wide mb-1">{t('wiki.connections')}</p>
           <div className="space-y-0.5">
             {nodeEdges.map(e => {
               const isOut = e.from_node_id === node.id;
@@ -536,22 +536,22 @@ function ConnectionKindModal({ fromNode, toNode, onClose, onChoose }: Connection
   return (
     <Modal open={true} onClose={onClose} size="sm">
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
-        <h3 className="text-base font-semibold text-warm-800 mb-1">{t('memory.connect.title')}</h3>
+        <h3 className="text-base font-semibold text-warm-800 mb-1">{t('wiki.connect.title')}</h3>
         <p className="text-sm text-warm-600 mb-4">
           <span className="font-medium">{fromNode.title}</span> → <span className="font-medium">{toNode.title}</span>
         </p>
         <div className="space-y-2">
           <button onClick={() => handle('wikilink')} disabled={busy} className="w-full text-left p-3 rounded-lg border border-warm-200 hover:border-warm-400 hover:bg-warm-100 disabled:opacity-50">
-            <div className="text-sm font-medium text-warm-800">{t('memory.connect.wikilink')}</div>
-            <div className="text-xs text-warm-500 mt-0.5">{t('memory.connect.wikilinkHint')}</div>
+            <div className="text-sm font-medium text-warm-800">{t('wiki.connect.wikilink')}</div>
+            <div className="text-xs text-warm-500 mt-0.5">{t('wiki.connect.wikilinkHint')}</div>
           </button>
           <button onClick={() => handle('edge')} disabled={busy} className="w-full text-left p-3 rounded-lg border border-warm-200 hover:border-warm-400 hover:bg-warm-100 disabled:opacity-50">
-            <div className="text-sm font-medium text-warm-800">{t('memory.connect.edge')}</div>
-            <div className="text-xs text-warm-500 mt-0.5">{t('memory.connect.edgeHint')}</div>
+            <div className="text-sm font-medium text-warm-800">{t('wiki.connect.edge')}</div>
+            <div className="text-xs text-warm-500 mt-0.5">{t('wiki.connect.edgeHint')}</div>
           </button>
         </div>
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('memory.cancel')}</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.cancel')}</button>
         </div>
       </div>
     </Modal>
@@ -575,25 +575,25 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
   return (
     <Modal open={true} onClose={onClose} size="sm">
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
-        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('memory.edge.editTitle')}</h3>
+        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.edge.editTitle')}</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-warm-600 mb-1">{t('memory.edge.relationType')}</label>
+            <label className="block text-xs text-warm-600 mb-1">{t('wiki.edge.relationType')}</label>
             <select value={relation} onChange={e => setRelation(e.target.value as MemoryRelationType)} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm focus:outline-none">
-              {RELATION_TYPES.map(rt => <option key={rt} value={rt}>{t(`memory.edge.relations.${rt}`)}</option>)}
+              {RELATION_TYPES.map(rt => <option key={rt} value={rt}>{t(`wiki.edge.relations.${rt}`)}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-warm-600 mb-1">{t('memory.edge.label')}</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('memory.edge.labelPlaceholder')} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm focus:outline-none" />
+            <label className="block text-xs text-warm-600 mb-1">{t('wiki.edge.label')}</label>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('wiki.edge.labelPlaceholder')} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-0 text-sm focus:outline-none" />
           </div>
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={async () => { if (saving) return; setSaving(true); try { await onSave(edge.id, relation, label); } finally { setSaving(false); } }} disabled={saving} className="px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50">
-            {t('memory.save')}
+            {t('wiki.save')}
           </button>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('memory.cancel')}</button>
-          <button onClick={async () => { if (window.confirm(t('memory.edge.deleteConfirm'))) await onDelete(edge.id); }} className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50">{t('memory.delete')}</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.cancel')}</button>
+          <button onClick={async () => { if (window.confirm(t('wiki.edge.deleteConfirm'))) await onDelete(edge.id); }} className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50">{t('wiki.delete')}</button>
         </div>
       </div>
     </Modal>
@@ -642,31 +642,31 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
   return (
     <Modal open={true} onClose={onClose} size="md">
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
-        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('memory.ingest.title')}</h3>
+        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.ingest.title')}</h3>
         <div className="inline-flex rounded-lg border border-warm-200 overflow-hidden mb-4">
-          <button onClick={() => setTab('task')} className={`px-3 py-1.5 text-xs ${tab === 'task' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('memory.ingest.tabTask')}</button>
-          <button onClick={() => setTab('text')} className={`px-3 py-1.5 text-xs ${tab === 'text' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('memory.ingest.tabText')}</button>
+          <button onClick={() => setTab('task')} className={`px-3 py-1.5 text-xs ${tab === 'task' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('wiki.ingest.tabTask')}</button>
+          <button onClick={() => setTab('text')} className={`px-3 py-1.5 text-xs ${tab === 'text' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-700 hover:bg-warm-100'}`}>{t('wiki.ingest.tabText')}</button>
         </div>
         {tab === 'task' ? (
-          todos.length === 0 ? <p className="text-sm text-warm-500 py-4">{t('memory.ingest.noTasks')}</p> : (
+          todos.length === 0 ? <p className="text-sm text-warm-500 py-4">{t('wiki.ingest.noTasks')}</p> : (
             <select value={selectedTodoId} onChange={e => setSelectedTodoId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm focus:outline-none">
-              <option value="">{t('memory.ingest.selectTask')}</option>
+              <option value="">{t('wiki.ingest.selectTask')}</option>
               {todos.map(todo => <option key={todo.id} value={todo.id}>{todo.title}</option>)}
             </select>
           )
         ) : (
-          <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder={t('memory.ingest.textPlaceholder')} rows={8} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm resize-y focus:outline-none" />
+          <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder={t('wiki.ingest.textPlaceholder')} rows={8} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm resize-y focus:outline-none" />
         )}
         {result && (
           <p className="mt-3 text-xs text-status-success">
-            {t('memory.ingest.success').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)).replace('{edges}', String(result.edgesAdded))}
+            {t('wiki.ingest.success').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)).replace('{edges}', String(result.edgesAdded))}
           </p>
         )}
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} disabled={running} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50">{t('memory.cancel')}</button>
+          <button onClick={onClose} disabled={running} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50">{t('wiki.cancel')}</button>
           <button onClick={handleRun} disabled={!canRun || running} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50">
             {running && <Loader2 size={14} className="animate-spin" />}
-            {running ? t('memory.ingest.running') : t('memory.ingest.run')}
+            {running ? t('wiki.ingest.running') : t('wiki.ingest.run')}
           </button>
         </div>
       </div>
@@ -698,13 +698,13 @@ function LintModal({ projectId, onClose }: LintModalProps) {
   return (
     <Modal open={true} onClose={onClose} size="md">
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
-        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('memory.lint.title')}</h3>
+        <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.lint.title')}</h3>
         {running ? (
-          <div className="flex items-center gap-2 py-6 justify-center text-sm text-warm-500"><Loader2 size={16} className="animate-spin" />{t('memory.lint.running')}</div>
+          <div className="flex items-center gap-2 py-6 justify-center text-sm text-warm-500"><Loader2 size={16} className="animate-spin" />{t('wiki.lint.running')}</div>
         ) : error ? (
           <div className="flex items-center gap-2 text-sm text-red-600 py-4"><AlertCircle size={16} />{error}</div>
         ) : issues.length === 0 ? (
-          <p className="text-sm text-warm-600 py-4">{t('memory.lint.empty')}</p>
+          <p className="text-sm text-warm-600 py-4">{t('wiki.lint.empty')}</p>
         ) : (
           <ul className="space-y-2 max-h-80 overflow-y-auto">
             {issues.map((issue, i) => (
@@ -721,7 +721,7 @@ function LintModal({ projectId, onClose }: LintModalProps) {
           </ul>
         )}
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('memory.lint.close')}</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.lint.close')}</button>
         </div>
       </div>
     </Modal>

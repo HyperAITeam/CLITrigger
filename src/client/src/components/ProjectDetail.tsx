@@ -693,7 +693,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
             key: plugin.id,
             label: t(`tabs.${plugin.id}`) || plugin.displayName,
           })),
-          { key: 'memory', label: t('tabs.memory') },
+          { key: 'wiki', label: t('tabs.wiki') },
           { key: 'planner', label: t('tabs.planner'), count: plannerItems.length },
           { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
           { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
@@ -813,7 +813,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage }: Proje
           onCleanupRun={handleCleanupTodo}
         />
       )}
-      {activeTab === 'memory' && id && (
+      {activeTab === 'wiki' && id && (
         <MemoryList projectId={id} />
       )}
       {activeTab === 'planner' && (

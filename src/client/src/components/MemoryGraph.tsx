@@ -214,7 +214,7 @@ export default function MemoryGraph({
   if (rawNodes.length === 0) {
     return (
       <div className="h-[600px] rounded-xl border border-warm-200 flex items-center justify-center text-warm-500 text-sm bg-warm-50">
-        {t('memory.empty')}
+        {t('wiki.empty')}
       </div>
     );
   }
@@ -224,9 +224,9 @@ export default function MemoryGraph({
       <button
         onClick={handleAutoLayout}
         className="absolute top-3 right-3 z-10 px-3 py-1.5 rounded-lg bg-warm-50 border border-warm-300 text-xs text-warm-700 hover:bg-warm-100 flex items-center gap-1 shadow-soft"
-        title={t('memory.autoLayout')}
+        title={t('wiki.autoLayout')}
       >
-        <LayoutGrid size={12} /> {t('memory.autoLayout')}
+        <LayoutGrid size={12} /> {t('wiki.autoLayout')}
       </button>
       <ReactFlow
         nodes={flowNodes}
