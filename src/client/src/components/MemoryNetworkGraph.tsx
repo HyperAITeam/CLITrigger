@@ -146,7 +146,7 @@ function MemoryDot({ data }: { data: { node: MemoryNode; size: number; selected:
         className="rounded-full transition-transform group-hover:scale-110"
       />
       <div
-        className="absolute opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap text-[11px] text-warm-100 bg-black/60 px-1.5 py-0.5 rounded"
+        className="absolute opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap text-[11px] font-medium text-gray-100 bg-[#1A1A1A]/95 border border-white/10 px-2 py-1 rounded-md shadow-elevated"
         style={{ top: size * 2 + 14, transform: 'translateX(0)' }}
       >
         {node.title}
@@ -304,7 +304,7 @@ export default function MemoryNetworkGraph({
   if (rawNodes.length === 0) {
     return (
       <div className="h-[600px] rounded-xl border border-warm-200 flex items-center justify-center text-warm-500 text-sm bg-[#1A1A1A]">
-        {t('memory.empty')}
+        {t('wiki.empty')}
       </div>
     );
   }
@@ -314,7 +314,7 @@ export default function MemoryNetworkGraph({
       <input
         value={search}
         onChange={e => setSearch(e.target.value)}
-        placeholder={t('memory.searchPlaceholder')}
+        placeholder={t('wiki.searchPlaceholder')}
         className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-50 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <ReactFlow

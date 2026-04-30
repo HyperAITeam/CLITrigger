@@ -798,40 +798,40 @@ gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세
 
 ---
 
-### 29. Long-term Memory 그래프 (프로젝트별)
+### 29. 위키 (프로젝트별 Karpathy LLM-Wiki)
 
-프로젝트마다 재사용 가능한 컨텍스트(노드+관계)를 그래프로 관리하고, todo와 discussion 프롬프트 앞에 선택적으로 주입할 수 있습니다. 매번 같은 컨텍스트를 붙여 넣는 대신 메모리 노드를 만들고 골라서 주입.
+프로젝트마다 재사용 가능한 컨텍스트(항목+관계)를 위키 형태로 관리하고, todo와 discussion 프롬프트 앞에 선택적으로 주입할 수 있습니다. 매번 같은 컨텍스트를 붙여 넣는 대신 위키 항목을 만들어 두고 골라서 주입. (UI 라벨은 "Wiki" / "위키"이며, DB 테이블/API 라우트/`<long_term_memory>` 프롬프트 태그는 `memory_*` 명칭을 그대로 유지합니다.)
 
 #### 기능
 
-- **List/Graph 뷰 토글**: 노드 카드 리스트와 ReactFlow 기반 그래프를 전환
-- **노드**: 제목, Markdown 본문, 태그, pin, 자유 위치 좌표
+- **List/Graph 뷰 토글**: 항목 카드 리스트와 ReactFlow 기반 그래프를 전환
+- **항목**: 제목, Markdown 본문, 태그, pin, 자유 위치 좌표
 - **엣지(관계)**: 5종 — `related`, `precedes`, `example_of`, `counter_example`, `refines`. 그래프에서 drag-to-connect로 추가하고 인라인 편집 가능. `precedes`/`refines`는 cycle 차단
-- **자동 레이아웃**: dagre 기반 — 노드 위치를 자동으로 정렬
+- **자동 레이아웃**: dagre 기반 — 항목 위치를 자동으로 정렬
 
 #### 주입 모드
 
-todo / discussion 폼의 **Memory** 섹션에서 선택:
+todo / discussion 폼의 **위키 주입 (Wiki Injection)** 섹션에서 선택:
 
 | 모드 | 동작 |
 |------|------|
-| **None** (기본) | 메모리 주입 없음 |
-| **All** | 프로젝트의 모든 메모리 노드를 주입 |
-| **Selected** | 선택한 노드만 주입 — 칩 형태로 노드 선택 |
+| **None** (기본) | 위키 주입 없음 |
+| **All** | 프로젝트의 모든 위키 항목을 주입 |
+| **Selected** | 선택한 항목만 주입 — 칩 형태로 선택 |
 
 선택 후 **프롬프트 미리보기** 모달로 실제로 LLM에 전달되는 `<long_term_memory>` 블록을 확인할 수 있습니다.
 
 #### 동작 방식
 
-- 메모리 블록은 프롬프트 **맨 앞에 prepend**되며 Claude/Gemini/Codex 모두 동일하게 동작 (CLI-agnostic)
-- 노드 본문 + 인접 엣지가 arrow-notation(예: `노드A —(precedes)→ 노드B`)으로 직렬화
-- 매 실행 시 task/discussion 로그에 "injected N nodes (mode=...)" 라인 기록
+- 위키 블록은 프롬프트 **맨 앞에 prepend**되며 Claude/Gemini/Codex 모두 동일하게 동작 (CLI-agnostic)
+- 항목 본문 + 인접 엣지가 arrow-notation(예: `항목A —(precedes)→ 항목B`)으로 직렬화
+- 매 실행 시 task/discussion 로그에 "injected N nodes (mode=...)" 라인 기록 (내부 식별자는 그대로 "node")
 
 #### 사용 흐름 예시
 
 ```
-프로젝트의 핵심 컨벤션/도메인 용어/주의사항을 메모리 노드로 캡처
-  → 새 todo 생성 시 Memory 섹션에서 관련 노드 선택
+프로젝트의 핵심 컨벤션/도메인 용어/주의사항을 위키 항목으로 캡처
+  → 새 todo 생성 시 위키 주입 섹션에서 관련 항목 선택
     → AI가 컨텍스트를 알고 시작 → 같은 설명 반복 불필요
 ```
 

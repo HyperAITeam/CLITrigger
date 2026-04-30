@@ -107,7 +107,7 @@ Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recove
 ### Plugin System (Harness, Jira, GitHub, Notion, gstack)
 The **Harness** panel edits Claude / Gemini / Codex user config (settings, memory files, MCP servers) right in the browser — atomic writes with deep-merge preserve untouched fields, and a Codex `trustLevelMissing` warning surfaces when a project isn't trusted. Jira, GitHub, Notion integrations and gstack skill injection ship alongside as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
 
-### Long-term Memory Graph
+### Wiki (Karpathy LLM-Wiki Pattern)
 A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` per task, preview the exact `<long_term_memory>` block before sending. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
 
 ### Planner
