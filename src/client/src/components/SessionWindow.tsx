@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, Play } from 'lucide-react';
 import SessionTerminal from './SessionTerminal';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -8,6 +8,7 @@ import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
+import type { WindowIntent } from './SessionWindowsHost';
 
 interface Geometry {
   x: number;
@@ -24,6 +25,8 @@ interface SessionWindowProps {
   w: number;
   h: number;
   zIndex: number;
+  intent: WindowIntent;
+  intentNonce: number;
   onClose: () => void;
   onFocus: () => void;
   onGeometryChange: (geom: Geometry) => void;
@@ -41,6 +44,8 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+type Phase = 'pendingFit' | 'starting' | 'subscribed' | 'replay-only' | 'stopping' | 'error';
+
 export default function SessionWindow({
   projectId: _projectId,
   session,
@@ -49,6 +54,8 @@ export default function SessionWindow({
   w,
   h,
   zIndex,
+  intent,
+  intentNonce,
   onClose,
   onFocus,
   onGeometryChange,
@@ -64,32 +71,59 @@ export default function SessionWindow({
   const geomRef = useRef<Geometry>({ x, y, w, h });
   geomRef.current = { x, y, w, h };
 
-  // Two-phase start state.
-  // - 'idle': replay-only mode (session already running or stopped).
-  // - 'pendingFit': waiting for SessionTerminal to call onFitted with cols/rows.
-  // - 'starting': POST /start in flight.
-  // - 'subscribed': PTY alive at correct size, terminal subscribing to bytes.
-  // - 'error': start failed; user can retry.
-  type Phase = 'idle' | 'pendingFit' | 'starting' | 'subscribed' | 'error';
-  const initialPhase: Phase = session.status === 'running' ? 'subscribed' : 'pendingFit';
+  // Phase semantics:
+  // - 'pendingFit'   waiting for SessionTerminal to call onFitted with cols/rows
+  //                  before POSTing /start (auto-start path)
+  // - 'starting'     POST /start in flight
+  // - 'subscribed'   PTY alive at correct size, terminal subscribing to bytes
+  // - 'replay-only'  opened on a non-running session for review; terminal
+  //                  shows history but no auto-start. Does NOT auto-close on
+  //                  status change (user opened it intentionally to look)
+  // - 'stopping'     user-initiated stop in flight, waiting for status flip
+  //                  to actually close the window
+  // - 'error'        start failed; user can retry
+  const initialPhase: Phase = (() => {
+    if (session.status === 'running') return 'subscribed';
+    if (intent === 'start') return 'pendingFit';
+    return 'replay-only';
+  })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fittedRef = useRef<{ cols: number; rows: number } | null>(null);
   const startInFlightRef = useRef(false);
+  const lastIntentNonceRef = useRef(intentNonce);
+  // Tracks whether this window has actively run a session in its lifetime
+  // (started here OR opened while running). Used to gate auto-close: a
+  // window opened in replay-only mode shouldn't auto-close on status changes
+  // since the user opened it intentionally to review.
+  const wasActiveRef = useRef(initialPhase === 'subscribed');
 
-  // If the session row's status flips to running while we were in idle/replay,
-  // treat it as subscribed too (e.g. user started it from another tab).
+  // If the session row's status flips to running while we were in some
+  // pre-running state, treat it as subscribed (e.g. another tab started it).
   useEffect(() => {
     if (session.status === 'running' && phase !== 'subscribed' && phase !== 'starting') {
+      wasActiveRef.current = true;
       setPhase('subscribed');
     }
   }, [session.status, phase]);
+
+  // Auto-close on status transition out of running. Only fires for windows
+  // that were actively running (not opened in pure replay-only mode). Brief
+  // delay so the user sees the final terminal output (e.g. "Goodbye!").
+  useEffect(() => {
+    if (session.status === 'running') return;
+    if (!wasActiveRef.current) return;
+    if (phase !== 'subscribed' && phase !== 'starting' && phase !== 'stopping') return;
+    const t = setTimeout(() => onClose(), 300);
+    return () => clearTimeout(t);
+  }, [session.status, phase, onClose]);
 
   const tryStart = useCallback(async () => {
     const dims = fittedRef.current;
     if (!dims) return;
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
+    wasActiveRef.current = true;
     setPhase('starting');
     setErrorMsg(null);
     try {
@@ -103,6 +137,48 @@ export default function SessionWindow({
       startInFlightRef.current = false;
     }
   }, [session.id]);
+
+  // External re-focus with intent='start' on an already-open replay-only
+  // window (e.g. user clicked the row's ▶ button on an open window).
+  useEffect(() => {
+    if (intentNonce === lastIntentNonceRef.current) return;
+    lastIntentNonceRef.current = intentNonce;
+    if (intent === 'start' && phase === 'replay-only' && session.status !== 'running') {
+      // If we already have fitted dims, start now; else flip to pendingFit
+      // so the next onFitted callback triggers tryStart.
+      if (fittedRef.current) {
+        void tryStart();
+      } else {
+        setPhase('pendingFit');
+      }
+    }
+  }, [intentNonce, intent, phase, session.status, tryStart]);
+
+  const handleStartClick = useCallback(() => {
+    if (fittedRef.current) {
+      void tryStart();
+    } else {
+      setPhase('pendingFit');
+    }
+  }, [tryStart]);
+
+  const handleCloseClick = useCallback(() => {
+    if (session.status === 'running' && phase === 'subscribed') {
+      const msg = t('session.confirmStop') || '이 세션을 종료할까요? 진행 중인 작업이 종료됩니다.';
+      if (!confirm(msg)) return;
+      setPhase('stopping');
+      sessionsApi.stopSession(session.id).catch((err) => {
+        const m = err instanceof Error ? err.message : String(err);
+        // Idempotent: server returns 400 if already non-running. Just close.
+        // eslint-disable-next-line no-console
+        console.warn('stopSession failed:', m);
+        onClose();
+      });
+      // status flip → auto-close effect fires onClose()
+      return;
+    }
+    onClose();
+  }, [session.status, session.id, phase, t, onClose]);
 
   const handleFitted = useCallback((cols: number, rows: number) => {
     fittedRef.current = { cols, rows };
@@ -218,6 +294,32 @@ export default function SessionWindow({
         </div>
       );
     }
+    if (phase === 'stopping') {
+      return (
+        <div style={overlayStyle}>
+          <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
+            {t('session.stopping') || 'stopping…'}
+          </span>
+        </div>
+      );
+    }
+    if (phase === 'replay-only') {
+      return (
+        <div style={overlayStyle}>
+          <button
+            onClick={handleStartClick}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              fontFamily: CMD_FONT, fontSize: 14, color: CMD.bright,
+              background: 'transparent', border: `1px solid ${CMD.separator}`,
+              padding: '10px 22px', borderRadius: 6, cursor: 'pointer',
+            }}
+          >
+            <Play size={16} /> {t('session.startInWindow') || '시작'}
+          </button>
+        </div>
+      );
+    }
     if (phase === 'error') {
       return (
         <div style={overlayStyle}>
@@ -255,7 +357,7 @@ export default function SessionWindow({
           <span style={{ flex: 1, color: CMD.titleText, fontFamily: CMD_FONT, fontSize: 12, paddingLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {session.title}{titleSuffix}
           </span>
-          <button data-no-drag onClick={onClose} style={closeBtnStyle} aria-label="close">
+          <button data-no-drag onClick={handleCloseClick} style={closeBtnStyle} aria-label="close">
             <X size={14} />
           </button>
         </div>

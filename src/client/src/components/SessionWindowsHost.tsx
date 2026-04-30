@@ -19,13 +19,22 @@ interface WindowGeom {
   h: number;
 }
 
+export type WindowIntent = 'start' | 'open';
+
 interface OpenWindow extends WindowGeom {
   sessionId: string;
   z: number;
+  intent: WindowIntent;
+  /**
+   * Bumps every time openOrFocus is called for this window. Lets
+   * SessionWindow react to a re-focus with intent='start' (e.g. user
+   * clicked ▶ on a window that was already open in replay-only mode).
+   */
+  intentNonce: number;
 }
 
 interface SessionWindowsAPI {
-  openOrFocus: (sessionId: string) => void;
+  openOrFocus: (sessionId: string, intent?: WindowIntent) => void;
   close: (sessionId: string) => void;
   focus: (sessionId: string) => void;
   isOpen: (sessionId: string) => boolean;
@@ -99,17 +108,31 @@ export default function SessionWindowsHost({
   const [windows, setWindows] = useState<OpenWindow[]>([]);
   const zCounterRef = useRef(0);
 
-  const openOrFocus = useCallback((sessionId: string) => {
+  const openOrFocus = useCallback((sessionId: string, intent: WindowIntent = 'open') => {
     setWindows((prev) => {
       const existing = prev.find((w) => w.sessionId === sessionId);
       zCounterRef.current += 1;
       const z = zCounterRef.current;
       if (existing) {
-        return prev.map((w) => (w.sessionId === sessionId ? { ...w, z } : w));
+        // Bump intent only if upgrading from 'open' → 'start'. Going the
+        // other direction (e.g. row click on a window already started
+        // with intent='start') shouldn't downgrade.
+        const newIntent: WindowIntent = intent === 'start' ? 'start' : existing.intent;
+        const intentChanged = newIntent !== existing.intent || intent === 'start';
+        return prev.map((w) => (
+          w.sessionId === sessionId
+            ? {
+                ...w,
+                z,
+                intent: newIntent,
+                intentNonce: intentChanged ? w.intentNonce + 1 : w.intentNonce,
+              }
+            : w
+        ));
       }
       const stored = readGeom(projectId, sessionId);
       const geom = stored ?? cascadeGeom(prev.length);
-      return [...prev, { sessionId, z, ...geom }];
+      return [...prev, { sessionId, z, intent, intentNonce: 0, ...geom }];
     });
   }, [projectId]);
 
@@ -164,6 +187,8 @@ export default function SessionWindowsHost({
             w={w.w}
             h={w.h}
             zIndex={w.z}
+            intent={w.intent}
+            intentNonce={w.intentNonce}
             onClose={() => close(w.sessionId)}
             onFocus={() => focus(w.sessionId)}
             onGeometryChange={(geom) => updateGeometry(w.sessionId, geom)}
