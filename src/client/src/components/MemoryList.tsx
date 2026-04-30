@@ -758,7 +758,7 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
 interface IngestModalProps { projectId: string; onClose: () => void; onDone: () => void; }
 
 function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState<'task' | 'discussion' | 'text'>('task');
   const [todos, setTodos] = useState<Todo[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
@@ -783,13 +783,13 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
     if (!canRun || running) return;
     setRunning(true); setResult(null); setError('');
     try {
-      let payload: { source_text?: string; source_type?: string; source_id?: string };
+      let payload: { source_text?: string; source_type?: string; source_id?: string; locale?: string };
       if (tab === 'task') {
-        payload = { source_type: 'todo', source_id: selectedTodoId };
+        payload = { source_type: 'todo', source_id: selectedTodoId, locale: lang };
       } else if (tab === 'discussion') {
-        payload = { source_type: 'discussion', source_id: selectedDiscussionId };
+        payload = { source_type: 'discussion', source_id: selectedDiscussionId, locale: lang };
       } else {
-        payload = { source_type: 'manual', source_text: pasteText.trim() };
+        payload = { source_type: 'manual', source_text: pasteText.trim(), locale: lang };
       }
       const res = await ingestMemory(projectId, payload);
       setResult(res);
