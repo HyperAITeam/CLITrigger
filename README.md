@@ -122,7 +122,7 @@ A lightweight task planner separate from TODOs — capture ideas, attach images,
 Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
 
 ### Interactive Sessions
-Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in an embedded terminal, with optional worktree isolation per session. PTY output is filtered for spinner noise and classified into assistant / tool-use blocks so the Chat-mode log viewer stays readable.
+Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in a floating draggable window. **xterm.js rendering** shows ANSI colors, cursor control, and TUI box-drawing identically to a native terminal — no line-by-line scraping, no output mangling. PTY spawns at the exact viewport dimensions so Claude Code's welcome banner and menus render at the correct column width. Optional worktree isolation per session. Chat-mode log viewer classifies output into assistant / tool-use blocks for readability. Window geometry persists per session, survives tab navigation, and works on desktop and mobile (fullscreen on small screens).
 
 ### Multi-Agent Discussion
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus. Or hit **Send to Planner** on a finished discussion to have the transcript distilled into curated planner items via a one-shot LLM extraction — review and edit before persisting.
@@ -168,6 +168,9 @@ Select Claude / Gemini / Codex per project, per TODO, or per discussion agent. S
 ### Remote Access
 Access and control from anywhere via Cloudflare Tunnel. Browser notifications alert you when tasks or discussions complete, so you can walk away and come back.
 
+### Favorites Launcher
+Register frequently-used external tools (executables, shell commands, URLs/folders) in a global Favorites section in the sidebar. Fire-and-forget one-click execution from anywhere in CLITrigger — reduces context-switching to the OS shell for environment setup, IDE launches, or external service access.
+
 ---
 
 ## Tech Stack
@@ -179,7 +182,7 @@ Access and control from anywhere via Cloudflare Tunnel. Browser notifications al
 | AI CLIs | Claude · Gemini · Codex (Adapter Pattern) |
 | Git | simple-git (worktree management) |
 | Scheduling | node-cron |
-| Terminal | node-pty (TTY support) |
+| Terminal | node-pty (TTY support) · xterm.js (pixel-perfect rendering) |
 | Remote Access | Cloudflare Tunnel (optional) |
 
 ---
