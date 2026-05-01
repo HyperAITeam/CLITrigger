@@ -270,7 +270,10 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
     outline: 'none',
     padding: '0',
     margin: '0',
-    fontFamily: CMD_FONT,
+    // CMD_FONT(영문 monospace)만이면 iOS Safari가 IME 조합 중 한글을
+    // 자모 단위로 fallback해 분리되어 보임. 한글 시스템 폰트를 stack 뒤에
+    // 붙여 영문은 기존 monospace, 한글은 시스템 한글 폰트로 그려지게 함.
+    fontFamily: `${CMD_FONT}, 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif`,
     // 16px to suppress iOS Safari's auto-zoom on focus.
     fontSize: '16px',
     lineHeight: '1.2',
