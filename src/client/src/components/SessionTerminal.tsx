@@ -119,11 +119,13 @@ export default function SessionTerminal({
 
     // Input handling diverges by platform. Desktop browsers compose IME inside
     // xterm's helper textarea and fire onData with the composed result, so we
-    // can listen on term.onData. iOS Safari (and to a lesser extent Android)
-    // both mishandle composition inside xterm — onData fires per-jamo and
-    // xterm's CompositionHelper renders decomposed jamo while typing. On
-    // mobile we hide xterm's helper textarea entirely and run input through
-    // our own overlay textarea, where the OS's native IME composes correctly.
+    // can listen on term.onData. Mobile browsers (especially iOS Safari 18)
+    // mishandle composition inside xterm — in our overlay textarea, iOS does
+    // not fire compositionstart/end at all and instead emits
+    // deleteContentBackward + insertText(syllable) pairs to splice partial
+    // syllables. setupMobileImeInput hides xterm's helper and runs input
+    // through an overlay textarea with a client-side Hangul composer that
+    // assembles jamo/syllables into precomposed Hangul before sending to PTY.
     const inputCleanup = isMobileImeDevice()
       ? setupMobileImeInput({ container, term, sessionId, sendMessage })
       : setupDesktopInput({ container, term, sessionId, sendMessage });
@@ -208,6 +210,154 @@ interface InputSetupArgs {
   sendMessage: (event: object) => void;
 }
 
+// === Hangul jamo composer (mobile fallback) ===
+// iOS Safari 18 does not fire compositionstart/end on our overlay textarea.
+// It delivers per-jamo input(insertText) events and, when it can compose,
+// uses deleteContentBackward + insertText(precomposed syllable) pairs to
+// splice in the assembled syllable. To produce stable PTY echoes regardless
+// of whether iOS chooses to splice (e.g. ㅈ → "자" → "잘") we run a
+// client-side dubeolsik composer: jamo accumulate into cho/jung/jong, and
+// syllables iOS already composed are decomposed back into the same slots so
+// a following jamo can extend them (e.g. "자" set as cho=ㅈ jung=ㅏ, then ㄹ
+// fills jong → "잘"). The committed text is sent only when a new syllable
+// begins, a non-Hangul char arrives, on Enter / special keys, or after a
+// brief idle timeout. Single-jamo / double-medial / double-final clusters
+// are not yet handled (covers the common case; rare clusters fall back to
+// a separate-syllable commit).
+
+const HANGUL_CHO_CODES = [
+  0x3131, 0x3132, 0x3134, 0x3137, 0x3138, 0x3139, 0x3141, 0x3142, 0x3143,
+  0x3145, 0x3146, 0x3147, 0x3148, 0x3149, 0x314A, 0x314B, 0x314C, 0x314D, 0x314E,
+];
+const HANGUL_JUNG_CODES = [
+  0x314F, 0x3150, 0x3151, 0x3152, 0x3153, 0x3154, 0x3155, 0x3156, 0x3157,
+  0x3158, 0x3159, 0x315A, 0x315B, 0x315C, 0x315D, 0x315E, 0x315F, 0x3160,
+  0x3161, 0x3162, 0x3163,
+];
+const HANGUL_JONG_CODES = [
+  0, 0x3131, 0x3132, 0x3133, 0x3134, 0x3135, 0x3136, 0x3137, 0x3139, 0x313A,
+  0x313B, 0x313C, 0x313D, 0x313E, 0x313F, 0x3140, 0x3141, 0x3142, 0x3144,
+  0x3145, 0x3146, 0x3147, 0x3148, 0x314A, 0x314B, 0x314C, 0x314D, 0x314E,
+];
+
+function isHangulConsCp(cp: number): boolean { return cp >= 0x3131 && cp <= 0x314E; }
+function isHangulVowelCp(cp: number): boolean { return cp >= 0x314F && cp <= 0x3163; }
+function isHangulJamoCp(cp: number): boolean { return isHangulConsCp(cp) || isHangulVowelCp(cp); }
+function isHangulSyllableCp(cp: number): boolean { return cp >= 0xAC00 && cp <= 0xD7A3; }
+
+interface HangulComposer {
+  cho: number;
+  jung: number;
+  jong: number;
+}
+
+function newHangulComposer(): HangulComposer {
+  return { cho: -1, jung: -1, jong: 0 };
+}
+
+function isComposerEmpty(c: HangulComposer): boolean {
+  return c.cho < 0 && c.jung < 0 && c.jong === 0;
+}
+
+function composerToString(c: HangulComposer): string {
+  if (isComposerEmpty(c)) return '';
+  if (c.cho >= 0 && c.jung >= 0) {
+    return String.fromCharCode(0xAC00 + (c.cho * 21 + c.jung) * 28 + c.jong);
+  }
+  if (c.cho >= 0) return String.fromCharCode(HANGUL_CHO_CODES[c.cho]);
+  if (c.jung >= 0) return String.fromCharCode(HANGUL_JUNG_CODES[c.jung]);
+  return '';
+}
+
+function flushComposer(c: HangulComposer): string {
+  const s = composerToString(c);
+  c.cho = -1; c.jung = -1; c.jong = 0;
+  return s;
+}
+
+function pushJamo(c: HangulComposer, cp: number): string {
+  if (isHangulVowelCp(cp)) {
+    const j = HANGUL_JUNG_CODES.indexOf(cp);
+    if (j < 0) return '';
+    if (c.cho < 0 && c.jung < 0) { c.jung = j; return ''; }
+    if (c.cho >= 0 && c.jung < 0) { c.jung = j; return ''; }
+    if (c.cho < 0 && c.jung >= 0) {
+      const out = composerToString(c);
+      c.jung = j;
+      return out;
+    }
+    if (c.jong === 0) {
+      const out = composerToString(c);
+      c.cho = -1; c.jung = j; c.jong = 0;
+      return out;
+    }
+    // jong을 새 음절의 cho로 옮김
+    const jongCp = HANGUL_JONG_CODES[c.jong];
+    const newCho = HANGUL_CHO_CODES.indexOf(jongCp);
+    c.jong = 0;
+    const out = composerToString(c);
+    if (newCho >= 0) { c.cho = newCho; c.jung = j; c.jong = 0; }
+    else { c.cho = -1; c.jung = j; c.jong = 0; }
+    return out;
+  }
+  if (isHangulConsCp(cp)) {
+    const choIdx = HANGUL_CHO_CODES.indexOf(cp);
+    const jongIdx = HANGUL_JONG_CODES.indexOf(cp);
+    if (c.cho < 0 && c.jung < 0) {
+      if (choIdx >= 0) { c.cho = choIdx; return ''; }
+      return String.fromCharCode(cp);
+    }
+    if (c.cho >= 0 && c.jung < 0) {
+      const out = String.fromCharCode(HANGUL_CHO_CODES[c.cho]);
+      if (choIdx >= 0) { c.cho = choIdx; return out; }
+      c.cho = -1;
+      return out + String.fromCharCode(cp);
+    }
+    if (c.cho < 0 && c.jung >= 0) {
+      const out = composerToString(c);
+      c.jung = -1;
+      if (choIdx >= 0) { c.cho = choIdx; return out; }
+      return out + String.fromCharCode(cp);
+    }
+    if (c.jong === 0) {
+      if (jongIdx > 0) { c.jong = jongIdx; return ''; }
+      const out = composerToString(c);
+      c.cho = choIdx >= 0 ? choIdx : -1;
+      c.jung = -1; c.jong = 0;
+      return out;
+    }
+    const out = composerToString(c);
+    c.cho = choIdx >= 0 ? choIdx : -1;
+    c.jung = -1; c.jong = 0;
+    if (choIdx < 0) return out + String.fromCharCode(cp);
+    return out;
+  }
+  return '';
+}
+
+// Decompose a precomposed Hangul syllable into the composer's slots so a
+// following jamo can extend it (e.g. iOS sends "자" then user types ㄹ →
+// jong=ㄹ → "잘"). Any prior partial in the composer is committed first.
+function pushSyllable(c: HangulComposer, cp: number): string {
+  const out = composerToString(c);
+  const idx = cp - 0xAC00;
+  c.cho = Math.floor(idx / (21 * 28));
+  c.jung = Math.floor(idx / 28) % 21;
+  c.jong = idx % 28;
+  return out;
+}
+
+// iOS Safari's auto-composition path emits BS to wipe the previous partial
+// syllable before sending the new precomposed one, so a backspace event
+// must clear the entire composer (not just the last slot). This also
+// matches user-facing backspace UX on native Hangul textareas, where one BS
+// removes a whole syllable.
+function backspaceComposer(c: HangulComposer): boolean {
+  if (isComposerEmpty(c)) return false;
+  c.cho = -1; c.jung = -1; c.jong = 0;
+  return true;
+}
+
 function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
   let composing = false;
   let lastCompositionEndAt = 0;
@@ -251,17 +401,19 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
     container.style.position = 'relative';
   }
 
-  // Our overlay textarea. Idle state: full-size, transparent — covers the
-  // terminal so taps focus it and bring up the keyboard. Composing state:
-  // small box positioned at xterm's cursor cell with visible text, so the
-  // OS-native IME's underlined composition appears at the cursor location.
-  // Once compositionend fires we send the composed text to the PTY and the
-  // PTY echo lands on the proper grid cell via term.write.
+  // Our overlay textarea. Idle: full-size transparent — covers the terminal
+  // so taps focus it and bring up the keyboard. Composing: small box at the
+  // xterm cursor cell with visible text, so the partial Hangul syllable
+  // appears at the cursor position. lang/inputmode are explicit hints; the
+  // off-by-default IME-blocking attributes (autocorrect/autocapitalize/
+  // spellcheck) are intentionally left unset so they don't disable IME on
+  // iOS. caretColor is near-transparent rather than fully transparent —
+  // iOS appears to track caret position to decide whether composition can
+  // continue.
   const overlay = document.createElement('textarea');
-  overlay.setAttribute('autocapitalize', 'off');
-  overlay.setAttribute('autocorrect', 'off');
   overlay.setAttribute('autocomplete', 'off');
-  overlay.setAttribute('spellcheck', 'false');
+  overlay.setAttribute('lang', 'ko');
+  overlay.setAttribute('inputmode', 'text');
   overlay.rows = 1;
   Object.assign(overlay.style, {
     position: 'absolute',
@@ -277,7 +429,7 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
     resize: 'none',
     overflow: 'hidden',
     whiteSpace: 'pre',
-    caretColor: 'transparent',
+    caretColor: 'rgba(255,255,255,0.001)',
     zIndex: '5',
   });
 
@@ -318,16 +470,46 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
   container.appendChild(overlay);
 
   let composing = false;
+  const composer = newHangulComposer();
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelFlushTimer = () => {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  };
+  const sendText = (text: string) => {
+    if (!text) return;
+    sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+  };
+  const flushComposerAndSend = () => {
+    const out = flushComposer(composer);
+    if (out) sendText(out);
+  };
+  const updateOverlayPartial = () => {
+    const partial = composerToString(composer);
+    overlay.value = partial;
+    if (partial) setComposingSize(); else setIdleSize();
+  };
+  const scheduleFlush = () => {
+    cancelFlushTimer();
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flushComposerAndSend();
+      overlay.value = '';
+      setIdleSize();
+    }, 600);
+  };
 
   const handleCompStart = () => {
     composing = true;
+    cancelFlushTimer();
+    // OS-native IME took over (Android etc.) — drain composer so we don't
+    // double-emit when compositionend resolves.
+    flushComposerAndSend();
     setComposingSize();
   };
   const handleCompEnd = (e: CompositionEvent) => {
     composing = false;
-    if (e.data) {
-      sendMessage({ type: 'session:terminal-input', sessionId, input: e.data });
-    }
+    if (e.data) sendText(e.data);
     overlay.value = '';
     setIdleSize();
   };
@@ -342,19 +524,44 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
       case 'insertFromComposition':
         return;
       case 'deleteContentBackward':
-        sendMessage({ type: 'session:terminal-input', sessionId, input: '\x7f' });
-        overlay.value = '';
+        cancelFlushTimer();
+        if (backspaceComposer(composer)) {
+          updateOverlayPartial();
+        } else {
+          sendText('\x7f');
+          overlay.value = '';
+          setIdleSize();
+        }
         return;
       case 'insertLineBreak':
       case 'insertParagraph':
-        sendMessage({ type: 'session:terminal-input', sessionId, input: '\r' });
+        cancelFlushTimer();
+        flushComposerAndSend();
+        sendText('\r');
         overlay.value = '';
+        setIdleSize();
         return;
       default:
-        if (ie.data) {
-          sendMessage({ type: 'session:terminal-input', sessionId, input: ie.data });
+        if (!ie.data) {
+          updateOverlayPartial();
+          return;
         }
-        overlay.value = '';
+        cancelFlushTimer();
+        let toSend = '';
+        for (const ch of ie.data) {
+          const cp = ch.codePointAt(0)!;
+          if (isHangulJamoCp(cp)) {
+            toSend += pushJamo(composer, cp);
+          } else if (isHangulSyllableCp(cp)) {
+            toSend += pushSyllable(composer, cp);
+          } else {
+            toSend += flushComposer(composer);
+            toSend += ch;
+          }
+        }
+        sendText(toSend);
+        updateOverlayPartial();
+        if (!isComposerEmpty(composer)) scheduleFlush();
     }
   };
   overlay.addEventListener('input', handleInput);
@@ -376,22 +583,37 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
     }
     if (seq) {
       e.preventDefault();
-      sendMessage({ type: 'session:terminal-input', sessionId, input: seq });
+      cancelFlushTimer();
+      if (e.key === 'Backspace') {
+        if (backspaceComposer(composer)) {
+          updateOverlayPartial();
+          return;
+        }
+      } else {
+        flushComposerAndSend();
+      }
+      sendText(seq);
       overlay.value = '';
+      setIdleSize();
       return;
     }
     if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
       const c = e.key.toUpperCase().charCodeAt(0);
       if (c >= 64 && c <= 95) {
         e.preventDefault();
-        sendMessage({ type: 'session:terminal-input', sessionId, input: String.fromCharCode(c - 64) });
+        cancelFlushTimer();
+        flushComposerAndSend();
+        sendText(String.fromCharCode(c - 64));
         overlay.value = '';
+        setIdleSize();
       }
     }
   };
   overlay.addEventListener('keydown', handleKeyDown);
 
   return () => {
+    cancelFlushTimer();
+    flushComposerAndSend();
     overlay.remove();
     if (helperTa) {
       helperTa.style.display = prevHelperDisplay;
