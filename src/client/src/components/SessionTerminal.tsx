@@ -321,6 +321,13 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
   container.appendChild(overlay);
 
   let composing = false;
+  let lastCompositionEndAt = 0;
+
+  // iOS 한글 키보드에서 IME composition이 trigger되지 않은 채 호환 자모
+  // (U+3130-U+318F) 또는 conjoining jamo가 input 이벤트로 누출될 수 있음.
+  // 단독 jamo는 사용자가 음절 조합을 의도한 것이므로 PTY로 보내지 않는다
+  // (compositionend 경로에서만 음절로 합쳐 전달).
+  const HANGUL_JAMO_RE = /^[ᄀ-ᇿ㄰-㆏ꥠ-꥿ힰ-퟿]+$/;
 
   const handleCompStart = () => {
     composing = true;
@@ -328,8 +335,11 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
   };
   const handleCompEnd = (e: CompositionEvent) => {
     composing = false;
+    lastCompositionEndAt = Date.now();
     if (e.data) {
-      sendMessage({ type: 'session:terminal-input', sessionId, input: e.data });
+      // iOS는 간혹 NFD conjoining jamo로 e.data를 줘서 PTY echo가 분리되어
+      // 보이게 됨. NFC로 정규화해 음절(precomposed Hangul)로 보냄.
+      sendMessage({ type: 'session:terminal-input', sessionId, input: e.data.normalize('NFC') });
     }
     overlay.value = '';
     setIdleSize();
@@ -339,6 +349,12 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
 
   const handleInput = (e: Event) => {
     if (composing) return;
+    // compositionend 직후 잔여 input 이벤트(보통 inputType=undefined)가
+    // 자모를 다시 흘리는 경우가 있어 짧은 윈도우 동안 입력을 무시.
+    if (Date.now() - lastCompositionEndAt < 50) {
+      overlay.value = '';
+      return;
+    }
     const ie = e as InputEvent;
     switch (ie.inputType) {
       case 'insertCompositionText':
@@ -355,7 +371,14 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
         return;
       default:
         if (ie.data) {
-          sendMessage({ type: 'session:terminal-input', sessionId, input: ie.data });
+          // 단독 한글 자모는 IME composition이 누락된 것으로 간주하고 무시.
+          // 사용자가 의도적으로 자모만 치는 경우(예: ㅋㅋ)는 어차피
+          // compositionend 경로에서 NFC로 정규화되어 전달됨.
+          if (HANGUL_JAMO_RE.test(ie.data)) {
+            overlay.value = '';
+            return;
+          }
+          sendMessage({ type: 'session:terminal-input', sessionId, input: ie.data.normalize('NFC') });
         }
         overlay.value = '';
     }
