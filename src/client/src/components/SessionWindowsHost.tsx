@@ -114,7 +114,6 @@ const DEFAULT_H = 460;
 const CASCADE_STEP = 30;
 const CASCADE_BASE_X = 80;
 const CASCADE_BASE_Y = 80;
-const DETACH_DIST = 30;
 const TITLEBAR_VISIBLE = 80;
 const CHROME_HEIGHT = 28;
 
@@ -387,7 +386,13 @@ export default function SessionWindowsHost({
   }, []);
 
   // ── Tab drag (dock / detach) ─────────────────────────────────────────────
-
+  //
+  // Chrome-tab-tearing model: while the cursor stays inside the source group's
+  // rect the tab sits in place and we render dock previews over sibling stacks.
+  // The instant the cursor leaves the source rect we eagerly tear the tab
+  // into a new floating group at the cursor; subsequent mousemoves drag that
+  // window. On release, if a dock zone is hovered we re-dock; otherwise the
+  // floating window stays where the cursor ended.
   const beginTabDrag = useCallback((groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => {
     if (e.button !== 0) return;
     const startGroup = groupsRef.current.find(g => g.id === groupId);
@@ -398,6 +403,11 @@ export default function SessionWindowsHost({
     const startGroupRect: DockTargetRect = {
       x: startGroup.x, y: startGroup.y, w: startGroup.w, h: startGroup.h,
     };
+
+    // Closure flag: id of the floating group once we've torn the tab off,
+    // null while still attached to the source. Captured by onMove/onUp.
+    let detachedId: string | null = null;
+
     setDragState({
       groupId, sessionId, fromPath,
       startX, startY,
@@ -406,30 +416,98 @@ export default function SessionWindowsHost({
       hoveredGroupId: null, hoveredPath: null, hoveredRect: null, zone: null,
     });
 
+    const performEagerDetach = (mouseX: number, mouseY: number) => {
+      const newId = genId();
+      detachedId = newId;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const newGeom: WindowGeom = {
+        x: clamp(mouseX - 60, -DEFAULT_W + TITLEBAR_VISIBLE, vpW - TITLEBAR_VISIBLE),
+        y: clamp(mouseY - 12, 0, vpH - CHROME_HEIGHT),
+        w: DEFAULT_W,
+        h: DEFAULT_H,
+      };
+      setGroups((prev) => {
+        const src = prev.find(g => g.id === groupId);
+        if (!src) return prev;
+        const srcRoot = removeTab(src.root, sessionId);
+        const srcColor = src.colors[sessionId] || assignColor([]);
+        const srcIntent = src.intents[sessionId] ?? { intent: 'open' as WindowIntent, nonce: 0 };
+        zCounterRef.current += 1;
+        const z = zCounterRef.current;
+        const detached: OpenGroup = {
+          id: newId,
+          ...newGeom,
+          z,
+          minimized: false,
+          root: makeStack([sessionId], sessionId),
+          colors: { [sessionId]: srcColor },
+          intents: { [sessionId]: srcIntent },
+        };
+        const next: OpenGroup[] = [];
+        for (const g of prev) {
+          if (g.id === groupId) {
+            if (srcRoot) {
+              const remaining = new Set(allSessionIds(srcRoot));
+              const colors: Record<string, string> = {};
+              for (const k of Object.keys(g.colors)) if (remaining.has(k)) colors[k] = g.colors[k];
+              const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+              for (const k of Object.keys(g.intents)) if (remaining.has(k)) intents[k] = g.intents[k];
+              next.push({ ...g, root: simplify(srcRoot), colors, intents });
+            }
+            // else drop the empty origin group
+          } else {
+            next.push(g);
+          }
+        }
+        next.push(detached);
+        return next;
+      });
+    };
+
     const onMove = (ev: MouseEvent) => {
       const cur = dragStateRef.current;
       if (!cur) return;
-      // Hit-test for hovered stack via DOM data attributes.
+
+      if (!detachedId) {
+        const r = startGroupRect;
+        const insideStart =
+          ev.clientX >= r.x && ev.clientX <= r.x + r.w &&
+          ev.clientY >= r.y && ev.clientY <= r.y + r.h;
+        if (!insideStart) performEagerDetach(ev.clientX, ev.clientY);
+      } else {
+        // Slide the floating window with the cursor.
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight;
+        const newX = clamp(ev.clientX - 60, -(DEFAULT_W - TITLEBAR_VISIBLE), vpW - TITLEBAR_VISIBLE);
+        const newY = clamp(ev.clientY - 12, 0, vpH - CHROME_HEIGHT);
+        setGroups((prev) => prev.map(g => g.id === detachedId ? { ...g, x: newX, y: newY } : g));
+      }
+
+      // Hit-test for a dock target. `elementsFromPoint` (plural) walks the
+      // z-stack so we can skip our own floating window and still see groups
+      // beneath it. Skip same-stack pre-detach and self-group post-detach.
       let hoveredGroupId: string | null = null;
       let hoveredPath: Path | null = null;
       let hoveredRect: DockTargetRect | null = null;
       let zone: DockSide | null = null;
-      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const stackEl = el?.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
-      if (stackEl) {
-        const gid = stackEl.dataset.groupId || '';
-        const pathStr = stackEl.dataset.stackPath || '';
+      const els = document.elementsFromPoint(ev.clientX, ev.clientY) as HTMLElement[];
+      for (const node of els) {
+        const cand = node.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+        if (!cand) continue;
+        const gid = cand.dataset.groupId || '';
+        const pathStr = cand.dataset.stackPath || '';
+        const isSelf = detachedId
+          ? gid === detachedId
+          : gid === cur.groupId && pathStr === cur.fromPath.join('.');
+        if (isSelf) continue;
         const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
-        // Don't allow same-stack dock (origin tab on origin stack).
-        const sameStack = gid === cur.groupId && pathStr === cur.fromPath.join('.');
-        const r = stackEl.getBoundingClientRect();
-        const rect: DockTargetRect = { x: r.left, y: r.top, w: r.width, h: r.height };
-        if (!sameStack) {
-          hoveredGroupId = gid;
-          hoveredPath = path;
-          hoveredRect = rect;
-          zone = detectDockZone(ev.clientX, ev.clientY, rect);
-        }
+        const r = cand.getBoundingClientRect();
+        hoveredGroupId = gid;
+        hoveredPath = path;
+        hoveredRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+        zone = detectDockZone(ev.clientX, ev.clientY, hoveredRect);
+        break;
       }
       setDragState({
         ...cur,
@@ -438,29 +516,25 @@ export default function SessionWindowsHost({
       });
     };
 
-    const onUp = (ev: MouseEvent) => {
+    const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       const cur = dragStateRef.current;
       setDragState(null);
       if (!cur) return;
 
-      const movedDist = Math.hypot(ev.clientX - cur.startX, ev.clientY - cur.startY);
       if (cur.hoveredGroupId && cur.hoveredPath && cur.zone) {
-        // Dock into another stack.
-        applyDock(cur.groupId, cur.sessionId, cur.hoveredGroupId, cur.hoveredPath, cur.zone);
+        // Dock into another stack. After eager detach the source is the
+        // floating group; pre-detach (cursor never left the source rect) it
+        // is still the origin group.
+        const srcId = detachedId || cur.groupId;
+        applyDock(srcId, cur.sessionId, cur.hoveredGroupId, cur.hoveredPath, cur.zone);
         return;
       }
-      // No drop target.
-      const r = cur.startGroupRect;
-      const insideStartChrome =
-        ev.clientX >= r.x && ev.clientX <= r.x + r.w &&
-        ev.clientY >= r.y && ev.clientY <= r.y + r.h;
-      if (movedDist >= DETACH_DIST && !insideStartChrome) {
-        // Detach to a new floating group at the cursor.
-        applyDetach(cur.groupId, cur.sessionId, ev.clientX, ev.clientY);
-      }
-      // else: short click — nothing to do (active-tab swap already handled).
+      // No dock target. If detached, the floating group is already at the
+      // cursor (geometry committed during drag). If not detached, the user
+      // never left the source rect — treat as a click and do nothing
+      // (active-tab swap already happened on mousedown).
     };
 
     window.addEventListener('mousemove', onMove);
@@ -538,54 +612,7 @@ export default function SessionWindowsHost({
     });
   }, []);
 
-  const applyDetach = useCallback((srcGroupId: string, srcSessionId: string, mouseX: number, mouseY: number) => {
-    setGroups((prev) => {
-      const src = prev.find(g => g.id === srcGroupId);
-      if (!src) return prev;
-      const srcRoot = removeTab(src.root, srcSessionId);
-      const srcColor = src.colors[srcSessionId] || assignColor([]);
-      const srcIntent = src.intents[srcSessionId] ?? { intent: 'open' as WindowIntent, nonce: 0 };
-      // New group at the cursor (offset so titlebar is grabbed)
-      zCounterRef.current += 1;
-      const z = zCounterRef.current;
-      const vpW = window.innerWidth;
-      const vpH = window.innerHeight;
-      const newGeom: WindowGeom = {
-        x: clamp(mouseX - 60, -DEFAULT_W + TITLEBAR_VISIBLE, vpW - TITLEBAR_VISIBLE),
-        y: clamp(mouseY - 12, 0, vpH - CHROME_HEIGHT),
-        w: DEFAULT_W,
-        h: DEFAULT_H,
-      };
-      const detached: OpenGroup = {
-        id: genId(),
-        ...newGeom,
-        z,
-        minimized: false,
-        root: makeStack([srcSessionId], srcSessionId),
-        colors: { [srcSessionId]: srcColor },
-        intents: { [srcSessionId]: srcIntent },
-      };
-      const next: OpenGroup[] = [];
-      for (const g of prev) {
-        if (g.id === srcGroupId) {
-          if (srcRoot) {
-            const remaining = new Set(allSessionIds(srcRoot));
-            const colors: Record<string, string> = {};
-            for (const k of Object.keys(g.colors)) if (remaining.has(k)) colors[k] = g.colors[k];
-            const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
-            for (const k of Object.keys(g.intents)) if (remaining.has(k)) intents[k] = g.intents[k];
-            next.push({ ...g, root: simplify(srcRoot), colors, intents });
-          }
-        } else {
-          next.push(g);
-        }
-      }
-      next.push(detached);
-      return next;
-    });
-  }, []);
-
-  // Move an entire single-stack group into another group at the given side.
+// Move an entire single-stack group into another group at the given side.
   // For `center` the source's tabs are appended to the destination stack;
   // for `left|right|top|bottom` the source's stack is wrapped alongside the
   // destination's path in a new split. The source group is dropped after.

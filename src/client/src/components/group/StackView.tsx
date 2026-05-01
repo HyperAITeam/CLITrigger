@@ -2,7 +2,7 @@
 // All panes (one per tab) stay mounted simultaneously — only `display` is
 // toggled — so PTY live output never drops when the user switches tabs.
 
-import { X, Minus } from 'lucide-react';
+import { X, Minus, ZoomIn, ZoomOut } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -132,7 +132,22 @@ export default function StackView({
               }}
               title={session?.title || sid}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+              <span
+                aria-hidden
+                style={{
+                  flexShrink: 0,
+                  fontFamily: CMD_FONT,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: -0.5,
+                  lineHeight: 1,
+                  color,
+                  width: 16,
+                  textAlign: 'center',
+                }}
+              >
+                {'>_'}
+              </span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                 {session?.title || sid}
               </span>
@@ -170,9 +185,9 @@ export default function StackView({
           onClick={() => bumpActiveFontSize(-1)}
           aria-label="decrease-font"
           title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px)`}
-          style={fontBtnStyle}
+          style={groupBtnStyle}
         >
-          A−
+          <ZoomOut size={13} />
         </button>
         <button
           data-no-drag
@@ -180,9 +195,9 @@ export default function StackView({
           onClick={() => bumpActiveFontSize(+1)}
           aria-label="increase-font"
           title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px)`}
-          style={fontBtnStyle}
+          style={groupBtnStyle}
         >
-          A+
+          <ZoomIn size={13} />
         </button>
         {groupActions && (
           <>
@@ -262,10 +277,3 @@ const groupBtnStyle: React.CSSProperties = {
   height: '100%',
 };
 
-const fontBtnStyle: React.CSSProperties = {
-  ...groupBtnStyle,
-  fontFamily: CMD_FONT,
-  fontSize: 11,
-  letterSpacing: 0,
-  minWidth: 22,
-};
