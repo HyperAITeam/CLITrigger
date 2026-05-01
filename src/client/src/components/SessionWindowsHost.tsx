@@ -87,6 +87,8 @@ export interface SessionWindowsAPI {
   reorderTab: (groupId: string, sessionId: string, newIndex: number) => void;
   // Tab drag interaction
   beginTabDrag: (groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => void;
+  // Dock an entire single-stack group into another group.
+  dockGroup: (srcGroupId: string, dstGroupId: string, dstPath: Path, side: DockSide) => void;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -556,14 +558,54 @@ export default function SessionWindowsHost({
     });
   }, []);
 
+  // Move an entire single-stack group into another group at the given side.
+  // For `center` the source's tabs are appended to the destination stack;
+  // for `left|right|top|bottom` the source's stack is wrapped alongside the
+  // destination's path in a new split. The source group is dropped after.
+  // Source groups whose root is itself a split are not supported by this
+  // path (chrome-drag dock is exposed only on single-stack groups).
+  const dockGroup = useCallback((srcGroupId: string, dstGroupId: string, dstPath: Path, side: DockSide) => {
+    setGroups((prev) => {
+      if (srcGroupId === dstGroupId) return prev;
+      const src = prev.find(g => g.id === srcGroupId);
+      const dst = prev.find(g => g.id === dstGroupId);
+      if (!src || !dst) return prev;
+      if (src.root.kind !== 'stack') return prev;
+      const srcStack = src.root;
+      let newDstRoot: LayoutNode;
+      if (side === 'center') {
+        newDstRoot = srcStack.tabs.reduce<LayoutNode>(
+          (root, sid) => insertIntoStack(root, dstPath, sid),
+          dst.root,
+        );
+      } else {
+        newDstRoot = insertAtSide(dst.root, dstPath, side, srcStack);
+      }
+      newDstRoot = treeSetActiveTab(newDstRoot, srcStack.activeTab);
+      const dstColors = { ...dst.colors, ...src.colors };
+      const dstIntents = { ...dst.intents, ...src.intents };
+      const next: OpenGroup[] = [];
+      for (const g of prev) {
+        if (g.id === srcGroupId) continue;
+        if (g.id === dstGroupId) {
+          zCounterRef.current += 1;
+          next.push({ ...g, root: newDstRoot, colors: dstColors, intents: dstIntents, z: zCounterRef.current, minimized: false });
+        } else {
+          next.push(g);
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
-    beginTabDrag,
+    beginTabDrag, dockGroup,
   }), [openOrFocus, close, focus, minimize, restore, isOpen,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag]);
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();

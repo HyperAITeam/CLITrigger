@@ -174,7 +174,17 @@ export default function SessionTerminal({
   }, [isRunning]);
 
   return (
-    <div style={{ position: 'relative', background: CMD.bg, padding: 8, height, width: '100%' }}>
+    <div
+      style={{
+        position: 'relative',
+        background: CMD.bg,
+        padding: 8,
+        height,
+        width: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+    >
       {replaying && subscribed && (
         <div
           style={{
@@ -191,7 +201,15 @@ export default function SessionTerminal({
           loading history…
         </div>
       )}
-      <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+      <div
+        ref={containerRef}
+        // Block wheel from bubbling up to ancestors. xterm.js handles its own
+        // scroll within the viewport; if the user wheels up while there's
+        // nothing in the scrollback, the event would otherwise propagate to
+        // a parent and scroll the page or the surrounding window chrome.
+        onWheel={(e) => { e.stopPropagation(); }}
+        style={{ height: '100%', width: '100%' }}
+      />
     </div>
   );
 }
