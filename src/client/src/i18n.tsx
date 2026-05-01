@@ -756,6 +756,7 @@ const translations = {
     'session.stopping': 'stopping…',
     'session.startFailed': 'Failed to start',
     'session.confirmStop': 'End this session? The running task will be terminated.',
+    'session.minimize': 'Minimize',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -1704,6 +1705,7 @@ const translations = {
     'session.stopping': '중지하는 중…',
     'session.startFailed': '시작 실패',
     'session.confirmStop': '이 세션을 종료할까요? 진행 중인 작업이 종료됩니다.',
+    'session.minimize': '최소화',
 
     // Analytics
     'analytics.title': '실행 통계',
