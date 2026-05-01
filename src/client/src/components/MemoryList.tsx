@@ -20,6 +20,7 @@ import {
   getMemoryNodeRaw,
   getProjectRawFiles,
   type RawFileEntry,
+  type IngestResultData,
 } from '../api/memory';
 import { getTodos } from '../api/todos';
 import { getDiscussions } from '../api/discussions';
@@ -755,6 +756,66 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
 
 // ── Ingest modal ──
 
+function IngestResultView({ result }: { result: IngestResultData }) {
+  const { t } = useI18n();
+  const applied = result.created + result.updated + result.edgesAdded;
+  const s = result.skipped;
+  const hasProposals = s.proposedCreate + s.proposedUpdate + s.proposedEdges > 0;
+  const skipRows: { label: string; n: number }[] = [
+    { label: t('wiki.ingest.skip.duplicate'), n: s.duplicateTitle },
+    { label: t('wiki.ingest.skip.unique'), n: s.uniqueConflict },
+    { label: t('wiki.ingest.skip.empty'), n: s.emptyTitle },
+    { label: t('wiki.ingest.skip.badId'), n: s.invalidUpdateId },
+    { label: t('wiki.ingest.skip.badEdge'), n: s.invalidEdgeRef },
+    { label: t('wiki.ingest.skip.selfEdge'), n: s.selfEdge },
+    { label: t('wiki.ingest.skip.edgeUnique'), n: s.edgeUniqueConflict },
+  ].filter(r => r.n > 0);
+
+  if (applied > 0) {
+    return (
+      <div className="mt-3 text-xs text-status-success">
+        {t('wiki.ingest.success').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)).replace('{edges}', String(result.edgesAdded))}
+        {skipRows.length > 0 && (
+          <div className="mt-1 text-warm-500">
+            {t('wiki.ingest.skipNote')}: {skipRows.map(r => `${r.label} ${r.n}`).join(', ')}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-warm-200 bg-warm-100/50 p-3 text-xs text-warm-700 space-y-1.5">
+      <div className="font-medium text-warm-800">
+        {s.parseFailed
+          ? t('wiki.ingest.parseFailed')
+          : hasProposals
+            ? t('wiki.ingest.allSkipped')
+            : t('wiki.ingest.modelEmpty')}
+      </div>
+      {hasProposals && (
+        <div className="text-warm-600">
+          {t('wiki.ingest.proposed')
+            .replace('{c}', String(s.proposedCreate))
+            .replace('{u}', String(s.proposedUpdate))
+            .replace('{e}', String(s.proposedEdges))}
+        </div>
+      )}
+      {skipRows.length > 0 && (
+        <ul className="list-disc list-inside space-y-0.5 text-warm-600">
+          {skipRows.map(r => <li key={r.label}>{r.label}: {r.n}</li>)}
+        </ul>
+      )}
+      {result.rawResponseSnippet && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-warm-500 hover:text-warm-700">{t('wiki.ingest.rawSnippet')}</summary>
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-warm-50 p-2 text-2xs text-warm-700 border border-warm-200">{result.rawResponseSnippet}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 interface IngestModalProps { projectId: string; onClose: () => void; onDone: () => void; }
 
 function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
@@ -767,7 +828,7 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
   const [pasteText, setPasteText] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ created: number; updated: number; edgesAdded: number } | null>(null);
+  const [result, setResult] = useState<IngestResultData | null>(null);
 
   useEffect(() => {
     getTodos(projectId).then(all => setTodos(all.filter(td => td.status === 'completed'))).catch(() => {});
@@ -793,7 +854,8 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
       }
       const res = await ingestMemory(projectId, payload);
       setResult(res);
-      setTimeout(onDone, 1500);
+      const applied = res.created + res.updated + res.edgesAdded;
+      if (applied > 0) setTimeout(onDone, 1500);
     } catch (err) {
       console.error('Ingest failed', err);
       setError(err instanceof Error ? err.message : String(err));
@@ -828,11 +890,7 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
           <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder={t('wiki.ingest.textPlaceholder')} rows={8} className="w-full px-3 py-2 rounded-lg border border-warm-200 bg-warm-50 text-sm resize-y focus:outline-none" />
         )}
         {error && <p className="mt-3 text-xs text-status-error">{error}</p>}
-        {result && (
-          <p className="mt-3 text-xs text-status-success">
-            {t('wiki.ingest.success').replace('{created}', String(result.created)).replace('{updated}', String(result.updated)).replace('{edges}', String(result.edgesAdded))}
-          </p>
-        )}
+        {result && <IngestResultView result={result} />}
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} disabled={running} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50">{t('wiki.cancel')}</button>
           <button onClick={handleRun} disabled={!canRun || running} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50">

@@ -97,11 +97,27 @@ const DEFAULT_WIKI_SCHEMA = `# Wiki Schema
 
 const WIKI_SCHEMA_TAG = '__wiki_schema__';
 
+export interface IngestSkippedBreakdown {
+  parseFailed: boolean;
+  proposedCreate: number;
+  proposedUpdate: number;
+  proposedEdges: number;
+  duplicateTitle: number;
+  uniqueConflict: number;
+  emptyTitle: number;
+  invalidUpdateId: number;
+  invalidEdgeRef: number;
+  selfEdge: number;
+  edgeUniqueConflict: number;
+}
+
 export interface IngestResult {
   created: number;
   updated: number;
   edgesAdded: number;
   nodeIds: string[];
+  skipped: IngestSkippedBreakdown;
+  rawResponseSnippet?: string;
 }
 
 export interface LintIssue {
@@ -122,7 +138,7 @@ function stripCodeFences(text: string): string {
   return m ? m[1].trim() : trimmed;
 }
 
-function safeParseIngestOp(raw: string): IngestOp {
+function safeParseIngestOp(raw: string): { op: IngestOp; parseFailed: boolean } {
   const empty: IngestOp = { create: [], update: [], edges: [] };
   const cleaned = stripCodeFences(raw);
   let parsed: unknown;
@@ -130,15 +146,17 @@ function safeParseIngestOp(raw: string): IngestOp {
     parsed = JSON.parse(cleaned);
   } catch {
     const m = cleaned.match(/\{[\s\S]*\}/);
-    if (!m) return empty;
-    try { parsed = JSON.parse(m[0]); } catch { return empty; }
+    if (!m) return { op: empty, parseFailed: true };
+    try { parsed = JSON.parse(m[0]); } catch { return { op: empty, parseFailed: true }; }
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return empty;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { op: empty, parseFailed: true };
+  }
   const p = parsed as Record<string, unknown>;
   const create = Array.isArray(p.create) ? p.create : [];
   const update = Array.isArray(p.update) ? p.update : [];
   const edges = Array.isArray(p.edges) ? p.edges : [];
-  return { create, update, edges };
+  return { op: { create, update, edges }, parseFailed: false };
 }
 
 function safeParseLintIssues(raw: string): LintIssue[] {
@@ -362,7 +380,21 @@ export async function ingestSource(
     .replace('{SOURCE}', sourceText.slice(0, 8000));
 
   const raw = await runHeadless(cliTool, prompt);
-  const op = safeParseIngestOp(raw);
+  const { op, parseFailed } = safeParseIngestOp(raw);
+
+  const skipped: IngestSkippedBreakdown = {
+    parseFailed,
+    proposedCreate: op.create.length,
+    proposedUpdate: op.update.length,
+    proposedEdges: op.edges.length,
+    duplicateTitle: 0,
+    uniqueConflict: 0,
+    emptyTitle: 0,
+    invalidUpdateId: 0,
+    invalidEdgeRef: 0,
+    selfEdge: 0,
+    edgeUniqueConflict: 0,
+  };
 
   const titleToId = new Map<string, string>(
     nodes.map(n => [n.title.toLowerCase(), n.id])
@@ -373,9 +405,9 @@ export async function ingestSource(
   const VALID_RELATIONS = new Set(['related', 'precedes', 'example_of', 'counter_example', 'refines']);
 
   for (const c of op.create.slice(0, 10)) {
-    if (!c.title?.trim()) continue;
+    if (!c.title?.trim()) { skipped.emptyTitle++; continue; }
     const title = String(c.title).trim().slice(0, 120);
-    if (titleToId.has(title.toLowerCase())) continue;
+    if (titleToId.has(title.toLowerCase())) { skipped.duplicateTitle++; continue; }
     try {
       const tags = Array.isArray(c.tags) ? JSON.stringify(c.tags.map(String).filter(Boolean)) : null;
       const node = queries.createMemoryNode(
@@ -390,16 +422,21 @@ export async function ingestSource(
       );
       titleToId.set(title.toLowerCase(), node.id);
       createdIds.push(node.id);
-    } catch {
-      /* skip on UNIQUE conflict */
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('UNIQUE')) skipped.uniqueConflict++;
+      else {
+        skipped.uniqueConflict++;
+        console.warn('[memory-ingest] createMemoryNode failed:', msg);
+      }
     }
   }
 
   let updatedCount = 0;
   for (const u of op.update.slice(0, 10)) {
-    if (!u.id) continue;
+    if (!u.id) { skipped.invalidUpdateId++; continue; }
     const existing = nodes.find(n => n.id === u.id);
-    if (!existing) continue;
+    if (!existing) { skipped.invalidUpdateId++; continue; }
     const upd: Parameters<typeof queries.updateMemoryNode>[1] = {};
     if (typeof u.body === 'string') upd.body = u.body;
     if (Array.isArray(u.tags)) upd.tags = JSON.stringify(u.tags.map(String).filter(Boolean));
@@ -412,13 +449,31 @@ export async function ingestSource(
   for (const e of op.edges.slice(0, 20)) {
     const fromId = titleToId.get(String(e.from_title || '').toLowerCase());
     const toId = titleToId.get(String(e.to_title || '').toLowerCase());
-    if (!fromId || !toId || fromId === toId) continue;
+    if (!fromId || !toId) { skipped.invalidEdgeRef++; continue; }
+    if (fromId === toId) { skipped.selfEdge++; continue; }
     const rt = VALID_RELATIONS.has(e.relation_type ?? '') ? e.relation_type! : 'related';
     try {
       queries.createMemoryEdge(projectId, fromId, toId, rt as queries.MemoryRelationType, e.label ?? null);
       edgesAdded++;
-    } catch {
-      /* skip duplicates */
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('UNIQUE')) skipped.edgeUniqueConflict++;
+      else {
+        skipped.edgeUniqueConflict++;
+        console.warn('[memory-ingest] createMemoryEdge failed:', msg);
+      }
+    }
+  }
+
+  if (parseFailed || (createdIds.length === 0 && updatedCount === 0 && edgesAdded === 0)) {
+    console.warn(
+      `[memory-ingest] no-op result project=${projectId} cli=${cliTool} parseFailed=${parseFailed} ` +
+      `proposed(c/u/e)=${op.create.length}/${op.update.length}/${op.edges.length} ` +
+      `skip=dup:${skipped.duplicateTitle}/uniq:${skipped.uniqueConflict}/badId:${skipped.invalidUpdateId}/` +
+      `badEdge:${skipped.invalidEdgeRef}/empty:${skipped.emptyTitle}`
+    );
+    if (parseFailed) {
+      console.warn('[memory-ingest] raw response head:', raw.slice(0, 500));
     }
   }
 
@@ -427,6 +482,8 @@ export async function ingestSource(
     updated: updatedCount,
     edgesAdded,
     nodeIds: createdIds,
+    skipped,
+    rawResponseSnippet: parseFailed ? raw.slice(0, 500) : undefined,
   };
 }
 
