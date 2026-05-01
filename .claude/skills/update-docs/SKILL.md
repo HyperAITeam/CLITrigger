@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: 오늘(또는 지정 날짜)의 git 커밋을 분석하여 CHANGELOG.md, SETUP.md, CLAUDE.md 문서를 자동 업데이트합니다.
+description: 오늘(또는 지정 날짜)의 git 커밋을 분석하여 docs/changelog/, SETUP.md, CLAUDE.md 문서를 자동 업데이트합니다.
 argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..hash2]"
 ---
 
@@ -10,7 +10,8 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 
 특정 날짜(기본: 오늘)의 git 커밋을 분석하여 프로젝트 문서 3종을 일관되게 업데이트합니다:
 
-- `docs/CHANGELOG.md` — 변경 이력 항목 추가
+- `docs/changelog/YYYY-MM/YYYY-MM-DD.md` — 해당 날짜 변경 이력 파일 신규 생성 (또는 같은 날 추가 항목이면 `-2`/`-3` suffix)
+- `docs/changelog/README.md` — 인덱스에 한 줄 추가
 - `docs/SETUP.md` — 사용법/API 테이블 반영
 - `CLAUDE.md` — 아키텍처 설명 반영
 
@@ -52,15 +53,22 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 
 다음 파일을 읽습니다:
 
-1. `docs/CHANGELOG.md` — 기존 형식과 스타일 파악
-2. `docs/SETUP.md` — 섹션 번호, API 테이블 위치 파악
-3. `CLAUDE.md` — Architecture 섹션의 현재 내용 파악
+1. `docs/changelog/README.md` — 인덱스 형식과 가장 최근 entry의 월/파일명 패턴 파악
+2. 직전 entry 파일 1-2개 (예: `docs/changelog/YYYY-MM/YYYY-MM-DD.md`) — 본문 스타일과 톤 파악
+3. `docs/SETUP.md` — 섹션 번호, API 테이블 위치 파악
+4. `CLAUDE.md` — Architecture 섹션의 현재 내용 파악
 
-### Step 4: CHANGELOG.md 업데이트
+### Step 4: 날짜별 changelog 파일 생성 + 인덱스 갱신
 
-파일 최상단 (`# Changelog` 바로 아래)에 새 날짜 항목을 추가합니다.
+#### 4a. 파일 경로 결정
 
-**형식 규칙** (기존 항목의 스타일을 따름):
+- 대상 날짜가 `YYYY-MM-DD`이면 폴더는 `docs/changelog/YYYY-MM/`
+- 해당 폴더가 없으면 신규 생성
+- 파일명:
+  - 같은 날 첫 번째 항목: `YYYY-MM-DD.md`
+  - 같은 날 두 번째 이후 항목 (이미 `YYYY-MM-DD.md`가 있는 경우): 기존 파일을 `YYYY-MM-DD-1.md`로 rename 후 새 파일을 `YYYY-MM-DD-2.md`로 생성. 이미 `-1`, `-2` 패턴이면 다음 번호로 이어감.
+
+#### 4b. 파일 본문 (기존 entry 스타일 그대로)
 
 ```markdown
 ## YYYY-MM-DD — 한줄 요약 제목
@@ -90,10 +98,21 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 1. **결정 이름**: 왜 이렇게 했는지
 ```
 
+#### 4c. 인덱스 갱신 (`docs/changelog/README.md`)
+
+- 해당 월(`## YYYY-MM`) 섹션의 **최상단**에 한 줄 추가:
+  ```
+  - [YYYY-MM-DD — 제목](./YYYY-MM/YYYY-MM-DD.md)
+  ```
+- 해당 월 섹션이 아직 없으면, 적절한 위치(최신 월이 위에 오도록)에 새 `## YYYY-MM` 헤더와 함께 추가
+- 같은 날 항목이 여러 개라 파일이 `-1`/`-2` 형태면 링크도 그에 맞춰 작성
+
 **주의사항**:
 - 커밋 메시지의 상세 설명이 있으면 그대로 활용
-- 커밋이 여러 개면 관련 커밋을 하나의 항목으로 그룹화 가능
-- 기존 CHANGELOG 항목과 동일한 한국어 톤/스타일 유지
+- 같은 날 커밋이라도 주제가 명확히 다르면 별도 entry 파일로 나누기 (예: GitHub 통합 vs Notion 통합)
+- 주제가 같으면 한 entry 파일에 묶기
+- 기존 entry와 동일한 한국어 톤/스타일 유지
+- 파일 끝에 trailing newline 1개 유지 (기존 파일과 동일)
 
 ### Step 5: SETUP.md 업데이트
 
@@ -143,7 +162,8 @@ Architecture 섹션의 해당 항목 설명을 업데이트합니다:
 
 | 문서 | 변경 |
 |------|------|
-| `docs/CHANGELOG.md` | 새 항목 추가: "제목" |
+| `docs/changelog/YYYY-MM/YYYY-MM-DD.md` | 신규 entry 파일 생성: "제목" |
+| `docs/changelog/README.md` | 인덱스에 한 줄 추가 |
 | `docs/SETUP.md` | 섹션 X 추가, API 테이블 Y개 행 추가 |
 | `CLAUDE.md` | Architecture 섹션 Z개 항목 업데이트 |
 ```
@@ -161,6 +181,7 @@ Architecture 섹션의 해당 항목 설명을 업데이트합니다:
 
 | File | Purpose |
 |------|---------|
-| `docs/CHANGELOG.md` | 변경 이력 (날짜별 항목) |
+| `docs/changelog/README.md` | 인덱스 (월별 섹션 + 날짜별 entry 링크) |
+| `docs/changelog/YYYY-MM/YYYY-MM-DD.md` | 날짜별 entry 본문 |
 | `docs/SETUP.md` | 설치/사용법 가이드 (섹션 번호 + API 테이블) |
 | `CLAUDE.md` | 프로젝트 아키텍처 설명 (영어) |

@@ -9,16 +9,19 @@ set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || REPO_ROOT="$CLAUDE_PROJECT_DIR"
 cd "$REPO_ROOT" || exit 0
 
-CHANGELOG="$REPO_ROOT/docs/CHANGELOG.md"
+CHANGELOG_DIR="$REPO_ROOT/docs/changelog"
 
 # Build context string
 CONTEXT=""
 
-# Recent changelog entries
-if [ -f "$CHANGELOG" ]; then
-  RECENT_CHANGELOG=$(tail -20 "$CHANGELOG" 2>/dev/null || true)
-  if [ -n "$RECENT_CHANGELOG" ]; then
-    CONTEXT="Recent CHANGELOG entries:\n$RECENT_CHANGELOG\n\n"
+# Most recent changelog entry (latest dated file under docs/changelog/YYYY-MM/)
+if [ -d "$CHANGELOG_DIR" ]; then
+  LATEST_ENTRY=$(find "$CHANGELOG_DIR" -mindepth 2 -name '*.md' 2>/dev/null | sort -r | head -1)
+  if [ -n "$LATEST_ENTRY" ] && [ -f "$LATEST_ENTRY" ]; then
+    RECENT_CHANGELOG=$(head -40 "$LATEST_ENTRY" 2>/dev/null || true)
+    if [ -n "$RECENT_CHANGELOG" ]; then
+      CONTEXT="Most recent changelog entry:\n$RECENT_CHANGELOG\n\n"
+    fi
   fi
 fi
 
