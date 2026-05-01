@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Hook: Stop
 # On session end: stages all changes, generates a conventional commit message
-# via Claude headless mode (claude -p), commits, and logs to CHANGELOG.
+# via Claude headless mode (claude -p), and commits.
 # Falls back to a generic WIP message if claude -p fails.
+# Changelog updates are handled by the /update-docs skill, not this hook.
 
 set -euo pipefail
 
@@ -42,21 +43,3 @@ fi
 
 # Commit using -F - to safely handle special characters
 echo "$COMMIT_MSG" | git commit -F - --no-verify 2>/dev/null || true
-
-# Update CHANGELOG if it exists
-CHANGELOG="$REPO_ROOT/docs/CHANGELOG.md"
-if [ -f "$CHANGELOG" ]; then
-  TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
-  FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
-
-  if grep -q '## \[Unreleased\]' "$CHANGELOG"; then
-    sed -i '' "/## \[Unreleased\]/a\\
-- $TIMESTAMP: $FIRST_LINE" "$CHANGELOG" 2>/dev/null || \
-    sed -i "/## \[Unreleased\]/a\\- $TIMESTAMP: $FIRST_LINE" "$CHANGELOG" 2>/dev/null || true
-  fi
-
-  git add "$CHANGELOG" 2>/dev/null || true
-  if ! git diff-index --quiet HEAD 2>/dev/null; then
-    git commit -m "docs: auto-update changelog" --no-verify 2>/dev/null || true
-  fi
-fi

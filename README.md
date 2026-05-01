@@ -275,7 +275,7 @@ npm run start:tunnel
 | Doc | Content |
 |-----|---------|
 | [SETUP.md](docs/SETUP.md) | Detailed installation and usage guide |
-| [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
+| [changelog/](docs/changelog/README.md) | Version history (per-date entries by month) |
 | [CICD.md](docs/CICD.md) | GitHub Actions CI/CD setup |
 | [TESTING.md](docs/TESTING.md) | Testing guide |
 
