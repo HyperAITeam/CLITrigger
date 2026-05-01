@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { CMD, CMD_FONT } from './terminal-theme';
+import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
+import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SessionTerminalProps {
@@ -24,6 +25,8 @@ interface SessionTerminalProps {
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   height?: number | string;
+  /** Per-session terminal font size in px. Defaults to DEFAULT_FONT_SIZE. */
+  fontSize?: number;
 }
 
 const TERMINAL_THEME = {
@@ -59,6 +62,7 @@ export default function SessionTerminal({
   subscribeBinary,
   onEvent,
   height = '100%',
+  fontSize = DEFAULT_FONT_SIZE,
 }: SessionTerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -68,6 +72,9 @@ export default function SessionTerminal({
   const subscribedSentRef = useRef(false);
   const onFittedRef = useRef(onFitted);
   onFittedRef.current = onFitted;
+  // Exposed so the fontSize-change effect can re-fit and broadcast the new
+  // cols/rows to the PTY without duplicating the debounce logic from RO.
+  const sendResizeRef = useRef<(() => void) | null>(null);
   const [replaying, setReplaying] = useState(true);
 
   useEffect(() => {
@@ -76,13 +83,31 @@ export default function SessionTerminal({
 
     const term = new Terminal({
       fontFamily: CMD_FONT,
-      fontSize: 13,
+      fontSize,
       lineHeight: 1.2,
       cursorBlink: isRunning,
       convertEol: false,
       scrollback: 5000,
       theme: TERMINAL_THEME,
       allowProposedApi: true,
+    });
+    // Ctrl/Cmd + '=' / '+' / '-' adjust the per-session font size and
+    // suppress xterm's default key handling AND the browser's default zoom.
+    // Returning false from the handler stops xterm from forwarding the key.
+    term.attachCustomKeyEventHandler((ev) => {
+      if (ev.type !== 'keydown') return true;
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return true;
+      if (ev.key === '+' || ev.key === '=') {
+        ev.preventDefault();
+        bumpSessionFontSize(sessionId, +1);
+        return false;
+      }
+      if (ev.key === '-' || ev.key === '_') {
+        ev.preventDefault();
+        bumpSessionFontSize(sessionId, -1);
+        return false;
+      }
+      return true;
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -104,6 +129,7 @@ export default function SessionTerminal({
       // a resize fired before subscribe is a safe no-op.
       sendMessage({ type: 'session:resize', sessionId, cols, rows });
     };
+    sendResizeRef.current = sendResize;
 
     // Binary frames may start arriving as soon as session:subscribe lands;
     // attach the subscriber up front so nothing is dropped during replay.
@@ -147,6 +173,7 @@ export default function SessionTerminal({
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
+      sendResizeRef.current = null;
       subscribedSentRef.current = false;
     };
     // sessionId is stable per mount; props changing wouldn't preserve replay state anyway.
@@ -172,6 +199,22 @@ export default function SessionTerminal({
   useEffect(() => {
     if (termRef.current) termRef.current.options.cursorBlink = isRunning;
   }, [isRunning]);
+
+  // Apply font-size changes without re-creating the terminal: update xterm
+  // option, re-fit (cols/rows shrink/grow at the same container size), then
+  // broadcast the new dimensions to the PTY through the same debounce.
+  useEffect(() => {
+    const term = termRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!term || !fitAddon) return;
+    if (term.options.fontSize === fontSize) return;
+    term.options.fontSize = fontSize;
+    try { fitAddon.fit(); } catch { /* container may be hidden */ }
+    if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      sendResizeRef.current?.();
+    }, 50);
+  }, [fontSize]);
 
   return (
     <div

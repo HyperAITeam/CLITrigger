@@ -757,6 +757,8 @@ const translations = {
     'session.startFailed': 'Failed to start',
     'session.confirmStop': 'End this session? The running task will be terminated.',
     'session.minimize': 'Minimize',
+    'session.fontDecrease': 'Decrease font size',
+    'session.fontIncrease': 'Increase font size',
     'group.closeTab': 'Close tab',
 
     // Analytics
@@ -1707,6 +1709,8 @@ const translations = {
     'session.startFailed': '시작 실패',
     'session.confirmStop': '이 세션을 종료할까요? 진행 중인 작업이 종료됩니다.',
     'session.minimize': '최소화',
+    'session.fontDecrease': '글자 작게',
+    'session.fontIncrease': '글자 크게',
     'group.closeTab': '탭 닫기',
 
     // Analytics
