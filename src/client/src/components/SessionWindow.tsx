@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Minus } from 'lucide-react';
 import LayoutNodeView from './group/LayoutNodeView';
+import StackView from './group/StackView';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
@@ -314,10 +315,16 @@ export default function SessionWindow({
     return `${first} +${allIds.length - 1}`;
   })();
 
+  // The unified group chrome only appears once the group has been split
+  // (i.e. it actually contains multiple stacks). For a single-stack group
+  // the chrome would just duplicate the stack's tab bar, so we hide it and
+  // let the stack's tab bar host the group's minimize/close buttons.
+  const isSplitRoot = group.root.kind === 'split';
+
   const desktopWindow = createPortal(
     <div
       ref={wrapperRef}
-      onMouseDown={() => api.focus(allIds[0] || '')}
+      onMouseDown={isSplitRoot ? () => api.focus(allIds[0] || '') : onChromeMouseDown}
       style={{
         position: 'fixed',
         left: group.x, top: group.y, width: group.w, height: group.h,
@@ -330,72 +337,96 @@ export default function SessionWindow({
         overflow: 'hidden',
       }}
     >
-      {/* Chrome: color band + group label/menu, all draggable */}
-      <div
-        onMouseDown={onChromeMouseDown}
-        style={{
-          height: CHROME_HEIGHT, flexShrink: 0,
-          display: 'flex', flexDirection: 'column',
-          background: CMD.titleBg,
-          borderBottom: `1px solid ${CMD.separator}`,
-          userSelect: 'none', cursor: 'move',
-        }}
-      >
-        {/* Top color band — one segment per active tab in each leaf stack */}
-        <div style={{ display: 'flex', height: COLOR_BAND_HEIGHT, flexShrink: 0 }}>
-          {activeIds.map((id, idx) => (
-            <div key={idx} style={{ flex: 1, background: group.colors[id] || CMD.titleText }} />
-          ))}
-        </div>
-        {/* Menu row */}
+      {isSplitRoot && (
+        /* Unified chrome: color band + group label + minimize/close.
+           Shown only when the group is actually a multi-stack arrangement. */
         <div
+          onMouseDown={onChromeMouseDown}
           style={{
-            flex: 1, display: 'flex', alignItems: 'center',
-            padding: '0 4px 0 8px', color: CMD.titleText, fontFamily: CMD_FONT, fontSize: 11,
+            height: CHROME_HEIGHT, flexShrink: 0,
+            display: 'flex', flexDirection: 'column',
+            background: CMD.titleBg,
+            borderBottom: `1px solid ${CMD.separator}`,
+            userSelect: 'none', cursor: 'move',
           }}
         >
-          <span style={{ color: CMD.info, fontWeight: 600, letterSpacing: 1, marginRight: 8 }} aria-hidden>{'>_'}</span>
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {groupLabel}
-          </span>
-          <button
-            data-no-drag
-            onClick={() => api.minimizeGroup(group.id)}
-            style={closeBtnStyle}
-            aria-label="minimize"
-            title={t('session.minimize') || 'Minimize'}
+          <div style={{ display: 'flex', height: COLOR_BAND_HEIGHT, flexShrink: 0 }}>
+            {activeIds.map((id, idx) => (
+              <div key={idx} style={{ flex: 1, background: group.colors[id] || CMD.titleText }} />
+            ))}
+          </div>
+          <div
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center',
+              padding: '0 4px 0 8px', color: CMD.titleText, fontFamily: CMD_FONT, fontSize: 11,
+            }}
           >
-            <Minus size={14} />
-          </button>
-          <button
-            data-no-drag
-            onClick={() => api.closeGroup(group.id)}
-            style={closeBtnStyle}
-            aria-label="close"
-          >
-            <X size={14} />
-          </button>
+            <span style={{ color: CMD.info, fontWeight: 600, letterSpacing: 1, marginRight: 8 }} aria-hidden>{'>_'}</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {groupLabel}
+            </span>
+            <button
+              data-no-drag
+              onClick={() => api.minimizeGroup(group.id)}
+              style={closeBtnStyle}
+              aria-label="minimize"
+              title={t('session.minimize') || 'Minimize'}
+            >
+              <Minus size={14} />
+            </button>
+            <button
+              data-no-drag
+              onClick={() => api.closeGroup(group.id)}
+              style={closeBtnStyle}
+              aria-label="close"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       {/* Layout body */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
-        <LayoutNodeView
-          node={group.root}
-          path={[]}
-          groupId={group.id}
-          sessionsById={sessionsById}
-          colors={group.colors}
-          intents={group.intents}
-          onTabClick={handleTabClick}
-          onTabClose={handleTabClose}
-          onTabMouseDown={handleTabMouseDown}
-          onPaneAutoClose={handlePaneAutoClose}
-          registerRect={() => { /* hit-test uses elementFromPoint, no registry needed */ }}
-          onSplitSizes={handleSplitSizes}
-          sendMessage={sendMessage}
-          subscribeBinary={subscribeBinary}
-          onEvent={onEvent}
-        />
+        {group.root.kind === 'split' ? (
+          <LayoutNodeView
+            node={group.root}
+            path={[]}
+            groupId={group.id}
+            sessionsById={sessionsById}
+            colors={group.colors}
+            intents={group.intents}
+            onTabClick={handleTabClick}
+            onTabClose={handleTabClose}
+            onTabMouseDown={handleTabMouseDown}
+            onPaneAutoClose={handlePaneAutoClose}
+            registerRect={() => { /* hit-test uses elementFromPoint, no registry needed */ }}
+            onSplitSizes={handleSplitSizes}
+            sendMessage={sendMessage}
+            subscribeBinary={subscribeBinary}
+            onEvent={onEvent}
+          />
+        ) : (
+          <StackView
+            stack={group.root}
+            path={[]}
+            groupId={group.id}
+            sessionsById={sessionsById}
+            colors={group.colors}
+            intents={group.intents}
+            onTabClick={handleTabClick}
+            onTabClose={handleTabClose}
+            onTabMouseDown={handleTabMouseDown}
+            onPaneAutoClose={handlePaneAutoClose}
+            registerRect={() => { /* unused */ }}
+            sendMessage={sendMessage}
+            subscribeBinary={subscribeBinary}
+            onEvent={onEvent}
+            groupActions={{
+              onMinimizeGroup: () => api.minimizeGroup(group.id),
+              onCloseGroup: () => api.closeGroup(group.id),
+            }}
+          />
+        )}
       </div>
       {/* Resize corner */}
       <div

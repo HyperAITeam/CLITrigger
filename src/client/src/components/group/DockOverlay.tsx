@@ -21,8 +21,8 @@ interface DockOverlayProps {
   activeZone: DockSide | null;
 }
 
-const ARM_SIZE = 30;     // half-side of each zone icon
-const ARM_OFFSET = 36;   // distance from diamond center to side icons
+const ARM_SIZE = 28;     // half-side of each zone icon (icon = 56x56)
+const ARM_OFFSET = 68;   // distance from diamond center to side icons
 
 export function detectDockZone(
   mouseX: number,
@@ -77,22 +77,28 @@ export default function DockOverlay({ targetRect, activeZone }: DockOverlayProps
           }}
         />
       )}
-      {/* Diamond (5 zone icons) */}
-      <div
-        style={{
-          position: 'fixed',
-          left: cx - 60, top: cy - 60,
-          width: 120, height: 120,
-          pointerEvents: 'none',
-          zIndex: 2500,
-        }}
-      >
-        <ZoneIcon offsetX={60 - ARM_SIZE} offsetY={60 - ARM_SIZE} active={activeZone === 'center'} kind="center" />
-        <ZoneIcon offsetX={60 - ARM_OFFSET - ARM_SIZE} offsetY={60 - ARM_SIZE} active={activeZone === 'left'} kind="left" />
-        <ZoneIcon offsetX={60 + ARM_OFFSET - ARM_SIZE} offsetY={60 - ARM_SIZE} active={activeZone === 'right'} kind="right" />
-        <ZoneIcon offsetX={60 - ARM_SIZE} offsetY={60 - ARM_OFFSET - ARM_SIZE} active={activeZone === 'top'} kind="top" />
-        <ZoneIcon offsetX={60 - ARM_SIZE} offsetY={60 + ARM_OFFSET - ARM_SIZE} active={activeZone === 'bottom'} kind="bottom" />
-      </div>
+      {/* Diamond (5 zone icons). Half-extent = ARM_OFFSET + ARM_SIZE so the
+          arm icons sit fully inside the wrapper. */}
+      {(() => {
+        const HALF = ARM_OFFSET + ARM_SIZE;
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: cx - HALF, top: cy - HALF,
+              width: HALF * 2, height: HALF * 2,
+              pointerEvents: 'none',
+              zIndex: 2500,
+            }}
+          >
+            <ZoneIcon offsetX={HALF - ARM_SIZE} offsetY={HALF - ARM_SIZE} active={activeZone === 'center'} kind="center" />
+            <ZoneIcon offsetX={HALF - ARM_OFFSET - ARM_SIZE} offsetY={HALF - ARM_SIZE} active={activeZone === 'left'} kind="left" />
+            <ZoneIcon offsetX={HALF + ARM_OFFSET - ARM_SIZE} offsetY={HALF - ARM_SIZE} active={activeZone === 'right'} kind="right" />
+            <ZoneIcon offsetX={HALF - ARM_SIZE} offsetY={HALF - ARM_OFFSET - ARM_SIZE} active={activeZone === 'top'} kind="top" />
+            <ZoneIcon offsetX={HALF - ARM_SIZE} offsetY={HALF + ARM_OFFSET - ARM_SIZE} active={activeZone === 'bottom'} kind="bottom" />
+          </div>
+        );
+      })()}
     </>,
     document.body,
   );
