@@ -864,7 +864,7 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
   };
 
   return (
-    <Modal open={true} onClose={onClose} size="md">
+    <Modal open={true} onClose={onClose} size="md" disableBackdropClose={running} disableEscClose={running}>
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
         <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.ingest.title')}</h3>
         <div className="inline-flex rounded-lg border border-warm-200 overflow-hidden mb-4">
@@ -925,7 +925,7 @@ function LintModal({ projectId, onClose }: LintModalProps) {
   };
 
   return (
-    <Modal open={true} onClose={onClose} size="md">
+    <Modal open={true} onClose={onClose} size="md" disableBackdropClose={running} disableEscClose={running}>
       <div className="bg-warm-50 rounded-xl border border-warm-200 p-5 shadow-soft">
         <h3 className="text-base font-semibold text-warm-800 mb-4">{t('wiki.lint.title')}</h3>
         {running ? (
