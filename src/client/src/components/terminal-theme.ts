@@ -21,3 +21,7 @@ export const CMD = {
 } as const;
 
 export const CMD_FONT = "'Cascadia Code', 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace";
+
+export const DEFAULT_FONT_SIZE = 13;
+export const MIN_FONT_SIZE = 8;
+export const MAX_FONT_SIZE = 28;

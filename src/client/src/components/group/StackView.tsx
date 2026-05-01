@@ -6,6 +6,7 @@ import { X, Minus } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
+import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import type { LayoutStack, Path } from './groupTree';
 import type { Session } from '../../types';
 import type { WsEvent } from '../../hooks/useWebSocket';
@@ -59,6 +60,7 @@ export default function StackView({
   groupActions,
 }: StackViewProps) {
   const { t } = useI18n();
+  const [activeFontSize, , bumpActiveFontSize] = useSessionFontSize(stack.activeTab);
 
   const stopMouseDown = (e: React.MouseEvent) => {
     // Tab content area: prevent bubbling so the group-chrome drag doesn't
@@ -162,6 +164,26 @@ export default function StackView({
             and the empty area between still bubbles mousedown to the parent
             for group dragging. */}
         <div style={{ flex: 1, minWidth: 8 }} />
+        <button
+          data-no-drag
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => bumpActiveFontSize(-1)}
+          aria-label="decrease-font"
+          title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px)`}
+          style={fontBtnStyle}
+        >
+          A−
+        </button>
+        <button
+          data-no-drag
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => bumpActiveFontSize(+1)}
+          aria-label="increase-font"
+          title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px)`}
+          style={fontBtnStyle}
+        >
+          A+
+        </button>
         {groupActions && (
           <>
             <button
@@ -238,4 +260,12 @@ const groupBtnStyle: React.CSSProperties = {
   borderRadius: 0,
   flexShrink: 0,
   height: '100%',
+};
+
+const fontBtnStyle: React.CSSProperties = {
+  ...groupBtnStyle,
+  fontFamily: CMD_FONT,
+  fontSize: 11,
+  letterSpacing: 0,
+  minWidth: 22,
 };
