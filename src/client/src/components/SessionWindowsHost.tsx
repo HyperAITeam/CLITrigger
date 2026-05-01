@@ -18,6 +18,7 @@ import {
   type DockSide,
   makeStack,
   findStackContaining,
+  getNode,
   removeTab,
   insertAtSide,
   insertIntoStack,
@@ -471,11 +472,38 @@ export default function SessionWindowsHost({
       const src = prev.find(g => g.id === srcGroupId);
       const dst = prev.find(g => g.id === dstGroupId);
       if (!src || !dst) return prev;
-      // Remove from src
+
+      // Same-group dock: src and dst share one tree. Removing the tab can
+      // collapse a sibling split, which would invalidate dstPath — so anchor
+      // on a sibling tab in the destination stack and recompute the path
+      // after removal.
+      if (srcGroupId === dstGroupId) {
+        const dstNode = getNode(src.root, dstPath);
+        if (!dstNode || dstNode.kind !== 'stack') return prev;
+        const anchor = dstNode.tabs.find(t => t !== srcSessionId);
+        if (!anchor) return prev;
+        const afterRemove = removeTab(src.root, srcSessionId);
+        if (!afterRemove) return prev;
+        const newDstPath = findStackContaining(afterRemove, anchor);
+        if (!newDstPath) return prev;
+        let newRoot: LayoutNode;
+        if (side === 'center') {
+          newRoot = insertIntoStack(afterRemove, newDstPath, srcSessionId);
+        } else {
+          newRoot = insertAtSide(afterRemove, newDstPath, side, makeStack([srcSessionId]));
+        }
+        newRoot = treeSetActiveTab(newRoot, srcSessionId);
+        return prev.map(g => {
+          if (g.id !== srcGroupId) return g;
+          zCounterRef.current += 1;
+          return { ...g, root: newRoot, z: zCounterRef.current, minimized: false };
+        });
+      }
+
+      // Cross-group dock: remove from src tree, insert into dst tree.
       const srcRoot = removeTab(src.root, srcSessionId);
       const srcColor = src.colors[srcSessionId];
       const srcIntent = src.intents[srcSessionId] ?? { intent: 'open' as WindowIntent, nonce: 0 };
-      // Insert into dst
       let dstRoot: LayoutNode;
       if (side === 'center') {
         dstRoot = insertIntoStack(dst.root, dstPath, srcSessionId);
@@ -483,7 +511,6 @@ export default function SessionWindowsHost({
         const newStack = makeStack([srcSessionId]);
         dstRoot = insertAtSide(dst.root, dstPath, side, newStack);
       }
-      // Activate the moved tab in destination
       dstRoot = treeSetActiveTab(dstRoot, srcSessionId);
       const dstColors = { ...dst.colors };
       if (!dstColors[srcSessionId]) dstColors[srcSessionId] = srcColor || assignColor(Object.values(dstColors));
