@@ -4,6 +4,7 @@ import path from 'path';
 import * as queries from '../db/queries.js';
 import type { CliTool } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
+import { debugLogger, type DebugSession } from './debug-logger.js';
 
 const RAW_DIR_NAME = '.clitrigger';
 const RAW_SUBDIR = 'raw';
@@ -193,7 +194,45 @@ function buildInvocation(cliTool: CliTool): { command: string; args: string[] } 
   }
 }
 
-function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 180_000): Promise<string> {
+/**
+ * Open a debug session for a memory-ingest or lint run when the project has debug_logging enabled.
+ * Reuses the existing `.debug-logs/` directory and rotation policy.
+ * The synthetic todoId encodes intent (`mem-{kind}-{sourceType}-{sourceId|ts}`) so logs sort/filter
+ * cleanly alongside real todo logs.
+ */
+function startDebugSession(
+  project: queries.Project,
+  cliTool: CliTool,
+  sourceType: string | null,
+  sourceId: string | null,
+  kind: 'ingest' | 'lint',
+): DebugSession | undefined {
+  if (!project.debug_logging || !project.path) return undefined;
+  const { command, args } = buildInvocation(cliTool);
+  const idPart = sourceId ? sourceId.slice(0, 8) : Date.now().toString(36);
+  const stypePart = sourceType ?? 'manual';
+  const todoId = `mem-${kind}-${stypePart}-${idPart}`;
+  try {
+    return debugLogger.startSession({
+      todoId,
+      projectPath: project.path,
+      cliTool,
+      command,
+      args,
+      workDir: process.env.HOME || process.env.USERPROFILE || '.',
+    });
+  } catch (err) {
+    console.warn('[memory-ingest] failed to open debug session:', err);
+    return undefined;
+  }
+}
+
+function runHeadless(
+  cliTool: CliTool,
+  prompt: string,
+  timeoutMs = 180_000,
+  debugSession?: DebugSession,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const { command, args } = buildInvocation(cliTool);
     const isWin = process.platform === 'win32';
@@ -210,10 +249,17 @@ function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 180_000): Pro
       cwd: process.env.HOME || process.env.USERPROFILE || '.',
     });
 
+    if (debugSession) {
+      // tee returns a passthrough we don't need; the side-effect is appending to the debug log file.
+      debugSession.teeStdout(proc.stdout);
+      debugSession.teeStderr(proc.stderr);
+    }
+
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       try { proc.kill(); } catch { /* ignore */ }
+      try { debugSession?.finalize(-1); } catch { /* ignore */ }
       reject(new Error('Memory ingest timed out'));
     }, timeoutMs);
 
@@ -223,12 +269,14 @@ function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 180_000): Pro
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try { debugSession?.finalize(-1); } catch { /* ignore */ }
       reject(err);
     });
     proc.on('close', (code) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try { debugSession?.finalize(code ?? 0); } catch { /* ignore */ }
       if (code === 0) resolve(stdout);
       else reject(new Error(`CLI exited with code ${code}: ${stderr.trim().slice(0, 300)}`));
     });
@@ -236,10 +284,12 @@ function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 180_000): Pro
     try {
       proc.stdin.write(prompt + '\n');
       proc.stdin.end();
+      try { debugSession?.writeStdin(prompt); } catch { /* ignore */ }
     } catch (err) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try { debugSession?.finalize(-1); } catch { /* ignore */ }
       try { proc.kill(); } catch { /* ignore */ }
       reject(err instanceof Error ? err : new Error(String(err)));
     }
@@ -380,7 +430,8 @@ export async function ingestSource(
     .replace('{NODES}', nodeSummary)
     .replace('{SOURCE}', sourceText.slice(0, 8000));
 
-  const raw = await runHeadless(cliTool, prompt);
+  const debugSession = startDebugSession(project, cliTool, sourceType, sourceId, 'ingest');
+  const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
   const { op, parseFailed } = safeParseIngestOp(raw);
 
   const skipped: IngestSkippedBreakdown = {
@@ -513,7 +564,8 @@ export async function lintWiki(projectId: string): Promise<LintIssue[]> {
 
   const prompt = LINT_PROMPT_HEADER.replace('{NODES}', nodeText.slice(0, 12000));
 
-  const raw = await runHeadless(cliTool, prompt);
+  const debugSession = startDebugSession(project, cliTool, null, null, 'lint');
+  const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
   return safeParseLintIssues(raw);
 }
 
