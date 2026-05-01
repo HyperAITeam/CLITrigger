@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown, ChevronRight, Edit2, Trash2, Pin, Network,
   Download, Wrench, Loader2, AlertCircle, Save, FileText, Database,
@@ -52,6 +52,15 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   const [showIngest, setShowIngest] = useState(false);
   const [showLint, setShowLint] = useState(false);
   const [subTab, setSubTab] = useState<'wiki' | 'sources'>('wiki');
+
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => readNumber('clitrigger:wiki:sidebar-w', 208, 160, 560));
+  useEffect(() => { localStorage.setItem('clitrigger:wiki:sidebar-w', String(sidebarWidth)); }, [sidebarWidth]);
+  const handleSidebarResize = useCallback((clientX: number) => {
+    if (!outerRef.current) return;
+    const rect = outerRef.current.getBoundingClientRect();
+    setSidebarWidth(clamp(clientX - rect.left, 160, 560));
+  }, []);
 
   const reload = () => {
     getMemoryGraph(projectId)
@@ -196,10 +205,10 @@ export default function MemoryList({ projectId }: MemoryListProps) {
       </div>
 
       {/* Main: sidebar + content */}
-      <div className="flex border border-warm-200 rounded-xl overflow-hidden" style={{ height: 580 }}>
+      <div ref={outerRef} className="flex border border-warm-200 rounded-xl overflow-hidden" style={{ height: 580 }}>
 
         {/* ── Left Sidebar ── */}
-        <div className="w-52 flex-shrink-0 border-r border-warm-200 bg-warm-50 flex flex-col overflow-hidden">
+        <div style={{ width: sidebarWidth }} className="flex-shrink-0 bg-warm-50 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto py-1">
             {subTab === 'wiki' ? (
               <>
@@ -238,8 +247,10 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           </div>
         </div>
 
+        <WikiResizer onResize={handleSidebarResize} />
+
         {/* ── Right Content ── */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
           {/* Panel toggle (only when node selected) */}
           {selectedNode && (
             <div className="absolute top-2 right-2 z-10 inline-flex rounded-lg border border-warm-200 overflow-hidden shadow-sm">
@@ -955,4 +966,40 @@ function LintModal({ projectId, onClose }: LintModalProps) {
       </div>
     </Modal>
   );
+}
+
+function WikiResizer({ onResize }: { onResize: (clientX: number) => void }) {
+  return (
+    <div
+      onMouseDown={(e) => {
+        e.preventDefault();
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        const onMove = (ev: MouseEvent) => onResize(ev.clientX);
+        const onUp = () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      }}
+      role="separator"
+      aria-orientation="vertical"
+      className="w-1 shrink-0 cursor-col-resize bg-warm-200 hover:bg-accent transition-colors"
+    />
+  );
+}
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function readNumber(key: string, fallback: number, lo: number, hi: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
+  const v = parseFloat(raw);
+  return isNaN(v) ? fallback : clamp(v, lo, hi);
 }
