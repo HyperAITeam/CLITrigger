@@ -205,7 +205,7 @@ function startDebugSession(
   cliTool: CliTool,
   sourceType: string | null,
   sourceId: string | null,
-  kind: 'ingest' | 'lint',
+  kind: string,
 ): DebugSession | undefined {
   if (!project.debug_logging || !project.path) return undefined;
   const { command, args } = buildInvocation(cliTool);
@@ -341,7 +341,7 @@ function buildNodeSummary(nodes: queries.MemoryNode[]): string {
   }).join('\n');
 }
 
-const INGEST_PROMPT_HEADER = `You are maintaining a project knowledge wiki using the LLM Wiki pattern.
+const INGEST_PROMPT_HEADER = `You are maintaining a project knowledge wiki using the LLM Wiki pattern.{CHUNK_PREAMBLE}
 
 ## Wiki Schema
 {SCHEMA}
@@ -349,7 +349,7 @@ const INGEST_PROMPT_HEADER = `You are maintaining a project knowledge wiki using
 ## Existing Wiki Pages
 {NODES}
 
-## New Source Material
+## New Source Material{CHUNK_NOTE}
 {SOURCE}
 
 ---
@@ -397,6 +397,125 @@ Rules:
 - Maximum 10 issues. Only flag real problems.
 - Return [] if the wiki looks healthy.`;
 
+const CHUNK_CHARS = 7000;
+const CHUNK_THRESHOLD = 8000;
+const MAX_CHUNKS = 4;
+const VALID_RELATIONS = new Set(['related', 'precedes', 'example_of', 'counter_example', 'refines']);
+
+/**
+ * Split a long source into chunks at paragraph boundaries. Hard-splits any single paragraph
+ * that exceeds maxChars. Caps total chunks at maxChunks (later content is dropped).
+ * Returns a single-element array when text fits without splitting.
+ */
+function chunkSourceText(text: string, maxChars: number, maxChunks: number): string[] {
+  if (text.length <= CHUNK_THRESHOLD) return [text];
+  const paragraphs = text.split(/\n\s*\n/);
+  const chunks: string[] = [];
+  let cur = '';
+  for (const para of paragraphs) {
+    const p = para.trim();
+    if (!p) continue;
+    if (chunks.length >= maxChunks) break;
+    if (cur.length + p.length + 2 <= maxChars) {
+      cur = cur ? `${cur}\n\n${p}` : p;
+      continue;
+    }
+    if (cur) {
+      chunks.push(cur);
+      cur = '';
+      if (chunks.length >= maxChunks) break;
+    }
+    if (p.length > maxChars) {
+      for (let i = 0; i < p.length && chunks.length < maxChunks; i += maxChars) {
+        chunks.push(p.slice(i, i + maxChars));
+      }
+    } else {
+      cur = p;
+    }
+  }
+  if (cur && chunks.length < maxChunks) chunks.push(cur);
+  return chunks.slice(0, maxChunks);
+}
+
+interface ChunkApplyContext {
+  projectId: string;
+  sourceType: string | null;
+  sourceId: string | null;
+  rawPath: string | null;
+  titleToId: Map<string, string>;
+  createdIds: string[];
+  updatedIds: Set<string>;
+  edgesAdded: number;
+  skipped: IngestSkippedBreakdown;
+  lastRaw: string;
+}
+
+function applyIngestOp(ctx: ChunkApplyContext, op: IngestOp, existingNodes: queries.MemoryNode[]): void {
+  ctx.skipped.proposedCreate += op.create.length;
+  ctx.skipped.proposedUpdate += op.update.length;
+  ctx.skipped.proposedEdges += op.edges.length;
+
+  for (const c of op.create.slice(0, 10)) {
+    if (!c.title?.trim()) { ctx.skipped.emptyTitle++; continue; }
+    const title = String(c.title).trim().slice(0, 120);
+    if (ctx.titleToId.has(title.toLowerCase())) { ctx.skipped.duplicateTitle++; continue; }
+    try {
+      const tags = Array.isArray(c.tags) ? JSON.stringify(c.tags.map(String).filter(Boolean)) : null;
+      const node = queries.createMemoryNode(
+        ctx.projectId,
+        title,
+        typeof c.body === 'string' ? c.body : '',
+        tags,
+        0,
+        ctx.sourceType,
+        ctx.sourceId,
+        ctx.rawPath,
+      );
+      ctx.titleToId.set(title.toLowerCase(), node.id);
+      ctx.createdIds.push(node.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('UNIQUE')) ctx.skipped.uniqueConflict++;
+      else {
+        ctx.skipped.uniqueConflict++;
+        console.warn('[memory-ingest] createMemoryNode failed:', msg);
+      }
+    }
+  }
+
+  for (const u of op.update.slice(0, 10)) {
+    if (!u.id) { ctx.skipped.invalidUpdateId++; continue; }
+    const existing = existingNodes.find(n => n.id === u.id);
+    if (!existing) { ctx.skipped.invalidUpdateId++; continue; }
+    const upd: Parameters<typeof queries.updateMemoryNode>[1] = {};
+    if (typeof u.body === 'string') upd.body = u.body;
+    if (Array.isArray(u.tags)) upd.tags = JSON.stringify(u.tags.map(String).filter(Boolean));
+    if (Object.keys(upd).length > 0) {
+      queries.updateMemoryNode(u.id, upd);
+      ctx.updatedIds.add(u.id);
+    }
+  }
+
+  for (const e of op.edges.slice(0, 20)) {
+    const fromId = ctx.titleToId.get(String(e.from_title || '').toLowerCase());
+    const toId = ctx.titleToId.get(String(e.to_title || '').toLowerCase());
+    if (!fromId || !toId) { ctx.skipped.invalidEdgeRef++; continue; }
+    if (fromId === toId) { ctx.skipped.selfEdge++; continue; }
+    const rt = VALID_RELATIONS.has(e.relation_type ?? '') ? e.relation_type! : 'related';
+    try {
+      queries.createMemoryEdge(ctx.projectId, fromId, toId, rt as queries.MemoryRelationType, e.label ?? null);
+      ctx.edgesAdded++;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('UNIQUE')) ctx.skipped.edgeUniqueConflict++;
+      else {
+        ctx.skipped.edgeUniqueConflict++;
+        console.warn('[memory-ingest] createMemoryEdge failed:', msg);
+      }
+    }
+  }
+}
+
 export async function ingestSource(
   projectId: string,
   sourceText: string,
@@ -417,125 +536,88 @@ export async function ingestSource(
   }
 
   const schema = getOrCreateSchemaNode(projectId);
-  const nodes = queries.getMemoryNodesByProjectId(projectId);
-  const nodeSummary = buildNodeSummary(nodes);
-
   const langRule = locale === 'en'
     ? '- Write all titles, body text, tags, and edge labels in English.'
     : '- Write all titles, body text, tags, and edge labels in Korean (한국어).';
 
-  const prompt = INGEST_PROMPT_HEADER
-    .replace('Rules:\n', `Rules:\n${langRule}\n`)
-    .replace('{SCHEMA}', schema)
-    .replace('{NODES}', nodeSummary)
-    .replace('{SOURCE}', sourceText.slice(0, 8000));
+  const chunks = chunkSourceText(sourceText, CHUNK_CHARS, MAX_CHUNKS);
+  const total = chunks.length;
 
-  const debugSession = startDebugSession(project, cliTool, sourceType, sourceId, 'ingest');
-  const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
-  const { op, parseFailed } = safeParseIngestOp(raw);
-
-  const skipped: IngestSkippedBreakdown = {
-    parseFailed,
-    proposedCreate: op.create.length,
-    proposedUpdate: op.update.length,
-    proposedEdges: op.edges.length,
-    duplicateTitle: 0,
-    uniqueConflict: 0,
-    emptyTitle: 0,
-    invalidUpdateId: 0,
-    invalidEdgeRef: 0,
-    selfEdge: 0,
-    edgeUniqueConflict: 0,
+  const ctx: ChunkApplyContext = {
+    projectId,
+    sourceType,
+    sourceId,
+    rawPath,
+    titleToId: new Map<string, string>(),
+    createdIds: [],
+    updatedIds: new Set<string>(),
+    edgesAdded: 0,
+    skipped: {
+      parseFailed: false,
+      proposedCreate: 0, proposedUpdate: 0, proposedEdges: 0,
+      duplicateTitle: 0, uniqueConflict: 0, emptyTitle: 0,
+      invalidUpdateId: 0, invalidEdgeRef: 0, selfEdge: 0, edgeUniqueConflict: 0,
+    },
+    lastRaw: '',
   };
 
-  const titleToId = new Map<string, string>(
-    nodes.map(n => [n.title.toLowerCase(), n.id])
-  );
-  const createdIds: string[] = [];
-  let edgesAdded = 0;
+  for (let i = 0; i < total; i++) {
+    // Re-fetch nodes between chunks so dedup sees nodes added by earlier chunks.
+    const nodes = queries.getMemoryNodesByProjectId(projectId);
+    ctx.titleToId = new Map(nodes.map(n => [n.title.toLowerCase(), n.id]));
+    const nodeSummary = buildNodeSummary(nodes);
 
-  const VALID_RELATIONS = new Set(['related', 'precedes', 'example_of', 'counter_example', 'refines']);
+    const chunkPreamble = total > 1
+      ? `\n\nThis source has been split into ${total} parts due to length. You are processing part ${i + 1}. Earlier parts may have added new pages — see "Existing Wiki Pages" for the current state. Avoid creating duplicates of pages already added in earlier parts.`
+      : '';
+    const chunkNote = total > 1 ? ` (part ${i + 1} of ${total})` : '';
 
-  for (const c of op.create.slice(0, 10)) {
-    if (!c.title?.trim()) { skipped.emptyTitle++; continue; }
-    const title = String(c.title).trim().slice(0, 120);
-    if (titleToId.has(title.toLowerCase())) { skipped.duplicateTitle++; continue; }
-    try {
-      const tags = Array.isArray(c.tags) ? JSON.stringify(c.tags.map(String).filter(Boolean)) : null;
-      const node = queries.createMemoryNode(
-        projectId,
-        title,
-        typeof c.body === 'string' ? c.body : '',
-        tags,
-        0,
-        sourceType,
-        sourceId,
-        rawPath,
-      );
-      titleToId.set(title.toLowerCase(), node.id);
-      createdIds.push(node.id);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('UNIQUE')) skipped.uniqueConflict++;
-      else {
-        skipped.uniqueConflict++;
-        console.warn('[memory-ingest] createMemoryNode failed:', msg);
-      }
-    }
-  }
+    const prompt = INGEST_PROMPT_HEADER
+      .replace('Rules:\n', `Rules:\n${langRule}\n`)
+      .replace('{CHUNK_PREAMBLE}', chunkPreamble)
+      .replace('{CHUNK_NOTE}', chunkNote)
+      .replace('{SCHEMA}', schema)
+      .replace('{NODES}', nodeSummary)
+      .replace('{SOURCE}', chunks[i]);
 
-  let updatedCount = 0;
-  for (const u of op.update.slice(0, 10)) {
-    if (!u.id) { skipped.invalidUpdateId++; continue; }
-    const existing = nodes.find(n => n.id === u.id);
-    if (!existing) { skipped.invalidUpdateId++; continue; }
-    const upd: Parameters<typeof queries.updateMemoryNode>[1] = {};
-    if (typeof u.body === 'string') upd.body = u.body;
-    if (Array.isArray(u.tags)) upd.tags = JSON.stringify(u.tags.map(String).filter(Boolean));
-    if (Object.keys(upd).length > 0) {
-      queries.updateMemoryNode(u.id, upd);
-      updatedCount++;
-    }
-  }
-
-  for (const e of op.edges.slice(0, 20)) {
-    const fromId = titleToId.get(String(e.from_title || '').toLowerCase());
-    const toId = titleToId.get(String(e.to_title || '').toLowerCase());
-    if (!fromId || !toId) { skipped.invalidEdgeRef++; continue; }
-    if (fromId === toId) { skipped.selfEdge++; continue; }
-    const rt = VALID_RELATIONS.has(e.relation_type ?? '') ? e.relation_type! : 'related';
-    try {
-      queries.createMemoryEdge(projectId, fromId, toId, rt as queries.MemoryRelationType, e.label ?? null);
-      edgesAdded++;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('UNIQUE')) skipped.edgeUniqueConflict++;
-      else {
-        skipped.edgeUniqueConflict++;
-        console.warn('[memory-ingest] createMemoryEdge failed:', msg);
-      }
-    }
-  }
-
-  if (parseFailed || (createdIds.length === 0 && updatedCount === 0 && edgesAdded === 0)) {
-    console.warn(
-      `[memory-ingest] no-op result project=${projectId} cli=${cliTool} parseFailed=${parseFailed} ` +
-      `proposed(c/u/e)=${op.create.length}/${op.update.length}/${op.edges.length} ` +
-      `skip=dup:${skipped.duplicateTitle}/uniq:${skipped.uniqueConflict}/badId:${skipped.invalidUpdateId}/` +
-      `badEdge:${skipped.invalidEdgeRef}/empty:${skipped.emptyTitle}`
+    const debugSession = startDebugSession(
+      project,
+      cliTool,
+      sourceType,
+      sourceId,
+      total > 1 ? `ingest-${i + 1}of${total}` : 'ingest',
     );
-    if (parseFailed) {
-      console.warn('[memory-ingest] raw response head:', raw.slice(0, 500));
+    const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
+    ctx.lastRaw = raw;
+    const { op, parseFailed } = safeParseIngestOp(raw);
+    if (parseFailed) ctx.skipped.parseFailed = true;
+    applyIngestOp(ctx, op, nodes);
+  }
+
+  const created = ctx.createdIds.length;
+  const updated = ctx.updatedIds.size;
+  const edgesAdded = ctx.edgesAdded;
+
+  if (ctx.skipped.parseFailed || (created === 0 && updated === 0 && edgesAdded === 0)) {
+    console.warn(
+      `[memory-ingest] no-op result project=${projectId} cli=${cliTool} chunks=${total} ` +
+      `parseFailed=${ctx.skipped.parseFailed} ` +
+      `proposed(c/u/e)=${ctx.skipped.proposedCreate}/${ctx.skipped.proposedUpdate}/${ctx.skipped.proposedEdges} ` +
+      `skip=dup:${ctx.skipped.duplicateTitle}/uniq:${ctx.skipped.uniqueConflict}/badId:${ctx.skipped.invalidUpdateId}/` +
+      `badEdge:${ctx.skipped.invalidEdgeRef}/empty:${ctx.skipped.emptyTitle}`
+    );
+    if (ctx.skipped.parseFailed) {
+      console.warn('[memory-ingest] last raw response head:', ctx.lastRaw.slice(0, 500));
     }
   }
 
   return {
-    created: createdIds.length,
-    updated: updatedCount,
+    created,
+    updated,
     edgesAdded,
-    nodeIds: createdIds,
-    skipped,
-    rawResponseSnippet: parseFailed ? raw.slice(0, 500) : undefined,
+    nodeIds: ctx.createdIds,
+    skipped: ctx.skipped,
+    rawResponseSnippet: ctx.skipped.parseFailed ? ctx.lastRaw.slice(0, 500) : undefined,
   };
 }
 
