@@ -2,7 +2,7 @@
 // All panes (one per tab) stay mounted simultaneously — only `display` is
 // toggled — so PTY live output never drops when the user switches tabs.
 
-import { X } from 'lucide-react';
+import { X, Minus } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -30,6 +30,13 @@ export interface StackViewProps {
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  // When this stack is the entire group (no split anywhere), the unified
+  // chrome is hidden and the stack's tab bar carries the group's
+  // minimize/close buttons. Otherwise these are undefined.
+  groupActions?: {
+    onMinimizeGroup: () => void;
+    onCloseGroup: () => void;
+  };
 }
 
 const TAB_HEIGHT = 26;
@@ -49,6 +56,7 @@ export default function StackView({
   sendMessage,
   subscribeBinary,
   onEvent,
+  groupActions,
 }: StackViewProps) {
   const { t } = useI18n();
 
@@ -142,6 +150,33 @@ export default function StackView({
             </div>
           );
         })}
+        {/* Spacer so group action buttons (when present) sit at the right
+            and the empty area between still bubbles mousedown to the parent
+            for group dragging. */}
+        <div style={{ flex: 1, minWidth: 8 }} />
+        {groupActions && (
+          <>
+            <button
+              data-no-drag
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={groupActions.onMinimizeGroup}
+              aria-label="minimize"
+              title={t('session.minimize') || 'Minimize'}
+              style={groupBtnStyle}
+            >
+              <Minus size={13} />
+            </button>
+            <button
+              data-no-drag
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={groupActions.onCloseGroup}
+              aria-label="close"
+              style={groupBtnStyle}
+            >
+              <X size={13} />
+            </button>
+          </>
+        )}
       </div>
       {/* Pane area — all panes mounted, only active visible.
           Tagged with data-* attrs so the host's drag flow can hit-test which
@@ -182,3 +217,17 @@ export default function StackView({
     </div>
   );
 }
+
+const groupBtnStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: CMD.titleText,
+  cursor: 'pointer',
+  padding: '0 6px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 0,
+  flexShrink: 0,
+  height: '100%',
+};
