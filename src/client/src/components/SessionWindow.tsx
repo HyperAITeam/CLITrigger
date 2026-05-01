@@ -9,13 +9,14 @@ import { createPortal } from 'react-dom';
 import { X, Minus } from 'lucide-react';
 import LayoutNodeView from './group/LayoutNodeView';
 import StackView from './group/StackView';
+import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
 import { activeSessionIds, allSessionIds } from './group/groupTree';
 import { useSessionWindows, type OpenGroup } from './SessionWindowsHost';
 import SessionPane from './group/SessionPane';
-import type { Path } from './group/groupTree';
+import type { Path, DockSide } from './group/groupTree';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 
@@ -113,16 +114,23 @@ export default function SessionWindow({
   const snapZoneRef = useRef<SnapZone | null>(null);
   const neighborsRef = useRef<Geometry[]>(neighbors);
   neighborsRef.current = neighbors;
+  // Dock hover preview (only used by single-stack chrome drag)
+  const [dockHover, setDockHover] = useState<{ rect: DockTargetRect; zone: DockSide | null } | null>(null);
+  const dockHoverRef = useRef<{ groupId: string; path: Path; rect: DockTargetRect; zone: DockSide | null } | null>(null);
 
-  // ── Chrome drag (group move) ─────────────────────────────────────────────
-  const onChromeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // ── Chrome drag (group move + optional dock detection) ────────────────────
+  // `detectDock=true`: also sample other groups' stacks under the cursor and
+  //   commit a `dockGroup` on mouseup if the user dropped on a dock zone.
+  //   Used for single-stack groups where the entire window is the chrome.
+  // `detectDock=false`: pure group move with edge-snap preview. Used for the
+  //   unified chrome of split groups (which should not dock further).
+  const startGroupChromeDrag = useCallback((e: React.MouseEvent<HTMLDivElement>, detectDock: boolean) => {
     if (isMobile) return;
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-drag]')) return;
     e.preventDefault();
     api.focus(allSessionIds(group.root)[0] || '');
-    // Bump z by focusing on first session id (host's `focus` operates per-group via lookup).
     const startMouseX = e.clientX;
     const startMouseY = e.clientY;
     const startGeom = { ...geomRef.current };
@@ -146,15 +154,48 @@ export default function SessionWindow({
       }
       geomRef.current.x = nx;
       geomRef.current.y = ny;
-      const zone = detectSnapZone(ev.clientX, ev.clientY, vpW, vpH);
-      if (zone !== snapZoneRef.current) {
-        snapZoneRef.current = zone;
-        setSnapZone(zone);
+
+      // Dock zone detection (single-stack groups only). Skip when the cursor
+      // is over our own group's stack — we don't dock a group into itself.
+      if (detectDock) {
+        let hover: { groupId: string; path: Path; rect: DockTargetRect; zone: DockSide | null } | null = null;
+        const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+        const stackEl = el?.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+        if (stackEl) {
+          const gid = stackEl.dataset.groupId || '';
+          if (gid !== group.id) {
+            const pathStr = stackEl.dataset.stackPath || '';
+            const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
+            const r = stackEl.getBoundingClientRect();
+            const rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+            hover = { groupId: gid, path, rect, zone: detectDockZone(ev.clientX, ev.clientY, rect) };
+          }
+        }
+        dockHoverRef.current = hover;
+        setDockHover(hover ? { rect: hover.rect, zone: hover.zone } : null);
+      }
+
+      // Edge-snap preview only when not actively docking onto another stack.
+      const dockActive = detectDock && dockHoverRef.current && dockHoverRef.current.zone;
+      const edgeZone = dockActive ? null : detectSnapZone(ev.clientX, ev.clientY, vpW, vpH);
+      if (edgeZone !== snapZoneRef.current) {
+        snapZoneRef.current = edgeZone;
+        setSnapZone(edgeZone);
       }
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      // Resolution priority: dock > edge snap > free move.
+      if (detectDock && dockHoverRef.current && dockHoverRef.current.zone) {
+        const dh = dockHoverRef.current;
+        api.dockGroup(group.id, dh.groupId, dh.path, dh.zone!);
+        dockHoverRef.current = null;
+        setDockHover(null);
+        snapZoneRef.current = null;
+        setSnapZone(null);
+        return; // group dissolved into dst — no geometry commit needed
+      }
       if (snapZoneRef.current) {
         const target = snapZoneToGeom(snapZoneRef.current, vpW, vpH);
         if (wrapper) {
@@ -167,11 +208,22 @@ export default function SessionWindow({
         snapZoneRef.current = null;
         setSnapZone(null);
       }
+      dockHoverRef.current = null;
+      setDockHover(null);
       api.setGroupGeometry(group.id, { ...geomRef.current });
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [isMobile, api, group.id, group.root]);
+
+  const onChromeMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => startGroupChromeDrag(e, false),
+    [startGroupChromeDrag],
+  );
+  const onChromeWithDockMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => startGroupChromeDrag(e, true),
+    [startGroupChromeDrag],
+  );
 
   // ── Resize (bottom-right corner) ─────────────────────────────────────────
   const onResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -324,7 +376,7 @@ export default function SessionWindow({
   const desktopWindow = createPortal(
     <div
       ref={wrapperRef}
-      onMouseDown={isSplitRoot ? () => api.focus(allIds[0] || '') : onChromeMouseDown}
+      onMouseDown={isSplitRoot ? () => api.focus(allIds[0] || '') : onChromeWithDockMouseDown}
       style={{
         position: 'fixed',
         left: group.x, top: group.y, width: group.w, height: group.h,
@@ -447,6 +499,7 @@ export default function SessionWindow({
     <>
       {desktopWindow}
       {snapPreview}
+      {dockHover && <DockOverlay targetRect={dockHover.rect} activeZone={dockHover.zone} />}
     </>
   );
 }

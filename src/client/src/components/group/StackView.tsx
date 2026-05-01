@@ -100,6 +100,14 @@ export default function StackView({
               key={sid}
               onMouseDown={(e) => {
                 if (e.button !== 0) return;
+                if (groupActions) {
+                  // Single-stack mode: don't start a tab-detach drag here.
+                  // Let the mousedown bubble so the whole window drags via
+                  // the wrapper's group chrome handler (which also detects
+                  // dock targets). Active-tab swap still happens.
+                  onTabClick(sid);
+                  return;
+                }
                 e.stopPropagation();
                 onTabClick(sid);
                 onTabMouseDown(sid, path, e);
