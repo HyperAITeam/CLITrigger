@@ -138,6 +138,23 @@ export default function SessionWindow({
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
 
+    // For dock detection we need elementFromPoint to see *other* groups'
+    // stacks. Since this very window is being dragged under the cursor,
+    // it would otherwise hit-test as itself every frame and shadow the
+    // destination underneath. Disable our own pointer events for the
+    // duration of the drag — mousemove/mouseup are window-level
+    // listeners so the gesture isn't affected.
+    let prevPointerEvents = '';
+    if (detectDock && wrapper) {
+      prevPointerEvents = wrapper.style.pointerEvents;
+      wrapper.style.pointerEvents = 'none';
+    }
+    const restorePointerEvents = () => {
+      if (detectDock && wrapper) {
+        wrapper.style.pointerEvents = prevPointerEvents;
+      }
+    };
+
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startMouseX;
       const dy = ev.clientY - startMouseY;
@@ -186,6 +203,7 @@ export default function SessionWindow({
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      restorePointerEvents();
       // Resolution priority: dock > edge snap > free move.
       if (detectDock && dockHoverRef.current && dockHoverRef.current.zone) {
         const dh = dockHoverRef.current;
