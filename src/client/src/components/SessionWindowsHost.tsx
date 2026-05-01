@@ -12,6 +12,25 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import SessionWindow from './SessionWindow';
 import { CMD, CMD_FONT } from './terminal-theme';
+import {
+  type LayoutNode,
+  type Path,
+  type DockSide,
+  makeStack,
+  findStackContaining,
+  removeTab,
+  insertAtSide,
+  insertIntoStack,
+  setActiveTab as treeSetActiveTab,
+  reorderTab as treeReorderTab,
+  setSplitSizes as treeSetSplitSizes,
+  pruneInvalid,
+  allSessionIds,
+  activeSessionIds,
+  simplify,
+} from './group/groupTree';
+import { assignColor } from './group/colors';
+import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 
@@ -24,26 +43,50 @@ interface WindowGeom {
 
 export type WindowIntent = 'start' | 'open';
 
-interface OpenWindow extends WindowGeom {
-  sessionId: string;
+export interface OpenGroup extends WindowGeom {
+  id: string;
   z: number;
-  intent: WindowIntent;
-  /**
-   * Bumps every time openOrFocus is called for this window. Lets
-   * SessionWindow react to a re-focus with intent='start' (e.g. user
-   * clicked ▶ on a window that was already open in replay-only mode).
-   */
-  intentNonce: number;
   minimized: boolean;
+  root: LayoutNode;
+  colors: Record<string, string>;
+  // Per-tab intent so freshly-added tabs auto-start while existing tabs stay
+  // in replay-only mode. Bumping the nonce re-triggers a start attempt.
+  intents: Record<string, { intent: WindowIntent; nonce: number }>;
 }
 
-interface SessionWindowsAPI {
+interface DragState {
+  groupId: string;
+  sessionId: string;
+  fromPath: Path;
+  startX: number;
+  startY: number;
+  startGroupRect: DockTargetRect; // group chrome rect at drag start (for detach test)
+  mouseX: number;
+  mouseY: number;
+  hoveredGroupId: string | null;
+  hoveredPath: Path | null;
+  hoveredRect: DockTargetRect | null;
+  zone: DockSide | null;
+}
+
+export interface SessionWindowsAPI {
+  // Public, session-id keyed
   openOrFocus: (sessionId: string, intent?: WindowIntent) => void;
   close: (sessionId: string) => void;
   focus: (sessionId: string) => void;
   minimize: (sessionId: string) => void;
   restore: (sessionId: string) => void;
   isOpen: (sessionId: string) => boolean;
+  // Group-level (used by SessionWindow internals)
+  closeGroup: (groupId: string) => void;
+  minimizeGroup: (groupId: string) => void;
+  restoreGroup: (groupId: string) => void;
+  setGroupGeometry: (groupId: string, geom: WindowGeom) => void;
+  setSplitSizes: (groupId: string, path: Path, sizes: number[]) => void;
+  setActiveTab: (groupId: string, sessionId: string) => void;
+  reorderTab: (groupId: string, sessionId: string, newIndex: number) => void;
+  // Tab drag interaction
+  beginTabDrag: (groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => void;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -68,29 +111,34 @@ const DEFAULT_H = 460;
 const CASCADE_STEP = 30;
 const CASCADE_BASE_X = 80;
 const CASCADE_BASE_Y = 80;
+const DETACH_DIST = 30;
+const TITLEBAR_VISIBLE = 80;
+const CHROME_HEIGHT = 28;
 
-function lsKey(projectId: string, sessionId: string) {
-  return `sessionWindow:${projectId}:${sessionId}`;
+function lsKey(projectId: string) {
+  return `sessionGroups:${projectId}`;
 }
 
-function readGeom(projectId: string, sessionId: string): WindowGeom | null {
+interface PersistShape {
+  groups: OpenGroup[];
+  zCounter: number;
+}
+
+function readPersisted(projectId: string): PersistShape | null {
   try {
-    const raw = localStorage.getItem(lsKey(projectId, sessionId));
+    const raw = localStorage.getItem(lsKey(projectId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (
-      typeof parsed?.x === 'number' && typeof parsed?.y === 'number' &&
-      typeof parsed?.w === 'number' && typeof parsed?.h === 'number'
-    ) {
-      return parsed as WindowGeom;
+    if (Array.isArray(parsed?.groups) && typeof parsed?.zCounter === 'number') {
+      return parsed as PersistShape;
     }
   } catch { /* ignore */ }
   return null;
 }
 
-function writeGeom(projectId: string, sessionId: string, geom: WindowGeom): void {
-  try { localStorage.setItem(lsKey(projectId, sessionId), JSON.stringify(geom)); }
-  catch { /* quota exceeded etc — ignore */ }
+function writePersisted(projectId: string, data: PersistShape): void {
+  try { localStorage.setItem(lsKey(projectId), JSON.stringify(data)); }
+  catch { /* quota etc. */ }
 }
 
 function cascadeGeom(existingCount: number): WindowGeom {
@@ -103,6 +151,21 @@ function cascadeGeom(existingCount: number): WindowGeom {
   };
 }
 
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function genId(): string {
+  return `g_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+}
+
+function findGroupBySessionId(groups: OpenGroup[], sessionId: string): OpenGroup | null {
+  for (const g of groups) {
+    if (findStackContaining(g.root, sessionId)) return g;
+  }
+  return null;
+}
+
 export default function SessionWindowsHost({
   projectId,
   sessions,
@@ -111,141 +174,445 @@ export default function SessionWindowsHost({
   onEvent,
   children,
 }: HostProps) {
-  const [windows, setWindows] = useState<OpenWindow[]>([]);
+  const [groups, setGroups] = useState<OpenGroup[]>([]);
   const zCounterRef = useRef(0);
+  const groupsRef = useRef<OpenGroup[]>([]);
+  groupsRef.current = groups;
+  const hydratedRef = useRef(false);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  dragStateRef.current = dragState;
+
+  // Hydrate from localStorage once `sessions` has loaded so we can validly
+  // prune ids that no longer exist server-side. Skip while sessions is still
+  // empty (likely loading) — otherwise we'd discard everything on mount.
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (sessions.length === 0) return;
+    hydratedRef.current = true;
+    const persisted = readPersisted(projectId);
+    if (!persisted) return;
+    const validIds = new Set(sessions.map(s => s.id));
+    const restored: OpenGroup[] = [];
+    for (const g of persisted.groups) {
+      const pruned = pruneInvalid(g.root, validIds);
+      if (!pruned) continue;
+      // Keep only colors/intents for ids still present.
+      const ids = new Set(allSessionIds(pruned));
+      const colors: Record<string, string> = {};
+      for (const k of Object.keys(g.colors)) if (ids.has(k)) colors[k] = g.colors[k];
+      const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+      for (const k of Object.keys(g.intents || {})) {
+        if (ids.has(k)) intents[k] = { intent: 'open', nonce: 0 }; // restored tabs are replay-only
+      }
+      // Ensure every id has a color/intent entry.
+      for (const id of ids) {
+        if (!colors[id]) colors[id] = assignColor(Object.values(colors));
+        if (!intents[id]) intents[id] = { intent: 'open', nonce: 0 };
+      }
+      restored.push({ ...g, root: pruned, colors, intents, minimized: false });
+    }
+    if (restored.length > 0) {
+      zCounterRef.current = persisted.zCounter || restored.length;
+      setGroups(restored);
+    }
+  }, [projectId, sessions]);
+
+  // Persist on every change.
+  useEffect(() => {
+    writePersisted(projectId, { groups, zCounter: zCounterRef.current });
+  }, [projectId, groups]);
+
+  // Auto-prune groups when a session disappears server-side. Skip while
+  // sessions is empty (likely a loading blip) so we don't nuke restored state.
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    const validIds = new Set(sessions.map(s => s.id));
+    setGroups((prev) => {
+      let changed = false;
+      const next: OpenGroup[] = [];
+      for (const g of prev) {
+        const ids = allSessionIds(g.root);
+        const hasMissing = ids.some(id => !validIds.has(id));
+        if (!hasMissing) { next.push(g); continue; }
+        changed = true;
+        const pruned = pruneInvalid(g.root, validIds);
+        if (!pruned) continue;
+        const remaining = new Set(allSessionIds(pruned));
+        const colors: Record<string, string> = {};
+        for (const k of Object.keys(g.colors)) if (remaining.has(k)) colors[k] = g.colors[k];
+        const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+        for (const k of Object.keys(g.intents)) if (remaining.has(k)) intents[k] = g.intents[k];
+        next.push({ ...g, root: pruned, colors, intents });
+      }
+      return changed ? next : prev;
+    });
+  }, [sessions]);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const newGroup = useCallback((sessionId: string, intent: WindowIntent): OpenGroup => {
+    const existingCount = groupsRef.current.length;
+    const geom = cascadeGeom(existingCount);
+    zCounterRef.current += 1;
+    const z = zCounterRef.current;
+    return {
+      id: genId(),
+      ...geom,
+      z,
+      minimized: false,
+      root: makeStack([sessionId], sessionId),
+      colors: { [sessionId]: assignColor([]) },
+      intents: { [sessionId]: { intent, nonce: 0 } },
+    };
+  }, []);
+
+  // ── Public, sessionId-keyed API ───────────────────────────────────────────
 
   const openOrFocus = useCallback((sessionId: string, intent: WindowIntent = 'open') => {
-    setWindows((prev) => {
-      const existing = prev.find((w) => w.sessionId === sessionId);
+    setGroups((prev) => {
+      const existing = findGroupBySessionId(prev, sessionId);
       zCounterRef.current += 1;
       const z = zCounterRef.current;
       if (existing) {
-        // Bump intent only if upgrading from 'open' → 'start'. Going the
-        // other direction (e.g. row click on a window already started
-        // with intent='start') shouldn't downgrade.
-        const newIntent: WindowIntent = intent === 'start' ? 'start' : existing.intent;
-        const intentChanged = newIntent !== existing.intent || intent === 'start';
-        return prev.map((w) => (
-          w.sessionId === sessionId
-            ? {
-                ...w,
-                z,
+        return prev.map((g) => {
+          if (g.id !== existing.id) return g;
+          // Activate tab + bump z + minimize off + intent bump if upgrading
+          const prevIntent = g.intents[sessionId]?.intent ?? 'open';
+          const newIntent: WindowIntent = intent === 'start' ? 'start' : prevIntent;
+          const intentChanged = newIntent !== prevIntent || intent === 'start';
+          return {
+            ...g,
+            z,
+            minimized: false,
+            root: treeSetActiveTab(g.root, sessionId),
+            intents: {
+              ...g.intents,
+              [sessionId]: {
                 intent: newIntent,
-                intentNonce: intentChanged ? w.intentNonce + 1 : w.intentNonce,
-                minimized: false,
-              }
-            : w
-        ));
+                nonce: intentChanged ? (g.intents[sessionId]?.nonce ?? 0) + 1 : (g.intents[sessionId]?.nonce ?? 0),
+              },
+            },
+          };
+        });
       }
-      const stored = readGeom(projectId, sessionId);
-      const geom = stored ?? cascadeGeom(prev.length);
-      return [...prev, { sessionId, z, intent, intentNonce: 0, minimized: false, ...geom }];
+      return [...prev, newGroup(sessionId, intent)];
     });
-  }, [projectId]);
+  }, [newGroup]);
 
   const focus = useCallback((sessionId: string) => {
-    setWindows((prev) => {
-      const top = prev.find((w) => w.sessionId === sessionId);
-      if (!top) return prev;
-      // Cheap optimization: skip state churn if already on top.
+    setGroups((prev) => {
+      const target = findGroupBySessionId(prev, sessionId);
+      if (!target) return prev;
       const max = prev.reduce((m, w) => (w.z > m ? w.z : m), 0);
-      if (top.z === max) return prev;
+      if (target.z === max && !target.minimized) return prev;
       zCounterRef.current += 1;
       const z = zCounterRef.current;
-      return prev.map((w) => (w.sessionId === sessionId ? { ...w, z } : w));
+      return prev.map((g) => g.id === target.id ? { ...g, z, minimized: false } : g);
     });
   }, []);
 
   const close = useCallback((sessionId: string) => {
-    setWindows((prev) => prev.filter((w) => w.sessionId !== sessionId));
+    setGroups((prev) => {
+      const target = findGroupBySessionId(prev, sessionId);
+      if (!target) return prev;
+      const newRoot = removeTab(target.root, sessionId);
+      if (!newRoot) return prev.filter(g => g.id !== target.id);
+      const remaining = new Set(allSessionIds(newRoot));
+      const colors = { ...target.colors };
+      delete colors[sessionId];
+      const intents = { ...target.intents };
+      delete intents[sessionId];
+      return prev.map(g => g.id === target.id ? { ...g, root: newRoot, colors, intents } : g);
+    });
   }, []);
 
   const minimize = useCallback((sessionId: string) => {
-    setWindows((prev) => prev.map((w) => (w.sessionId === sessionId ? { ...w, minimized: true } : w)));
+    setGroups((prev) => {
+      const target = findGroupBySessionId(prev, sessionId);
+      if (!target) return prev;
+      return prev.map(g => g.id === target.id ? { ...g, minimized: true } : g);
+    });
   }, []);
 
   const restore = useCallback((sessionId: string) => {
-    setWindows((prev) => {
-      const target = prev.find((w) => w.sessionId === sessionId);
+    setGroups((prev) => {
+      const target = findGroupBySessionId(prev, sessionId);
       if (!target) return prev;
       zCounterRef.current += 1;
       const z = zCounterRef.current;
-      return prev.map((w) => (w.sessionId === sessionId ? { ...w, minimized: false, z } : w));
+      return prev.map(g => g.id === target.id ? { ...g, minimized: false, z } : g);
     });
   }, []);
 
-  const isOpen = useCallback((sessionId: string) => windows.some((w) => w.sessionId === sessionId), [windows]);
+  const isOpen = useCallback((sessionId: string) => !!findGroupBySessionId(groupsRef.current, sessionId), []);
 
-  const updateGeometry = useCallback((sessionId: string, geom: WindowGeom) => {
-    setWindows((prev) => prev.map((w) => (w.sessionId === sessionId ? { ...w, ...geom } : w)));
-    writeGeom(projectId, sessionId, geom);
-  }, [projectId]);
+  // ── Group-level API ──────────────────────────────────────────────────────
 
-  // Auto-close windows when their session row disappears (e.g. user deleted it).
-  useEffect(() => {
-    setWindows((prev) => {
-      const validIds = new Set(sessions.map((s) => s.id));
-      const filtered = prev.filter((w) => validIds.has(w.sessionId));
-      return filtered.length === prev.length ? prev : filtered;
+  const closeGroup = useCallback((groupId: string) => {
+    setGroups((prev) => prev.filter(g => g.id !== groupId));
+  }, []);
+
+  const minimizeGroup = useCallback((groupId: string) => {
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, minimized: true } : g));
+  }, []);
+
+  const restoreGroup = useCallback((groupId: string) => {
+    setGroups((prev) => {
+      const target = prev.find(g => g.id === groupId);
+      if (!target) return prev;
+      zCounterRef.current += 1;
+      const z = zCounterRef.current;
+      return prev.map(g => g.id === groupId ? { ...g, minimized: false, z } : g);
     });
+  }, []);
+
+  const setGroupGeometry = useCallback((groupId: string, geom: WindowGeom) => {
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ...geom } : g));
+  }, []);
+
+  const setSplitSizes = useCallback((groupId: string, path: Path, sizes: number[]) => {
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, root: treeSetSplitSizes(g.root, path, sizes) } : g));
+  }, []);
+
+  const setActiveTab = useCallback((groupId: string, sessionId: string) => {
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, root: treeSetActiveTab(g.root, sessionId) } : g));
+  }, []);
+
+  const reorderTab = useCallback((groupId: string, sessionId: string, newIndex: number) => {
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, root: treeReorderTab(g.root, sessionId, newIndex) } : g));
+  }, []);
+
+  // ── Tab drag (dock / detach) ─────────────────────────────────────────────
+
+  const beginTabDrag = useCallback((groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const startGroup = groupsRef.current.find(g => g.id === groupId);
+    if (!startGroup) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startGroupRect: DockTargetRect = {
+      x: startGroup.x, y: startGroup.y, w: startGroup.w, h: startGroup.h,
+    };
+    setDragState({
+      groupId, sessionId, fromPath,
+      startX, startY,
+      mouseX: startX, mouseY: startY,
+      startGroupRect,
+      hoveredGroupId: null, hoveredPath: null, hoveredRect: null, zone: null,
+    });
+
+    const onMove = (ev: MouseEvent) => {
+      const cur = dragStateRef.current;
+      if (!cur) return;
+      // Hit-test for hovered stack via DOM data attributes.
+      let hoveredGroupId: string | null = null;
+      let hoveredPath: Path | null = null;
+      let hoveredRect: DockTargetRect | null = null;
+      let zone: DockSide | null = null;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const stackEl = el?.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+      if (stackEl) {
+        const gid = stackEl.dataset.groupId || '';
+        const pathStr = stackEl.dataset.stackPath || '';
+        const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
+        // Don't allow same-stack dock (origin tab on origin stack).
+        const sameStack = gid === cur.groupId && pathStr === cur.fromPath.join('.');
+        const r = stackEl.getBoundingClientRect();
+        const rect: DockTargetRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+        if (!sameStack) {
+          hoveredGroupId = gid;
+          hoveredPath = path;
+          hoveredRect = rect;
+          zone = detectDockZone(ev.clientX, ev.clientY, rect);
+        }
+      }
+      setDragState({
+        ...cur,
+        mouseX: ev.clientX, mouseY: ev.clientY,
+        hoveredGroupId, hoveredPath, hoveredRect, zone,
+      });
+    };
+
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      const cur = dragStateRef.current;
+      setDragState(null);
+      if (!cur) return;
+
+      const movedDist = Math.hypot(ev.clientX - cur.startX, ev.clientY - cur.startY);
+      if (cur.hoveredGroupId && cur.hoveredPath && cur.zone) {
+        // Dock into another stack.
+        applyDock(cur.groupId, cur.sessionId, cur.hoveredGroupId, cur.hoveredPath, cur.zone);
+        return;
+      }
+      // No drop target.
+      const r = cur.startGroupRect;
+      const insideStartChrome =
+        ev.clientX >= r.x && ev.clientX <= r.x + r.w &&
+        ev.clientY >= r.y && ev.clientY <= r.y + r.h;
+      if (movedDist >= DETACH_DIST && !insideStartChrome) {
+        // Detach to a new floating group at the cursor.
+        applyDetach(cur.groupId, cur.sessionId, ev.clientX, ev.clientY);
+      }
+      // else: short click — nothing to do (active-tab swap already handled).
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
+  const applyDock = useCallback((srcGroupId: string, srcSessionId: string, dstGroupId: string, dstPath: Path, side: DockSide) => {
+    setGroups((prev) => {
+      const src = prev.find(g => g.id === srcGroupId);
+      const dst = prev.find(g => g.id === dstGroupId);
+      if (!src || !dst) return prev;
+      // Remove from src
+      const srcRoot = removeTab(src.root, srcSessionId);
+      const srcColor = src.colors[srcSessionId];
+      const srcIntent = src.intents[srcSessionId] ?? { intent: 'open' as WindowIntent, nonce: 0 };
+      // Insert into dst
+      let dstRoot: LayoutNode;
+      if (side === 'center') {
+        dstRoot = insertIntoStack(dst.root, dstPath, srcSessionId);
+      } else {
+        const newStack = makeStack([srcSessionId]);
+        dstRoot = insertAtSide(dst.root, dstPath, side, newStack);
+      }
+      // Activate the moved tab in destination
+      dstRoot = treeSetActiveTab(dstRoot, srcSessionId);
+      const dstColors = { ...dst.colors };
+      if (!dstColors[srcSessionId]) dstColors[srcSessionId] = srcColor || assignColor(Object.values(dstColors));
+      const dstIntents = { ...dst.intents, [srcSessionId]: srcIntent };
+      const next: OpenGroup[] = [];
+      for (const g of prev) {
+        if (g.id === srcGroupId) {
+          if (srcRoot) {
+            const remaining = new Set(allSessionIds(srcRoot));
+            const colors: Record<string, string> = {};
+            for (const k of Object.keys(g.colors)) if (remaining.has(k)) colors[k] = g.colors[k];
+            const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+            for (const k of Object.keys(g.intents)) if (remaining.has(k)) intents[k] = g.intents[k];
+            next.push({ ...g, root: srcRoot, colors, intents });
+          }
+          // else drop the empty group
+        } else if (g.id === dstGroupId) {
+          zCounterRef.current += 1;
+          next.push({ ...g, root: dstRoot, colors: dstColors, intents: dstIntents, z: zCounterRef.current, minimized: false });
+        } else {
+          next.push(g);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const applyDetach = useCallback((srcGroupId: string, srcSessionId: string, mouseX: number, mouseY: number) => {
+    setGroups((prev) => {
+      const src = prev.find(g => g.id === srcGroupId);
+      if (!src) return prev;
+      const srcRoot = removeTab(src.root, srcSessionId);
+      const srcColor = src.colors[srcSessionId] || assignColor([]);
+      const srcIntent = src.intents[srcSessionId] ?? { intent: 'open' as WindowIntent, nonce: 0 };
+      // New group at the cursor (offset so titlebar is grabbed)
+      zCounterRef.current += 1;
+      const z = zCounterRef.current;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const newGeom: WindowGeom = {
+        x: clamp(mouseX - 60, -DEFAULT_W + TITLEBAR_VISIBLE, vpW - TITLEBAR_VISIBLE),
+        y: clamp(mouseY - 12, 0, vpH - CHROME_HEIGHT),
+        w: DEFAULT_W,
+        h: DEFAULT_H,
+      };
+      const detached: OpenGroup = {
+        id: genId(),
+        ...newGeom,
+        z,
+        minimized: false,
+        root: makeStack([srcSessionId], srcSessionId),
+        colors: { [srcSessionId]: srcColor },
+        intents: { [srcSessionId]: srcIntent },
+      };
+      const next: OpenGroup[] = [];
+      for (const g of prev) {
+        if (g.id === srcGroupId) {
+          if (srcRoot) {
+            const remaining = new Set(allSessionIds(srcRoot));
+            const colors: Record<string, string> = {};
+            for (const k of Object.keys(g.colors)) if (remaining.has(k)) colors[k] = g.colors[k];
+            const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+            for (const k of Object.keys(g.intents)) if (remaining.has(k)) intents[k] = g.intents[k];
+            next.push({ ...g, root: simplify(srcRoot), colors, intents });
+          }
+        } else {
+          next.push(g);
+        }
+      }
+      next.push(detached);
+      return next;
+    });
+  }, []);
+
+  const api = useMemo<SessionWindowsAPI>(() => ({
+    openOrFocus, close, focus, minimize, restore, isOpen,
+    closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
+    setSplitSizes, setActiveTab, reorderTab,
+    beginTabDrag,
+  }), [openOrFocus, close, focus, minimize, restore, isOpen,
+       closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag]);
+
+  const sessionsById = useMemo(() => {
+    const map = new Map<string, Session>();
+    for (const s of sessions) map.set(s.id, s);
+    return map;
   }, [sessions]);
 
-  const api = useMemo<SessionWindowsAPI>(() => ({ openOrFocus, close, focus, minimize, restore, isOpen }), [openOrFocus, close, focus, minimize, restore, isOpen]);
-
-  const minimizedWindows = windows.filter((w) => w.minimized);
-  const visibleWindows = windows.filter((w) => !w.minimized);
+  const visibleGroups = groups.filter(g => !g.minimized);
+  const minimizedGroups = groups.filter(g => g.minimized);
 
   return (
     <SessionWindowsContext.Provider value={api}>
       {children}
-      {visibleWindows.map((w) => {
-        const session = sessions.find((s) => s.id === w.sessionId);
-        if (!session) return null;
-        const neighborGeoms = visibleWindows
-          .filter((v) => v.sessionId !== w.sessionId)
-          .map(({ x, y, w: nw, h: nh }) => ({ x, y, w: nw, h: nh }));
+      {visibleGroups.map((g) => {
+        const neighborGeoms = visibleGroups
+          .filter(v => v.id !== g.id)
+          .map(({ x, y, w, h }) => ({ x, y, w, h }));
         return (
           <SessionWindow
-            key={w.sessionId}
-            projectId={projectId}
-            session={session}
-            x={w.x}
-            y={w.y}
-            w={w.w}
-            h={w.h}
-            zIndex={w.z}
-            intent={w.intent}
-            intentNonce={w.intentNonce}
+            key={g.id}
+            group={g}
+            sessionsById={sessionsById}
             neighbors={neighborGeoms}
-            onClose={() => close(w.sessionId)}
-            onFocus={() => focus(w.sessionId)}
-            onMinimize={() => minimize(w.sessionId)}
-            onGeometryChange={(geom) => updateGeometry(w.sessionId, geom)}
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}
           />
         );
       })}
-      {minimizedWindows.length > 0 && createPortal(
+      {minimizedGroups.length > 0 && createPortal(
         <div
           style={{
             position: 'fixed',
-            bottom: 8,
-            left: 8,
-            display: 'flex',
-            gap: 6,
+            bottom: 8, left: 8,
+            display: 'flex', gap: 6,
             zIndex: 900,
             maxWidth: 'calc(100vw - 16px)',
             flexWrap: 'wrap',
           }}
         >
-          {minimizedWindows.map((w) => {
-            const session = sessions.find((s) => s.id === w.sessionId);
-            if (!session) return null;
+          {minimizedGroups.map((g) => {
+            const ids = activeSessionIds(g.root);
+            const titles = ids.map(id => sessionsById.get(id)?.title || id);
+            const label = titles.length === 1 ? titles[0] : `${titles[0]} +${titles.length - 1}`;
             return (
               <div
-                key={w.sessionId}
+                key={g.id}
+                onClick={() => restoreGroup(g.id)}
+                title={titles.join(' · ')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -253,35 +620,32 @@ export default function SessionWindowsHost({
                   background: CMD.titleBg,
                   border: `1px solid ${CMD.separator}`,
                   borderRadius: 6,
-                  padding: '4px 6px 4px 10px',
+                  padding: '4px 6px 4px 4px',
                   fontFamily: CMD_FONT,
                   fontSize: 12,
                   color: CMD.titleText,
                   cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                  maxWidth: 220,
+                  maxWidth: 240,
                   userSelect: 'none',
                 }}
-                onClick={() => restore(w.sessionId)}
-                title={session.title}
               >
-                <span style={{ color: CMD.info, fontWeight: 600, letterSpacing: 1 }} aria-hidden>{'>_'}</span>
+                {/* color band */}
+                <div style={{ display: 'flex', height: 14, width: 14, borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+                  {ids.map((id, idx) => (
+                    <div key={idx} style={{ flex: 1, background: g.colors[id] || CMD.titleText }} />
+                  ))}
+                </div>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                  {session.title}
+                  {label}
                 </span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); close(w.sessionId); }}
+                  onClick={(e) => { e.stopPropagation(); closeGroup(g.id); }}
                   aria-label="close"
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: CMD.titleText,
-                    cursor: 'pointer',
-                    padding: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 3,
+                    background: 'transparent', border: 'none', color: CMD.titleText,
+                    cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', borderRadius: 3,
                   }}
                 >
                   <X size={12} />
@@ -291,6 +655,10 @@ export default function SessionWindowsHost({
           })}
         </div>,
         document.body,
+      )}
+      {/* Tab drag visual: dock overlay over hovered stack */}
+      {dragState && dragState.hoveredRect && (
+        <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
       )}
     </SessionWindowsContext.Provider>
   );
