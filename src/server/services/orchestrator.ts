@@ -12,7 +12,7 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
-import { ingestSource, buildSourceTextFromTodo } from './memory-ingest.js';
+import { buildSourceTextFromTodo, runAutoIngestAndBroadcast } from './memory-ingest.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -747,9 +747,7 @@ Complete the task in the current directory.`;
             const sourceText = buildSourceTextFromTodo(todoId);
             if (sourceText) {
               const todo = queries.getTodoById(todoId);
-              ingestSource(projectId, sourceText, 'todo', todoId, todo?.title ?? null).catch((err) => {
-                console.error('[memory-ingest] auto-ingest failed:', err);
-              });
+              runAutoIngestAndBroadcast(projectId, 'todo', todoId, todo?.title ?? null, sourceText);
             }
           }
           broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });

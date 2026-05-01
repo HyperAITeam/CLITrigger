@@ -14,4 +14,28 @@ export type WSEvent =
   | { type: 'session:status-changed'; sessionId: string; status: string }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }
-  | { type: 'rate-limit:updated'; resetsAt: number; status: string | null };
+  | { type: 'rate-limit:updated'; resetsAt: number; status: string | null }
+  | {
+      type: 'memory:ingest-finished';
+      projectId: string;
+      sourceType: 'todo' | 'discussion' | 'manual';
+      sourceId: string | null;
+      sourceTitle: string | null;
+      created: number;
+      updated: number;
+      edgesAdded: number;
+      skipped: {
+        parseFailed: boolean;
+        proposedCreate: number;
+        proposedUpdate: number;
+        proposedEdges: number;
+        duplicateTitle: number;
+        uniqueConflict: number;
+        emptyTitle: number;
+        invalidUpdateId: number;
+        invalidEdgeRef: number;
+        selfEdge: number;
+        edgeUniqueConflict: number;
+      };
+      error?: string;
+    };
