@@ -117,32 +117,16 @@ export default function SessionTerminal({
       }
     });
 
-    // IME composition handling for mobile (iOS) Korean/CJK input.
-    // Without this, xterm's onData fires per-jamo on iOS Safari so typing
-    // "사과" arrives at the PTY as "ㅅㅏㄱㅗㅏ". We suppress onData during
-    // composition and send the composed text from compositionend.data, then
-    // shadow-suppress onData briefly because xterm's CompositionHelper also
-    // emits the composed text asynchronously (setTimeout 0) and would
-    // otherwise double-send.
-    let composing = false;
-    let lastCompositionEndAt = 0;
-    const handleCompStart = () => { composing = true; };
-    const handleCompEnd = (e: Event) => {
-      composing = false;
-      lastCompositionEndAt = Date.now();
-      const data = (e as CompositionEvent).data;
-      if (data) {
-        sendMessage({ type: 'session:terminal-input', sessionId, input: data });
-      }
-    };
-    container.addEventListener('compositionstart', handleCompStart, true);
-    container.addEventListener('compositionend', handleCompEnd, true);
-
-    const onDataDisposable = term.onData((d) => {
-      if (composing) return;
-      if (Date.now() - lastCompositionEndAt < 50) return;
-      sendMessage({ type: 'session:terminal-input', sessionId, input: d });
-    });
+    // Input handling diverges by platform. Desktop browsers compose IME inside
+    // xterm's helper textarea and fire onData with the composed result, so we
+    // can listen on term.onData. iOS Safari (and to a lesser extent Android)
+    // both mishandle composition inside xterm — onData fires per-jamo and
+    // xterm's CompositionHelper renders decomposed jamo while typing. On
+    // mobile we hide xterm's helper textarea entirely and run input through
+    // our own overlay textarea, where the OS's native IME composes correctly.
+    const inputCleanup = isMobileImeDevice()
+      ? setupMobileImeInput({ container, term, sessionId, sendMessage })
+      : setupDesktopInput({ container, term, sessionId, sendMessage });
 
     const ro = new ResizeObserver(() => {
       try { fitAddon.fit(); } catch { /* ignore */ }
@@ -154,9 +138,7 @@ export default function SessionTerminal({
     return () => {
       ro.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-      onDataDisposable.dispose();
-      container.removeEventListener('compositionstart', handleCompStart, true);
-      container.removeEventListener('compositionend', handleCompEnd, true);
+      inputCleanup();
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
@@ -210,4 +192,210 @@ export default function SessionTerminal({
       <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
     </div>
   );
+}
+
+function isMobileImeDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const iosLike = /iPad|iPhone|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
+  return iosLike || /Android/i.test(ua);
+}
+
+interface InputSetupArgs {
+  container: HTMLDivElement;
+  term: Terminal;
+  sessionId: string;
+  sendMessage: (event: object) => void;
+}
+
+function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
+  let composing = false;
+  let lastCompositionEndAt = 0;
+  const handleCompStart = () => { composing = true; };
+  const handleCompEnd = (e: Event) => {
+    composing = false;
+    lastCompositionEndAt = Date.now();
+    const data = (e as CompositionEvent).data;
+    if (data) {
+      sendMessage({ type: 'session:terminal-input', sessionId, input: data });
+    }
+  };
+  container.addEventListener('compositionstart', handleCompStart, true);
+  container.addEventListener('compositionend', handleCompEnd, true);
+  const onDataDisposable = term.onData((d) => {
+    if (composing) return;
+    if (Date.now() - lastCompositionEndAt < 50) return;
+    sendMessage({ type: 'session:terminal-input', sessionId, input: d });
+  });
+  return () => {
+    onDataDisposable.dispose();
+    container.removeEventListener('compositionstart', handleCompStart, true);
+    container.removeEventListener('compositionend', handleCompEnd, true);
+  };
+}
+
+function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
+  // Hide xterm's helper textarea so it can't intercept input and so its
+  // CompositionHelper can't draw the decomposed-jamo overlay.
+  const helperTa = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
+  let prevHelperDisplay = '';
+  let prevHelperTabIndex = 0;
+  if (helperTa) {
+    prevHelperDisplay = helperTa.style.display;
+    prevHelperTabIndex = helperTa.tabIndex;
+    helperTa.style.display = 'none';
+    helperTa.tabIndex = -1;
+  }
+
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
+
+  // Our overlay textarea. Idle state: full-size, transparent — covers the
+  // terminal so taps focus it and bring up the keyboard. Composing state:
+  // small box positioned at xterm's cursor cell with visible text, so the
+  // OS-native IME's underlined composition appears at the cursor location.
+  // Once compositionend fires we send the composed text to the PTY and the
+  // PTY echo lands on the proper grid cell via term.write.
+  const overlay = document.createElement('textarea');
+  overlay.setAttribute('autocapitalize', 'off');
+  overlay.setAttribute('autocorrect', 'off');
+  overlay.setAttribute('autocomplete', 'off');
+  overlay.setAttribute('spellcheck', 'false');
+  overlay.rows = 1;
+  Object.assign(overlay.style, {
+    position: 'absolute',
+    background: 'transparent',
+    border: 'none',
+    outline: 'none',
+    padding: '0',
+    margin: '0',
+    fontFamily: CMD_FONT,
+    // 16px to suppress iOS Safari's auto-zoom on focus.
+    fontSize: '16px',
+    lineHeight: '1.2',
+    resize: 'none',
+    overflow: 'hidden',
+    whiteSpace: 'pre',
+    caretColor: 'transparent',
+    zIndex: '5',
+  });
+
+  const setIdleSize = () => {
+    Object.assign(overlay.style, {
+      inset: '0',
+      left: 'auto',
+      top: 'auto',
+      width: '100%',
+      height: '100%',
+      color: 'transparent',
+    });
+  };
+
+  const setComposingSize = () => {
+    const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
+    if (!screen) return;
+    const cols = term.cols;
+    const rows = term.rows;
+    if (cols <= 0 || rows <= 0) return;
+    const cellW = screen.clientWidth / cols;
+    const cellH = screen.clientHeight / rows;
+    const cursorX = term.buffer.active.cursorX;
+    const cursorY = term.buffer.active.cursorY;
+    const screenRect = screen.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    Object.assign(overlay.style, {
+      inset: 'auto',
+      left: `${(screenRect.left - containerRect.left) + cursorX * cellW}px`,
+      top: `${(screenRect.top - containerRect.top) + cursorY * cellH}px`,
+      width: `${Math.max(cellW * 30, 240)}px`,
+      height: `${Math.max(cellH, 20)}px`,
+      color: CMD.text,
+    });
+  };
+
+  setIdleSize();
+  container.appendChild(overlay);
+
+  let composing = false;
+
+  const handleCompStart = () => {
+    composing = true;
+    setComposingSize();
+  };
+  const handleCompEnd = (e: CompositionEvent) => {
+    composing = false;
+    if (e.data) {
+      sendMessage({ type: 'session:terminal-input', sessionId, input: e.data });
+    }
+    overlay.value = '';
+    setIdleSize();
+  };
+  overlay.addEventListener('compositionstart', handleCompStart);
+  overlay.addEventListener('compositionend', handleCompEnd);
+
+  const handleInput = (e: Event) => {
+    if (composing) return;
+    const ie = e as InputEvent;
+    switch (ie.inputType) {
+      case 'insertCompositionText':
+      case 'insertFromComposition':
+        return;
+      case 'deleteContentBackward':
+        sendMessage({ type: 'session:terminal-input', sessionId, input: '\x7f' });
+        overlay.value = '';
+        return;
+      case 'insertLineBreak':
+      case 'insertParagraph':
+        sendMessage({ type: 'session:terminal-input', sessionId, input: '\r' });
+        overlay.value = '';
+        return;
+      default:
+        if (ie.data) {
+          sendMessage({ type: 'session:terminal-input', sessionId, input: ie.data });
+        }
+        overlay.value = '';
+    }
+  };
+  overlay.addEventListener('input', handleInput);
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (composing || e.isComposing) return;
+    let seq: string | null = null;
+    switch (e.key) {
+      case 'Enter': seq = '\r'; break;
+      case 'Backspace': seq = '\x7f'; break;
+      case 'Tab': seq = '\t'; break;
+      case 'Escape': seq = '\x1b'; break;
+      case 'ArrowUp': seq = '\x1b[A'; break;
+      case 'ArrowDown': seq = '\x1b[B'; break;
+      case 'ArrowRight': seq = '\x1b[C'; break;
+      case 'ArrowLeft': seq = '\x1b[D'; break;
+      case 'Home': seq = '\x1b[H'; break;
+      case 'End': seq = '\x1b[F'; break;
+    }
+    if (seq) {
+      e.preventDefault();
+      sendMessage({ type: 'session:terminal-input', sessionId, input: seq });
+      overlay.value = '';
+      return;
+    }
+    if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+      const c = e.key.toUpperCase().charCodeAt(0);
+      if (c >= 64 && c <= 95) {
+        e.preventDefault();
+        sendMessage({ type: 'session:terminal-input', sessionId, input: String.fromCharCode(c - 64) });
+        overlay.value = '';
+      }
+    }
+  };
+  overlay.addEventListener('keydown', handleKeyDown);
+
+  return () => {
+    overlay.remove();
+    if (helperTa) {
+      helperTa.style.display = prevHelperDisplay;
+      helperTa.tabIndex = prevHelperTabIndex;
+    }
+  };
 }
