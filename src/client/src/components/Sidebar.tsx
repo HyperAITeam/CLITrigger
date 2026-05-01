@@ -48,7 +48,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const { t, toggleLang } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
-  const { toasts, error: toastError, dismiss } = useToast();
+  const { toasts, error: toastError, success: toastSuccess, info: toastInfo, warning: toastWarning, dismiss } = useToast();
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
@@ -130,8 +130,34 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       if (event.type === 'todo:status-changed') {
         loadReviewCount();
       }
+      if (event.type === 'memory:ingest-finished') {
+        const project = projects.find(p => p.id === event.projectId);
+        const projectLabel = project?.name ?? '';
+        const sourceLabel = event.sourceTitle ? `“${event.sourceTitle}”` : (event.sourceType ?? '');
+        const prefix = projectLabel ? `[${projectLabel}] ` : '';
+        if (event.error) {
+          toastError(`${prefix}${t('wiki.ingest.toast.failed')}: ${event.error}`, 6000);
+          return;
+        }
+        const created = event.created ?? 0;
+        const updated = event.updated ?? 0;
+        const edges = event.edgesAdded ?? 0;
+        const applied = created + updated + edges;
+        if (applied > 0) {
+          const summary = t('wiki.ingest.toast.success')
+            .replace('{source}', sourceLabel)
+            .replace('{created}', String(created))
+            .replace('{updated}', String(updated))
+            .replace('{edges}', String(edges));
+          toastSuccess(`${prefix}${summary}`);
+        } else if (event.skipped?.parseFailed) {
+          toastWarning(`${prefix}${t('wiki.ingest.toast.parseFailed').replace('{source}', sourceLabel)}`, 5000);
+        } else {
+          toastInfo(`${prefix}${t('wiki.ingest.toast.empty').replace('{source}', sourceLabel)}`, 4000);
+        }
+      }
     });
-  }, [onEvent]);
+  }, [onEvent, projects, t, toastError, toastInfo, toastSuccess, toastWarning]);
 
   useEffect(() => {
     loadReviewCount();

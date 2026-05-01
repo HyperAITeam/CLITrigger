@@ -29,6 +29,27 @@ export interface WsEvent {
   currentAgentId?: string | null;
   // Rate limit events
   resetsAt?: number;
+  // Memory ingest events
+  sourceType?: string;
+  sourceId?: string | null;
+  sourceTitle?: string | null;
+  created?: number;
+  updated?: number;
+  edgesAdded?: number;
+  skipped?: {
+    parseFailed: boolean;
+    proposedCreate: number;
+    proposedUpdate: number;
+    proposedEdges: number;
+    duplicateTitle: number;
+    uniqueConflict: number;
+    emptyTitle: number;
+    invalidUpdateId: number;
+    invalidEdgeRef: number;
+    selfEdge: number;
+    edgeUniqueConflict: number;
+  };
+  error?: string;
 }
 
 type EventCallback = (event: WsEvent) => void;

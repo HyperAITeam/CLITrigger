@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import * as queries from '../db/queries.js';
 import type { CliTool } from './cli-adapters.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 
 const RAW_DIR_NAME = '.clitrigger';
 const RAW_SUBDIR = 'raw';
@@ -514,6 +515,51 @@ export async function lintWiki(projectId: string): Promise<LintIssue[]> {
 
   const raw = await runHeadless(cliTool, prompt);
   return safeParseLintIssues(raw);
+}
+
+/**
+ * Run an auto-ingest and broadcast the result over WebSocket so the client can show a toast.
+ * Errors are swallowed (auto-ingest is best-effort) but reported as a failure event.
+ */
+export function runAutoIngestAndBroadcast(
+  projectId: string,
+  sourceType: 'todo' | 'discussion',
+  sourceId: string,
+  sourceTitle: string | null,
+  sourceText: string,
+): void {
+  ingestSource(projectId, sourceText, sourceType, sourceId, sourceTitle).then((res) => {
+    broadcaster.broadcast({
+      type: 'memory:ingest-finished',
+      projectId,
+      sourceType,
+      sourceId,
+      sourceTitle,
+      created: res.created,
+      updated: res.updated,
+      edgesAdded: res.edgesAdded,
+      skipped: res.skipped,
+    });
+  }).catch((err) => {
+    console.error(`[memory-ingest] auto-ingest failed (${sourceType}):`, err);
+    broadcaster.broadcast({
+      type: 'memory:ingest-finished',
+      projectId,
+      sourceType,
+      sourceId,
+      sourceTitle,
+      created: 0,
+      updated: 0,
+      edgesAdded: 0,
+      skipped: {
+        parseFailed: false,
+        proposedCreate: 0, proposedUpdate: 0, proposedEdges: 0,
+        duplicateTitle: 0, uniqueConflict: 0, emptyTitle: 0,
+        invalidUpdateId: 0, invalidEdgeRef: 0, selfEdge: 0, edgeUniqueConflict: 0,
+      },
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 }
 
 export function buildSourceTextFromTodo(todoId: string): string | null {

@@ -7,7 +7,7 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
-import { ingestSource, buildSourceTextFromDiscussion } from './memory-ingest.js';
+import { buildSourceTextFromDiscussion, runAutoIngestAndBroadcast } from './memory-ingest.js';
 
 function maybeAutoIngestDiscussion(discussionId: string): void {
   try {
@@ -17,9 +17,7 @@ function maybeAutoIngestDiscussion(discussionId: string): void {
     if (!proj?.memory_auto_ingest) return;
     const text = buildSourceTextFromDiscussion(discussionId);
     if (!text) return;
-    ingestSource(proj.id, text, 'discussion', discussionId, d.title).catch((err) => {
-      console.error('[memory-ingest] discussion auto-ingest failed:', err);
-    });
+    runAutoIngestAndBroadcast(proj.id, 'discussion', discussionId, d.title, text);
   } catch (err) {
     console.error('[memory-ingest] discussion auto-ingest hook failed:', err);
   }
