@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, AlertCircle, Play } from 'lucide-react';
+import { X, AlertCircle, Play, Minus } from 'lucide-react';
 import SessionTerminal from './SessionTerminal';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -27,8 +27,10 @@ interface SessionWindowProps {
   zIndex: number;
   intent: WindowIntent;
   intentNonce: number;
+  neighbors?: Geometry[];
   onClose: () => void;
   onFocus: () => void;
+  onMinimize: () => void;
   onGeometryChange: (geom: Geometry) => void;
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
@@ -39,9 +41,68 @@ const MIN_W = 320;
 const MIN_H = 200;
 const TITLEBAR_VISIBLE = 80; // keep at least this many px of titlebar on screen
 const TITLEBAR_HEIGHT = 28;
+const SNAP_EDGE_THRESHOLD = 8;
+const SNAP_NEIGHBOR_THRESHOLD = 10;
+
+type SnapZone = 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function detectSnapZone(mx: number, my: number, vpW: number, vpH: number): SnapZone | null {
+  const nearLeft = mx <= SNAP_EDGE_THRESHOLD;
+  const nearRight = mx >= vpW - SNAP_EDGE_THRESHOLD;
+  if (!nearLeft && !nearRight) return null;
+  const topThird = vpH / 3;
+  const bottomThird = (vpH * 2) / 3;
+  if (nearLeft) {
+    if (my < topThird) return 'top-left';
+    if (my > bottomThird) return 'bottom-left';
+    return 'left';
+  }
+  if (my < topThird) return 'top-right';
+  if (my > bottomThird) return 'bottom-right';
+  return 'right';
+}
+
+function snapZoneToGeom(zone: SnapZone, vpW: number, vpH: number): Geometry {
+  const halfW = Math.round(vpW / 2);
+  const halfH = Math.round(vpH / 2);
+  switch (zone) {
+    case 'left': return { x: 0, y: 0, w: halfW, h: vpH };
+    case 'right': return { x: vpW - halfW, y: 0, w: halfW, h: vpH };
+    case 'top-left': return { x: 0, y: 0, w: halfW, h: halfH };
+    case 'top-right': return { x: vpW - halfW, y: 0, w: halfW, h: halfH };
+    case 'bottom-left': return { x: 0, y: vpH - halfH, w: halfW, h: halfH };
+    case 'bottom-right': return { x: vpW - halfW, y: vpH - halfH, w: halfW, h: halfH };
+  }
+}
+
+function applyNeighborSnap(
+  nx: number, ny: number, w: number, h: number,
+  neighbors: Geometry[],
+): { x: number; y: number } {
+  let x = nx, y = ny;
+  const left = x, right = x + w, top = y, bottom = y + h;
+  for (const n of neighbors) {
+    const nLeft = n.x, nRight = n.x + n.w, nTop = n.y, nBottom = n.y + n.h;
+    const vOverlap = top < nBottom && bottom > nTop;
+    if (vOverlap) {
+      if (Math.abs(left - nRight) <= SNAP_NEIGHBOR_THRESHOLD) x = nRight;
+      else if (Math.abs(right - nLeft) <= SNAP_NEIGHBOR_THRESHOLD) x = nLeft - w;
+      else if (Math.abs(left - nLeft) <= SNAP_NEIGHBOR_THRESHOLD) x = nLeft;
+      else if (Math.abs(right - nRight) <= SNAP_NEIGHBOR_THRESHOLD) x = nRight - w;
+    }
+    const hOverlap = left < nRight && right > nLeft;
+    if (hOverlap) {
+      if (Math.abs(top - nBottom) <= SNAP_NEIGHBOR_THRESHOLD) y = nBottom;
+      else if (Math.abs(bottom - nTop) <= SNAP_NEIGHBOR_THRESHOLD) y = nTop - h;
+      else if (Math.abs(top - nTop) <= SNAP_NEIGHBOR_THRESHOLD) y = nTop;
+      else if (Math.abs(bottom - nBottom) <= SNAP_NEIGHBOR_THRESHOLD) y = nBottom - h;
+    }
+  }
+  return { x, y };
 }
 
 type Phase = 'pendingFit' | 'starting' | 'subscribed' | 'replay-only' | 'stopping' | 'error';
@@ -56,8 +117,10 @@ export default function SessionWindow({
   zIndex,
   intent,
   intentNonce,
+  neighbors,
   onClose,
   onFocus,
+  onMinimize,
   onGeometryChange,
   sendMessage,
   subscribeBinary,
@@ -89,6 +152,10 @@ export default function SessionWindow({
   })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [snapZone, setSnapZone] = useState<SnapZone | null>(null);
+  const snapZoneRef = useRef<SnapZone | null>(null);
+  const neighborsRef = useRef<Geometry[]>(neighbors ?? []);
+  neighborsRef.current = neighbors ?? [];
   const fittedRef = useRef<{ cols: number; rows: number } | null>(null);
   const startInFlightRef = useRef(false);
   const lastIntentNonceRef = useRef(intentNonce);
@@ -206,8 +273,15 @@ export default function SessionWindow({
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startMouseX;
       const dy = ev.clientY - startMouseY;
-      const nx = clamp(startGeom.x + dx, -(startGeom.w - TITLEBAR_VISIBLE), vpW - TITLEBAR_VISIBLE);
-      const ny = clamp(startGeom.y + dy, 0, vpH - TITLEBAR_HEIGHT);
+      let nx = clamp(startGeom.x + dx, -(startGeom.w - TITLEBAR_VISIBLE), vpW - TITLEBAR_VISIBLE);
+      let ny = clamp(startGeom.y + dy, 0, vpH - TITLEBAR_HEIGHT);
+      // Window-to-window edge snap (active during drag — sticky feel).
+      const ns = neighborsRef.current;
+      if (ns.length > 0) {
+        const snapped = applyNeighborSnap(nx, ny, startGeom.w, startGeom.h, ns);
+        nx = snapped.x;
+        ny = snapped.y;
+      }
       // Mutate DOM directly during drag to avoid React re-render storms.
       if (wrapper) {
         wrapper.style.left = `${nx}px`;
@@ -215,10 +289,28 @@ export default function SessionWindow({
       }
       geomRef.current.x = nx;
       geomRef.current.y = ny;
+      // Edge zone detection — preview only, applied on mouseup.
+      const zone = detectSnapZone(ev.clientX, ev.clientY, vpW, vpH);
+      if (zone !== snapZoneRef.current) {
+        snapZoneRef.current = zone;
+        setSnapZone(zone);
+      }
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (snapZoneRef.current) {
+        const target = snapZoneToGeom(snapZoneRef.current, vpW, vpH);
+        if (wrapper) {
+          wrapper.style.left = `${target.x}px`;
+          wrapper.style.top = `${target.y}px`;
+          wrapper.style.width = `${target.w}px`;
+          wrapper.style.height = `${target.h}px`;
+        }
+        geomRef.current = target;
+        snapZoneRef.current = null;
+        setSnapZone(null);
+      }
       // Commit to React state + persistence.
       onGeometryChange({ ...geomRef.current });
     };
@@ -379,7 +471,29 @@ export default function SessionWindow({
   }
 
   // ── Desktop: floating, draggable, resizable ──
-  return createPortal(
+  const snapPreview = snapZone ? (() => {
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const target = snapZoneToGeom(snapZone, vpW, vpH);
+    return createPortal(
+      <div
+        style={{
+          position: 'fixed',
+          left: target.x, top: target.y, width: target.w, height: target.h,
+          background: `${CMD.info}33`,
+          border: `2px dashed ${CMD.info}`,
+          borderRadius: 8,
+          pointerEvents: 'none',
+          zIndex: 2000,
+          transition: 'left 80ms ease-out, top 80ms ease-out, width 80ms ease-out, height 80ms ease-out',
+          boxSizing: 'border-box',
+        }}
+      />,
+      document.body,
+    );
+  })() : null;
+
+  const desktopWindow = createPortal(
     <div
       ref={wrapperRef}
       onMouseDown={onFocus}
@@ -404,14 +518,28 @@ export default function SessionWindow({
           borderBottom: `1px solid ${CMD.separator}`,
         }}
       >
-        <div style={{ display: 'flex', gap: 6, marginRight: 10 }}>
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57' }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e' }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            marginRight: 10,
+            fontFamily: CMD_FONT,
+            fontSize: 13,
+            fontWeight: 600,
+            color: CMD.info,
+            letterSpacing: 1,
+            userSelect: 'none',
+          }}
+          aria-hidden
+        >
+          {'>_'}
         </div>
         <span style={{ flex: 1, textAlign: 'center', fontFamily: CMD_FONT, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {session.title}{titleSuffix}
         </span>
+        <button data-no-drag onClick={onMinimize} style={closeBtnStyle} aria-label="minimize" title={t('session.minimize') || 'Minimize'}>
+          <Minus size={14} />
+        </button>
         <button data-no-drag onClick={onClose} style={closeBtnStyle} aria-label="close">
           <X size={14} />
         </button>
@@ -439,6 +567,13 @@ export default function SessionWindow({
       />
     </div>,
     document.body,
+  );
+
+  return (
+    <>
+      {desktopWindow}
+      {snapPreview}
+    </>
   );
 }
 
