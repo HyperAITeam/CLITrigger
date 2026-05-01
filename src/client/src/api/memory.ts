@@ -93,10 +93,33 @@ export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
   }
 }
 
+export interface IngestSkippedBreakdown {
+  parseFailed: boolean;
+  proposedCreate: number;
+  proposedUpdate: number;
+  proposedEdges: number;
+  duplicateTitle: number;
+  uniqueConflict: number;
+  emptyTitle: number;
+  invalidUpdateId: number;
+  invalidEdgeRef: number;
+  selfEdge: number;
+  edgeUniqueConflict: number;
+}
+
+export interface IngestResultData {
+  created: number;
+  updated: number;
+  edgesAdded: number;
+  nodeIds: string[];
+  skipped: IngestSkippedBreakdown;
+  rawResponseSnippet?: string;
+}
+
 export function ingestMemory(
   projectId: string,
   data: { source_text?: string; source_type?: string; source_id?: string; locale?: string },
-): Promise<{ created: number; updated: number; edgesAdded: number; nodeIds: string[] }> {
+): Promise<IngestResultData> {
   return post(`/api/projects/${projectId}/memory/ingest`, data);
 }
 
