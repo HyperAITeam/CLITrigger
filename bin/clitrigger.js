@@ -67,6 +67,9 @@ async function startServer() {
   if (config.tunnelName) {
     process.env.TUNNEL_NAME = config.tunnelName;
   }
+  if (config.tunnelHostname) {
+    process.env.TUNNEL_HOSTNAME = config.tunnelHostname;
+  }
 
   // 서버 시작
   await import('../dist/server/index.js');
@@ -126,28 +129,58 @@ async function handleConfig(args) {
   } else if (args[0] === 'path') {
     console.log(CONFIG_DIR);
   } else if (args[0] === 'tunnel') {
+    const summary = () => {
+      const parts = [];
+      if (config.tunnelName) parts.push(`name: ${config.tunnelName}`);
+      if (config.tunnelHostname) parts.push(`hostname: ${config.tunnelHostname}`);
+      return parts.length ? ` (${parts.join(', ')})` : '';
+    };
+
     if (!args[1]) {
-      console.log(`Tunnel: ${config.tunnel ? 'enabled' : 'disabled'}${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
+      console.log(`Tunnel: ${config.tunnel ? 'enabled' : 'disabled'}${summary()}`);
       return;
     }
     if (args[1] === 'on') {
       config.tunnel = true;
       if (args[2]) config.tunnelName = args[2];
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-      console.log(`Tunnel enabled.${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
+      console.log(`Tunnel enabled.${summary()}`);
     } else if (args[1] === 'off') {
       config.tunnel = false;
       delete config.tunnelName;
+      delete config.tunnelHostname;
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
       console.log('Tunnel disabled.');
+    } else if (args[1] === 'hostname') {
+      if (!args[2]) {
+        console.log(`Tunnel hostname: ${config.tunnelHostname || 'not set'}`);
+        return;
+      }
+      if (args[2] === 'clear') {
+        delete config.tunnelHostname;
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+        console.log('Tunnel hostname cleared.');
+        return;
+      }
+      const hostname = args[2].trim().toLowerCase();
+      if (!/^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(hostname)
+        || hostname === 'localhost' || hostname === '127.0.0.1') {
+        console.log('Please enter a valid public domain (e.g. app.your-domain.com).');
+        process.exit(1);
+      }
+      config.tunnelHostname = hostname;
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+      console.log(`Tunnel hostname set to ${hostname}.`);
     } else {
-      console.log('Usage: clitrigger config tunnel [on [name] | off]');
+      console.log('Usage: clitrigger config tunnel [on [name] | off | hostname <host>|clear]');
     }
   } else {
     console.log(`Config (${CONFIG_FILE}):`);
     console.log(`  Port:     ${config.port || 3000}`);
     console.log(`  Password: ${config.password ? 'set' : 'not set'}`);
-    console.log(`  Tunnel:   ${config.tunnel ? 'enabled' : 'disabled'}${config.tunnelName ? ` (name: ${config.tunnelName})` : ''}`);
+    console.log(`  Tunnel:   ${config.tunnel ? 'enabled' : 'disabled'}`);
+    if (config.tunnelName)     console.log(`  Tunnel name:     ${config.tunnelName}`);
+    if (config.tunnelHostname) console.log(`  Tunnel hostname: ${config.tunnelHostname}`);
   }
 }
 
@@ -200,6 +233,10 @@ Usage:
   clitrigger config tunnel on         Enable Cloudflare tunnel
   clitrigger config tunnel on <name>  Enable named tunnel
   clitrigger config tunnel off        Disable tunnel
+  clitrigger config tunnel hostname <host>
+                                      Set custom domain for named tunnel
+  clitrigger config tunnel hostname clear
+                                      Clear custom domain
   clitrigger config path              Print config directory path
   clitrigger config clear             Delete all config and data
   clitrigger --help                   Show this help
