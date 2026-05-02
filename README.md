@@ -209,11 +209,18 @@ The desktop app bundles Node.js and the native modules (`better-sqlite3`, `node-
 ### Option B — npm (recommended for developers)
 
 ```bash
+# Install
 npm i -g clitrigger
 clitrigger
+
+# Upgrade to the latest version
+npm i -g clitrigger@latest
+# Check current version: clitrigger --version
 ```
 
 On first run the server starts immediately. Open `http://localhost:3000` → set a password on the welcome screen → register a project → write TODOs → click Start. Change the password later via Settings → Account in the web UI.
+
+CLITrigger also prints a one-line `Update available: <new> -> npm i -g clitrigger@latest` hint at startup whenever a newer version is on npm — no auto-update, you decide when to upgrade.
 
 ```bash
 # Change settings
