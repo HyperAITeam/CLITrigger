@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
-import { GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { GitBranch, Play, Square, Trash2, TerminalSquare, Archive, Edit2 } from 'lucide-react';
 import EmptyState from './EmptyState';
 import type { Session, MemoryInjectMode } from '../types';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
-import SessionForm from './SessionForm';
+import { parseMemoryNodeIds } from '../api/memory';
+import SessionForm, { type SessionFormInitial } from './SessionForm';
 import { useSessionWindows } from './SessionWindowsHost';
 
 interface SessionListProps {
@@ -14,6 +15,7 @@ interface SessionListProps {
   projectCliModel?: string;
   isGitRepo?: boolean;
   onAddSession: (session: Session) => void;
+  onUpdateSession: (session: Session) => void;
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
@@ -34,6 +36,7 @@ export default function SessionList({
   projectCliModel,
   isGitRepo,
   onAddSession,
+  onUpdateSession,
   onStopSession,
   onDeleteSession,
   onCleanupSession,
@@ -42,6 +45,44 @@ export default function SessionList({
   const { openOrFocus } = useSessionWindows();
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const editingSession = useMemo(
+    () => (editingId ? sessions.find((s) => s.id === editingId) ?? null : null),
+    [editingId, sessions],
+  );
+  const editingInitial: SessionFormInitial | undefined = useMemo(() => {
+    if (!editingSession) return undefined;
+    return {
+      title: editingSession.title,
+      description: editingSession.description ?? '',
+      cliTool: editingSession.cli_tool ?? '',
+      cliModel: editingSession.cli_model ?? '',
+      useWorktree: editingSession.use_worktree === 1,
+      memoryInjectMode: (editingSession.memory_inject_mode as MemoryInjectMode | null) ?? 'none',
+      memoryNodeIds: parseMemoryNodeIds(editingSession.memory_node_ids ?? null),
+    };
+  }, [editingSession]);
+
+  const startCreate = useCallback(() => {
+    setEditingId(null);
+    setEditError(null);
+    setShowForm((v) => !v);
+  }, []);
+
+  const startEdit = useCallback((sessionId: string) => {
+    setShowForm(false);
+    setEditError(null);
+    setEditingId(sessionId);
+  }, []);
+
+  const cancelForm = useCallback(() => {
+    setShowForm(false);
+    setEditingId(null);
+    setEditError(null);
+  }, []);
 
   const handleCreate = useCallback(async (
     title: string,
@@ -70,6 +111,37 @@ export default function SessionList({
     }
   }, [projectId, onAddSession]);
 
+  const handleUpdate = useCallback(async (
+    title: string,
+    description: string,
+    cliTool?: string,
+    cliModel?: string,
+    useWorktree?: boolean,
+    memoryInjectMode?: MemoryInjectMode,
+    memoryNodeIds?: string[],
+  ) => {
+    if (!editingId) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      const updated = await sessionsApi.updateSession(editingId, {
+        title,
+        description: description || undefined,
+        cli_tool: cliTool,
+        cli_model: cliModel,
+        use_worktree: useWorktree,
+        memory_inject_mode: memoryInjectMode,
+        memory_node_ids: memoryNodeIds,
+      });
+      onUpdateSession(updated);
+      setEditingId(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }, [editingId, onUpdateSession]);
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -77,7 +149,7 @@ export default function SessionList({
           {t('tabs.sessions')}
         </h2>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={startCreate}
           className="btn-primary text-xs py-2"
           disabled={creating}
         >
@@ -89,11 +161,32 @@ export default function SessionList({
         <SessionForm
           projectId={projectId}
           onSave={handleCreate}
-          onCancel={() => setShowForm(false)}
+          onCancel={cancelForm}
           projectCliTool={projectCliTool}
           projectCliModel={projectCliModel}
           isGitRepo={isGitRepo}
         />
+      )}
+
+      {editingInitial && editingId && (
+        <div className="space-y-2">
+          <SessionForm
+            key={editingId}
+            projectId={projectId}
+            initial={editingInitial}
+            onSave={handleUpdate}
+            onCancel={cancelForm}
+            projectCliTool={projectCliTool}
+            projectCliModel={projectCliModel}
+            isGitRepo={isGitRepo}
+          />
+          {(saving || editError) && (
+            <div className="text-xs px-1">
+              {saving && <span className="text-warm-500">{t('session.saving') || 'saving…'}</span>}
+              {editError && <span className="text-status-error">{editError}</span>}
+            </div>
+          )}
+        </div>
       )}
 
       {sessions.length === 0 && !showForm ? (
@@ -105,11 +198,13 @@ export default function SessionList({
           {sessions.map((session, index) => {
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
+            const canEdit = session.status !== 'running';
+            const isEditing = editingId === session.id;
 
             return (
               <div
                 key={session.id}
-                className="card overflow-hidden animate-slide-up"
+                className={`card overflow-hidden animate-slide-up ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div
@@ -150,6 +245,14 @@ export default function SessionList({
                           <Play size={16} />
                         </button>
                       )}
+                      <button
+                        onClick={() => startEdit(session.id)}
+                        disabled={!canEdit}
+                        className="p-1.5 text-warm-500 hover:text-warm-800 hover:bg-warm-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-warm-500"
+                        title={canEdit ? t('session.edit') : t('session.editDisabledRunning')}
+                      >
+                        <Edit2 size={16} />
+                      </button>
                       {canStop && (
                         <button
                           onClick={() => onStopSession(session.id)}

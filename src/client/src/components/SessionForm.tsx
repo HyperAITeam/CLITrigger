@@ -5,8 +5,20 @@ import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 import MemoryInjectControl from './MemoryInjectControl';
 import type { MemoryInjectMode } from '../types';
 
+export interface SessionFormInitial {
+  title: string;
+  description: string;
+  cliTool: string;
+  cliModel: string;
+  useWorktree: boolean;
+  memoryInjectMode: MemoryInjectMode;
+  memoryNodeIds: string[];
+}
+
 interface SessionFormProps {
   projectId: string;
+  /** Present → edit mode, prefills the form. Absent → create mode (defaults). */
+  initial?: SessionFormInitial;
   onSave: (
     title: string,
     description: string,
@@ -22,15 +34,16 @@ interface SessionFormProps {
   isGitRepo?: boolean;
 }
 
-export default function SessionForm({ projectId, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo }: SessionFormProps) {
+export default function SessionForm({ projectId, initial, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo }: SessionFormProps) {
   const { t } = useI18n();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [cliTool, setCliTool] = useState(projectCliTool || '');
-  const [cliModel, setCliModel] = useState(projectCliModel || '');
-  const [useWorktree, setUseWorktree] = useState(false);
-  const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>('none');
-  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>([]);
+  const isEdit = !!initial;
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [cliTool, setCliTool] = useState(initial?.cliTool ?? (projectCliTool || ''));
+  const [cliModel, setCliModel] = useState(initial?.cliModel ?? (projectCliModel || ''));
+  const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? false);
+  const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initial?.memoryInjectMode ?? 'none');
+  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(initial?.memoryNodeIds ?? []);
 
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
@@ -115,7 +128,7 @@ export default function SessionForm({ projectId, onSave, onCancel, projectCliToo
           {t('form.cancel')}
         </button>
         <button type="submit" disabled={!title.trim()} className="btn-primary text-xs py-1.5 px-3">
-          {t('session.create')}
+          {isEdit ? t('session.save') : t('session.create')}
         </button>
       </div>
     </form>
