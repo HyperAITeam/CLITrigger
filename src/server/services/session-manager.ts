@@ -67,6 +67,19 @@ export class SessionManager {
   }
 
   /**
+   * Drain any in-flight raw bytes for `sessionId` to `session_raw_chunks`
+   * without tearing down the subscription. Call this immediately before
+   * reading DB chunks for replay so the persisted history is the single
+   * source of truth — otherwise the in-memory PTY ring would still hold
+   * the most recent ~100ms of bytes and replaying both would duplicate.
+   */
+  flushPendingRaw(sessionId: string): void {
+    const flusher = this.pendingFlushers.get(sessionId);
+    if (!flusher) return;
+    try { flusher(); } catch { /* ignore */ }
+  }
+
+  /**
    * Start a session (always interactive mode).
    *
    * `opts.cols` / `opts.rows` come from the client xterm.js after FitAddon

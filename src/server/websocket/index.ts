@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'http';
 import { broadcaster, encodeSessionFrame } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
+import { sessionManager } from '../services/session-manager.js';
 import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
 
 export function initWebSocket(server: Server): void {
@@ -114,20 +115,21 @@ export function initWebSocket(server: Server): void {
         // ── xterm.js terminal channel (Sessions tab) ──
 
         // Subscribe a client to the high-frequency binary output for a session.
-        // On subscribe we replay persisted chunks (cross-restart) + the in-memory
-        // ring tail (live since last persisted), then send `session:replay-end`.
+        // On subscribe we drain any in-flight pending bytes to DB (so the
+        // persisted chunks are the single source of truth), then replay
+        // them and send `session:replay-end`. Subscribing before the flush
+        // is intentional: any chunk delivered after this synchronous handler
+        // returns will be live-broadcast, and JS single-threading guarantees
+        // no PTY data event interleaves between subscribe and the DB read.
         if (msg.type === 'session:subscribe' && typeof msg.sessionId === 'string') {
           const session = getSessionById(msg.sessionId);
           if (session) {
             broadcaster.subscribe(ws, msg.sessionId);
             try {
+              sessionManager.flushPendingRaw(msg.sessionId);
               const chunks = getSessionRawChunks(msg.sessionId);
               for (const c of chunks) {
                 ws.send(encodeSessionFrame(msg.sessionId, c.bytes), { binary: true });
-              }
-              if (session.process_pid) {
-                const tail = claudeManager.getRawHistory(session.process_pid);
-                if (tail) ws.send(encodeSessionFrame(msg.sessionId, tail), { binary: true });
               }
             } catch { /* ignore replay errors */ }
             ws.send(JSON.stringify({ type: 'session:replay-end', sessionId: msg.sessionId }));
