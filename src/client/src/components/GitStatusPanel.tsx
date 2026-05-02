@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
@@ -1451,6 +1451,46 @@ function Resizer({ axis, onResize }: { axis: 'x' | 'y'; onResize: (clientX: numb
   );
 }
 
+// --- Long-press message tooltip (mobile only) ---
+
+function LongPressTooltip({ x, y, message, onDismiss }: { x: number; y: number; message: string; onDismiss: () => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!boxRef.current) return;
+    const rect = boxRef.current.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let top = y - h - 12;
+    if (top < 8) top = y + 12;
+    if (top + h > vh - 8) top = vh - h - 8;
+    let left = x - w / 2;
+    if (left < 8) left = 8;
+    if (left + w > vw - 8) left = vw - w - 8;
+    setPos({ top, left });
+  }, [x, y]);
+
+  return createPortal(
+    <div
+      onClick={onDismiss}
+      onTouchStart={onDismiss}
+      className="fixed inset-0 z-tooltip"
+    >
+      <div
+        ref={boxRef}
+        className="absolute bg-warm-800 dark:bg-warm-900 text-white text-xs px-3 py-2 rounded-lg shadow-elevated max-w-[80vw] whitespace-pre-wrap break-words pointer-events-none"
+        style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { top: 0, left: 0, opacity: 0 }}
+      >
+        {message}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -1469,6 +1509,10 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const { t } = useI18n();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const [refsOpen, setRefsOpen] = useState(false);
+  const [pressTooltip, setPressTooltip] = useState<{ message: string; x: number; y: number } | null>(null);
+  const longPressRef = useRef<{ timer: number | null; startX: number; startY: number; fired: boolean }>({
+    timer: null, startX: 0, startY: 0, fired: false,
+  });
   const [view, setView] = useState<WorkspaceView>(() => {
     if (typeof window === 'undefined') return 'history';
     const saved = window.localStorage.getItem(`git-view:${project.id}`);
@@ -1626,6 +1670,57 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       setFileDiffLoading(false);
     }
   }, [project.id, selectedCommit]);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current.timer !== null) {
+      window.clearTimeout(longPressRef.current.timer);
+      longPressRef.current.timer = null;
+    }
+  }, []);
+
+  const handleCommitPointerDown = useCallback((e: React.PointerEvent, message: string) => {
+    if (!isMobile) return;
+    cancelLongPress();
+    longPressRef.current.startX = e.clientX;
+    longPressRef.current.startY = e.clientY;
+    longPressRef.current.fired = false;
+    longPressRef.current.timer = window.setTimeout(() => {
+      longPressRef.current.fired = true;
+      longPressRef.current.timer = null;
+      setPressTooltip({ message, x: longPressRef.current.startX, y: longPressRef.current.startY });
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate(10); } catch { /* ignore */ }
+      }
+    }, 500);
+  }, [isMobile, cancelLongPress]);
+
+  const handleCommitPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isMobile || longPressRef.current.timer === null) return;
+    const dx = e.clientX - longPressRef.current.startX;
+    const dy = e.clientY - longPressRef.current.startY;
+    if (dx * dx + dy * dy > 64) cancelLongPress();
+  }, [isMobile, cancelLongPress]);
+
+  const handleCommitPointerEnd = useCallback(() => {
+    if (!isMobile) return;
+    cancelLongPress();
+  }, [isMobile, cancelLongPress]);
+
+  // Auto-dismiss tooltip on scroll / resize / mobile state change
+  useEffect(() => {
+    if (!pressTooltip) return;
+    const dismiss = () => setPressTooltip(null);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
+  }, [pressTooltip]);
+
+  useEffect(() => {
+    if (!isMobile) setPressTooltip(null);
+  }, [isMobile]);
 
   useEffect(() => {
     fetchLog(0, true);
@@ -1811,11 +1906,26 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                         return (
                           <div
                             key={commit.hash}
-                            onClick={() => handleCommitClick(commit)}
+                            onClick={(e) => {
+                              if (longPressRef.current.fired) {
+                                e.stopPropagation();
+                                longPressRef.current.fired = false;
+                                return;
+                              }
+                              handleCommitClick(commit);
+                            }}
+                            onPointerDown={(e) => handleCommitPointerDown(e, commit.message)}
+                            onPointerMove={handleCommitPointerMove}
+                            onPointerUp={handleCommitPointerEnd}
+                            onPointerCancel={handleCommitPointerEnd}
+                            onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
                             className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/50 ${
                               isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
                             }`}
-                            style={{ height: ROW_HEIGHT }}
+                            style={{
+                              height: ROW_HEIGHT,
+                              ...(isMobile ? { touchAction: 'pan-y', WebkitTouchCallout: 'none', userSelect: 'none' } : null),
+                            }}
                           >
                             <div className="flex-1 min-w-0 flex items-center gap-1.5">
                               {commit.refs.length > 0 && (
@@ -1902,6 +2012,14 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
           )}
         </div>
       </div>
+      {pressTooltip && (
+        <LongPressTooltip
+          x={pressTooltip.x}
+          y={pressTooltip.y}
+          message={pressTooltip.message}
+          onDismiss={() => setPressTooltip(null)}
+        />
+      )}
     </div>
   );
 }
