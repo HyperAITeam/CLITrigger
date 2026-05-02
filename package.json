@@ -61,7 +61,7 @@
     "docs:erd": "tsx scripts/generate-erd.ts",
     "docs:erd:check": "tsx scripts/generate-erd.ts --check",
     "postuninstall": "node bin/postuninstall.js",
-    "electron:rebuild": "electron-rebuild -o better-sqlite3",
+    "electron:rebuild": "electron-rebuild -o better-sqlite3 --force --build-from-source",
     "electron:dev": "npm run build && electron .",
     "electron:build": "npm run build && electron-builder",
     "electron:build:win": "npm run build && electron-builder --win",
@@ -102,6 +102,8 @@
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.27.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.1"
@@ -139,19 +141,43 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "linux": {
       "category": "Development",
-      "target": ["AppImage"]
+      "target": [
+        "AppImage"
+      ]
     },
     "nsis": {
       "oneClick": false,
