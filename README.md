@@ -108,7 +108,7 @@ Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recove
 The **Harness** panel edits Claude / Gemini / Codex user config (settings, memory files, MCP servers) right in the browser — atomic writes with deep-merge preserve untouched fields, and a Codex `trustLevelMissing` warning surfaces when a project isn't trusted. Jira, GitHub, Notion integrations and gstack skill injection ship alongside as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
 
 ### Wiki (Karpathy LLM-Wiki Pattern)
-A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` per task, preview the exact `<long_term_memory>` block before sending. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
+A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` / **`Auto`** per task — `Auto` runs a one-shot LLM retrieval right before each call to pick only the relevant entries, saving tokens. Preview the exact `<long_term_memory>` block (with char/token estimates) before sending; **export DB → `.clitrigger/wiki/<entity>/<slug>.md` Markdown** + Disk diff to keep the wiki alive in git or Obsidian. Lint surfaces duplicates / orphans / stale entries with inline fix actions (merge / delete / link); the Activity sub-tab logs ingest / lint / retrieve / merge events with severity. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
 
 ### Planner
 A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
@@ -122,7 +122,7 @@ A lightweight task planner separate from TODOs — capture ideas, attach images,
 Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs execute simultaneously in parallel. Dependency chains let you automatically trigger follow-up tasks and branch merges once prerequisites complete. Per-project worktree toggle plus per-TODO tri-state override (inherit / force-worktree / force-main) give you fine-grained control — main-branch tasks are automatically serialized to avoid conflicts. Drag-and-drop reordering and an iOS-style stack mode keep long task lists manageable.
 
 ### Interactive Sessions
-Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in a floating draggable window. **xterm.js rendering** shows ANSI colors, cursor control, and TUI box-drawing identically to a native terminal — no line-by-line scraping, no output mangling. PTY spawns at the exact viewport dimensions so Claude Code's welcome banner and menus render at the correct column width. Optional worktree isolation per session. Chat-mode log viewer classifies output into assistant / tool-use blocks for readability. Window geometry persists per session, survives tab navigation, and works on desktop and mobile (fullscreen on small screens).
+Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in a floating draggable window. **VS Code-style window grouping and docking**: drag a tab onto another window for a 5-zone diamond (top/bottom/left/right/center) to either split into resizable panes or merge as tabs, plus **Aero-style edge snapping, sticky window-to-window snapping, and a minimize-to-dock-tray** flow — keeps multi-session screens tidy. **xterm.js rendering** shows ANSI colors, cursor control, and TUI box-drawing identically to a native terminal. PTY spawns at the exact viewport dimensions, with **per-session font size** (A−/A+ buttons or Ctrl/Cmd ±) for readability. Per-session wiki injection plus a **Send/Skip pre-flight banner** lets you review the auto-generated initial prompt before it hits the model. Inline edit button updates non-running sessions in place. iOS Safari mobile Hangul IME is composed via a client-side dubeolsik composer. Window geometry, group tree, and tab arrangement persist and survive tab navigation; works on desktop and mobile (fullscreen on small screens).
 
 ### Multi-Agent Discussion
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus. Or hit **Send to Planner** on a finished discussion to have the transcript distilled into curated planner items via a one-shot LLM extraction — review and edit before persisting.
@@ -166,7 +166,7 @@ WebSocket-based real-time log streaming with two view modes — Chat mode render
 Select Claude / Gemini / Codex per project, per TODO, or per discussion agent. Strict sandbox mode restricts CLI file access to the worktree directory using each CLI's native sandboxing (Claude settings.json, Codex `--full-auto`, Gemini prompt-level restriction).
 
 ### Remote Access
-Access and control from anywhere via Cloudflare Tunnel. Browser notifications alert you when tasks or discussions complete, so you can walk away and come back.
+Access and control from anywhere via Cloudflare Tunnel. Browser notifications alert you when tasks or discussions complete, so you can walk away and come back. **Route a named tunnel through your own domain** — set Tunnel Name + Custom Hostname in the sidebar ⚙ → Tunnel settings modal, and the displayed URL becomes `https://app.your-domain.com`, sidestepping the browser "dangerous site" warnings that hit `*.trycloudflare.com` / `*.cfargotunnel.com` by inheriting your domain's reputation.
 
 ### Favorites Launcher
 Register frequently-used external tools (executables, shell commands, URLs/folders) in a global Favorites section in the sidebar. Fire-and-forget one-click execution from anywhere in CLITrigger — reduces context-switching to the OS shell for environment setup, IDE launches, or external service access.
@@ -267,6 +267,17 @@ brew install cloudflared                  # macOS
 npm run start:tunnel
 # → Outputs https://xxxx.trycloudflare.com in the console
 ```
+
+#### Route a named tunnel through your own domain (optional)
+
+To avoid the "dangerous site" browser warnings on `*.trycloudflare.com` / `*.cfargotunnel.com`, point a named tunnel at your own domain. Either use the sidebar ⚙ → Tunnel settings modal (Tunnel Name + Custom Hostname), or the CLI:
+
+```bash
+clitrigger config tunnel hostname app.your-domain.com
+cloudflared tunnel route dns <tunnel-name> app.your-domain.com   # one-time
+```
+
+The displayed URL becomes `https://app.your-domain.com` and reputation tracks your domain.
 
 ---
 
