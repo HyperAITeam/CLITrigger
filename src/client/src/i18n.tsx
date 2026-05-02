@@ -15,6 +15,18 @@ const translations = {
     'login.footer': 'Secure Access',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Setup (first-run password)
+    'setup.title': 'Welcome to CLITrigger',
+    'setup.subtitle': 'Set a password to secure this instance',
+    'setup.password': 'New password',
+    'setup.confirm': 'Confirm password',
+    'setup.submit': 'Create password',
+    'setup.loading': 'Saving…',
+    'setup.tooShort': 'Password must be at least 8 characters.',
+    'setup.mismatch': 'Passwords do not match.',
+    'setup.tunnelPaused': 'External sharing (Cloudflare tunnel) is paused until setup completes.',
+    'setup.error': 'Failed to save password.',
+
     // Sidebar
     'sidebar.home': 'Home',
     'sidebar.review': 'Review Queue',
@@ -74,6 +86,28 @@ const translations = {
     'tunnel.restarting': 'Restarting…',
     'tunnel.restarted': 'Tunnel restarted.',
     'tunnel.restartFailed': 'Failed to restart tunnel.',
+    'tunnel.start': 'Start tunnel',
+    'tunnel.starting': 'Starting…',
+    'tunnel.urlCopied': 'External URL copied to clipboard',
+
+    // Settings modal
+    'settings.title': 'Settings',
+    'settings.tabs.account': 'Account',
+    'settings.tabs.tunnel': 'Tunnel',
+
+    // Account (password change)
+    'account.title': 'Change password',
+    'account.description': 'Enter your current password, then choose a new one.',
+    'account.oldPassword': 'Current password',
+    'account.newPassword': 'New password',
+    'account.confirm': 'Confirm new password',
+    'account.tooShort': 'Password must be at least 8 characters.',
+    'account.mismatch': 'Passwords do not match.',
+    'account.save': 'Save',
+    'account.saving': 'Saving…',
+    'account.saved': 'Password updated. Other sessions will be signed out.',
+    'account.saveFailed': 'Failed to update password.',
+    'account.close': 'Close',
 
     // Review Queue
     'review.title': 'Review Queue',
@@ -1066,6 +1100,18 @@ const translations = {
     'login.footer': '\uBCF4\uC548 \uC811\uC18D',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
+    // Setup (first-run password)
+    'setup.title': 'CLITrigger\uC5D0 \uC624\uC2E0 \uAC83\uC744 \uD658\uC601\uD569\uB2C8\uB2E4',
+    'setup.subtitle': '\uC774 \uC778\uC2A4\uD134\uC2A4\uB97C \uBCF4\uD638\uD560 \uBE44\uBC00\uBC88\uD638\uB97C \uC124\uC815\uD558\uC138\uC694',
+    'setup.password': '\uC0C8 \uBE44\uBC00\uBC88\uD638',
+    'setup.confirm': '\uBE44\uBC00\uBC88\uD638 \uD655\uC778',
+    'setup.submit': '\uBE44\uBC00\uBC88\uD638 \uB9CC\uB4E4\uAE30',
+    'setup.loading': '\uC800\uC7A5 \uC911\u2026',
+    'setup.tooShort': '\uBE44\uBC00\uBC88\uD638\uB294 8\uC790 \uC774\uC0C1\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4.',
+    'setup.mismatch': '\uBE44\uBC00\uBC88\uD638\uAC00 \uC77C\uCE58\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.',
+    'setup.tunnelPaused': '\uC14B\uC5C5\uC774 \uB05D\uB0A0 \uB54C\uAE4C\uC9C0 \uC678\uBD80 \uACF5\uC720(Cloudflare \uD130\uB110)\uB294 \uC790\uB3D9 \uC2DC\uC791\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.',
+    'setup.error': '\uBE44\uBC00\uBC88\uD638 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
+
     // Sidebar
     'sidebar.home': '홈',
     'sidebar.review': '리뷰 큐',
@@ -1125,6 +1171,28 @@ const translations = {
     'tunnel.restarting': '재시작 중…',
     'tunnel.restarted': '터널을 재시작했습니다.',
     'tunnel.restartFailed': '터널 재시작에 실패했습니다.',
+    'tunnel.start': '터널 시작',
+    'tunnel.starting': '시작 중…',
+    'tunnel.urlCopied': '외부 URL을 클립보드에 복사했습니다.',
+
+    // Settings modal
+    'settings.title': '설정',
+    'settings.tabs.account': '계정',
+    'settings.tabs.tunnel': '터널',
+
+    // Account (password change)
+    'account.title': '비밀번호 변경',
+    'account.description': '현재 비밀번호를 입력한 후 새 비밀번호를 선택하세요.',
+    'account.oldPassword': '현재 비밀번호',
+    'account.newPassword': '새 비밀번호',
+    'account.confirm': '새 비밀번호 확인',
+    'account.tooShort': '비밀번호는 8자 이상이어야 합니다.',
+    'account.mismatch': '비밀번호가 일치하지 않습니다.',
+    'account.save': '저장',
+    'account.saving': '저장 중…',
+    'account.saved': '비밀번호가 변경되었습니다. 다른 세션은 모두 로그아웃됩니다.',
+    'account.saveFailed': '비밀번호 변경에 실패했습니다.',
+    'account.close': '닫기',
 
     // Review Queue
     'review.title': '리뷰 큐',

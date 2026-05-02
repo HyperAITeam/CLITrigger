@@ -4,6 +4,7 @@ import * as authApi from '../api/auth';
 export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
   const [authRequired, setAuthRequired] = useState(true);
+  const [setupRequired, setSetupRequired] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -11,6 +12,7 @@ export function useAuth() {
       .then((res) => {
         setAuthenticated(res.authenticated);
         setAuthRequired(res.authRequired);
+        setSetupRequired(res.setupRequired);
       })
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
@@ -33,5 +35,11 @@ export function useAuth() {
     setAuthenticated(false);
   }, []);
 
-  return { authenticated, authRequired, loading, login, logout };
+  const setup = useCallback(async (password: string, confirmPassword: string) => {
+    await authApi.setupPassword(password, confirmPassword);
+    setSetupRequired(false);
+    setAuthenticated(true);
+  }, []);
+
+  return { authenticated, authRequired, setupRequired, loading, login, logout, setup };
 }
