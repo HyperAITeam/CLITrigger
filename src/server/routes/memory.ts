@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import * as queries from '../db/queries.js';
 import type { MemoryRelationType } from '../db/queries.js';
 import { buildMemoryBlock, type MemoryInjectMode } from '../services/memory-injector.js';
@@ -13,6 +14,7 @@ import {
   replaceTitleInBody,
   resolveWikilinks,
 } from '../services/memory-wikilinks.js';
+import { dispatchWikiExport, exportProjectWikiSync, diffProjectWikiSync } from '../services/wiki-exporter.js';
 
 const router = Router();
 
@@ -61,6 +63,14 @@ router.get('/projects/:id/memory/graph', (req: Request<{ id: string }>, res: Res
     }
     const nodes = queries.getMemoryNodesByProjectId(req.params.id);
     const edges = queries.getMemoryEdgesByProjectId(req.params.id);
+    // First-time bootstrap: if the project has wiki nodes but no exported folder yet
+    // (e.g. user upgraded), kick off a one-time export so the markdown mirror exists.
+    if (project.path && nodes.length > 0) {
+      try {
+        const wikiDir = path.join(project.path, '.clitrigger', 'wiki');
+        if (!fs.existsSync(wikiDir)) dispatchWikiExport(req.params.id);
+      } catch { /* ignore */ }
+    }
     res.json({ nodes, edges });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -107,6 +117,7 @@ router.post('/projects/:id/memory/nodes', (req: Request<{ id: string }>, res: Re
         normalizeTags(tags),
         pinned ? 1 : 0,
       );
+      dispatchWikiExport(req.params.id);
       res.status(201).json(node);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -178,6 +189,7 @@ router.put('/memory/nodes/:nodeId', (req: Request<{ nodeId: string }>, res: Resp
       }
     }
 
+    dispatchWikiExport(existing.project_id);
     res.json(updated);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -213,6 +225,7 @@ router.delete('/memory/nodes/:nodeId', (req: Request<{ nodeId: string }>, res: R
       return;
     }
     queries.deleteMemoryNode(req.params.nodeId);
+    dispatchWikiExport(existing.project_id);
     res.status(204).send();
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -263,7 +276,118 @@ router.post('/memory/nodes/:nodeId/insert-link', (req: Request<{ nodeId: string 
     }
     const newBody = appendWikilinkToBody(source.body || '', title);
     const updated = queries.updateMemoryNode(source.id, { body: newBody });
+    dispatchWikiExport(source.project_id);
     res.json(updated);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Merge `absorbId` into `keepId`: combine bodies, union tags, rewrite edges + wikilinks,
+// then delete `absorbId`. Used by Lint's "duplicate" fix action.
+router.post('/memory/nodes/:keepId/merge', (req: Request<{ keepId: string }>, res: Response) => {
+  try {
+    const { absorbId } = req.body ?? {};
+    if (!absorbId || typeof absorbId !== 'string') {
+      res.status(400).json({ error: 'absorbId is required' });
+      return;
+    }
+    const keep = queries.getMemoryNodeById(req.params.keepId);
+    const absorb = queries.getMemoryNodeById(absorbId);
+    if (!keep || !absorb) {
+      res.status(404).json({ error: 'One or both nodes not found' });
+      return;
+    }
+    if (keep.id === absorb.id) {
+      res.status(400).json({ error: 'Cannot merge a node into itself' });
+      return;
+    }
+    if (keep.project_id !== absorb.project_id) {
+      res.status(400).json({ error: 'Nodes must belong to the same project' });
+      return;
+    }
+
+    const tagsToArray = (raw: string | null): string[] => {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.map(String).map(s => s.trim()).filter(Boolean) : [];
+      } catch { return []; }
+    };
+
+    // 1. Combine bodies (keep's body first, then absorb's beneath a separator)
+    const keepBody = (keep.body ?? '').trim();
+    const absorbBody = (absorb.body ?? '').trim();
+    let mergedBody = keepBody;
+    if (absorbBody) {
+      const sep = keepBody ? `\n\n---\n*Merged from "${absorb.title}":*\n\n` : '';
+      mergedBody = `${keepBody}${sep}${absorbBody}`;
+    }
+
+    // 2. Tag union (case-insensitive dedupe, preserve keep's order)
+    const keepTags = tagsToArray(keep.tags);
+    const seenTags = new Set(keepTags.map(t => t.toLowerCase()));
+    for (const t of tagsToArray(absorb.tags)) {
+      if (!seenTags.has(t.toLowerCase())) {
+        keepTags.push(t);
+        seenTags.add(t.toLowerCase());
+      }
+    }
+    const mergedTags = keepTags.length > 0 ? JSON.stringify(keepTags) : null;
+
+    // 3. Re-route edges from/to absorb → keep, dropping self-edges and UNIQUE conflicts.
+    const allEdges = queries.getMemoryEdgesByProjectId(keep.project_id);
+    const existingKey = new Set<string>();
+    for (const e of allEdges) {
+      if (e.from_node_id === absorb.id || e.to_node_id === absorb.id) continue;
+      existingKey.add(`${e.from_node_id}::${e.to_node_id}::${e.relation_type}`);
+    }
+    for (const e of allEdges) {
+      if (e.from_node_id !== absorb.id && e.to_node_id !== absorb.id) continue;
+      const newFrom = e.from_node_id === absorb.id ? keep.id : e.from_node_id;
+      const newTo = e.to_node_id === absorb.id ? keep.id : e.to_node_id;
+      queries.deleteMemoryEdge(e.id);
+      if (newFrom === newTo) continue; // would be a self-edge
+      const key = `${newFrom}::${newTo}::${e.relation_type}`;
+      if (existingKey.has(key)) continue;
+      try {
+        queries.createMemoryEdge(keep.project_id, newFrom, newTo, e.relation_type, e.label);
+        existingKey.add(key);
+      } catch { /* ignore lingering UNIQUE conflicts */ }
+    }
+
+    // 4. Cascade-rewrite [[absorb.title]] → [[keep.title]] in all other nodes
+    const others = queries.getMemoryNodesByProjectId(keep.project_id);
+    for (const other of others) {
+      if (other.id === keep.id || other.id === absorb.id) continue;
+      if (!other.body) continue;
+      const rewritten = replaceTitleInBody(other.body, absorb.title, keep.title);
+      if (rewritten !== other.body) {
+        queries.updateMemoryNode(other.id, { body: rewritten });
+      }
+    }
+
+    // 5. Apply merged content to keep, then delete absorb (CASCADE drops any leftover edges)
+    const updated = queries.updateMemoryNode(keep.id, { body: mergedBody, tags: mergedTags });
+    queries.deleteMemoryNode(absorb.id);
+
+    try {
+      queries.createMemoryLog(
+        keep.project_id,
+        'merge',
+        `Merged "${absorb.title}" into "${keep.title}"`,
+        {
+          severity: 'info',
+          sourceTitle: keep.title,
+          metadata: { keepId: keep.id, absorbId: absorb.id, absorbTitle: absorb.title },
+        },
+      );
+    } catch (err) {
+      console.warn('[memory-merge] failed to write memory_logs entry:', err);
+    }
+
+    dispatchWikiExport(keep.project_id);
+    res.json({ node: updated, absorbed: { id: absorb.id, title: absorb.title } });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
@@ -324,6 +448,7 @@ router.post('/projects/:id/memory/edges', (req: Request<{ id: string }>, res: Re
     const rt: MemoryRelationType = isValidRelation(relation_type) ? relation_type : 'related';
     try {
       const edge = queries.createMemoryEdge(req.params.id, from_node_id, to_node_id, rt, label ?? null);
+      dispatchWikiExport(req.params.id);
       res.status(201).json(edge);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -356,6 +481,7 @@ router.put('/memory/edges/:edgeId', (req: Request<{ edgeId: string }>, res: Resp
     }
     if (label !== undefined) updates.label = label === null ? null : String(label);
     const updated = queries.updateMemoryEdge(req.params.edgeId, updates);
+    dispatchWikiExport(existing.project_id);
     res.json(updated);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -370,6 +496,7 @@ router.delete('/memory/edges/:edgeId', (req: Request<{ edgeId: string }>, res: R
       return;
     }
     queries.deleteMemoryEdge(req.params.edgeId);
+    dispatchWikiExport(existing.project_id);
     res.status(204).send();
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -436,6 +563,7 @@ router.post('/projects/:id/memory/ingest', async (req: Request<{ id: string }>, 
       titleHint,
       localeStr,
     );
+    // ingestSource already dispatches the wiki export internally
     res.json(result);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -641,6 +769,166 @@ router.post('/projects/:id/memory/lint', async (req: Request<{ id: string }>, re
     }
     const issues = await lintWiki(req.params.id);
     res.json({ issues });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Wiki assets (image uploads embedded in node bodies) ──
+
+const WIKI_ASSETS_DIR = '.clitrigger/wiki-assets';
+const ASSET_MAX_BYTES = 10 * 1024 * 1024;
+const IMAGE_DATA_URL_RE = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,(.+)$/;
+const IMAGE_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+};
+
+function slugifyAssetName(name: string): string {
+  if (!name) return 'image';
+  return name
+    .replace(/\.[^.]+$/, '') // strip extension
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 40) || 'image';
+}
+
+router.post('/projects/:id/memory/assets', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.path) {
+      res.status(400).json({ error: 'Project has no local path — cannot store assets' });
+      return;
+    }
+    const { name, data } = req.body ?? {};
+    if (typeof data !== 'string') {
+      res.status(400).json({ error: 'data (image data URL) is required' });
+      return;
+    }
+    const match = data.match(IMAGE_DATA_URL_RE);
+    if (!match) {
+      res.status(400).json({ error: 'Unsupported image format (png/jpeg/gif/webp/svg only)' });
+      return;
+    }
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length > ASSET_MAX_BYTES) {
+      res.status(413).json({ error: 'Image too large (max 10MB)' });
+      return;
+    }
+
+    const dir = path.join(project.path, WIKI_ASSETS_DIR);
+    fs.mkdirSync(dir, { recursive: true });
+    const slug = slugifyAssetName(typeof name === 'string' ? name : 'image');
+    const filename = `${uuidv4().slice(0, 8)}-${slug}.${ext}`;
+    const filePath = path.join(dir, filename);
+    const resolved = path.resolve(filePath);
+    const resolvedDir = path.resolve(dir);
+    if (!resolved.startsWith(resolvedDir + path.sep)) {
+      res.status(400).json({ error: 'Invalid filename' });
+      return;
+    }
+    fs.writeFileSync(filePath, buffer);
+    const relativePath = `${WIKI_ASSETS_DIR}/${filename}`;
+    res.status(201).json({ filename, relativePath, size: buffer.length });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+router.get('/projects/:id/memory/assets/:filename', (req: Request<{ id: string; filename: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project || !project.path) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const dir = path.join(project.path, WIKI_ASSETS_DIR);
+    const absPath = path.resolve(dir, req.params.filename);
+    const resolvedDir = path.resolve(dir);
+    if (!absPath.startsWith(resolvedDir + path.sep)) {
+      res.status(400).json({ error: 'Invalid path' });
+      return;
+    }
+    if (!fs.existsSync(absPath)) {
+      res.status(404).json({ error: 'Asset not found' });
+      return;
+    }
+    const ext = path.extname(absPath).toLowerCase().slice(1);
+    res.setHeader('Content-Type', IMAGE_MIME[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(absPath);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Wiki Markdown export (DB → .clitrigger/wiki/ one-way mirror) ──
+
+router.get('/projects/:id/memory/disk-diff', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.path) {
+      res.status(400).json({ error: 'Project has no local path' });
+      return;
+    }
+    const diff = diffProjectWikiSync(req.params.id);
+    if (diff === null) {
+      res.status(400).json({ error: 'Wiki diff unavailable — project path missing or unreachable' });
+      return;
+    }
+    res.json({ diff });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+router.post('/projects/:id/memory/export', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.path) {
+      res.status(400).json({ error: 'Project has no local path — cannot export' });
+      return;
+    }
+    const result = exportProjectWikiSync(req.params.id);
+    if (!result) {
+      res.status(400).json({ error: 'Export skipped — project path missing or unreachable' });
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// ── Activity log (ingest/lint/retrieve/merge events) ──
+
+router.get('/projects/:id/memory/logs', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const limitRaw = req.query.limit;
+    const limit = typeof limitRaw === 'string' ? Math.min(Math.max(parseInt(limitRaw, 10) || 200, 1), 1000) : 200;
+    const logs = queries.getMemoryLogsByProjectId(req.params.id, limit);
+    res.json({ logs });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

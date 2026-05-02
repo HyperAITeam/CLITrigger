@@ -133,7 +133,7 @@ interface TodoItemProps {
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected', memoryNodeIds?: string[]) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[]) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;

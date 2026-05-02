@@ -5,6 +5,7 @@ import * as queries from '../db/queries.js';
 import type { CliTool } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
+import { dispatchWikiExport } from './wiki-exporter.js';
 
 const RAW_DIR_NAME = '.clitrigger';
 const RAW_SUBDIR = 'raw';
@@ -56,7 +57,9 @@ function writeRawSnapshot(
   try {
     const baseDir = path.join(project.path, RAW_DIR_NAME, RAW_SUBDIR, sourceType);
     fs.mkdirSync(baseDir, { recursive: true });
-    ensureGitignore(project.path, `${RAW_DIR_NAME}/`);
+    // Only ignore the raw snapshot subdirectory — leave wiki/ trackable in git
+    // so users can opt into committing the auto-exported markdown wiki.
+    ensureGitignore(project.path, `${RAW_DIR_NAME}/${RAW_SUBDIR}/`);
 
     const ts = timestampStr();
     const idPart = sourceId ? `-${sourceId.slice(0, 8)}` : '';
@@ -79,6 +82,8 @@ function writeRawSnapshot(
     return null;
   }
 }
+
+const WIKI_INDEX_TAG = '__wiki_index__';
 
 const DEFAULT_WIKI_SCHEMA = `# Wiki Schema
 
@@ -227,7 +232,7 @@ function startDebugSession(
   }
 }
 
-function runHeadless(
+export function runHeadless(
   cliTool: CliTool,
   prompt: string,
   timeoutMs = 180_000,
@@ -296,7 +301,7 @@ function runHeadless(
   });
 }
 
-function resolveCliTool(value: unknown): CliTool {
+export function resolveCliTool(value: unknown): CliTool {
   if (value === 'claude' || value === 'gemini' || value === 'codex') return value;
   return 'claude';
 }
@@ -320,25 +325,76 @@ function getOrCreateSchemaNode(projectId: string): string {
   return DEFAULT_WIKI_SCHEMA;
 }
 
+const NODE_SUMMARY_FULL_CHAR_BUDGET = 6000;
+const NODE_SUMMARY_TITLES_FALLBACK_BUDGET = 1500;
+const NODE_SUMMARY_PINNED_BODY_PREVIEW = 300;
+
+function formatFullNodeLine(n: queries.MemoryNode): string {
+  try {
+    const tags: string[] = JSON.parse(n.tags ?? '[]');
+    const tagStr = tags.filter(t => t !== WIKI_SCHEMA_TAG && t !== WIKI_INDEX_TAG).join(', ');
+    const pinnedStr = n.pinned ? ' [pinned]' : '';
+    const bodyPreview = n.pinned ? `\n  ${(n.body || '').slice(0, NODE_SUMMARY_PINNED_BODY_PREVIEW)}` : '';
+    return `- id="${n.id}" title="${n.title}"${tagStr ? ` tags=[${tagStr}]` : ''}${pinnedStr}${bodyPreview}`;
+  } catch {
+    return `- id="${n.id}" title="${n.title}"`;
+  }
+}
+
 function buildNodeSummary(nodes: queries.MemoryNode[]): string {
   const visible = nodes.filter(n => {
     try {
       const tags = JSON.parse(n.tags ?? '[]');
-      return !Array.isArray(tags) || !tags.includes(WIKI_SCHEMA_TAG);
+      if (!Array.isArray(tags)) return true;
+      return !tags.includes(WIKI_SCHEMA_TAG) && !tags.includes(WIKI_INDEX_TAG);
     } catch { return true; }
   });
   if (visible.length === 0) return '(no existing pages)';
-  return visible.map(n => {
-    try {
-      const tags: string[] = JSON.parse(n.tags ?? '[]');
-      const tagStr = tags.filter(t => t !== WIKI_SCHEMA_TAG).join(', ');
-      const pinned = n.pinned ? ' [pinned]' : '';
-      const bodyPreview = n.pinned ? `\n  ${(n.body || '').slice(0, 300)}` : '';
-      return `- id="${n.id}" title="${n.title}"${tagStr ? ` tags=[${tagStr}]` : ''}${pinned}${bodyPreview}`;
-    } catch {
-      return `- id="${n.id}" title="${n.title}"`;
+
+  // Pinned first (user-curated importance), then most-recently-updated.
+  const sorted = [...visible].sort((a, b) => {
+    const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+    if (pinDiff !== 0) return pinDiff;
+    return (b.updated_at ?? '').localeCompare(a.updated_at ?? '');
+  });
+
+  const lines: string[] = [];
+  let used = 0;
+  let inlined = 0;
+
+  for (const n of sorted) {
+    const line = formatFullNodeLine(n);
+    // Always include pinned nodes regardless of budget; gate non-pinned by char budget.
+    if (!n.pinned && used + line.length > NODE_SUMMARY_FULL_CHAR_BUDGET) break;
+    lines.push(line);
+    used += line.length + 1;
+    inlined++;
+  }
+
+  const remaining = sorted.slice(inlined);
+  if (remaining.length > 0) {
+    // Titles-only tail so the LLM can still match by exact title (avoid duplicate creates),
+    // even though older nodes' IDs aren't shown so they cannot be updated in this batch.
+    const titles: string[] = [];
+    let titleBudget = NODE_SUMMARY_TITLES_FALLBACK_BUDGET;
+    for (const n of remaining) {
+      const piece = `"${n.title}"`;
+      if (titleBudget - piece.length - 2 < 0) break;
+      titles.push(piece);
+      titleBudget -= piece.length + 2;
     }
-  }).join('\n');
+    const hiddenCount = remaining.length - titles.length;
+    if (titles.length > 0) {
+      const tail = hiddenCount > 0 ? ` … and ${hiddenCount} more` : '';
+      lines.push('');
+      lines.push(`(other existing titles — match exactly to avoid duplicates; IDs not shown so these are not updatable in this batch: ${titles.join(', ')}${tail})`);
+    } else {
+      lines.push('');
+      lines.push(`(${remaining.length} older entries omitted to fit context)`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 const INGEST_PROMPT_HEADER = `You are maintaining a project knowledge wiki using the LLM Wiki pattern.{CHUNK_PREAMBLE}
@@ -611,6 +667,41 @@ export async function ingestSource(
     }
   }
 
+  // Mirror DB → `.clitrigger/wiki/` markdown files (best-effort, fire-and-forget).
+  dispatchWikiExport(projectId);
+
+  // Project-scoped activity log entry — feeds the Wiki Activity tab.
+  try {
+    const applied = created + updated + edgesAdded;
+    let severity: queries.MemoryLogSeverity = 'info';
+    let message: string;
+    if (ctx.skipped.parseFailed) {
+      severity = 'error';
+      message = `Ingest failed to parse model output (${total} chunk${total > 1 ? 's' : ''})`;
+    } else if (applied === 0) {
+      severity = 'warning';
+      message = `Ingest produced no changes — nothing new in source`;
+    } else {
+      message = `Ingested ${created} new, ${updated} updated, ${edgesAdded} edge${edgesAdded === 1 ? '' : 's'}`;
+    }
+    queries.createMemoryLog(projectId, 'ingest', message, {
+      severity,
+      sourceType: sourceType ?? 'manual',
+      sourceId,
+      sourceTitle: titleHint ?? null,
+      metadata: {
+        cliTool,
+        chunks: total,
+        created,
+        updated,
+        edgesAdded,
+        skipped: ctx.skipped,
+      },
+    });
+  } catch (err) {
+    console.warn('[memory-ingest] failed to write memory_logs entry:', err);
+  }
+
   return {
     created,
     updated,
@@ -619,6 +710,39 @@ export async function ingestSource(
     skipped: ctx.skipped,
     rawResponseSnippet: ctx.skipped.parseFailed ? ctx.lastRaw.slice(0, 500) : undefined,
   };
+}
+
+const LINT_CHUNK_CHARS = 10000;
+const LINT_MAX_CHUNKS = 5;
+
+function chunkLintEntries(entries: string[], maxChars: number, maxChunks: number): string[] {
+  const chunks: string[] = [];
+  let cur = '';
+  for (const entry of entries) {
+    if (chunks.length >= maxChunks) break;
+    const sep = cur ? '\n\n' : '';
+    if (cur && cur.length + sep.length + entry.length > maxChars) {
+      chunks.push(cur);
+      if (chunks.length >= maxChunks) { cur = ''; break; }
+      cur = entry.length > maxChars ? entry.slice(0, maxChars) : entry;
+    } else {
+      cur = `${cur}${sep}${entry.length > maxChars ? entry.slice(0, maxChars) : entry}`;
+    }
+  }
+  if (cur && chunks.length < maxChunks) chunks.push(cur);
+  return chunks;
+}
+
+function dedupeLintIssues(issues: LintIssue[]): LintIssue[] {
+  const seen = new Set<string>();
+  const out: LintIssue[] = [];
+  for (const issue of issues) {
+    const key = `${issue.type}::${[...issue.node_titles].map(s => s.toLowerCase()).sort().join('|')}::${issue.message.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(issue);
+  }
+  return out;
 }
 
 export async function lintWiki(projectId: string): Promise<LintIssue[]> {
@@ -630,7 +754,8 @@ export async function lintWiki(projectId: string): Promise<LintIssue[]> {
   const visible = nodes.filter(n => {
     try {
       const tags = JSON.parse(n.tags ?? '[]');
-      return !Array.isArray(tags) || !tags.includes(WIKI_SCHEMA_TAG);
+      if (!Array.isArray(tags)) return true;
+      return !tags.includes(WIKI_SCHEMA_TAG) && !tags.includes(WIKI_INDEX_TAG);
     } catch { return true; }
   });
   if (visible.length === 0) return [];
@@ -638,17 +763,54 @@ export async function lintWiki(projectId: string): Promise<LintIssue[]> {
   const edges = queries.getMemoryEdgesByProjectId(projectId);
   const edgeSet = new Set(edges.flatMap(e => [e.from_node_id, e.to_node_id]));
 
-  const nodeText = visible.map(n => {
+  const entries = visible.map(n => {
     const body = (n.body || '').slice(0, 400);
     const hasEdge = edgeSet.has(n.id) ? '' : ' [no-edges]';
     return `### ${n.title}${hasEdge}\n${body}`;
-  }).join('\n\n');
+  });
 
-  const prompt = LINT_PROMPT_HEADER.replace('{NODES}', nodeText.slice(0, 12000));
+  // Larger wikis used to be silently truncated to 12KB — the tail nodes never
+  // got linted. Split into chunks so every node is seen by at least one pass.
+  // Cross-chunk duplicates aren't detected (each chunk only sees its own
+  // entries), but orphan/stale/contradiction within a chunk still work.
+  const chunks = chunkLintEntries(entries, LINT_CHUNK_CHARS, LINT_MAX_CHUNKS);
+  const truncated = entries.length > 0 && chunks.join('\n\n').length < entries.join('\n\n').length;
 
-  const debugSession = startDebugSession(project, cliTool, null, null, 'lint');
-  const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
-  return safeParseLintIssues(raw);
+  const collected: LintIssue[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const prompt = LINT_PROMPT_HEADER.replace('{NODES}', chunks[i]);
+    const kind = chunks.length > 1 ? `lint-${i + 1}of${chunks.length}` : 'lint';
+    const debugSession = startDebugSession(project, cliTool, null, null, kind);
+    const raw = await runHeadless(cliTool, prompt, 180_000, debugSession);
+    collected.push(...safeParseLintIssues(raw));
+  }
+
+  const issues = dedupeLintIssues(collected);
+
+  try {
+    const counts: Record<string, number> = {};
+    for (const issue of issues) {
+      counts[issue.type] = (counts[issue.type] ?? 0) + 1;
+    }
+    const summary = issues.length === 0
+      ? `Wiki looks healthy — no issues found${chunks.length > 1 ? ` (${chunks.length} chunks)` : ''}`
+      : `Lint found ${issues.length} issue${issues.length === 1 ? '' : 's'}: ${Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(', ')}${chunks.length > 1 ? ` (across ${chunks.length} chunks)` : ''}`;
+    queries.createMemoryLog(projectId, 'lint', summary, {
+      severity: issues.length === 0 ? 'info' : 'warning',
+      metadata: {
+        cliTool,
+        total: issues.length,
+        counts,
+        nodeCount: visible.length,
+        chunks: chunks.length,
+        truncated,
+      },
+    });
+  } catch (err) {
+    console.warn('[memory-lint] failed to write memory_logs entry:', err);
+  }
+
+  return issues;
 }
 
 /**

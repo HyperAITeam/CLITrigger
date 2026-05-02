@@ -40,7 +40,7 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
 
     const parsedMaxTurns = max_turns != null ? parseInt(max_turns, 10) : undefined;
     const normalizedUseWorktree = use_worktree === 0 || use_worktree === 1 ? use_worktree : null;
-    const normalizedMemMode = memory_inject_mode === 'all' || memory_inject_mode === 'selected' ? memory_inject_mode : 'none';
+    const normalizedMemMode = memory_inject_mode === 'all' || memory_inject_mode === 'selected' || memory_inject_mode === 'auto' ? memory_inject_mode : 'none';
     const normalizedMemIds = Array.isArray(memory_node_ids)
       ? (memory_node_ids.length > 0 ? JSON.stringify(memory_node_ids.map(String)) : null)
       : (typeof memory_node_ids === 'string' && memory_node_ids ? memory_node_ids : null);
@@ -88,7 +88,7 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
         : null;
     const normalizedMemMode = memory_inject_mode === undefined
       ? undefined
-      : (memory_inject_mode === 'all' || memory_inject_mode === 'selected' ? memory_inject_mode : 'none');
+      : (memory_inject_mode === 'all' || memory_inject_mode === 'selected' || memory_inject_mode === 'auto' ? memory_inject_mode : 'none');
     const normalizedMemIds = memory_node_ids === undefined
       ? undefined
       : Array.isArray(memory_node_ids)

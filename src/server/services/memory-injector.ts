@@ -2,7 +2,7 @@ import * as queries from '../db/queries.js';
 import type { MemoryNode, MemoryEdge } from '../db/queries.js';
 import { parseWikilinks } from './memory-wikilinks.js';
 
-export type MemoryInjectMode = 'none' | 'all' | 'selected';
+export type MemoryInjectMode = 'none' | 'all' | 'selected' | 'auto';
 
 export interface MemoryInjectionRequest {
   projectId: string;
@@ -17,16 +17,30 @@ export interface MemoryInjectionResult {
   edgeCount: number;
 }
 
+const WIKI_SCHEMA_TAG = '__wiki_schema__';
+const WIKI_INDEX_TAG = '__wiki_index__';
+
+function isSystemNode(n: MemoryNode): boolean {
+  if (!n.tags) return false;
+  try {
+    const tags = JSON.parse(n.tags);
+    return Array.isArray(tags) && (tags.includes(WIKI_SCHEMA_TAG) || tags.includes(WIKI_INDEX_TAG));
+  } catch { return false; }
+}
+
 export function buildMemoryBlock(req: MemoryInjectionRequest): MemoryInjectionResult | null {
   if (req.mode === 'none') return null;
 
   let nodes: MemoryNode[];
   if (req.mode === 'all') {
-    nodes = queries.getMemoryNodesByProjectId(req.projectId);
+    // Exclude system nodes (schema, index) — they're meta, not user content.
+    nodes = queries.getMemoryNodesByProjectId(req.projectId).filter(n => !isSystemNode(n));
   } else {
     const ids = (req.nodeIds ?? []).filter(Boolean);
     if (ids.length === 0) return null;
-    nodes = queries.getMemoryNodesByIds(ids).filter(n => n.project_id === req.projectId);
+    // Project scoping is enforced in SQL — defense in depth against cross-project ID leaks.
+    // Selected mode trusts the user's curated picks (allow including schema/index if they want).
+    nodes = queries.getMemoryNodesByIds(req.projectId, ids);
   }
 
   if (nodes.length === 0) return null;
