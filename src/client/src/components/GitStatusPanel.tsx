@@ -4,6 +4,7 @@ import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import Modal from './Modal';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 
@@ -633,6 +634,7 @@ function WorkingChangesView({
   setBusy,
   onRefresh,
   onError,
+  isMobile = false,
 }: {
   projectId: string;
   branchName: string;
@@ -641,6 +643,7 @@ function WorkingChangesView({
   setBusy: (b: boolean) => void;
   onRefresh: () => void;
   onError: (msg: string | null) => void;
+  isMobile?: boolean;
 }) {
   const { t } = useI18n();
   const staged = useMemo(() => files.filter(f => f.index !== ' ' && f.index !== '?'), [files]);
@@ -784,9 +787,12 @@ function WorkingChangesView({
   }
 
   return (
-    <div ref={wrapperRef} className="h-full flex min-h-0">
-      {/* Left: file lists + commit bar */}
-      <div style={{ width: `${fileListPct * 100}%`, minWidth: 360 }} className="shrink-0 flex flex-col min-h-0">
+    <div ref={wrapperRef} className={`h-full flex min-h-0 ${isMobile ? 'flex-col' : ''}`}>
+      {/* Left/top: file lists + commit bar */}
+      <div
+        style={isMobile ? undefined : { width: `${fileListPct * 100}%`, minWidth: 360 }}
+        className={`shrink-0 flex flex-col min-h-0 ${isMobile ? 'h-1/2' : ''}`}
+      >
         {/* Staged pane */}
         <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
           <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
@@ -904,10 +910,10 @@ function WorkingChangesView({
         </div>
       </div>
 
-      <Resizer axis="x" onResize={handleHResize} />
+      {!isMobile && <Resizer axis="x" onResize={handleHResize} />}
 
-      {/* Right: diff viewer */}
-      <div className="flex-1 min-w-0">
+      {/* Right/bottom: diff viewer */}
+      <div className={`flex-1 ${isMobile ? 'min-h-0 border-t border-warm-200' : 'min-w-0'}`}>
         <WorkingDiffViewer diff={diff} loading={diffLoading} file={selectedFile} />
       </div>
     </div>
@@ -1355,25 +1361,30 @@ function WorkspaceMenu({
   view,
   onChange,
   fileChangeCount,
+  orientation = 'vertical',
 }: {
   view: WorkspaceView;
   onChange: (v: WorkspaceView) => void;
   fileChangeCount: number;
+  orientation?: 'vertical' | 'horizontal';
 }) {
   const { t } = useI18n();
+  const horizontal = orientation === 'horizontal';
 
   const Item = ({ id, label, badge }: { id: WorkspaceView; label: string; badge?: number }) => {
     const active = view === id;
     return (
       <button
         onClick={() => onChange(id)}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded transition-colors ${
+        className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded transition-colors ${
+          horizontal ? 'flex-1 justify-center' : 'w-full'
+        } ${
           active
             ? 'bg-accent text-white'
             : 'text-warm-600 hover:bg-warm-200/60'
         }`}
       >
-        <span className="flex-1 text-left truncate">{label}</span>
+        <span className={`${horizontal ? '' : 'flex-1 text-left'} truncate`}>{label}</span>
         {badge !== undefined && badge > 0 && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
             active ? 'bg-white/20 text-white' : 'bg-warm-200 text-warm-600'
@@ -1384,6 +1395,15 @@ function WorkspaceMenu({
       </button>
     );
   };
+
+  if (horizontal) {
+    return (
+      <div className="flex items-center gap-1">
+        <Item id="fileStatus" label={t('git.viewFileStatus')} badge={fileChangeCount} />
+        <Item id="history" label={t('git.viewHistory')} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -1447,6 +1467,8 @@ function readNumber(key: string, fallback: number, lo: number, hi: number): numb
 
 export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPanelProps) {
   const { t } = useI18n();
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const [refsOpen, setRefsOpen] = useState(false);
   const [view, setView] = useState<WorkspaceView>(() => {
     if (typeof window === 'undefined') return 'history';
     const saved = window.localStorage.getItem(`git-view:${project.id}`);
@@ -1660,22 +1682,53 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
         </div>
       )}
 
-      <div ref={outerRef} className="flex flex-1 min-h-0">
-        {/* Left sidebar: Workspace menu + Refs */}
-        <div style={{ width: sidebarWidth }} className="shrink-0 flex flex-col gap-2 min-h-0">
-          <div className="card p-3 shrink-0">
-            <WorkspaceMenu
-              view={view}
-              onChange={setView}
-              fileChangeCount={statusFiles.length}
-            />
-          </div>
-          <div className="card overflow-y-auto p-3 flex-1 min-h-0">
-            <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} onError={setSidebarError} />
-          </div>
+      <div ref={outerRef} className={`flex flex-1 min-h-0 ${isMobile ? 'flex-col gap-2' : ''}`}>
+        {/* Sidebar: Workspace menu + Refs (vertical on desktop, stacked on top on mobile) */}
+        <div
+          style={isMobile ? undefined : { width: sidebarWidth }}
+          className={`shrink-0 flex flex-col gap-2 ${isMobile ? '' : 'min-h-0'}`}
+        >
+          {isMobile ? (
+            <div className="card p-2 flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <WorkspaceMenu
+                  view={view}
+                  onChange={setView}
+                  fileChangeCount={statusFiles.length}
+                  orientation="horizontal"
+                />
+              </div>
+              <button
+                onClick={() => setRefsOpen(o => !o)}
+                className="btn-ghost text-xs flex items-center gap-1 shrink-0 px-3 py-2"
+                aria-expanded={refsOpen}
+              >
+                <svg className={`h-3 w-3 transition-transform ${refsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+                {t('git.branches')}
+              </button>
+            </div>
+          ) : (
+            <div className="card p-3 shrink-0">
+              <WorkspaceMenu
+                view={view}
+                onChange={setView}
+                fileChangeCount={statusFiles.length}
+              />
+            </div>
+          )}
+          {(!isMobile || refsOpen) && (
+            <div
+              className={`card overflow-y-auto p-3 ${isMobile ? '' : 'flex-1 min-h-0'}`}
+              style={isMobile ? { maxHeight: '40vh' } : undefined}
+            >
+              <RefsSidebar branches={branches} tags={tags} stashCount={stashCount} projectId={project.id} busy={busy} setBusy={setBusy} onRefresh={refresh} onError={setSidebarError} />
+            </div>
+          )}
         </div>
 
-        <Resizer axis="x" onResize={handleSidebarResize} />
+        {!isMobile && <Resizer axis="x" onResize={handleSidebarResize} />}
 
         {/* Main view */}
         <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
@@ -1688,6 +1741,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
               setBusy={setBusy}
               onRefresh={refresh}
               onError={setSidebarError}
+              isMobile={isMobile}
             />
           ) : (
             <>
@@ -1707,11 +1761,11 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
               </div>
 
               {/* Column headers */}
-              <div className="flex items-center px-4 py-1.5 border-b border-warm-50 text-2xs text-warm-400 uppercase tracking-wider">
-                <div className="w-24 shrink-0">{t('git.graph')}</div>
+              <div className={`flex items-center py-1.5 border-b border-warm-50 text-2xs text-warm-400 uppercase tracking-wider ${isMobile ? 'px-3' : 'px-4'}`}>
+                {!isMobile && <div className="w-24 shrink-0">{t('git.graph')}</div>}
                 <div className="flex-1 min-w-0">{t('git.description')}</div>
                 <div className="w-14 text-right shrink-0">{t('git.date')}</div>
-                <div className="shrink-0 ml-2">{t('git.author')}</div>
+                {!isMobile && <div className="shrink-0 ml-2">{t('git.author')}</div>}
                 <div className="w-16 text-right shrink-0">{t('git.hash')}</div>
               </div>
 
@@ -1745,9 +1799,11 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                   }
                 >
                   <div className="relative flex">
-                    <div className="shrink-0 sticky left-0">
-                      <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
-                    </div>
+                    {!isMobile && (
+                      <div className="shrink-0 sticky left-0">
+                        <CommitGraphSvg graphNodes={graphNodes} totalRows={commits.length} />
+                      </div>
+                    )}
 
                     <div className="flex-1 min-w-0">
                       {commits.map((commit) => {
@@ -1778,11 +1834,13 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                               </span>
                             </div>
 
-                            <div className="shrink-0 ml-2">
-                              <span className="text-[11px] text-warm-500">
-                                {commit.author}
-                              </span>
-                            </div>
+                            {!isMobile && (
+                              <div className="shrink-0 ml-2">
+                                <span className="text-[11px] text-warm-500">
+                                  {commit.author}
+                                </span>
+                              </div>
+                            )}
 
                             <div className="w-16 text-right shrink-0">
                               <span
@@ -1812,10 +1870,13 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                     <Resizer axis="y" onResize={handleDetailHResize} />
                     <div
                       ref={detailAreaRef}
-                      className="flex min-h-0"
+                      className={`flex min-h-0 ${isMobile ? 'flex-col' : ''}`}
                       style={{ flex: `${detailHeightPct * 100} 1 0`, minHeight: 0 }}
                     >
-                      <div style={{ width: detailFileListWidth }} className="shrink-0 overflow-hidden">
+                      <div
+                        style={isMobile ? undefined : { width: detailFileListWidth }}
+                        className={`shrink-0 overflow-hidden ${isMobile ? 'h-1/2' : ''}`}
+                      >
                         <CommitFileList
                           files={commitFiles}
                           loading={commitFilesLoading}
@@ -1824,8 +1885,8 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                           commitHash={selectedCommit.hash}
                         />
                       </div>
-                      <Resizer axis="x" onResize={handleDetailFileListResize} />
-                      <div className="flex-1 min-w-0 overflow-hidden bg-warm-900">
+                      {!isMobile && <Resizer axis="x" onResize={handleDetailFileListResize} />}
+                      <div className={`flex-1 overflow-hidden bg-warm-900 ${isMobile ? 'min-h-0 border-t border-warm-200' : 'min-w-0'}`}>
                         <CommitDiffViewer
                           diff={fileDiff}
                           loading={fileDiffLoading}
