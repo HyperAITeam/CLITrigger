@@ -38,7 +38,16 @@ function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
   const isHoriz = split.orientation === 'horizontal';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const childRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const dragRef = useRef<{ i: number; sizes: number[]; total: number } | null>(null);
+  // initialSizes: snapshot at mousedown — must NOT mutate during drag, since
+  // Splitter sends cumulative deltaPx from mousedown and any baseline drift
+  // makes the divider run away from the cursor.
+  // finalSizes: latest committed % pair, persisted on mouseup.
+  const dragRef = useRef<{
+    i: number;
+    initialSizes: number[];
+    finalSizes: number[];
+    total: number;
+  } | null>(null);
 
   return (
     <div
@@ -77,17 +86,19 @@ function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
               onDragStart={() => {
                 const cont = containerRef.current;
                 if (!cont) return;
+                const snapshot = split.sizes.slice();
                 dragRef.current = {
                   i,
-                  sizes: split.sizes.slice(),
+                  initialSizes: snapshot,
+                  finalSizes: snapshot.slice(),
                   total: isHoriz ? cont.clientWidth : cont.clientHeight,
                 };
               }}
               onDrag={(deltaPx) => {
                 const st = dragRef.current;
                 if (!st || st.total <= 0) return;
-                const sizePxA = (st.sizes[st.i] / 100) * st.total;
-                const sizePxB = (st.sizes[st.i + 1] / 100) * st.total;
+                const sizePxA = (st.initialSizes[st.i] / 100) * st.total;
+                const sizePxB = (st.initialSizes[st.i + 1] / 100) * st.total;
                 const totalPair = sizePxA + sizePxB;
                 const newPxA = Math.max(MIN_PANE_PX, Math.min(totalPair - MIN_PANE_PX, sizePxA + deltaPx));
                 const newPxB = totalPair - newPxA;
@@ -97,14 +108,14 @@ function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
                 const elB = childRefs.current[st.i + 1];
                 if (elA) elA.style.flexBasis = `${newPctA}%`;
                 if (elB) elB.style.flexBasis = `${newPctB}%`;
-                const live = st.sizes.slice();
-                live[st.i] = newPctA;
-                live[st.i + 1] = newPctB;
-                dragRef.current = { ...st, sizes: live };
+                const finalSizes = st.initialSizes.slice();
+                finalSizes[st.i] = newPctA;
+                finalSizes[st.i + 1] = newPctB;
+                st.finalSizes = finalSizes;
               }}
               onDragEnd={() => {
                 const st = dragRef.current;
-                if (st) onSplitSizes(path, st.sizes);
+                if (st) onSplitSizes(path, st.finalSizes);
                 dragRef.current = null;
               }}
             />
