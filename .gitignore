@@ -44,3 +44,6 @@ clitrigger-plugin.zip
 .worktrees
 .debug-logs
 .clitrigger/
+
+# Electron build output
+release/
