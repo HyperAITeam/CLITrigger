@@ -100,8 +100,14 @@ export class TunnelManager extends EventEmitter {
    * Start a named cloudflared tunnel.
    * Runs: cloudflared tunnel run <tunnelName>
    * The URL comes from the tunnel's DNS configuration (not parsed from output).
+   * If `customHostname` is provided, the displayed URL is `https://<customHostname>`
+   * (caller must have routed it via `cloudflared tunnel route dns ...` beforehand).
    */
-  async startNamedTunnel(tunnelName: string, port: number): Promise<string> {
+  async startNamedTunnel(
+    tunnelName: string,
+    port: number,
+    customHostname?: string
+  ): Promise<string> {
     if (this.status === 'running' || this.status === 'starting') {
       throw new Error('Tunnel is already running or starting');
     }
@@ -130,15 +136,18 @@ export class TunnelManager extends EventEmitter {
       const connPattern = /connection.*registered|Registered tunnel connection/i;
       const urlPattern = /https:\/\/[a-zA-Z0-9.-]+/;
 
+      const fallbackUrl = customHostname
+        ? `https://${customHostname}`
+        : `https://${tunnelName}.cfargotunnel.com`;
+
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
           // Named tunnels may not output a URL, but the tunnel is running
           this.status = 'running';
-          const inferredUrl = `https://${tunnelName}.cfargotunnel.com`;
-          this.url = inferredUrl;
-          this.emit('url', inferredUrl);
-          resolve(inferredUrl);
+          this.url = fallbackUrl;
+          this.emit('url', fallbackUrl);
+          resolve(fallbackUrl);
         }
       }, 15_000);
 
@@ -147,9 +156,14 @@ export class TunnelManager extends EventEmitter {
         if (connPattern.test(text) && !resolved) {
           resolved = true;
           clearTimeout(timeout);
-          // Try to find a URL in the output
-          const match = text.match(urlPattern);
-          this.url = match ? match[0] : `https://${tunnelName}.cfargotunnel.com`;
+          // When the user has wired a custom hostname, prefer it over any URL
+          // cloudflared echoes (which would be the cfargotunnel.com form).
+          if (customHostname) {
+            this.url = fallbackUrl;
+          } else {
+            const match = text.match(urlPattern);
+            this.url = match ? match[0] : fallbackUrl;
+          }
           this.status = 'running';
           this.emit('url', this.url);
           resolve(this.url);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2 } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
 import * as projectsApi from '../api/projects';
 import * as reviewApi from '../api/review';
@@ -13,6 +13,7 @@ import { useToast } from '../hooks/useToast';
 import type { WsEvent } from '../hooks/useWebSocket';
 import ProjectForm from './ProjectForm';
 import FavoriteForm from './FavoriteForm';
+import TunnelSettings from './TunnelSettings';
 import ToastContainer from './Toast';
 
 interface SidebarProps {
@@ -43,6 +44,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [showFavoriteForm, setShowFavoriteForm] = useState(false);
   const [editingFavorite, setEditingFavorite] = useState<Favorite | null>(null);
+  const [showTunnelSettings, setShowTunnelSettings] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { t, toggleLang } = useI18n();
@@ -392,6 +394,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         />
       )}
 
+      <TunnelSettings open={showTunnelSettings} onClose={() => setShowTunnelSettings(false)} />
+
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       {/* Bottom section */}
@@ -432,6 +436,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               )}
             </button>
           )}
+          <button
+            onClick={() => setShowTunnelSettings(true)}
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+            style={{ color: 'var(--color-text-tertiary)' }}
+            title={t('tunnel.title')}
+          >
+            <Settings size={16} />
+          </button>
           {authRequired && (
             <button
               onClick={onLogout}

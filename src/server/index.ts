@@ -18,6 +18,7 @@ import imagesRouter from './routes/images.js';
 import { claudeManager } from './services/claude-manager.js';
 import { orchestrator } from './services/orchestrator.js';
 import { tunnelManager } from './services/tunnel-manager.js';
+import { getSetting as getAppSetting } from './db/app-settings.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import schedulesRouter from './routes/schedules.js';
@@ -186,9 +187,10 @@ initWebSocket(server);
 // --- Tunnel (Phase 7) ---
 if (process.env.TUNNEL_ENABLED === 'true') {
   const port = Number(PORT);
-  const tunnelName = process.env.TUNNEL_NAME;
+  const tunnelName = getAppSetting('tunnel.name') ?? process.env.TUNNEL_NAME ?? '';
+  const customHostname = getAppSetting('tunnel.hostname') ?? process.env.TUNNEL_HOSTNAME ?? '';
   const tunnelPromise = tunnelName
-    ? tunnelManager.startNamedTunnel(tunnelName, port)
+    ? tunnelManager.startNamedTunnel(tunnelName, port, customHostname || undefined)
     : tunnelManager.startTunnel(port);
   tunnelPromise.catch((err: Error) => {
     console.error('Failed to start tunnel:', err.message);
