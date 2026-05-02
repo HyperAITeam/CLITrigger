@@ -26,8 +26,12 @@ export function deleteSession(id: string): Promise<void> {
 export function startSession(
   id: string,
   dims?: { cols: number; rows: number },
+  opts?: { continueSession?: boolean },
 ): Promise<Session & { pendingInitialPrompt?: boolean; pendingInitialPromptLength?: number }> {
-  return post(`/api/sessions/${id}/start`, dims);
+  const body: Record<string, unknown> | undefined = dims
+    ? { ...dims, ...(opts?.continueSession ? { continueSession: true } : {}) }
+    : opts?.continueSession ? { continueSession: true } : undefined;
+  return post(`/api/sessions/${id}/start`, body);
 }
 
 export function getPendingInitialPrompt(id: string): Promise<{ prompt: string | null; length: number }> {

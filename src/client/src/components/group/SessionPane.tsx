@@ -23,7 +23,7 @@ import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import type { Session } from '../../types';
 import type { WsEvent } from '../../hooks/useWebSocket';
 
-export type PaneIntent = 'start' | 'open';
+export type PaneIntent = 'start' | 'open' | 'resume';
 
 interface SessionPaneProps {
   session: Session;
@@ -52,7 +52,7 @@ export default function SessionPane({
 
   const initialPhase: Phase = (() => {
     if (session.status === 'running') return 'subscribed';
-    if (intent === 'start') return 'pendingFit';
+    if (intent === 'start' || intent === 'resume') return 'pendingFit';
     return 'replay-only';
   })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
@@ -97,7 +97,11 @@ export default function SessionPane({
     setErrorMsg(null);
     setPendingError(null);
     try {
-      const result = await sessionsApi.startSession(session.id, dims);
+      const result = await sessionsApi.startSession(
+        session.id,
+        dims,
+        intent === 'resume' ? { continueSession: true } : undefined,
+      );
       setPhase('subscribed');
       if (result.pendingInitialPrompt) {
         setPendingPromptLength(result.pendingInitialPromptLength ?? 0);
@@ -114,7 +118,7 @@ export default function SessionPane({
     } finally {
       startInFlightRef.current = false;
     }
-  }, [session.id]);
+  }, [session.id, intent]);
 
   const togglePreview = useCallback(async () => {
     if (pendingPreviewOpen) {
@@ -163,11 +167,12 @@ export default function SessionPane({
     }
   }, [pendingActionInFlight, session.id]);
 
-  // Re-trigger start if intentNonce bumps with intent='start' on a replay-only pane.
+  // Re-trigger start if intentNonce bumps with intent='start'/'resume' on a replay-only pane.
   useEffect(() => {
     if (intentNonce === lastIntentNonceRef.current) return;
     lastIntentNonceRef.current = intentNonce;
-    if (intent === 'start' && phase === 'replay-only' && session.status !== 'running') {
+    const isStart = intent === 'start' || intent === 'resume';
+    if (isStart && phase === 'replay-only' && session.status !== 'running') {
       if (fittedRef.current) {
         void tryStart();
       } else {

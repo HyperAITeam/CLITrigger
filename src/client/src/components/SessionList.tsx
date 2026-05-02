@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { GitBranch, Play, Square, Trash2, TerminalSquare, Archive, Edit2 } from 'lucide-react';
+import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2 } from 'lucide-react';
 import EmptyState from './EmptyState';
 import type { Session, MemoryInjectMode } from '../types';
 import { useI18n } from '../i18n';
@@ -199,6 +199,10 @@ export default function SessionList({
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
             const canEdit = session.status !== 'running';
+            const canResume =
+              ['stopped', 'failed', 'completed'].includes(session.status) &&
+              (session.cli_tool ?? 'claude') === 'claude' &&
+              !!session.worktree_path;
             const isEditing = editingId === session.id;
 
             return (
@@ -243,6 +247,15 @@ export default function SessionList({
                           title={t('session.start')}
                         >
                           <Play size={16} />
+                        </button>
+                      )}
+                      {canResume && (
+                        <button
+                          onClick={() => openOrFocus(session.id, 'resume')}
+                          className="p-1.5 text-accent hover:bg-accent/10 rounded transition-colors"
+                          title={t('session.resumeHint') || t('session.resume')}
+                        >
+                          <RotateCcw size={16} />
                         </button>
                       )}
                       <button

@@ -159,10 +159,10 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const body = (req.body ?? {}) as { cols?: unknown; rows?: unknown };
+    const body = (req.body ?? {}) as { cols?: unknown; rows?: unknown; continueSession?: unknown };
     const hasCols = body.cols !== undefined;
     const hasRows = body.rows !== undefined;
-    let opts: { cols: number; rows: number } | undefined;
+    let opts: { cols?: number; rows?: number; continueSession?: boolean } | undefined;
     if (hasCols !== hasRows) {
       res.status(400).json({ error: 'cols and rows must both be provided or both omitted' });
       return;
@@ -177,6 +177,22 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
         return;
       }
       opts = { cols: cols as number, rows: rows as number };
+    }
+
+    if (body.continueSession === true) {
+      const cliTool = session.cli_tool || 'claude';
+      if (cliTool !== 'claude') {
+        res.status(400).json({ error: 'Resume is only supported for Claude sessions' });
+        return;
+      }
+      if (!session.use_worktree || !session.worktree_path) {
+        res.status(400).json({ error: 'Resume requires a worktree session' });
+        return;
+      }
+      opts = { ...(opts ?? {}), continueSession: true };
+    } else if (body.continueSession !== undefined && body.continueSession !== false) {
+      res.status(400).json({ error: 'continueSession must be a boolean' });
+      return;
     }
 
     await sessionManager.startSession(req.params.id, opts);

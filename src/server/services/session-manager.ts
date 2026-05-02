@@ -98,7 +98,7 @@ export class SessionManager {
    * plugin or curl direct hit), fall back to 100x30 — small enough that a
    * later wider client still renders the welcome banner cleanly.
    */
-  async startSession(sessionId: string, opts?: { cols?: number; rows?: number }): Promise<void> {
+  async startSession(sessionId: string, opts?: { cols?: number; rows?: number; continueSession?: boolean }): Promise<void> {
     const session = queries.getSessionById(sessionId);
     if (!session) throw new Error('Session not found');
 
@@ -110,17 +110,35 @@ export class SessionManager {
       throw new Error(`${cliTool} does not support interactive mode`);
     }
 
+    const useWorktree = !!session.use_worktree && !!project.is_git_repo;
+    const resume = !!opts?.continueSession;
+    if (resume) {
+      // --continue is currently only wired for Claude in interactive mode.
+      // Gemini/Codex have the adapter flag but their interactive resume is
+      // not yet validated, so reject early with a clear message.
+      if (cliTool !== 'claude') {
+        throw new Error('Resume is only supported for Claude sessions');
+      }
+      // claude --continue picks the latest conversation in the cwd. If the
+      // session runs at the project root, that latest can easily be a todo
+      // executor's conversation — refuse and force a worktree session.
+      if (!useWorktree || !session.worktree_path) {
+        throw new Error('Resume requires a worktree session');
+      }
+    }
+
     const adapter = getAdapter(cliTool);
     const cliModel = session.cli_model || project.claude_model || undefined;
     let prompt = session.description || '';
-    const useWorktree = !!session.use_worktree && !!project.is_git_repo;
 
     // Inject long-term memory if configured for this session. Mirrors the
     // todo/discussion flow: prepend a <long_term_memory> block to the initial
     // PTY prompt so the CLI sees both the wiki context and the user's request
-    // as one combined first turn.
+    // as one combined first turn. Skipped on resume — the prior conversation
+    // already contains the same block, and we don't want to fire a fresh
+    // initial prompt on top of restored history.
     const memMode = ((session.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
-    if (memMode !== 'none') {
+    if (!resume && memMode !== 'none') {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
@@ -168,7 +186,10 @@ export class SessionManager {
     // claude-manager's ready-detector auto-fire it. The PTY is launched with an
     // empty stdinPrompt; the SessionWindow surfaces a pre-flight Send/Skip panel
     // that calls submitInitialPrompt() / skipInitialPrompt() on user click.
-    if (prompt.trim()) {
+    // On resume we skip this entirely — firing the original description on top
+    // of restored conversation history would re-issue a request the user
+    // already completed.
+    if (!resume && prompt.trim()) {
       this.pendingInitialPrompts.set(sessionId, prompt);
     } else {
       this.pendingInitialPrompts.delete(sessionId);
@@ -180,7 +201,7 @@ export class SessionManager {
     try {
       const result = await claudeManager.startClaude(
         workDir, '', cliModel, undefined, 'interactive', cliTool,
-        undefined, project.path, undefined, false,
+        undefined, project.path, undefined, resume,
         opts?.cols ?? 100, opts?.rows ?? 30,
       );
       pid = result.pid;
@@ -208,6 +229,13 @@ export class SessionManager {
       ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [interactive]`
       : `Started ${adapter.displayName} (PID: ${pid}) [interactive]`;
     queries.createSessionLog(sessionId, 'output', logMsg);
+    if (resume) {
+      queries.createSessionLog(
+        sessionId,
+        'output',
+        `Resumed Claude session via --continue (cwd: ${workDir}) — picks latest conversation in this directory`,
+      );
+    }
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running' });
 
     // Handle process exit

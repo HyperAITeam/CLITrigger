@@ -42,7 +42,7 @@ interface WindowGeom {
   h: number;
 }
 
-export type WindowIntent = 'start' | 'open';
+export type WindowIntent = 'start' | 'open' | 'resume';
 
 export interface OpenGroup extends WindowGeom {
   id: string;
@@ -283,8 +283,9 @@ export default function SessionWindowsHost({
           if (g.id !== existing.id) return g;
           // Activate tab + bump z + minimize off + intent bump if upgrading
           const prevIntent = g.intents[sessionId]?.intent ?? 'open';
-          const newIntent: WindowIntent = intent === 'start' ? 'start' : prevIntent;
-          const intentChanged = newIntent !== prevIntent || intent === 'start';
+          const isStartIntent = intent === 'start' || intent === 'resume';
+          const newIntent: WindowIntent = isStartIntent ? intent : prevIntent;
+          const intentChanged = newIntent !== prevIntent || isStartIntent;
           return {
             ...g,
             z,
