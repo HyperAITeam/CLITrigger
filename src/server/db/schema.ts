@@ -329,6 +329,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'memory_node_ids', definition: 'TEXT' },
     { table: 'discussions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
     { table: 'discussions', column: 'memory_node_ids', definition: 'TEXT' },
+    { table: 'sessions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
+    { table: 'sessions', column: 'memory_node_ids', definition: 'TEXT' },
     { table: 'projects', column: 'memory_default_mode', definition: "TEXT DEFAULT 'none'" },
     { table: 'projects', column: 'memory_auto_ingest', definition: 'INTEGER DEFAULT 0' },
     { table: 'memory_nodes', column: 'source_type', definition: 'TEXT' },

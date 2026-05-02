@@ -286,6 +286,8 @@ export interface Session {
   token_usage: string | null;
   total_cost_usd: number | null;
   total_tokens: number | null;
+  memory_inject_mode?: MemoryInjectMode | null;
+  memory_node_ids?: string | null;
   created_at: string;
   updated_at: string;
 }

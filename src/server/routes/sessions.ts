@@ -14,11 +14,19 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model, use_worktree } = req.body;
+    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids } = req.body;
     if (!title || typeof title !== 'string' || !title.trim()) {
       res.status(400).json({ error: 'Title is required' });
       return;
     }
+
+    const normalizedMemMode =
+      memory_inject_mode === 'all' || memory_inject_mode === 'selected' || memory_inject_mode === 'auto'
+        ? memory_inject_mode
+        : 'none';
+    const normalizedMemIds = Array.isArray(memory_node_ids)
+      ? (memory_node_ids.length > 0 ? JSON.stringify(memory_node_ids.map(String)) : null)
+      : (typeof memory_node_ids === 'string' && memory_node_ids ? memory_node_ids : null);
 
     const session = queries.createSession(
       req.params.id,
@@ -27,6 +35,8 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       cli_tool || undefined,
       cli_model || undefined,
       !!use_worktree,
+      normalizedMemMode,
+      normalizedMemIds,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
@@ -86,6 +96,19 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       if (req.body[key] !== undefined) {
         updates[key] = req.body[key];
       }
+    }
+
+    if (req.body.memory_inject_mode !== undefined) {
+      updates.memory_inject_mode =
+        req.body.memory_inject_mode === 'all' || req.body.memory_inject_mode === 'selected' || req.body.memory_inject_mode === 'auto'
+          ? req.body.memory_inject_mode
+          : 'none';
+    }
+    if (req.body.memory_node_ids !== undefined) {
+      const v = req.body.memory_node_ids;
+      updates.memory_node_ids = Array.isArray(v)
+        ? (v.length > 0 ? JSON.stringify(v.map(String)) : null)
+        : (typeof v === 'string' && v ? v : null);
     }
 
     const updated = queries.updateSession(req.params.id, updates as any);
@@ -159,10 +182,75 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
     await sessionManager.startSession(req.params.id, opts);
 
     const updated = queries.getSessionById(req.params.id);
-    res.json(updated);
+    const pending = sessionManager.getPendingPrompt(req.params.id);
+    res.json({
+      ...updated,
+      pendingInitialPrompt: pending !== null,
+      pendingInitialPromptLength: pending?.length ?? 0,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/sessions/:id/pending-prompt — full body of the held initial prompt,
+// or null if no prompt is pending. Used by the SessionWindow pre-flight panel.
+router.get('/sessions/:id/pending-prompt', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const prompt = sessionManager.getPendingPrompt(req.params.id);
+    if (!prompt) {
+      res.json({ prompt: null, length: 0 });
+      return;
+    }
+    res.json({ prompt, length: prompt.length });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/sessions/:id/submit-initial — actually send the held initial prompt
+// to the running PTY. No-op if no prompt is pending.
+router.post('/sessions/:id/submit-initial', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    if (session.status !== 'running') {
+      res.status(400).json({ error: 'Session is not running' });
+      return;
+    }
+    const ok = sessionManager.submitInitialPrompt(req.params.id);
+    if (!ok) {
+      res.status(400).json({ error: 'No pending prompt or PTY unavailable' });
+      return;
+    }
+    res.json({ submitted: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/sessions/:id/skip-initial — discard the held initial prompt without
+// sending it. Idempotent.
+router.post('/sessions/:id/skip-initial', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    sessionManager.skipInitialPrompt(req.params.id);
+    res.json({ skipped: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 

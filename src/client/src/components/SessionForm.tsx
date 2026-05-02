@@ -2,22 +2,35 @@ import { useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import MemoryInjectControl from './MemoryInjectControl';
+import type { MemoryInjectMode } from '../types';
 
 interface SessionFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, useWorktree?: boolean) => void;
+  projectId: string;
+  onSave: (
+    title: string,
+    description: string,
+    cliTool?: string,
+    cliModel?: string,
+    useWorktree?: boolean,
+    memoryInjectMode?: MemoryInjectMode,
+    memoryNodeIds?: string[],
+  ) => void;
   onCancel: () => void;
   projectCliTool?: string;
   projectCliModel?: string;
   isGitRepo?: boolean;
 }
 
-export default function SessionForm({ onSave, onCancel, projectCliTool, projectCliModel, isGitRepo }: SessionFormProps) {
+export default function SessionForm({ projectId, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo }: SessionFormProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [cliTool, setCliTool] = useState(projectCliTool || '');
   const [cliModel, setCliModel] = useState(projectCliModel || '');
   const [useWorktree, setUseWorktree] = useState(false);
+  const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>('none');
+  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>([]);
 
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
@@ -26,7 +39,15 @@ export default function SessionForm({ onSave, onCancel, projectCliTool, projectC
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(title.trim(), description.trim(), cliTool || undefined, cliModel || undefined, useWorktree);
+    onSave(
+      title.trim(),
+      description.trim(),
+      cliTool || undefined,
+      cliModel || undefined,
+      useWorktree,
+      memoryInjectMode,
+      memoryNodeIds,
+    );
   };
 
   return (
@@ -83,6 +104,12 @@ export default function SessionForm({ onSave, onCancel, projectCliTool, projectC
           {t('session.worktree')}
         </label>
       )}
+      <MemoryInjectControl
+        projectId={projectId}
+        mode={memoryInjectMode}
+        selectedIds={memoryNodeIds}
+        onChange={(m, ids) => { setMemoryInjectMode(m); setMemoryNodeIds(ids); }}
+      />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="btn-secondary text-xs py-1.5 px-3">
           {t('form.cancel')}

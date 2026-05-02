@@ -7,14 +7,14 @@ export function getSessions(projectId: string): Promise<Session[]> {
 
 export function createSession(
   projectId: string,
-  data: { title: string; description?: string; cli_tool?: string; cli_model?: string; use_worktree?: boolean }
+  data: { title: string; description?: string; cli_tool?: string; cli_model?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[] }
 ): Promise<Session> {
   return post(`/api/projects/${projectId}/sessions`, data);
 }
 
 export function updateSession(
   id: string,
-  data: { title?: string; description?: string; cli_tool?: string; cli_model?: string }
+  data: { title?: string; description?: string; cli_tool?: string; cli_model?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[] }
 ): Promise<Session> {
   return put(`/api/sessions/${id}`, data);
 }
@@ -23,8 +23,23 @@ export function deleteSession(id: string): Promise<void> {
   return del(`/api/sessions/${id}`);
 }
 
-export function startSession(id: string, dims?: { cols: number; rows: number }): Promise<Session> {
+export function startSession(
+  id: string,
+  dims?: { cols: number; rows: number },
+): Promise<Session & { pendingInitialPrompt?: boolean; pendingInitialPromptLength?: number }> {
   return post(`/api/sessions/${id}/start`, dims);
+}
+
+export function getPendingInitialPrompt(id: string): Promise<{ prompt: string | null; length: number }> {
+  return get(`/api/sessions/${id}/pending-prompt`);
+}
+
+export function submitInitialPrompt(id: string): Promise<{ submitted: boolean }> {
+  return post(`/api/sessions/${id}/submit-initial`, {});
+}
+
+export function skipInitialPrompt(id: string): Promise<{ skipped: boolean }> {
+  return post(`/api/sessions/${id}/skip-initial`, {});
 }
 
 export function stopSession(id: string): Promise<Session> {

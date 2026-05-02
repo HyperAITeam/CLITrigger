@@ -2,6 +2,8 @@ import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
+import { applyMemoryInjection } from './memory-inject-hook.js';
+import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -12,6 +14,13 @@ export class SessionManager {
   // Per-session pending-flush callback so we can drain the byte buffer when
   // the PTY exits or the user stops the session.
   private pendingFlushers: Map<string, () => void> = new Map();
+
+  // Initial prompts (description + optional injected wiki) that have NOT been
+  // submitted to the PTY yet. We hold them so the user gets to review the
+  // payload — including any auto-retrieved wiki nodes — and explicitly hit
+  // Send (or Skip) instead of having the prompt fire the moment the CLI
+  // emits its ready indicator.
+  private pendingInitialPrompts: Map<string, string> = new Map();
 
   /**
    * Hook the raw PTY byte stream of `pid` into:
@@ -103,8 +112,26 @@ export class SessionManager {
 
     const adapter = getAdapter(cliTool);
     const cliModel = session.cli_model || project.claude_model || undefined;
-    const prompt = session.description || '';
+    let prompt = session.description || '';
     const useWorktree = !!session.use_worktree && !!project.is_git_repo;
+
+    // Inject long-term memory if configured for this session. Mirrors the
+    // todo/discussion flow: prepend a <long_term_memory> block to the initial
+    // PTY prompt so the CLI sees both the wiki context and the user's request
+    // as one combined first turn.
+    const memMode = ((session.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
+    if (memMode !== 'none') {
+      const memBlock = await applyMemoryInjection({
+        projectId: project.id,
+        mode: memMode,
+        nodeIds: parseMemoryNodeIds(session.memory_node_ids),
+        query: `${session.title}\n${session.description ?? ''}`.trim(),
+        log: (type, message) => queries.createSessionLog(sessionId, type, message),
+      });
+      if (memBlock) {
+        prompt = prompt ? `${memBlock}\n\n${prompt}` : memBlock;
+      }
+    }
 
     // Mark as running
     queries.updateSessionStatus(sessionId, 'running');
@@ -137,12 +164,22 @@ export class SessionManager {
       }
     }
 
+    // Hold the prompt for explicit user-initiated submission instead of letting
+    // claude-manager's ready-detector auto-fire it. The PTY is launched with an
+    // empty stdinPrompt; the SessionWindow surfaces a pre-flight Send/Skip panel
+    // that calls submitInitialPrompt() / skipInitialPrompt() on user click.
+    if (prompt.trim()) {
+      this.pendingInitialPrompts.set(sessionId, prompt);
+    } else {
+      this.pendingInitialPrompts.delete(sessionId);
+    }
+
     let pid: number;
     let exitPromise: Promise<number>;
 
     try {
       const result = await claudeManager.startClaude(
-        workDir, prompt, cliModel, undefined, 'interactive', cliTool,
+        workDir, '', cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, undefined, false,
         opts?.cols ?? 100, opts?.rows ?? 30,
       );
@@ -178,6 +215,7 @@ export class SessionManager {
       // Flush any pending raw bytes before status update so re-opening the
       // session immediately shows the final output.
       this.flushAndForgetRaw(sessionId);
+      this.pendingInitialPrompts.delete(sessionId);
       const current = queries.getSessionById(sessionId);
       if (current && current.status === 'running') {
         const status = exitCode === 0 ? 'completed' : 'failed';
@@ -196,6 +234,7 @@ export class SessionManager {
       }
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);
+      this.pendingInitialPrompts.delete(sessionId);
       try {
         queries.updateSessionStatus(sessionId, 'failed');
         queries.updateSession(sessionId, { process_pid: 0 });
@@ -215,12 +254,56 @@ export class SessionManager {
       await claudeManager.stopClaude(session.process_pid);
     }
     this.flushAndForgetRaw(sessionId);
+    this.pendingInitialPrompts.delete(sessionId);
 
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
 
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
+  }
+
+  /**
+   * Submit the held initial prompt to the running PTY. The payload is
+   * terminated with `\n` so claudeManager's ptyWritable converts it to the
+   * adapter's submit sequence (\r for Claude/Codex, \r\n for Gemini).
+   * Returns false if there's no pending prompt or the PTY is gone.
+   */
+  submitInitialPrompt(sessionId: string): boolean {
+    const prompt = this.pendingInitialPrompts.get(sessionId);
+    if (!prompt) return false;
+
+    const session = queries.getSessionById(sessionId);
+    if (!session?.process_pid) return false;
+
+    const payload = prompt.endsWith('\n') ? prompt : `${prompt}\n`;
+    const ok = claudeManager.writeToStdin(session.process_pid, payload);
+    if (ok) {
+      this.pendingInitialPrompts.delete(sessionId);
+      queries.createSessionLog(
+        sessionId,
+        'output',
+        `[memory] initial prompt submitted (${prompt.length} chars)`,
+      );
+    }
+    return ok;
+  }
+
+  /** Discard the held initial prompt without sending anything to the PTY. */
+  skipInitialPrompt(sessionId: string): void {
+    if (this.pendingInitialPrompts.has(sessionId)) {
+      this.pendingInitialPrompts.delete(sessionId);
+      queries.createSessionLog(sessionId, 'output', '[memory] initial prompt skipped by user');
+    }
+  }
+
+  /** Full body of the held initial prompt, or null if none. */
+  getPendingPrompt(sessionId: string): string | null {
+    return this.pendingInitialPrompts.get(sessionId) ?? null;
+  }
+
+  hasPendingPrompt(sessionId: string): boolean {
+    return this.pendingInitialPrompts.has(sessionId);
   }
 
   /**
