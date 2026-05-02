@@ -178,6 +178,27 @@ export function openRawFileExternal(
   return post(`/api/projects/${projectId}/memory/raw-files/open`, { path: relativePath, mode });
 }
 
+export async function deleteWikiRawFile(
+  projectId: string,
+  relativePath: string,
+): Promise<{ deleted: string; unlinkedNodeIds: string[] }> {
+  const res = await fetch(`/api/projects/${projectId}/memory/raw-files`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: relativePath }),
+  });
+  if (!res.ok) {
+    let msg = `Delete failed (${res.status})`;
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 export function lintMemory(
   projectId: string,
 ): Promise<{ issues: { type: string; node_titles: string[]; message: string }[] }> {

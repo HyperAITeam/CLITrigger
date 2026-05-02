@@ -699,6 +699,9 @@ const translations = {
     'wiki.rawFile.openSiblings': 'Show {n} entries from this source',
     'wiki.rawFile.openExternal': 'Open in default app',
     'wiki.rawFile.revealInFolder': 'Reveal in folder',
+    'wiki.rawFile.delete': 'Delete raw file',
+    'wiki.rawFile.deleteConfirm': 'Delete this raw source file? Wiki entries are kept.',
+    'wiki.rawFile.deleteConfirmDerived': 'Delete this raw source file and unlink {n} derived wiki entr(y/ies)? The entries themselves are kept; only the source link is removed.',
 
     // Planner
     'planner.title': 'Planner',
@@ -1696,6 +1699,9 @@ const translations = {
     'wiki.rawFile.openSiblings': '이 원본에서 파생된 {n}개 항목 보기',
     'wiki.rawFile.openExternal': '기본 앱으로 열기',
     'wiki.rawFile.revealInFolder': '폴더에서 보기',
+    'wiki.rawFile.delete': '원본 삭제',
+    'wiki.rawFile.deleteConfirm': '이 원본 파일을 삭제할까요? 위키 노드는 유지됩니다.',
+    'wiki.rawFile.deleteConfirmDerived': '이 원본 파일을 삭제하고 파생된 {n}개 위키 노드의 source 링크를 끊을까요? 노드 자체는 유지됩니다.',
 
     // Planner
     'planner.title': '플래너',

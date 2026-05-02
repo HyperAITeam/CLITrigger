@@ -385,6 +385,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                 file={selectedRawFile}
                 allNodes={nodes}
                 onSelectNode={handleSelectNode}
+                onDeleted={() => { setSelectedRawPath(null); reload(); }}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center px-8">

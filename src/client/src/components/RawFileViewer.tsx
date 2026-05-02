@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ExternalLink, FileText, FolderOpen, Loader2 } from 'lucide-react';
+import { ArrowRight, ExternalLink, FileText, FolderOpen, Loader2, Trash2 } from 'lucide-react';
 import type { MemoryNode } from '../types';
-import { type RawFileEntry, getRawFileByPath, openRawFileExternal, parseMemoryTags } from '../api/memory';
+import { type RawFileEntry, getRawFileByPath, openRawFileExternal, parseMemoryTags, deleteWikiRawFile } from '../api/memory';
 import { useI18n } from '../i18n';
 
 interface RawFileViewerProps {
@@ -9,6 +9,7 @@ interface RawFileViewerProps {
   file: RawFileEntry;
   allNodes: MemoryNode[];
   onSelectNode: (id: string) => void;
+  onDeleted?: () => void;
 }
 
 function formatSize(bytes: number): string {
@@ -26,11 +27,12 @@ function formatMtime(iso: string): string {
   }
 }
 
-export default function RawFileViewer({ projectId, file, allNodes, onSelectNode }: RawFileViewerProps) {
+export default function RawFileViewer({ projectId, file, allNodes, onSelectNode, onDeleted }: RawFileViewerProps) {
   const { t } = useI18n();
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -45,6 +47,22 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode 
   const derivedNodes = file.derived_node_ids
     .map((id) => allNodes.find((n) => n.id === id))
     .filter((n): n is MemoryNode => !!n);
+
+  const handleDelete = async () => {
+    const n = derivedNodes.length;
+    const msg = n > 0
+      ? t('wiki.rawFile.deleteConfirmDerived').replace('{n}', String(n))
+      : t('wiki.rawFile.deleteConfirm');
+    if (!window.confirm(msg)) return;
+    setDeleting(true);
+    try {
+      await deleteWikiRawFile(projectId, file.relative_path);
+      onDeleted?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -68,6 +86,14 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode 
           title={t('wiki.rawFile.revealInFolder')}
         >
           <FolderOpen size={13} />
+        </button>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="p-1.5 rounded hover:bg-red-100 text-red-500 disabled:opacity-50"
+          title={t('wiki.rawFile.delete')}
+        >
+          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
         </button>
       </div>
       <div className="px-4 py-1 border-b border-warm-100">
