@@ -1,6 +1,29 @@
 {
   "name": "clitrigger",
   "version": "0.1.17",
+  "description": "Spawn isolated git worktrees and orchestrate Claude/Gemini/Codex CLI tasks in parallel from a web UI.",
+  "keywords": [
+    "claude",
+    "gemini",
+    "codex",
+    "cli",
+    "ai",
+    "orchestration",
+    "worktree",
+    "automation",
+    "electron",
+    "tunnel"
+  ],
+  "homepage": "https://github.com/HyperAITeam/CLITrigger#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperAITeam/CLITrigger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HyperAITeam/CLITrigger/issues"
+  },
+  "author": "HyperAI Team",
+  "license": "MIT",
   "type": "module",
   "main": "electron/main.cjs",
   "bin": {
@@ -89,6 +112,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "HyperAITeam",
+        "repo": "CLITrigger"
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
