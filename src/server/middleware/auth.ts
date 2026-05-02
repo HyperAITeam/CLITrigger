@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import session from 'express-session';
 import type { RequestHandler, Express } from 'express';
+import { getSetting } from '../db/app-settings.js';
 
 // Session-based password authentication middleware
 // Uses SESSION_SECRET (or falls back to a random secret per process)
@@ -35,6 +36,14 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
   }
 
   if (req.session && req.session.authenticated) {
+    // Invalidate sessions issued before the most recent password change.
+    const changedAt = Number(getSetting('auth.password_changed_at') || 0);
+    if (changedAt && (req.session.createdAt ?? 0) < changedAt) {
+      req.session.destroy(() => {
+        res.status(401).json({ error: 'Unauthorized' });
+      });
+      return;
+    }
     return next();
   }
 

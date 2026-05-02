@@ -7,6 +7,7 @@ import { createInterface } from 'readline/promises';
 
 const CONFIG_DIR = path.join(os.homedir(), '.clitrigger');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const MIGRATED_FLAG = path.join(CONFIG_DIR, '.password-migrated');
 
 const args = process.argv.slice(2);
 
@@ -22,44 +23,32 @@ if (args[0] === 'config') {
 async function startServer() {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
-  // 첫 실행: 초기 설정
+  // 첫 실행: 기본 config 생성 (비밀번호는 웹 첫 화면에서 설정)
   if (!fs.existsSync(CONFIG_FILE)) {
-    console.log('Welcome to CLITrigger!\n');
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-    let password = '';
-    while (!password) {
-      password = await rl.question('Set a password: ');
-      if (!password) console.log('Password is required.');
-    }
-    rl.close();
-
-    const config = { port: 3000, password, tunnel: true };
+    const config = { port: 3000, tunnel: true };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log(`\nSetup complete! (${CONFIG_FILE})`);
+    console.log('Welcome to CLITrigger!');
+    console.log(`Config created at ${CONFIG_FILE}`);
+    console.log('Open the web UI to set your password on first launch.\n');
   }
 
-  // config 읽고 env 설정
   const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
 
-  // 기존 config에 비밀번호가 없으면 설정 강제
-  if (!config.password) {
-    console.log('Password is not set.\n');
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    let password = '';
-    while (!password) {
-      password = await rl.question('Set a password: ');
-      if (!password) console.log('Password is required.');
-    }
-    rl.close();
-    config.password = password;
+  // Legacy plaintext cleanup: server has migrated to hashed credential, drop the
+  // plaintext field from disk.
+  if (fs.existsSync(MIGRATED_FLAG) && config.password) {
+    delete config.password;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log('Password saved.\n');
+    try { fs.unlinkSync(MIGRATED_FLAG); } catch { /* ignore */ }
   }
 
   process.env.PORT = String(config.port || 3000);
-  process.env.AUTH_PASSWORD = config.password;
   process.env.DB_PATH = path.join(CONFIG_DIR, 'clitrigger.db');
+  // Pass legacy plaintext password through to the server one last time so it
+  // can migrate to a scrypt hash. Removed from disk on the next launch.
+  if (config.password) {
+    process.env.AUTH_PASSWORD = config.password;
+  }
   // tunnel defaults to true (auto-enable for new and existing users)
   if (config.tunnel !== false) {
     process.env.TUNNEL_ENABLED = 'true';
@@ -116,16 +105,9 @@ async function handleConfig(args) {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
     console.log(`Port changed to ${port}.`);
   } else if (args[0] === 'password') {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    let password = '';
-    while (!password) {
-      password = await rl.question('New password: ');
-      if (!password) console.log('Password is required.');
-    }
-    rl.close();
-    config.password = password;
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log('Password changed.');
+    console.log('Password is now managed in the web UI.');
+    console.log('  • First launch: open the browser and set a password on the setup screen.');
+    console.log('  • Change later: open Settings → Account in the web UI.');
   } else if (args[0] === 'path') {
     console.log(CONFIG_DIR);
   } else if (args[0] === 'tunnel') {
@@ -177,7 +159,7 @@ async function handleConfig(args) {
   } else {
     console.log(`Config (${CONFIG_FILE}):`);
     console.log(`  Port:     ${config.port || 3000}`);
-    console.log(`  Password: ${config.password ? 'set' : 'not set'}`);
+    console.log(`  Password: managed in web UI (Settings → Account)`);
     console.log(`  Tunnel:   ${config.tunnel ? 'enabled' : 'disabled'}`);
     if (config.tunnelName)     console.log(`  Tunnel name:     ${config.tunnelName}`);
     if (config.tunnelHostname) console.log(`  Tunnel hostname: ${config.tunnelHostname}`);
@@ -226,10 +208,9 @@ function printHelp() {
 CLITrigger - AI-powered task execution tool
 
 Usage:
-  clitrigger                          Start the server
+  clitrigger                          Start the server (set password on first launch in browser)
   clitrigger config                   Show current config
   clitrigger config port <n>          Change port
-  clitrigger config password          Change password
   clitrigger config tunnel on         Enable Cloudflare tunnel
   clitrigger config tunnel on <name>  Enable named tunnel
   clitrigger config tunnel off        Disable tunnel
@@ -240,5 +221,7 @@ Usage:
   clitrigger config path              Print config directory path
   clitrigger config clear             Delete all config and data
   clitrigger --help                   Show this help
+
+Password is managed in the web UI (Settings → Account).
 `.trim());
 }

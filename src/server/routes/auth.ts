@@ -1,49 +1,66 @@
-import crypto from 'crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { getSetting, setSetting } from '../db/app-settings.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
 
 const router = Router();
 
-// Rate limit login attempts: max 10 per 15 minutes per IP
-const loginLimiter = rateLimit({
+const HASH_KEY = 'auth.password_hash';
+const CHANGED_AT_KEY = 'auth.password_changed_at';
+const MIN_LENGTH = 8;
+
+// Rate limit auth attempts: max 10 per 15 minutes per IP
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: 'Too many login attempts. Please try again later.' },
+  message: { error: 'Too many auth attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Timing-safe password comparison
-function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still do a comparison to avoid short-circuit timing leak
-    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
-    return false;
+function validatePasswordPair(password: unknown, confirmPassword: unknown):
+  | { ok: true; password: string }
+  | { ok: false; status: number; error: string } {
+  if (typeof password !== 'string' || !password) {
+    return { ok: false, status: 400, error: 'Password is required' };
   }
-  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  if (password.length < MIN_LENGTH) {
+    return { ok: false, status: 400, error: `Password must be at least ${MIN_LENGTH} characters` };
+  }
+  if (typeof confirmPassword !== 'string' || password !== confirmPassword) {
+    return { ok: false, status: 400, error: 'Passwords do not match' };
+  }
+  return { ok: true, password };
+}
+
+function markPasswordChanged(): void {
+  setSetting(CHANGED_AT_KEY, String(Date.now()));
 }
 
 // POST /api/auth/login
-// Body: { password: string }
-// Compares with process.env.AUTH_PASSWORD
-// Sets session.authenticated = true on success
-router.post('/login', loginLimiter, (req, res) => {
-  const { password } = req.body;
-  const authPassword = process.env.AUTH_PASSWORD;
+router.post('/login', authLimiter, async (req, res) => {
+  const { password } = req.body ?? {};
+  const hash = getSetting(HASH_KEY);
 
-  if (!authPassword) {
-    console.error('AUTH_PASSWORD environment variable is not configured');
-    res.status(500).json({ error: 'Server authentication not configured' });
+  if (!hash) {
+    res.status(503).json({ error: 'setup_required' });
     return;
   }
-
   if (typeof password !== 'string' || !password) {
     res.status(400).json({ error: 'Password is required' });
     return;
   }
 
-  if (safeCompare(password, authPassword)) {
+  let ok = false;
+  try {
+    ok = await verifyPassword(password, hash);
+  } catch {
+    ok = false;
+  }
+
+  if (ok) {
     req.session.authenticated = true;
+    req.session.createdAt = Date.now();
     res.json({ success: true });
   } else {
     console.warn(`Failed login attempt from ${req.ip}`);
@@ -51,8 +68,76 @@ router.post('/login', loginLimiter, (req, res) => {
   }
 });
 
+// POST /api/auth/setup
+// Only available when no password has been set yet (initial bootstrap).
+router.post('/setup', authLimiter, async (req, res) => {
+  if (getSetting(HASH_KEY)) {
+    res.status(409).json({ error: 'already_initialized' });
+    return;
+  }
+  const { password, confirmPassword } = req.body ?? {};
+  const validation = validatePasswordPair(password, confirmPassword);
+  if (!validation.ok) {
+    res.status(validation.status).json({ error: validation.error });
+    return;
+  }
+
+  const hash = await hashPassword(validation.password);
+  setSetting(HASH_KEY, hash);
+  markPasswordChanged();
+
+  req.session.authenticated = true;
+  req.session.createdAt = Date.now();
+  res.json({ success: true });
+});
+
+// PUT /api/auth/password
+// Authenticated endpoint — middleware has already verified the session.
+router.put('/password', authLimiter, async (req, res) => {
+  if (!req.session?.authenticated) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { oldPassword, newPassword, confirmPassword } = req.body ?? {};
+  const hash = getSetting(HASH_KEY);
+  if (!hash) {
+    res.status(503).json({ error: 'setup_required' });
+    return;
+  }
+  if (typeof oldPassword !== 'string' || !oldPassword) {
+    res.status(400).json({ error: 'Current password is required' });
+    return;
+  }
+
+  let oldOk = false;
+  try {
+    oldOk = await verifyPassword(oldPassword, hash);
+  } catch {
+    oldOk = false;
+  }
+  if (!oldOk) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const validation = validatePasswordPair(newPassword, confirmPassword);
+  if (!validation.ok) {
+    res.status(validation.status).json({ error: validation.error });
+    return;
+  }
+
+  const newHash = await hashPassword(validation.password);
+  setSetting(HASH_KEY, newHash);
+  markPasswordChanged();
+
+  // Keep this session alive — refresh createdAt so the new password_changed_at
+  // timestamp does not invalidate the requester. Other sessions (older
+  // createdAt) will be rejected on their next request by authMiddleware.
+  req.session.createdAt = Date.now();
+  res.json({ success: true });
+});
+
 // POST /api/auth/logout
-// Destroys session
 router.post('/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
@@ -64,13 +149,17 @@ router.post('/logout', (req, res) => {
 });
 
 // GET /api/auth/status
-// Returns { authenticated: boolean, authRequired: boolean }
 router.get('/status', (req, res) => {
   if (process.env.DISABLE_AUTH === 'true') {
-    res.json({ authenticated: true, authRequired: false });
-  } else {
-    res.json({ authenticated: req.session?.authenticated === true, authRequired: true });
+    res.json({ authenticated: true, authRequired: false, setupRequired: false });
+    return;
   }
+  const setupRequired = !getSetting(HASH_KEY);
+  res.json({
+    authenticated: req.session?.authenticated === true,
+    authRequired: true,
+    setupRequired,
+  });
 });
 
 export default router;

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
 import * as projectsApi from '../api/projects';
 import * as reviewApi from '../api/review';
 import * as favoritesApi from '../api/favorites';
+import * as tunnelApi from '../api/tunnel';
+import type { TunnelStatus } from '../api/tunnel';
 import type { FavoriteInput } from '../api/favorites';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -13,7 +15,7 @@ import { useToast } from '../hooks/useToast';
 import type { WsEvent } from '../hooks/useWebSocket';
 import ProjectForm from './ProjectForm';
 import FavoriteForm from './FavoriteForm';
-import TunnelSettings from './TunnelSettings';
+import SettingsModal from './SettingsModal';
 import ToastContainer from './Toast';
 
 interface SidebarProps {
@@ -44,7 +46,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [showFavoriteForm, setShowFavoriteForm] = useState(false);
   const [editingFavorite, setEditingFavorite] = useState<Favorite | null>(null);
-  const [showTunnelSettings, setShowTunnelSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus | null>(null);
+  const [tunnelBusy, setTunnelBusy] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { t, toggleLang } = useI18n();
@@ -58,7 +62,35 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   useEffect(() => {
     loadProjects();
     loadFavorites();
+    tunnelApi.getTunnelStatus().then(setTunnelStatus).catch(() => { /* ignore */ });
   }, []);
+
+  async function handleTunnelClick() {
+    if (tunnelBusy) return;
+    setTunnelBusy(true);
+    try {
+      const cur = await tunnelApi.getTunnelStatus();
+      setTunnelStatus(cur);
+      if (cur.status === 'running' && cur.url) {
+        await navigator.clipboard.writeText(cur.url);
+        toastSuccess(t('tunnel.urlCopied'));
+        return;
+      }
+      const result = await tunnelApi.startTunnel();
+      const next: TunnelStatus = { status: 'running', url: result.url };
+      setTunnelStatus(next);
+      try {
+        await navigator.clipboard.writeText(result.url);
+        toastSuccess(t('tunnel.urlCopied'));
+      } catch {
+        toastSuccess(result.url);
+      }
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t('tunnel.restartFailed'));
+    } finally {
+      setTunnelBusy(false);
+    }
+  }
 
   function loadFavorites() {
     favoritesApi.listFavorites()
@@ -394,7 +426,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         />
       )}
 
-      <TunnelSettings open={showTunnelSettings} onClose={() => setShowTunnelSettings(false)} />
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
@@ -437,10 +469,21 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             </button>
           )}
           <button
-            onClick={() => setShowTunnelSettings(true)}
+            onClick={handleTunnelClick}
+            disabled={tunnelBusy}
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors disabled:opacity-50"
+            style={{ color: tunnelStatus?.status === 'running' ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+            title={tunnelStatus?.status === 'running' && tunnelStatus.url
+              ? `${tunnelStatus.url} — ${t('tunnel.urlCopied')}`
+              : tunnelBusy ? t('tunnel.starting') : t('tunnel.start')}
+          >
+            <Cloud size={16} />
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
             style={{ color: 'var(--color-text-tertiary)' }}
-            title={t('tunnel.title')}
+            title={t('settings.title')}
           >
             <Settings size={16} />
           </button>

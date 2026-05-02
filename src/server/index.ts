@@ -18,7 +18,8 @@ import imagesRouter from './routes/images.js';
 import { claudeManager } from './services/claude-manager.js';
 import { orchestrator } from './services/orchestrator.js';
 import { tunnelManager } from './services/tunnel-manager.js';
-import { getSetting as getAppSetting } from './db/app-settings.js';
+import { getSetting as getAppSetting, setSetting as setAppSetting } from './db/app-settings.js';
+import { hashPassword } from './utils/password.js';
 import { initWebSocket } from './websocket/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import schedulesRouter from './routes/schedules.js';
@@ -139,11 +140,34 @@ for (const p of getAllProjects()) {
   }
 }
 
-// Require AUTH_PASSWORD unless auth is explicitly disabled (plugin/headless mode)
-if (!process.env.AUTH_PASSWORD && process.env.DISABLE_AUTH !== 'true') {
-  console.error('ERROR: AUTH_PASSWORD is not set.');
-  console.error('  Set AUTH_PASSWORD in .env file, or run clitrigger again if installed globally.');
-  process.exit(1);
+// Password setup gate (unless auth is explicitly disabled)
+// - DB hash exists  → normal operation.
+// - No hash, but AUTH_PASSWORD env present → one-time migration to scrypt hash.
+// - Neither → setup mode: server starts, but tunnel auto-start is held until
+//   the user finishes initial setup in the browser (POST /api/auth/setup).
+let setupMode = false;
+if (process.env.DISABLE_AUTH !== 'true') {
+  const existingHash = getAppSetting('auth.password_hash');
+  const envPwd = process.env.AUTH_PASSWORD;
+  if (!existingHash && envPwd) {
+    const migrated = await hashPassword(envPwd);
+    setAppSetting('auth.password_hash', migrated);
+    setAppSetting('auth.password_changed_at', String(Date.now()));
+    console.log('Migrated legacy AUTH_PASSWORD to hashed credential store.');
+    // Drop a marker so the launcher (bin/clitrigger.js) can scrub the
+    // plaintext field from ~/.clitrigger/config.json on next boot.
+    if (process.env.DB_PATH) {
+      try {
+        fs.writeFileSync(path.join(path.dirname(process.env.DB_PATH), '.password-migrated'), '');
+      } catch { /* best-effort */ }
+    }
+  }
+  delete process.env.AUTH_PASSWORD;
+  if (!getAppSetting('auth.password_hash')) {
+    setupMode = true;
+    console.log('No password set. Open the web UI to finish setup.');
+    console.log('Tunnel auto-start is paused until setup completes.');
+  }
 }
 
 // Auth middleware
@@ -185,7 +209,10 @@ scheduler.initialize();
 initWebSocket(server);
 
 // --- Tunnel (Phase 7) ---
-if (process.env.TUNNEL_ENABLED === 'true') {
+if (setupMode && process.env.TUNNEL_ENABLED === 'true') {
+  console.log('Tunnel start blocked: password not initialized — finish setup in browser first.');
+}
+if (process.env.TUNNEL_ENABLED === 'true' && !setupMode) {
   const port = Number(PORT);
   const tunnelName = getAppSetting('tunnel.name') ?? process.env.TUNNEL_NAME ?? '';
   const customHostname = getAppSetting('tunnel.hostname') ?? process.env.TUNNEL_HOSTNAME ?? '';

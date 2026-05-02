@@ -4,6 +4,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useI18n } from './i18n';
 import { Skeleton } from './components/Skeleton';
 import LoginPage from './components/LoginPage';
+import SetupPage from './components/SetupPage';
 import Layout from './components/Layout';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
@@ -11,7 +12,7 @@ import DiscussionDetail from './components/DiscussionDetail';
 import ReviewQueue from './components/ReviewQueue';
 
 function App() {
-  const { authenticated, authRequired, loading, login, logout } = useAuth();
+  const { authenticated, authRequired, setupRequired, loading, login, logout, setup } = useAuth();
   const { connected, onEvent, sendMessage, subscribeBinary } = useWebSocket(authenticated);
   const { t } = useI18n();
 
@@ -66,6 +67,10 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  if (setupRequired) {
+    return <SetupPage onSetup={setup} />;
   }
 
   if (!authenticated) {
