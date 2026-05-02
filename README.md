@@ -104,9 +104,6 @@ Every feature — Planner, Scheduler, worktree isolation, rate-limit auto-recove
 
 ## Features
 
-### Plugin System (Harness, Jira, GitHub, Notion, gstack)
-The **Harness** panel edits Claude / Gemini / Codex user config (settings, memory files, MCP servers) right in the browser — atomic writes with deep-merge preserve untouched fields, and a Codex `trustLevelMissing` warning surfaces when a project isn't trusted. Jira, GitHub, Notion integrations and gstack skill injection ship alongside as self-contained plugins. Two plugin categories — `external-service` (REST proxy + UI panel) and `execution-hook` (pre-execution hook into the orchestrator). Adding a new integration needs only a manifest and `registerPlugin()` call — no core code changes.
-
 ### Wiki (Karpathy LLM-Wiki Pattern)
 A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` / **`Auto`** per task — `Auto` runs a one-shot LLM retrieval right before each call to pick only the relevant entries, saving tokens. Preview the exact `<long_term_memory>` block (with char/token estimates) before sending; **export DB → `.clitrigger/wiki/<entity>/<slug>.md` Markdown** + Disk diff to keep the wiki alive in git or Obsidian. Lint surfaces duplicates / orphans / stale entries with inline fix actions (merge / delete / link); the Activity sub-tab logs ingest / lint / retrieve / merge events with severity. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
 
@@ -311,6 +308,20 @@ The displayed URL becomes `https://app.your-domain.com` and reputation tracks yo
 | [changelog/](docs/changelog/README.md) | Version history (per-date entries by month) |
 | [CICD.md](docs/CICD.md) | GitHub Actions CI/CD setup |
 | [TESTING.md](docs/TESTING.md) | Testing guide |
+
+---
+
+## Star & Join Us
+
+If CLITrigger saves you time, please [**give us a star**](https://github.com/HyperAITeam/CLITrigger) — it genuinely helps the project reach more developers.
+
+Want to help shape what comes next? We're actively looking for contributors:
+
+- **File an issue** — bug reports, feature requests, and rough ideas all welcome at [Issues](https://github.com/HyperAITeam/CLITrigger/issues)
+- **Open a PR** — start with [`good first issue`](https://github.com/HyperAITeam/CLITrigger/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) labels, or pick anything that itches you
+- **Share what you built** — drop your worktree workflows, custom plugins, or productivity tips in [Discussions](https://github.com/HyperAITeam/CLITrigger/discussions)
+
+Every star, issue, and PR moves this faster. Thank you 🙏
 
 ---
 
