@@ -189,6 +189,18 @@ Register frequently-used external tools (executables, shell commands, URLs/folde
 
 ## Quick Start
 
+### Option A — Desktop App (recommended for end users)
+
+Download the installer for your platform from the [latest GitHub release](https://github.com/HyperAITeam/CLITrigger/releases/latest):
+
+- **Windows** — `CLITrigger-Setup-<version>.exe` (NSIS installer) or the portable `.exe`
+- **macOS** — `CLITrigger-<version>.dmg` (Apple Silicon & Intel)
+- **Linux** — `CLITrigger-<version>.AppImage`
+
+The desktop app bundles Node.js and the native modules (`better-sqlite3`, `node-pty`, `cloudflared`), so no separate runtime install is needed. On first launch you'll be prompted to set a password, just like the CLI.
+
+### Option B — npm (recommended for developers)
+
 ```bash
 npm i -g clitrigger
 clitrigger
