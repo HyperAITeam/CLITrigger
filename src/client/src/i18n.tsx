@@ -542,6 +542,16 @@ const translations = {
     'tabs.wiki': 'Wiki',
     'tabs.analytics': 'Analytics',
 
+    // Tab tooltips (hover help)
+    'tabs.wiki.help': 'Project knowledge graph. Curate nodes/edges and they get injected as a <long_term_memory> block into auto-task and discussion prompts so the LLM keeps context across runs.',
+    'tabs.planner.help': 'Lightweight task notes with tags, priorities, and image attachments. Promote favorites into auto tasks or schedules, or import/export as Markdown.',
+    'tabs.tasks.help': 'TODOs executed automatically by Claude/Gemini/Codex inside isolated git worktrees. Handles dependency chains, multi-round continue, and merge automation.',
+    'tabs.sessions.help': 'Interactive CLI sessions in floating xterm.js windows. Drive Claude/Gemini/Codex TUIs in real time with pixel-perfect terminal rendering.',
+    'tabs.discussions.help': 'Multi-agent AI discussions over rounds, then optional implementation. Extract action items into the planner when finished.',
+    'tabs.schedules.help': 'Trigger auto tasks on cron or one-off schedules. Supports auto-restart at rate-limit reset times.',
+    'tabs.git.help': 'Built-in Fork/SourceTree-style Git client: file status, commit graph, branch management, and diff viewer.',
+    'tabs.analytics.help': 'Execution and cost analytics. Token usage by CLI, status distribution, and daily cost trends in interactive charts.',
+
     // Wiki (Karpathy LLM-Wiki pattern)
     'wiki.title': 'Wiki',
     'wiki.add': 'New Entry',
@@ -1551,6 +1561,16 @@ const translations = {
     'tabs.planner': '플래너',
     'tabs.wiki': '위키',
     'tabs.analytics': '통계',
+
+    // Tab tooltips (hover help)
+    'tabs.wiki.help': '프로젝트 지식 그래프. 노드/엣지를 만들어 두면 자동 작업·토론 프롬프트에 <long_term_memory> 블록으로 주입돼서 LLM이 실행 간에도 맥락을 유지합니다.',
+    'tabs.planner.help': '가벼운 작업 메모. 태그·우선순위·이미지 첨부가 가능하고, 마음에 드는 항목은 자동 작업이나 스케줄로 변환하거나 Markdown으로 내보내기/가져오기 할 수 있습니다.',
+    'tabs.tasks.help': 'TODO를 worktree에 격리해 Claude/Gemini/Codex로 자동 실행. 의존성 체이닝, 멀티 라운드 continue, 머지 자동화까지 처리합니다.',
+    'tabs.sessions.help': '대화형 CLI 세션. xterm.js 기반 실시간 터미널을 플로팅 윈도우로 띄워서 Claude/Gemini/Codex TUI를 그대로 사용할 수 있습니다.',
+    'tabs.discussions.help': '여러 AI 에이전트가 라운드별로 토론한 뒤 합의를 코드로 구현. 결과를 플래너 항목으로 추출할 수도 있습니다.',
+    'tabs.schedules.help': 'cron 또는 일회성 예약으로 자동 작업을 트리거. 레이트 리밋 리셋 시점 자동 재시작도 지원합니다.',
+    'tabs.git.help': '워크스페이스 내장 Git 클라이언트. 파일 상태/커밋 그래프/브랜치 관리/diff 뷰어를 Fork·SourceTree 스타일 레이아웃으로 제공합니다.',
+    'tabs.analytics.help': '실행 통계와 비용 분석. CLI별 토큰 사용량, 상태 분포, 일별 비용 추이를 차트로 시각화합니다.',
 
     // Wiki (Karpathy LLM-Wiki 패턴)
     'wiki.title': '위키',

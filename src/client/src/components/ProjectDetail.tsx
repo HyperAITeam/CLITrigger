@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -29,6 +30,111 @@ interface ProjectDetailProps {
   connected: boolean;
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
+}
+
+function TabHoverHelp({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body?: string;
+  children: React.ReactNode;
+}) {
+  const enabled = !!body && body.trim().length > 0;
+  const [open, setOpen] = useState(false);
+  const [positioned, setPositioned] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const openTimer = useRef<number | null>(null);
+
+  const updatePos = useCallback(() => {
+    if (!anchorRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pop = popRef.current;
+    const pw = pop?.offsetWidth ?? 288;
+    const ph = pop?.offsetHeight ?? 120;
+    let top = r.bottom + 6;
+    let left = r.left;
+    if (left + pw > vw - 8) left = vw - 8 - pw;
+    if (left < 8) left = 8;
+    if (top + ph > vh - 8) top = r.top - ph - 6;
+    if (top < 8) top = 8;
+    setPos({ top, left });
+    setPositioned(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setPositioned(false);
+      return;
+    }
+    updatePos();
+    const raf = requestAnimationFrame(updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open, updatePos]);
+
+  useEffect(() => () => {
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+  }, []);
+
+  if (!enabled) return <>{children}</>;
+
+  const scheduleOpen = () => {
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+    openTimer.current = window.setTimeout(() => setOpen(true), 250);
+  };
+  const cancelOpen = () => {
+    if (openTimer.current) {
+      window.clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <div
+        ref={anchorRef}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={cancelOpen}
+        onFocus={scheduleOpen}
+        onBlur={cancelOpen}
+      >
+        {children}
+      </div>
+      {open && createPortal(
+        <div
+          ref={popRef}
+          role="tooltip"
+          className="fixed w-72 p-3 rounded-lg shadow-elevated text-xs leading-relaxed z-tooltip pointer-events-none"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            opacity: positioned ? 1 : 0,
+            backgroundColor: 'var(--color-bg-card)',
+            borderColor: 'var(--color-border)',
+            borderWidth: '1px',
+            color: 'var(--color-text-primary)',
+            transition: 'opacity 120ms ease-out',
+          }}
+        >
+          <div className="font-semibold mb-1">{title}</div>
+          <p style={{ color: 'var(--color-text-secondary)' }}>{body}</p>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 export default function ProjectDetail({ onEvent, connected, sendMessage, subscribeBinary }: ProjectDetailProps) {
@@ -697,36 +803,42 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {/* Segmented tab control */}
       <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
-          ...getPluginsWithTabs(project).map((plugin) => ({
-            key: plugin.id,
-            label: t(`tabs.${plugin.id}`) || plugin.displayName,
-          })),
-          { key: 'wiki', label: t('tabs.wiki') },
-          { key: 'planner', label: t('tabs.planner'), count: plannerItems.length },
-          { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
-          { key: 'sessions', label: t('tabs.sessions'), count: sessions.length },
-          { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
-          { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
-          ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git') }] : []),
-          { key: 'analytics', label: t('tabs.analytics') },
+          ...getPluginsWithTabs(project).map((plugin) => {
+            const helpKey = `tabs.${plugin.id}.help`;
+            const help = t(helpKey);
+            return {
+              key: plugin.id,
+              label: t(`tabs.${plugin.id}`) || plugin.displayName,
+              help: help === helpKey ? '' : help,
+            };
+          }),
+          { key: 'wiki', label: t('tabs.wiki'), help: t('tabs.wiki.help') },
+          { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
+          { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
+          { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
+          { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
+          { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
+          ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
+          { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
-              activeTab === tab.key
-                ? 'text-warm-800 font-semibold shadow-soft'
-                : 'text-warm-500 font-normal hover:text-warm-600'
-            }`}
-            style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
-          >
-            {tab.label}
-            {'count' in tab && typeof tab.count === 'number' && (
-              <span className={`ml-1 ${activeTab === tab.key ? 'text-warm-500' : 'text-warm-400'}`}>
-                {tab.count}
-              </span>
-            )}
-          </button>
+          <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
+            <button
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
+                activeTab === tab.key
+                  ? 'text-warm-800 font-semibold shadow-soft'
+                  : 'text-warm-500 font-normal hover:text-warm-600'
+              }`}
+              style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+            >
+              {tab.label}
+              {'count' in tab && typeof tab.count === 'number' && (
+                <span className={`ml-1 ${activeTab === tab.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          </TabHoverHelp>
         ))}
       </div>
 
