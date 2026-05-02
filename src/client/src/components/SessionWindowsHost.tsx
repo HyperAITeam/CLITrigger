@@ -61,7 +61,6 @@ interface DragState {
   fromPath: Path;
   startX: number;
   startY: number;
-  startGroupRect: DockTargetRect; // group chrome rect at drag start (for detach test)
   mouseX: number;
   mouseY: number;
   hoveredGroupId: string | null;
@@ -116,6 +115,9 @@ const CASCADE_BASE_X = 80;
 const CASCADE_BASE_Y = 80;
 const TITLEBAR_VISIBLE = 80;
 const CHROME_HEIGHT = 28;
+// Pixels of mousemove from drag start that count as "intent to tear" — any
+// further and the tab pops out of the docked group as a floating window.
+const TAB_DETACH_THRESHOLD = 12;
 
 function lsKey(projectId: string) {
   return `sessionGroups:${projectId}`;
@@ -400,9 +402,6 @@ export default function SessionWindowsHost({
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startGroupRect: DockTargetRect = {
-      x: startGroup.x, y: startGroup.y, w: startGroup.w, h: startGroup.h,
-    };
 
     // Closure flag: id of the floating group once we've torn the tab off,
     // null while still attached to the source. Captured by onMove/onUp.
@@ -412,7 +411,6 @@ export default function SessionWindowsHost({
       groupId, sessionId, fromPath,
       startX, startY,
       mouseX: startX, mouseY: startY,
-      startGroupRect,
       hoveredGroupId: null, hoveredPath: null, hoveredRect: null, zone: null,
     });
 
@@ -470,11 +468,8 @@ export default function SessionWindowsHost({
       if (!cur) return;
 
       if (!detachedId) {
-        const r = startGroupRect;
-        const insideStart =
-          ev.clientX >= r.x && ev.clientX <= r.x + r.w &&
-          ev.clientY >= r.y && ev.clientY <= r.y + r.h;
-        if (!insideStart) performEagerDetach(ev.clientX, ev.clientY);
+        const movedDist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+        if (movedDist >= TAB_DETACH_THRESHOLD) performEagerDetach(ev.clientX, ev.clientY);
       } else {
         // Slide the floating window with the cursor.
         const vpW = window.innerWidth;
