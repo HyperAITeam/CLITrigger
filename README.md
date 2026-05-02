@@ -110,6 +110,11 @@ The **Harness** panel edits Claude / Gemini / Codex user config (settings, memor
 ### Wiki (Karpathy LLM-Wiki Pattern)
 A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` / **`Auto`** per task — `Auto` runs a one-shot LLM retrieval right before each call to pick only the relevant entries, saving tokens. Preview the exact `<long_term_memory>` block (with char/token estimates) before sending; **export DB → `.clitrigger/wiki/<entity>/<slug>.md` Markdown** + Disk diff to keep the wiki alive in git or Obsidian. Lint surfaces duplicates / orphans / stale entries with inline fix actions (merge / delete / link); the Activity sub-tab logs ingest / lint / retrieve / merge events with severity. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-wiki.png" alt="Wiki — Per-project knowledge graph" width="800">
+  <p><em>Graph view of the per-project wiki — entries clustered by tag (Concept · Decision · Feature · Pattern), typed edges visualize how ideas relate, and selective injection feeds only what's relevant into each prompt</em></p>
+</div>
+
 ### Planner
 A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
 
