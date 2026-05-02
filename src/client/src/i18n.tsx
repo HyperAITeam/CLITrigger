@@ -574,7 +574,7 @@ const translations = {
     // Tab tooltips (hover help)
     'tabs.wiki.help': 'Project knowledge graph. Curate nodes/edges and they get injected as a <long_term_memory> block into auto-task and discussion prompts so the LLM keeps context across runs.',
     'tabs.planner.help': 'Lightweight task notes with tags, priorities, and image attachments. Promote favorites into auto tasks or schedules, or import/export as Markdown.',
-    'tabs.tasks.help': 'TODOs executed automatically by Claude/Gemini/Codex inside isolated git worktrees. Handles dependency chains, multi-round continue, and merge automation.',
+    'tabs.tasks.help': 'Queue up TODOs and fire them off in bulk — each one runs automatically in its own isolated git worktree (Claude/Gemini/Codex). Stack dozens ahead of time, hit Run when you\'re ready, and they execute in parallel up to your concurrency limit. Dependency chains, multi-round continue, and merge automation are all handled for you.',
     'tabs.sessions.help': 'Interactive CLI sessions in floating xterm.js windows. Drive Claude/Gemini/Codex TUIs in real time with pixel-perfect terminal rendering.',
     'tabs.discussions.help': 'Multi-agent AI discussions over rounds, then optional implementation. Extract action items into the planner when finished.',
     'tabs.schedules.help': 'Trigger auto tasks on cron or one-off schedules. Supports auto-restart at rate-limit reset times.',
@@ -1623,7 +1623,7 @@ const translations = {
     // Tab tooltips (hover help)
     'tabs.wiki.help': '프로젝트 지식 그래프. 노드/엣지를 만들어 두면 자동 작업·토론 프롬프트에 <long_term_memory> 블록으로 주입돼서 LLM이 실행 간에도 맥락을 유지합니다.',
     'tabs.planner.help': '가벼운 작업 메모. 태그·우선순위·이미지 첨부가 가능하고, 마음에 드는 항목은 자동 작업이나 스케줄로 변환하거나 Markdown으로 내보내기/가져오기 할 수 있습니다.',
-    'tabs.tasks.help': 'TODO를 worktree에 격리해 Claude/Gemini/Codex로 자동 실행. 의존성 체이닝, 멀티 라운드 continue, 머지 자동화까지 처리합니다.',
+    'tabs.tasks.help': '할 일을 미리 쌓아두고 원할 때 한번에 돌릴 수 있는 작업 큐입니다. TODO를 여러 개 적어두면 각각 독립된 git worktree에서 Claude/Gemini/Codex가 자동으로 실행하고, 동시 실행 한도까지 병렬로 처리합니다. 의존성 체이닝, 멀티 라운드 continue, 머지 자동화도 함께 처리됩니다.',
     'tabs.sessions.help': '대화형 CLI 세션. xterm.js 기반 실시간 터미널을 플로팅 윈도우로 띄워서 Claude/Gemini/Codex TUI를 그대로 사용할 수 있습니다.',
     'tabs.discussions.help': '여러 AI 에이전트가 라운드별로 토론한 뒤 합의를 코드로 구현. 결과를 플래너 항목으로 추출할 수도 있습니다.',
     'tabs.schedules.help': 'cron 또는 일회성 예약으로 자동 작업을 트리거. 레이트 리밋 리셋 시점 자동 재시작도 지원합니다.',
