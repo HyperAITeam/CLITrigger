@@ -110,6 +110,11 @@ CLITrigger의 모든 기능 — Planner, Scheduler, 워크트리 격리, 한도 
 ### 위키 (Karpathy LLM-Wiki 패턴)
 프로젝트별로 한 번 정리해 두면 TODO와 토론 프롬프트에 골라 주입할 수 있는 노드+엣지 지식 그래프. 매번 같은 도메인 컨텍스트를 붙여넣을 필요가 없다. List / Graph 뷰 토글(`@xyflow/react` + dagre 자동 레이아웃, drag-to-connect 엣지, `precedes`/`refines` 관계는 cycle 차단), todo마다 `None` / `All` / `Selected` / **`Auto`** 모드 선택 — `Auto`는 매 실행 직전 한 번의 LLM 호출로 관련 항목만 자동으로 골라 토큰을 절약한다. 전송 전 `<long_term_memory>` 블록을 char/token 추정치와 함께 미리볼 수 있고, **DB → `.clitrigger/wiki/<entity>/<slug>.md` Markdown 익스포트** + Disk diff로 git/Obsidian과 함께 살릴 수 있다. Lint는 중복/orphan/stale 항목에 인라인 fix 액션(merge / delete / link)을 제공하고, Activity 서브탭이 ingest / lint / retrieve / merge 이벤트를 시간순/severity로 보여준다. CLI-agnostic — Claude / Gemini / Codex 모두 동일한 컨텍스트를 받으며 어댑터 변경이 필요 없다.
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-wiki.png" alt="Wiki — 프로젝트별 지식 그래프" width="800">
+  <p><em>위키 그래프 뷰 — 항목이 태그(Concept · Decision · Feature · Pattern)별로 그룹화되고, 타입드 엣지로 아이디어 간 관계를 시각화. 매 프롬프트에 관련 항목만 선택적으로 주입</em></p>
+</div>
+
 ### Planner (플래너)
 TODO와는 별개인 경량 작업 플래너 — 아이디어를 빠르게 적고, 이미지를 첨부하고, 색상 태그로 분류하고, 열 단위로 정렬할 수 있다. 플래너 항목을 한 번의 클릭으로 TODO나 예약 스케줄로 변환할 수 있다. Markdown Export / Import (status 섹션 + GFM 체크박스 + HTML 주석 메타데이터)로 다른 머신에 옮기거나 GitHub / Obsidian / 어떤 Markdown 뷰어에서도 그대로 열어볼 수 있고, `.md` 파일을 카드에 드래그하면 바로 Import된다.
 
