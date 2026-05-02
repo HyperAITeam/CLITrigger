@@ -554,6 +554,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setSessions((prev) => [session, ...prev]);
   }, []);
 
+  const handleUpdateSession = useCallback((session: Session) => {
+    setSessions((prev) => prev.map((s) => (s.id === session.id ? session : s)));
+  }, []);
+
   // Note: starting a session is initiated from the floating SessionWindow
   // itself (it knows xterm.js cols/rows after fit), so there's no
   // handleStartSession here — the SessionWindow calls sessionsApi.startSession
@@ -766,6 +770,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           projectCliModel={project.claude_model ?? undefined}
           isGitRepo={!!project.is_git_repo}
           onAddSession={handleAddSession}
+          onUpdateSession={handleUpdateSession}
           onStopSession={handleStopSession}
           onDeleteSession={handleDeleteSession}
           onCleanupSession={handleCleanupSession}
