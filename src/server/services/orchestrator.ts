@@ -567,10 +567,11 @@ Complete the task in the current directory.`;
     // Inject long-term memory if configured for this todo
     const memMode = ((todo.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
     if (memMode !== 'none') {
-      const memBlock = applyMemoryInjection({
+      const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
         nodeIds: parseMemoryNodeIds(todo.memory_node_ids),
+        query: `${todo.title}\n${todo.description ?? ''}`.trim(),
         log: (type, message) => queries.createTaskLog(todoId, type, message, roundNumber),
       });
       if (memBlock) {

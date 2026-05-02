@@ -39,6 +39,13 @@ export function deleteMemoryNode(nodeId: string): Promise<void> {
   return del(`/api/memory/nodes/${nodeId}`);
 }
 
+export function mergeMemoryNodes(
+  keepId: string,
+  absorbId: string,
+): Promise<{ node: MemoryNode; absorbed: { id: string; title: string } }> {
+  return post(`/api/memory/nodes/${keepId}/merge`, { absorbId });
+}
+
 export function createMemoryEdge(
   projectId: string,
   data: { from_node_id: string; to_node_id: string; relation_type?: MemoryRelationType; label?: string | null },
@@ -175,6 +182,42 @@ export function lintMemory(
   projectId: string,
 ): Promise<{ issues: { type: string; node_titles: string[]; message: string }[] }> {
   return post(`/api/projects/${projectId}/memory/lint`, {});
+}
+
+export function getMemoryLogs(
+  projectId: string,
+  limit = 200,
+): Promise<{ logs: import('../types').MemoryLog[] }> {
+  return get(`/api/projects/${projectId}/memory/logs?limit=${limit}`);
+}
+
+export interface WikiDiskDiffEntry {
+  type: 'modified' | 'missing' | 'untracked';
+  filename: string;
+  id?: string;
+  title?: string;
+  diskBytes?: number;
+  dbBytes?: number;
+}
+
+export function getWikiDiskDiff(projectId: string): Promise<{ diff: WikiDiskDiffEntry[] }> {
+  return get(`/api/projects/${projectId}/memory/disk-diff`);
+}
+
+export function rebuildWikiExport(projectId: string): Promise<{ baseDir: string; written: number; removed: number; removedDirs: number }> {
+  return post(`/api/projects/${projectId}/memory/export`, {});
+}
+
+export function uploadWikiAsset(
+  projectId: string,
+  name: string,
+  dataUrl: string,
+): Promise<{ filename: string; relativePath: string; size: number }> {
+  return post(`/api/projects/${projectId}/memory/assets`, { name, data: dataUrl });
+}
+
+export function wikiAssetUrl(projectId: string, filename: string): string {
+  return `/api/projects/${projectId}/memory/assets/${encodeURIComponent(filename)}`;
 }
 
 export function parseMemoryTags(raw: string | null | undefined): string[] {

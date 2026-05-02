@@ -1486,11 +1486,13 @@ export function getMemoryNodeById(id: string): MemoryNode | undefined {
   return db.prepare('SELECT * FROM memory_nodes WHERE id = ?').get(id) as MemoryNode | undefined;
 }
 
-export function getMemoryNodesByIds(ids: string[]): MemoryNode[] {
+export function getMemoryNodesByIds(projectId: string, ids: string[]): MemoryNode[] {
   if (ids.length === 0) return [];
   const db = getDatabase();
   const placeholders = ids.map(() => '?').join(',');
-  return db.prepare(`SELECT * FROM memory_nodes WHERE id IN (${placeholders})`).all(...ids) as MemoryNode[];
+  return db.prepare(
+    `SELECT * FROM memory_nodes WHERE project_id = ? AND id IN (${placeholders})`,
+  ).all(projectId, ...ids) as MemoryNode[];
 }
 
 export function getMemoryNodeByTitle(projectId: string, title: string): MemoryNode | undefined {
@@ -1598,4 +1600,59 @@ export function deleteMemoryEdge(id: string): boolean {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM memory_edges WHERE id = ?').run(id);
   return result.changes > 0;
+}
+
+export type MemoryLogEventType = 'ingest' | 'lint' | 'retrieve' | 'merge';
+export type MemoryLogSeverity = 'info' | 'warning' | 'error';
+
+export interface MemoryLog {
+  id: string;
+  project_id: string;
+  event_type: MemoryLogEventType;
+  severity: MemoryLogSeverity;
+  source_type: string | null;
+  source_id: string | null;
+  source_title: string | null;
+  message: string;
+  metadata: string | null;
+  created_at: string;
+}
+
+export function createMemoryLog(
+  projectId: string,
+  eventType: MemoryLogEventType,
+  message: string,
+  opts?: {
+    severity?: MemoryLogSeverity;
+    sourceType?: string | null;
+    sourceId?: string | null;
+    sourceTitle?: string | null;
+    metadata?: Record<string, unknown> | null;
+  },
+): MemoryLog {
+  const db = getDatabase();
+  const id = uuidv4();
+  const metaJson = opts?.metadata ? JSON.stringify(opts.metadata) : null;
+  db.prepare(
+    `INSERT INTO memory_logs (id, project_id, event_type, severity, source_type, source_id, source_title, message, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    projectId,
+    eventType,
+    opts?.severity ?? 'info',
+    opts?.sourceType ?? null,
+    opts?.sourceId ?? null,
+    opts?.sourceTitle ?? null,
+    message,
+    metaJson,
+  );
+  return db.prepare('SELECT * FROM memory_logs WHERE id = ?').get(id) as MemoryLog;
+}
+
+export function getMemoryLogsByProjectId(projectId: string, limit = 200): MemoryLog[] {
+  const db = getDatabase();
+  return db.prepare(
+    'SELECT * FROM memory_logs WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
+  ).all(projectId, limit) as MemoryLog[];
 }

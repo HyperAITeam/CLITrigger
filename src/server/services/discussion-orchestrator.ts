@@ -249,10 +249,11 @@ export class DiscussionOrchestrator {
     // Inject long-term memory if configured for this discussion
     const memMode = ((discussion.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
     if (memMode !== 'none') {
-      const memBlock = applyMemoryInjection({
+      const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
         nodeIds: parseMemoryNodeIds(discussion.memory_node_ids),
+        query: `${discussion.title}\n${discussion.description ?? ''}`.trim(),
         log: (type, msg) => queries.createDiscussionLog(discussionId, messageId, type, msg),
       });
       if (memBlock) {

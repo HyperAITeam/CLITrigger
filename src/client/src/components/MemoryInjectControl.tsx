@@ -69,7 +69,7 @@ export default function MemoryInjectControl({
     <div className="rounded-lg border border-warm-200 bg-warm-50 p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-medium text-warm-800">{t('wikiInject.title')}</div>
-        {mode !== 'none' && (
+        {mode !== 'none' && mode !== 'auto' && (
           <button
             type="button"
             onClick={() => setShowPreview(s => !s)}
@@ -82,7 +82,7 @@ export default function MemoryInjectControl({
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-2">
-        {(['none', 'all', 'selected'] as MemoryInjectMode[]).map(m => (
+        {(['none', 'auto', 'all', 'selected'] as MemoryInjectMode[]).map(m => (
           <button
             key={m}
             type="button"
@@ -97,6 +97,12 @@ export default function MemoryInjectControl({
           </button>
         ))}
       </div>
+
+      {mode === 'auto' && (
+        <div className="text-xs text-warm-500 mt-1 leading-snug">
+          {t('wikiInject.autoHint').replace('{count}', String(nodes.length))}
+        </div>
+      )}
 
       {mode === 'selected' && (
         <div className="mt-2">
@@ -141,7 +147,7 @@ export default function MemoryInjectControl({
         </div>
       )}
 
-      {showPreview && mode !== 'none' && (
+      {showPreview && mode !== 'none' && mode !== 'auto' && (
         <div className="mt-3">
           <textarea
             readOnly
@@ -149,6 +155,12 @@ export default function MemoryInjectControl({
             rows={8}
             className="w-full px-2 py-1.5 rounded-md border border-warm-200 bg-warm-100 text-xs font-mono resize-y"
           />
+          {!previewLoading && previewText && (
+            <div className="mt-1 flex items-center justify-end gap-3 text-[10px] text-warm-500 font-mono">
+              <span>{t('wikiInject.previewChars').replace('{n}', previewText.length.toLocaleString())}</span>
+              <span>{t('wikiInject.previewTokens').replace('{n}', Math.ceil(previewText.length / 4).toLocaleString())}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

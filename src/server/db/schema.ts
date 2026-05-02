@@ -237,6 +237,21 @@ export function initDatabase(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memory_edges_from ON memory_edges(from_node_id);
     CREATE INDEX IF NOT EXISTS idx_memory_edges_to ON memory_edges(to_node_id);
 
+    CREATE TABLE IF NOT EXISTS memory_logs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'info',
+      source_type TEXT,
+      source_id TEXT,
+      source_title TEXT,
+      message TEXT NOT NULL,
+      metadata TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memory_logs_project ON memory_logs(project_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS favorites (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

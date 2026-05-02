@@ -22,7 +22,7 @@ interface DiscussionPayload {
   max_rounds: number;
   auto_implement: boolean;
   implement_agent_id: string | null;
-  memory_inject_mode: 'none' | 'all' | 'selected';
+  memory_inject_mode: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids: string[];
 }
 
@@ -50,7 +50,8 @@ function buildDiscussionResponse(discussion: queries.Discussion) {
 function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionPayload {
   const parsedMaxRounds = typeof input.max_rounds === 'number' ? input.max_rounds : Number(input.max_rounds);
   const rawMemMode = input.memory_inject_mode;
-  const memMode: 'none' | 'all' | 'selected' = rawMemMode === 'all' || rawMemMode === 'selected' ? rawMemMode : 'none';
+  const memMode: 'none' | 'all' | 'selected' | 'auto' =
+    rawMemMode === 'all' || rawMemMode === 'selected' || rawMemMode === 'auto' ? rawMemMode : 'none';
   const rawMemIds = input.memory_node_ids;
   let memIds: string[] = [];
   if (Array.isArray(rawMemIds)) {

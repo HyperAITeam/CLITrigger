@@ -364,9 +364,25 @@ export interface JiraSearchResult {
 
 // ── Long-term Memory (LLM-Wiki) ──
 
-export type MemoryInjectMode = 'none' | 'all' | 'selected';
+export type MemoryInjectMode = 'none' | 'all' | 'selected' | 'auto';
 
 export type MemoryRelationType = 'related' | 'precedes' | 'example_of' | 'counter_example' | 'refines';
+
+export type MemoryLogEventType = 'ingest' | 'lint' | 'retrieve' | 'merge';
+export type MemoryLogSeverity = 'info' | 'warning' | 'error';
+
+export interface MemoryLog {
+  id: string;
+  project_id: string;
+  event_type: MemoryLogEventType;
+  severity: MemoryLogSeverity;
+  source_type: string | null;
+  source_id: string | null;
+  source_title: string | null;
+  message: string;
+  metadata: string | null;
+  created_at: string;
+}
 
 export interface MemoryNode {
   id: string;

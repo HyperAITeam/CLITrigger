@@ -366,7 +366,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     max_rounds: discussion.max_rounds,
     auto_implement: discussion.auto_implement === 1,
     implement_agent_id: discussion.implement_agent_id || '',
-    memory_inject_mode: (discussion.memory_inject_mode as 'none' | 'all' | 'selected' | null) || 'none',
+    memory_inject_mode: (discussion.memory_inject_mode as 'none' | 'all' | 'selected' | 'auto' | null) || 'none',
     memory_node_ids: parseInitialMemoryIds(discussion.memory_node_ids),
   };
 
