@@ -724,6 +724,57 @@ router.post('/projects/:id/memory/raw-files/open', (req: Request<{ id: string }>
   }
 });
 
+// DELETE /api/projects/:id/memory/raw-files — remove a raw snapshot file and
+// null the source_path on every wiki node that derived from it. The nodes
+// themselves are kept (the wiki layer is the value, not the raw layer).
+router.delete('/projects/:id/memory/raw-files', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project || !project.path) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const { path: relPathRaw } = req.body ?? {};
+    if (typeof relPathRaw !== 'string' || !relPathRaw.trim()) {
+      res.status(400).json({ error: 'path is required' });
+      return;
+    }
+    const projectRoot = path.resolve(project.path);
+    const rawRoot = path.resolve(projectRoot, RAW_DIR);
+    const absPath = path.resolve(projectRoot, relPathRaw);
+    if (!absPath.startsWith(rawRoot + path.sep)) {
+      res.status(400).json({ error: 'Path must be within the raw sources directory' });
+      return;
+    }
+    if (!fs.existsSync(absPath)) {
+      res.status(404).json({ error: 'Raw file not found', path: relPathRaw });
+      return;
+    }
+
+    // Unlink derived nodes first so a partial failure doesn't leave dangling
+    // source_path values pointing at a missing file.
+    const allNodes = queries.getMemoryNodesByProjectId(req.params.id);
+    const unlinkedIds: string[] = [];
+    for (const n of allNodes) {
+      if (n.source_path === relPathRaw) {
+        queries.updateMemoryNode(n.id, { source_path: null });
+        unlinkedIds.push(n.id);
+      }
+    }
+
+    try {
+      fs.unlinkSync(absPath);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to delete file: ${err instanceof Error ? err.message : String(err)}` });
+      return;
+    }
+
+    res.json({ deleted: relPathRaw, unlinkedNodeIds: unlinkedIds });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 router.get('/memory/nodes/:nodeId/raw', (req: Request<{ nodeId: string }>, res: Response) => {
   try {
     const node = queries.getMemoryNodeById(req.params.nodeId);
