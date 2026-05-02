@@ -124,6 +124,11 @@ TODO를 작성하면 각 작업마다 격리된 git worktree가 자동 생성된
 ### 인터랙티브 세션 (Sessions)
 긴 생애주기의 인터랙티브 CLI 세션을 1급 엔티티로 관리 — Claude / Gemini / Codex 세션을 드래그 가능한 floating window에 띄운다. **VS Code 스타일 그룹화/도킹** 지원: 탭을 다른 윈도우로 드래그하면 5-zone 다이아몬드(top/bottom/left/right/center)로 분할 pane이나 탭 합치기가 가능하고, **Aero 스타일 엣지 스냅 + 윈도우 간 sticky 스냅 + dock tray 최소화**까지 — 멀티 세션 화면을 깔끔하게 정리할 수 있다. **xterm.js 렌더링**으로 ANSI 컬러, 커서 제어, TUI 박스 그리기까지 네이티브 터미널과 동일하게 표시된다. PTY가 정확한 viewport 크기로 spawn되고, **per-session 폰트 크기**(A−/A+ 또는 Ctrl/Cmd ±)로 가독성도 조절 가능. 세션별 위키 주입 모드와 **Send/Skip pre-flight** 배너로 자동 생성된 초기 프롬프트를 검토 후 명시적으로 보낼 수 있고, 인라인 편집 버튼으로 running이 아닌 세션은 그 자리에서 제목/CLI/모델/위키 주입 변경. iOS Safari 모바일은 한글 IME가 두벌식 composer로 정상 조립된다. Window 위치/크기/그룹 트리는 영속되고 탭 전환 후에도 살아남는다.
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Sessions — VS Code 스타일로 도킹된 멀티 CLI floating windows" width="800">
+  <p><em>VS Code 스타일 그룹화로 도킹된 Claude · Gemini · Codex 세션 — 각각 독립된 worktree 브랜치에서 동시 실행</em></p>
+</div>
+
 ### 다중 AI 토론 (Discussion)
 아키텍트, 개발자, 리뷰어 등 역할이 다른 AI 에이전트들이 라운드 방식으로 토론한 뒤, 합의된 내용을 바탕으로 자동 구현까지 이어진다. 단일 AI의 판단보다 훨씬 검증된 설계 결과물이 나온다. **구현자(Implementer, `can_implement`)** 로 표시된 에이전트는 일반 턴에서도 코드를 커밋할 수 있고, 마지막 구현 라운드가 남은 작업을 정리해 마무리한다. 자동 구현(Auto-implement) 옵션을 켜면 토론 완료 즉시 코드 작성 라운드가 자동 실행된다. 완료된 토론에서 **Send to Planner** 버튼을 누르면 트랜스크립트를 한방 LLM 호출로 추출해 액션 아이템을 Planner로 영속한다 — 저장 전 항목별 편집 가능.
 

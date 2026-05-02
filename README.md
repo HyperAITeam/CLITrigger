@@ -124,6 +124,11 @@ Each TODO automatically gets its own git worktree. Claude / Gemini / Codex CLIs 
 ### Interactive Sessions
 Long-lived interactive CLI sessions as first-class entities — bring up a Claude / Gemini / Codex session in a floating draggable window. **VS Code-style window grouping and docking**: drag a tab onto another window for a 5-zone diamond (top/bottom/left/right/center) to either split into resizable panes or merge as tabs, plus **Aero-style edge snapping, sticky window-to-window snapping, and a minimize-to-dock-tray** flow — keeps multi-session screens tidy. **xterm.js rendering** shows ANSI colors, cursor control, and TUI box-drawing identically to a native terminal. PTY spawns at the exact viewport dimensions, with **per-session font size** (A−/A+ buttons or Ctrl/Cmd ±) for readability. Per-session wiki injection plus a **Send/Skip pre-flight banner** lets you review the auto-generated initial prompt before it hits the model. Inline edit button updates non-running sessions in place. iOS Safari mobile Hangul IME is composed via a client-side dubeolsik composer. Window geometry, group tree, and tab arrangement persist and survive tab navigation; works on desktop and mobile (fullscreen on small screens).
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Sessions — Multi-CLI floating windows with VS Code-style docking" width="800">
+  <p><em>Claude, Gemini, and Codex sessions docked side-by-side via VS Code-style window grouping — each running in its own worktree branch</em></p>
+</div>
+
 ### Multi-Agent Discussion
 AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation. The resulting design is far more robust than a single AI working in isolation. Agents flagged as **Implementers** (`can_implement`) can commit code during their regular turns, while a final implementation round stitches everything together. Auto-implement triggers the code-writing round automatically on consensus. Or hit **Send to Planner** on a finished discussion to have the transcript distilled into curated planner items via a one-shot LLM extraction — review and edit before persisting.
 
