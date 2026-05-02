@@ -74,15 +74,15 @@ npm i -g clitrigger
 clitrigger
 ```
 
-첫 실행 시 비밀번호 설정 여부를 물어봅니다:
+서버가 바로 시작됩니다:
 ```
 Welcome to CLITrigger!
-비밀번호를 설정해주세요: ********
-✅ 설정 완료! (~/.clitrigger/config.json)
+Config created at C:\Users\<user>\.clitrigger\config.json
+Open the web UI to set your password on first launch.
 🚀 CLITrigger running at http://localhost:3000
 ```
 
-비밀번호는 필수이며, 설정하지 않으면 서버가 시작되지 않습니다.
+브라우저에서 `http://localhost:3000` 접속 → 셋업 화면에서 비밀번호를 설정합니다. 외부 공유(Cloudflare 터널)는 셋업이 끝날 때까지 자동 시작되지 않아 첫 사용자가 본인임이 보장됩니다. 이후 비밀번호 변경은 웹 UI의 **설정 → 계정** 탭에서 합니다.
 
 #### 이후 실행
 
@@ -93,12 +93,15 @@ clitrigger
 #### 설정 변경
 
 ```bash
-clitrigger config              # 현재 설정 보기
-clitrigger config port 8080    # 포트 변경
-clitrigger config password     # 비밀번호 변경/설정
-clitrigger config path         # 설정 디렉토리 경로 확인
-clitrigger config clear        # 설정/DB 전체 삭제 (~/.clitrigger/)
-clitrigger --help              # 도움말
+clitrigger config                  # 현재 설정 보기
+clitrigger config port 8080        # 포트 변경
+clitrigger config tunnel on        # Cloudflare 터널 활성화
+clitrigger config tunnel hostname app.example.com  # 커스텀 도메인 라우팅
+clitrigger config path             # 설정 디렉토리 경로 확인
+clitrigger config clear            # 설정/DB 전체 삭제 (~/.clitrigger/)
+clitrigger --help                  # 도움말
+
+# 비밀번호는 이제 웹 UI에서만 관리합니다 (설정 → 계정 탭).
 ```
 
 #### 데이터 저장 위치
@@ -138,8 +141,9 @@ cp .env.example .env
 
 ```env
 PORT=3000                    # 서버 포트
-AUTH_PASSWORD=your-password  # 로그인 비밀번호 (필수)
-TUNNEL_ENABLED=false         # Cloudflare Tunnel 사용 여부
+AUTH_PASSWORD=                # 선택 — 비우면 첫 접속 시 웹 셋업 화면이 뜬다.
+                              #        값이 있으면 1회만 사용 후 hash로 변환·저장됨.
+TUNNEL_ENABLED=false         # Cloudflare Tunnel 사용 여부 (셋업 전엔 자동 시작 안 됨)
 TUNNEL_NAME=                 # Named Tunnel 이름 (선택)
 TUNNEL_HOSTNAME=             # Named Tunnel 커스텀 도메인 (선택, TUNNEL_NAME 필수)
 LOG_RETENTION_DAYS=30        # 로그 보관 일수

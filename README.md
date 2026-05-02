@@ -197,7 +197,7 @@ Download the installer for your platform from the [latest GitHub release](https:
 - **macOS** — `CLITrigger-<version>.dmg` (Apple Silicon & Intel)
 - **Linux** — `CLITrigger-<version>.AppImage`
 
-The desktop app bundles Node.js and the native modules (`better-sqlite3`, `node-pty`, `cloudflared`), so no separate runtime install is needed. On first launch you'll be prompted to set a password, just like the CLI.
+The desktop app bundles Node.js and the native modules (`better-sqlite3`, `node-pty`, `cloudflared`), so no separate runtime install is needed. On first launch a setup screen appears in the embedded browser — pick a password there and you're in. External sharing (Cloudflare tunnel) stays paused until setup completes, so the first user is guaranteed to be you.
 
 ### Option B — npm (recommended for developers)
 
@@ -206,13 +206,12 @@ npm i -g clitrigger
 clitrigger
 ```
 
-On first run, you'll be prompted to set a password. Then the server starts immediately.
-Open `http://localhost:3000` → Register a project → Write TODOs → Click Start.
+On first run the server starts immediately. Open `http://localhost:3000` → set a password on the welcome screen → register a project → write TODOs → click Start. Change the password later via Settings → Account in the web UI.
 
 ```bash
 # Change settings
 clitrigger config port 8080    # Change port
-clitrigger config password     # Change password
+clitrigger config tunnel on    # Enable Cloudflare tunnel for external sharing
 ```
 
 > **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
@@ -234,7 +233,8 @@ cd src/client && npm install && cd ../..
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env and set AUTH_PASSWORD
+# AUTH_PASSWORD is optional — leave it blank and the dev server will show the
+# setup screen on first browser load. Set it only if you want to skip setup.
 
 # 3. Run
 npm run dev
