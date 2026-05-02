@@ -14,7 +14,7 @@
 // (host removes this tab from the group's tree).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Play } from 'lucide-react';
+import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import SessionTerminal from '../SessionTerminal';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import { useI18n } from '../../i18n';
@@ -60,6 +60,14 @@ export default function SessionPane({
   const fittedRef = useRef<{ cols: number; rows: number } | null>(null);
   const startInFlightRef = useRef(false);
   const lastIntentNonceRef = useRef(intentNonce);
+
+  // Initial-prompt pre-flight panel state. Populated when /start reports the
+  // server is holding a prompt for review; cleared after Send/Skip/error.
+  const [pendingPromptLength, setPendingPromptLength] = useState<number | null>(null);
+  const [pendingPromptText, setPendingPromptText] = useState<string | null>(null);
+  const [pendingPreviewOpen, setPendingPreviewOpen] = useState(false);
+  const [pendingActionInFlight, setPendingActionInFlight] = useState<'send' | 'skip' | null>(null);
+  const [pendingError, setPendingError] = useState<string | null>(null);
   // Tracks whether this pane has actively run a session in its lifetime
   // (started here OR opened while running). Used to gate auto-close.
   const wasActiveRef = useRef(initialPhase === 'subscribed');
@@ -87,9 +95,18 @@ export default function SessionPane({
     wasActiveRef.current = true;
     setPhase('starting');
     setErrorMsg(null);
+    setPendingError(null);
     try {
-      await sessionsApi.startSession(session.id, dims);
+      const result = await sessionsApi.startSession(session.id, dims);
       setPhase('subscribed');
+      if (result.pendingInitialPrompt) {
+        setPendingPromptLength(result.pendingInitialPromptLength ?? 0);
+        setPendingPromptText(null);
+        setPendingPreviewOpen(false);
+      } else {
+        setPendingPromptLength(null);
+        setPendingPromptText(null);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
@@ -98,6 +115,53 @@ export default function SessionPane({
       startInFlightRef.current = false;
     }
   }, [session.id]);
+
+  const togglePreview = useCallback(async () => {
+    if (pendingPreviewOpen) {
+      setPendingPreviewOpen(false);
+      return;
+    }
+    setPendingPreviewOpen(true);
+    if (pendingPromptText !== null) return;
+    try {
+      const res = await sessionsApi.getPendingInitialPrompt(session.id);
+      setPendingPromptText(res.prompt ?? '');
+    } catch (err) {
+      setPendingError(err instanceof Error ? err.message : String(err));
+    }
+  }, [pendingPreviewOpen, pendingPromptText, session.id]);
+
+  const handleSendInitial = useCallback(async () => {
+    if (pendingActionInFlight) return;
+    setPendingActionInFlight('send');
+    setPendingError(null);
+    try {
+      await sessionsApi.submitInitialPrompt(session.id);
+      setPendingPromptLength(null);
+      setPendingPromptText(null);
+      setPendingPreviewOpen(false);
+    } catch (err) {
+      setPendingError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPendingActionInFlight(null);
+    }
+  }, [pendingActionInFlight, session.id]);
+
+  const handleSkipInitial = useCallback(async () => {
+    if (pendingActionInFlight) return;
+    setPendingActionInFlight('skip');
+    setPendingError(null);
+    try {
+      await sessionsApi.skipInitialPrompt(session.id);
+      setPendingPromptLength(null);
+      setPendingPromptText(null);
+      setPendingPreviewOpen(false);
+    } catch (err) {
+      setPendingError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPendingActionInFlight(null);
+    }
+  }, [pendingActionInFlight, session.id]);
 
   // Re-trigger start if intentNonce bumps with intent='start' on a replay-only pane.
   useEffect(() => {
@@ -210,8 +274,104 @@ export default function SessionPane({
         fontSize={fontSize}
       />
       {overlayContent}
+      {pendingPromptLength !== null && (
+        <div style={pendingBannerStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span aria-hidden style={{ color: CMD.info, fontSize: 14 }}>📋</span>
+            <span style={{ flex: 1 }}>
+              {(t('session.initialPrompt.ready') || 'Initial prompt ready')}
+              <span style={{ color: CMD.dim, marginLeft: 8 }}>
+                {pendingPromptLength.toLocaleString()} chars
+              </span>
+            </span>
+            <button
+              onClick={togglePreview}
+              style={pendingButtonStyle('neutral')}
+              title={pendingPreviewOpen ? (t('session.initialPrompt.hidePreview') || 'Hide preview') : (t('session.initialPrompt.preview') || 'Preview')}
+            >
+              {pendingPreviewOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {pendingPreviewOpen ? (t('session.initialPrompt.hidePreview') || 'Hide') : (t('session.initialPrompt.preview') || 'Preview')}
+            </button>
+            <button
+              onClick={handleSendInitial}
+              disabled={pendingActionInFlight !== null}
+              style={pendingButtonStyle('primary')}
+            >
+              {pendingActionInFlight === 'send' ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={11} />}
+              {t('session.initialPrompt.send') || 'Send'}
+            </button>
+            <button
+              onClick={handleSkipInitial}
+              disabled={pendingActionInFlight !== null}
+              style={pendingButtonStyle('danger')}
+            >
+              {t('session.initialPrompt.skip') || 'Skip'}
+            </button>
+          </div>
+          {pendingError && (
+            <div style={{ color: CMD.error, fontSize: 10, marginTop: 4 }}>{pendingError}</div>
+          )}
+          {pendingPreviewOpen && (
+            <pre
+              style={{
+                margin: 0,
+                marginTop: 6,
+                maxHeight: 240,
+                overflow: 'auto',
+                background: 'rgba(0,0,0,0.4)',
+                padding: 8,
+                fontFamily: CMD_FONT,
+                fontSize: 10,
+                color: CMD.bright,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                border: `1px solid ${CMD.separator}`,
+                borderRadius: 4,
+              }}
+            >
+              {pendingPromptText === null ? (t('session.initialPrompt.loading') || 'loading…') : pendingPromptText}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+const pendingBannerStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0, left: 0, right: 0,
+  background: 'rgba(28,28,38,0.96)',
+  borderBottom: `1px solid ${CMD.separator}`,
+  padding: '8px 10px',
+  color: CMD.bright,
+  fontFamily: CMD_FONT,
+  fontSize: 11,
+  zIndex: 3,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+function pendingButtonStyle(variant: 'primary' | 'neutral' | 'danger'): React.CSSProperties {
+  const base: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontFamily: CMD_FONT,
+    fontSize: 10,
+    padding: '3px 8px',
+    borderRadius: 4,
+    cursor: 'pointer',
+    border: `1px solid ${CMD.separator}`,
+    background: 'transparent',
+  };
+  if (variant === 'primary') {
+    return { ...base, color: CMD.bright, borderColor: CMD.info, background: `${CMD.info}22` };
+  }
+  if (variant === 'danger') {
+    return { ...base, color: CMD.dim };
+  }
+  return { ...base, color: CMD.bright };
 }
 
 const overlayStyle: React.CSSProperties = {

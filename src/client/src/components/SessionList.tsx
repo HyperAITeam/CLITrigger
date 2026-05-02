@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { GitBranch, Play, Square, Trash2, TerminalSquare, Archive } from 'lucide-react';
 import EmptyState from './EmptyState';
-import type { Session } from '../types';
+import type { Session, MemoryInjectMode } from '../types';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import SessionForm from './SessionForm';
@@ -43,7 +43,15 @@ export default function SessionList({
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const handleCreate = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, useWorktree?: boolean) => {
+  const handleCreate = useCallback(async (
+    title: string,
+    description: string,
+    cliTool?: string,
+    cliModel?: string,
+    useWorktree?: boolean,
+    memoryInjectMode?: MemoryInjectMode,
+    memoryNodeIds?: string[],
+  ) => {
     setCreating(true);
     try {
       const session = await sessionsApi.createSession(projectId, {
@@ -52,6 +60,8 @@ export default function SessionList({
         cli_tool: cliTool,
         cli_model: cliModel,
         use_worktree: useWorktree,
+        memory_inject_mode: memoryInjectMode,
+        memory_node_ids: memoryNodeIds,
       });
       onAddSession(session);
       setShowForm(false);
@@ -77,6 +87,7 @@ export default function SessionList({
 
       {showForm && (
         <SessionForm
+          projectId={projectId}
           onSave={handleCreate}
           onCancel={() => setShowForm(false)}
           projectCliTool={projectCliTool}

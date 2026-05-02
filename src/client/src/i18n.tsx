@@ -807,6 +807,12 @@ const translations = {
     'session.minimize': 'Minimize',
     'session.fontDecrease': 'Decrease font size',
     'session.fontIncrease': 'Increase font size',
+    'session.initialPrompt.ready': 'Initial prompt ready to send',
+    'session.initialPrompt.preview': 'Preview',
+    'session.initialPrompt.hidePreview': 'Hide',
+    'session.initialPrompt.send': 'Send',
+    'session.initialPrompt.skip': 'Skip',
+    'session.initialPrompt.loading': 'loading…',
     'group.closeTab': 'Close tab',
 
     // Analytics
@@ -1806,6 +1812,12 @@ const translations = {
     'session.confirmStop': '이 세션을 종료할까요? 진행 중인 작업이 종료됩니다.',
     'session.minimize': '최소화',
     'session.fontDecrease': '글자 작게',
+    'session.initialPrompt.ready': '보낼 준비된 초기 프롬프트',
+    'session.initialPrompt.preview': '미리보기',
+    'session.initialPrompt.hidePreview': '숨기기',
+    'session.initialPrompt.send': '보내기',
+    'session.initialPrompt.skip': '건너뛰기',
+    'session.initialPrompt.loading': '불러오는 중…',
     'session.fontIncrease': '글자 크게',
     'group.closeTab': '탭 닫기',
 

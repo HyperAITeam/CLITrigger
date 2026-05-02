@@ -936,18 +936,41 @@ export interface Session {
   token_usage: string | null;
   total_cost_usd: number | null;
   total_tokens: number | null;
+  memory_inject_mode: string | null;
+  memory_node_ids: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createSession(projectId: string, title: string, description?: string, cliTool?: string, cliModel?: string, useWorktree?: boolean): Session {
+export function createSession(
+  projectId: string,
+  title: string,
+  description?: string,
+  cliTool?: string,
+  cliModel?: string,
+  useWorktree?: boolean,
+  memoryInjectMode?: string | null,
+  memoryNodeIds?: string | null,
+): Session {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, cliTool ?? null, cliModel ?? null, useWorktree ? 1 : 0, now, now);
+    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    projectId,
+    title,
+    description ?? null,
+    cliTool ?? null,
+    cliModel ?? null,
+    useWorktree ? 1 : 0,
+    memoryInjectMode ?? 'none',
+    memoryNodeIds ?? null,
+    now,
+    now,
+  );
   return getSessionById(id)!;
 }
 
@@ -961,7 +984,7 @@ export function getSessionById(id: string): Session | undefined {
   return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens'>>): Session | undefined {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids'>>): Session | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -977,6 +1000,8 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.token_usage !== undefined) { fields.push('token_usage = ?'); values.push(updates.token_usage); }
   if (updates.total_cost_usd !== undefined) { fields.push('total_cost_usd = ?'); values.push(updates.total_cost_usd); }
   if (updates.total_tokens !== undefined) { fields.push('total_tokens = ?'); values.push(updates.total_tokens); }
+  if (updates.memory_inject_mode !== undefined) { fields.push('memory_inject_mode = ?'); values.push(updates.memory_inject_mode); }
+  if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
 
   if (fields.length === 0) return getSessionById(id);
 
