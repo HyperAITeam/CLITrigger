@@ -2,12 +2,14 @@
   "name": "clitrigger",
   "version": "0.1.15",
   "type": "module",
+  "main": "electron/main.cjs",
   "bin": {
     "clitrigger": "bin/clitrigger.js"
   },
   "files": [
     "dist/",
     "bin/",
+    "electron/",
     ".env.example",
     "README_KR.md"
   ],
@@ -35,7 +37,13 @@
     "build:plugin": "npm run build && npx esbuild dist/server/index.js --bundle --platform=node --format=esm --outfile=plugin-build/server/server.js --external:better-sqlite3 --external:node-pty",
     "docs:erd": "tsx scripts/generate-erd.ts",
     "docs:erd:check": "tsx scripts/generate-erd.ts --check",
-    "postuninstall": "node bin/postuninstall.js"
+    "postuninstall": "node bin/postuninstall.js",
+    "electron:rebuild": "electron-rebuild -o better-sqlite3",
+    "electron:dev": "npm run build && electron .",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
@@ -56,6 +64,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
@@ -67,9 +76,56 @@
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^4.1.1",
     "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "esbuild": "^0.27.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.1"
+  },
+  "build": {
+    "appId": "com.clitrigger.app",
+    "productName": "CLITrigger",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "bin/**/*",
+      "package.json",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/__tests__/**",
+      "!**/*.test.*"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/node-pty/**",
+      "node_modules/cloudflared/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "linux": {
+      "category": "Development",
+      "target": ["AppImage"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
   }
 }

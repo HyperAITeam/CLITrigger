@@ -4,13 +4,18 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.16) — used only for manual runs'
+        required: false
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Release
+  npm-release:
+    name: npm + tarball
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,3 +61,60 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_glob: |
+              release/*.exe
+              release/*.blockmap
+              release/latest.yml
+          - os: macos-latest
+            artifact_glob: |
+              release/*.dmg
+              release/*.zip
+              release/*.blockmap
+              release/latest-mac.yml
+          - os: ubuntu-latest
+            artifact_glob: |
+              release/*.AppImage
+              release/latest-linux.yml
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install server dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: cd src/client && npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Rebuild native modules for Electron
+        run: npm run electron:rebuild
+
+      - name: Build & publish Electron app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --publish always
+
+      - name: Upload artifacts (fallback)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: ignore
+          retention-days: 14
