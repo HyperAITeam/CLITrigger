@@ -141,6 +141,7 @@ PORT=3000                    # 서버 포트
 AUTH_PASSWORD=your-password  # 로그인 비밀번호 (필수)
 TUNNEL_ENABLED=false         # Cloudflare Tunnel 사용 여부
 TUNNEL_NAME=                 # Named Tunnel 이름 (선택)
+TUNNEL_HOSTNAME=             # Named Tunnel 커스텀 도메인 (선택, TUNNEL_NAME 필수)
 LOG_RETENTION_DAYS=30        # 로그 보관 일수
 HEADLESS=false               # true면 정적 파일 서빙 비활성화 (API 전용, 플러그인용)
 DISABLE_AUTH=false           # true면 인증 비활성화 (로컬 플러그인 전용)
@@ -481,11 +482,30 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
   - 최소 320×200, 위치와 크기는 per-session 저장
   - 모바일 (<768px)에서는 fullscreen 모드로 자동 전환
   - ❌ 버튼으로 닫을 수 있음 (실행 중이면 확인 요청)
+- **VS Code 스타일 윈도우 그룹화 / 도킹**:
+  - 탭을 다른 윈도우로 드래그하면 5-zone 다이아몬드 (top/bottom/left/right/center) — 사이드 드롭은 분할 pane, center 드롭은 같은 stack에 탭으로 합침
+  - 단일-stack 윈도우는 chrome 자체로 드래그/도킹 (split된 그룹은 chrome drag = move-only)
+  - Splitter (4px 바)로 pane 사이즈 조정, 모든 탭 mount 유지로 PTY 출력 끊김 없음
+  - 탭을 source 그룹 rect 밖으로 12px 이상 끌면 즉시 floating으로 detach (eager tab tearing)
+- **Aero 스타일 스냅 + Dock Tray**:
+  - 뷰포트 가장자리 8px 내로 드래그 시 좌/우 절반 또는 4 코너 quarter로 스냅 (preview 표시 후 commit)
+  - 윈도우 간 sticky 스냅 (10px threshold) — 인접 윈도우 엣지에 자석처럼
+  - 타이틀바 minimize 버튼 → 좌하단 dock tray에 chip으로 보관, 클릭 시 restore (서버 PTY는 그대로 살아있음)
+- **per-session 폰트 크기**: 탭바의 A−/A+ 버튼 또는 Ctrl/Cmd `+`/`-` 단축키로 8-28px 조정. 변경 시 PTY가 새 cols/rows로 즉시 resize됨
 - **xterm.js 렌더링**: ANSI 컬러, 커서 제어, TUI 박스 그리기 등이 그대로 표시되어 실제 터미널과 동일한 시각
 - 입력창에 메시지 입력 → Enter로 전송 (PTY로 stdin relay). 화살표/Ctrl+C 등 특수키도 그대로 전달
 - **■**로 일시 중지, **Cleanup** 버튼으로 워크트리 정리 (실행 중이 아닐 때만 표시)
+- 세션 row의 **Edit2** 버튼으로 인라인 편집 (running 시 disabled): 제목/설명/CLI/모델/워크트리 + 위키 주입 모드/항목 수정 가능
 - Git 저장소 프로젝트에서는 워크트리에 격리된 브랜치에서 작업 가능
 - 로그 보기: Chat/Raw 모드 (Chat: 어시스턴트 마크다운 + 접이식 tool_use, Raw: 기존 평면 로그)
+
+#### 위키 주입 + Send/Skip pre-flight
+
+세션 생성/편집 시 위키 주입 모드 (None/All/Selected/Auto)와 항목을 지정하면, 세션 시작 시 초기 프롬프트가 자동으로 PTY에 전송되지 않고 **보류**됩니다. 터미널 상단에 "Initial prompt ready · N chars" 배너가 뜨며 **Preview / Send / Skip** 버튼으로 검토 후 명시적으로 처리합니다. 위키 주입 없이 description만 있는 경우에도 동일하게 작동합니다 (둘 다 비어 있으면 배너 없이 빈 입력으로 시작).
+
+#### iOS Safari 모바일 Hangul IME
+
+모바일 오버레이 textarea에서 한글 조합이 분리되어 PTY로 전달되던 iOS Safari 18 버그는 클라이언트 사이드 두벌식 composer로 해결되어 있습니다 (iOS가 compositionevent를 발생시키지 않아도 OS가 splice한 결과를 다시 조립). 이중 모음/복합 종성 일부는 분리 syllable로 commit될 수 있으나 일반 채팅/CLI 입력은 정상 작동.
 
 > Claude/Gemini/Codex 모두 interactive 모드 지원. Codex는 top-level TUI로, Gemini는 welcome screen의 trust 다이얼로그를 자동으로 처리합니다.
 
@@ -848,16 +868,27 @@ todo / discussion 폼의 **위키 주입 (Wiki Injection)** 섹션에서 선택:
 | 모드 | 동작 |
 |------|------|
 | **None** (기본) | 위키 주입 없음 |
-| **All** | 프로젝트의 모든 위키 항목을 주입 |
+| **All** | 프로젝트의 모든 위키 항목을 주입 (System 노드는 제외) |
 | **Selected** | 선택한 항목만 주입 — 칩 형태로 선택 |
+| **Auto** | 매 실행 직전 headless LLM 호출로 todo/discussion 텍스트와 매칭되는 항목만 자동 선택 |
 
-선택 후 **프롬프트 미리보기** 모달로 실제로 LLM에 전달되는 `<long_term_memory>` 블록을 확인할 수 있습니다.
+선택 후 **프롬프트 미리보기** 모달로 실제로 LLM에 전달되는 `<long_term_memory>` 블록을 char/token 추정치와 함께 확인할 수 있습니다.
 
 #### 동작 방식
 
 - 위키 블록은 프롬프트 **맨 앞에 prepend**되며 Claude/Gemini/Codex 모두 동일하게 동작 (CLI-agnostic)
 - 항목 본문 + 인접 엣지가 arrow-notation(예: `항목A —(precedes)→ 항목B`)으로 직렬화
 - 매 실행 시 task/discussion 로그에 "injected N nodes (mode=...)" 라인 기록 (내부 식별자는 그대로 "node")
+- 토큰 안전성: 노드 본문이 너무 길면 라인 수 cap → fallback으로 title-only 리스팅. Lint도 큰 위키를 chunk로 분할해서 silent truncate 회피
+- Activity 서브탭: ingest / lint / retrieve / merge 이벤트가 `memory_logs`에 기록되어 시간순/severity로 추적 가능
+
+#### 디스크 익스포트 (Markdown)
+
+위키를 git/Obsidian에 커밋 가능한 형태로 살릴 수 있습니다. **Export** 버튼을 누르면 DB → `.clitrigger/wiki/<entity>/<slug>.md`로 일방향 익스포트 (YAML frontmatter — id, tags, edges, source_path 포함). 외부에서 디스크 변경 시 **Disk diff**로 변경 파일을 surface, **Rebuild**로 DB→디스크 덮어쓰기. (양방향 sync 아님 — truth source는 DB)
+
+#### System 노드
+
+Schema와 자동 maintain되는 Index 노드는 사이드바 "System" 섹션으로 분리되어 있고 사용자가 수정해도 **덮어씌어집니다** (배너로 명시). 일반 entry group / Lint / mode='all' 인제션 / retrieval candidate에서 모두 제외됩니다.
 
 #### 사용 흐름 예시
 
@@ -1014,6 +1045,14 @@ npm install -g @anthropic-ai/claude-code
 2. `.env`에서 `TUNNEL_ENABLED=true` 확인
 3. 방화벽이 outbound HTTPS를 차단하고 있지 않은지 확인
 
+### "위험한 사이트" 브라우저 경고 (`*.trycloudflare.com` / `*.cfargotunnel.com`)
+공유 도메인에 대한 도메인 평판 경고입니다 (Safe Browsing/SmartScreen). Named Tunnel을 사용자 본인 도메인으로 라우팅하면 해당 도메인의 평판으로 표시됩니다.
+
+1. 사이드바 ⚙ 아이콘 → Tunnel 설정 모달 열기
+2. Tunnel Name + Custom Hostname 입력 후 저장 (또는 `clitrigger config tunnel hostname app.your-domain.com`)
+3. 별도 터미널에서 한 번만 실행: `cloudflared tunnel route dns <tunnel-name> <hostname>`
+4. 터널 재시작 — 표시 URL이 `https://<hostname>`로 바뀜
+
 ### CORS 오류 ("Not allowed by CORS")
 개발 모드(`npm run dev`)에서는 모든 origin이 자동 허용되므로 이 오류가 발생하지 않습니다.
 프로덕션 모드에서 이 오류가 발생하면 `.env`의 `CORS_ORIGIN`에 접속 주소를 추가하세요:
@@ -1085,6 +1124,9 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/sessions/:id/stop | 세션 중지 |
 | POST | /api/sessions/:id/cleanup | 세션 워크트리 정리 |
 | GET | /api/sessions/:id/logs | 세션 로그 조회 |
+| GET | /api/sessions/:id/pending-prompt | 세션 시작 시 보류 중인 초기 프롬프트 미리보기 |
+| POST | /api/sessions/:id/submit-initial | 보류된 초기 프롬프트를 PTY로 전송 |
+| POST | /api/sessions/:id/skip-initial | 보류된 초기 프롬프트 폐기 |
 | GET | /api/favorites | 즐겨찾기 목록 |
 | POST | /api/favorites | 즐겨찾기 생성 |
 | PUT | /api/favorites/:id | 즐겨찾기 수정 |
@@ -1101,6 +1143,13 @@ git worktree prune   # 깨진 worktree 정리
 | DELETE | /api/memory/edges/:edgeId | Wiki 관계 삭제 |
 | POST | /api/projects/:id/memory/preview | Wiki 주입 프리뷰 |
 | POST | /api/projects/:id/memory/raw-files/open | 원본 파일 열기/reveal |
+| DELETE | /api/projects/:id/memory/raw-files | 원본 파일 삭제 (derived 노드 source_path만 unlink, 노드 본문 보존) |
+| POST | /api/memory/nodes/:keepId/merge | 두 항목 병합 (edge redirect + wikilink rewrite + tag union) |
+| POST | /api/projects/:id/memory/assets | 위키 본문 이미지 업로드 (`.clitrigger/wiki-assets/`) |
+| GET | /api/projects/:id/memory/assets/:filename | 위키 자산(이미지) serve |
+| GET | /api/projects/:id/memory/disk-diff | DB ↔ `.clitrigger/wiki/` 디스크 변경 비교 |
+| POST | /api/projects/:id/memory/export | DB → `.clitrigger/wiki/<entity>/<slug>.md` 일방향 익스포트 |
+| GET | /api/projects/:id/memory/logs | Activity 로그 조회 (ingest/lint/retrieve/merge 이벤트, 필터 + severity) |
 | GET | /api/projects/:id/planner | Planner 아이템 목록 |
 | POST | /api/projects/:id/planner | Planner 아이템 생성 |
 | PUT | /api/planner/:id | Planner 아이템 수정 |
@@ -1204,6 +1253,8 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/plugins/:pluginId/config/:projectId | 플러그인 설정 조회 |
 | PUT | /api/plugins/:pluginId/config/:projectId | 플러그인 설정 저장 |
 | GET | /api/tunnel/status | 터널 상태 |
+| GET | /api/tunnel/config | 터널 이름 + 커스텀 hostname 조회 (DB-first, env fallback) |
+| PUT | /api/tunnel/config | 터널 이름 + 커스텀 hostname 저장 (hostname 도메인 검증) |
 | POST | /api/tunnel/start | 터널 시작 |
 | POST | /api/tunnel/stop | 터널 중지 |
 | WS | /ws | 실시간 이벤트 |
