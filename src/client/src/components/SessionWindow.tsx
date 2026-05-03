@@ -40,6 +40,7 @@ const SNAP_EDGE_THRESHOLD = 8;
 const SNAP_NEIGHBOR_THRESHOLD = 10;
 
 type SnapZone = 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)); }
 
@@ -243,41 +244,60 @@ export default function SessionWindow({
     [startGroupChromeDrag],
   );
 
-  // ── Resize (bottom-right corner) ─────────────────────────────────────────
-  const onResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMobile) return;
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const startMouseX = e.clientX;
-    const startMouseY = e.clientY;
-    const startGeom = { ...geomRef.current };
-    const wrapper = wrapperRef.current;
-    const vpW = window.innerWidth;
-    const vpH = window.innerHeight;
+  // ── Resize (8-direction: 4 edges + 4 corners) ────────────────────────────
+  const onResizeMouseDown = useCallback(
+    (dir: ResizeDir) => (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isMobile) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const startMouseX = e.clientX;
+      const startMouseY = e.clientY;
+      const startGeom = { ...geomRef.current };
+      const wrapper = wrapperRef.current;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
 
-    const onMove = (ev: MouseEvent) => {
-      const dw = ev.clientX - startMouseX;
-      const dh = ev.clientY - startMouseY;
-      const maxW = vpW - startGeom.x;
-      const maxH = vpH - startGeom.y;
-      const nw = clamp(startGeom.w + dw, MIN_W, Math.max(MIN_W, maxW));
-      const nh = clamp(startGeom.h + dh, MIN_H, Math.max(MIN_H, maxH));
-      if (wrapper) {
-        wrapper.style.width = `${nw}px`;
-        wrapper.style.height = `${nh}px`;
-      }
-      geomRef.current.w = nw;
-      geomRef.current.h = nh;
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      api.setGroupGeometry(group.id, { ...geomRef.current });
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, [isMobile, api, group.id]);
+      const onMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - startMouseX;
+        const dy = ev.clientY - startMouseY;
+        let nx = startGeom.x;
+        let ny = startGeom.y;
+        let nw = startGeom.w;
+        let nh = startGeom.h;
+
+        if (dir.includes('e')) {
+          nw = clamp(startGeom.w + dx, MIN_W, Math.max(MIN_W, vpW - startGeom.x));
+        } else if (dir.includes('w')) {
+          nx = clamp(startGeom.x + dx, 0, startGeom.x + startGeom.w - MIN_W);
+          nw = startGeom.x + startGeom.w - nx;
+        }
+
+        if (dir.includes('s')) {
+          nh = clamp(startGeom.h + dy, MIN_H, Math.max(MIN_H, vpH - startGeom.y));
+        } else if (dir.includes('n')) {
+          ny = clamp(startGeom.y + dy, 0, startGeom.y + startGeom.h - MIN_H);
+          nh = startGeom.y + startGeom.h - ny;
+        }
+
+        if (wrapper) {
+          wrapper.style.left = `${nx}px`;
+          wrapper.style.top = `${ny}px`;
+          wrapper.style.width = `${nw}px`;
+          wrapper.style.height = `${nh}px`;
+        }
+        geomRef.current = { x: nx, y: ny, w: nw, h: nh };
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        api.setGroupGeometry(group.id, { ...geomRef.current });
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [isMobile, api, group.id],
+  );
 
   // ── Viewport resize re-clamp ─────────────────────────────────────────────
   useEffect(() => {
@@ -498,15 +518,22 @@ export default function SessionWindow({
           />
         )}
       </div>
-      {/* Resize corner */}
+      {/* Resize handles (8-direction: 4 edges + 4 corners) */}
+      <div onMouseDown={onResizeMouseDown('n')}  style={{ position: 'absolute', top: 0, left: 6, right: 6, height: 4, cursor: 'ns-resize', zIndex: 3 }} />
+      <div onMouseDown={onResizeMouseDown('s')}  style={{ position: 'absolute', bottom: 0, left: 6, right: 6, height: 4, cursor: 'ns-resize', zIndex: 3 }} />
+      <div onMouseDown={onResizeMouseDown('w')}  style={{ position: 'absolute', top: 6, bottom: 6, left: 0, width: 4, cursor: 'ew-resize', zIndex: 3 }} />
+      <div onMouseDown={onResizeMouseDown('e')}  style={{ position: 'absolute', top: 6, bottom: 6, right: 0, width: 4, cursor: 'ew-resize', zIndex: 3 }} />
+      <div onMouseDown={onResizeMouseDown('nw')} style={{ position: 'absolute', top: 0, left: 0, width: 10, height: 10, cursor: 'nwse-resize', zIndex: 4 }} />
+      <div onMouseDown={onResizeMouseDown('ne')} style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, cursor: 'nesw-resize', zIndex: 4 }} />
+      <div onMouseDown={onResizeMouseDown('sw')} style={{ position: 'absolute', bottom: 0, left: 0, width: 10, height: 10, cursor: 'nesw-resize', zIndex: 4 }} />
       <div
-        onMouseDown={onResizeMouseDown}
+        onMouseDown={onResizeMouseDown('se')}
         title="resize"
         style={{
           position: 'absolute', right: 0, bottom: 0,
           width: 14, height: 14, cursor: 'nwse-resize',
           background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.2) 50%)',
-          zIndex: 3,
+          zIndex: 4,
         }}
       />
     </div>,
