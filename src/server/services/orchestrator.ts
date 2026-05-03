@@ -526,9 +526,12 @@ Complete the task in the current directory.`;
         const existingSettings = fs.existsSync(settingsPath)
           ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
           : {};
+        // Claude's permission matcher normalizes paths to forward slashes; mixed separators
+        // (e.g. backslash dir + slash glob on Windows) silently fail to match.
+        const normalizedWorkDir = workDir.replace(/\\/g, '/');
         existingSettings.permissions = {
           allow: [
-            `Read(${workDir}/**)`,`Edit(${workDir}/**)`,`Write(${workDir}/**)`,
+            `Read(${normalizedWorkDir}/**)`,`Edit(${normalizedWorkDir}/**)`,`Write(${normalizedWorkDir}/**)`,
             'Bash(*)','Glob(*)','Grep(*)',
             'TodoRead','TodoWrite','WebFetch(*)',
           ],
