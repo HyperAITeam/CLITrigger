@@ -5,6 +5,23 @@ import { worktreeManager } from '../services/worktree-manager.js';
 
 const router = Router();
 
+const RAW_DIR_PREFIX = '.clitrigger/raw/';
+
+function normalizeRawFilePaths(input: unknown): string | null | undefined {
+  if (input === undefined) return undefined;
+  if (input === null) return null;
+  if (Array.isArray(input)) {
+    const cleaned = input
+      .map(v => (typeof v === 'string' ? v.replace(/\\/g, '/').trim() : ''))
+      .filter(p => p && p.startsWith(RAW_DIR_PREFIX) && !p.includes('..'));
+    return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+  }
+  if (typeof input === 'string') {
+    return input.trim() ? input : null;
+  }
+  return null;
+}
+
 // POST /api/projects/:id/sessions — create a new session
 router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -14,7 +31,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids } = req.body;
+    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths } = req.body;
     if (!title || typeof title !== 'string' || !title.trim()) {
       res.status(400).json({ error: 'Title is required' });
       return;
@@ -27,6 +44,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
     const normalizedMemIds = Array.isArray(memory_node_ids)
       ? (memory_node_ids.length > 0 ? JSON.stringify(memory_node_ids.map(String)) : null)
       : (typeof memory_node_ids === 'string' && memory_node_ids ? memory_node_ids : null);
+    const normalizedRaw = normalizeRawFilePaths(memory_raw_file_paths);
 
     const session = queries.createSession(
       req.params.id,
@@ -37,6 +55,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       !!use_worktree,
       normalizedMemMode,
       normalizedMemIds,
+      normalizedRaw === undefined ? null : normalizedRaw,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
@@ -109,6 +128,10 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       updates.memory_node_ids = Array.isArray(v)
         ? (v.length > 0 ? JSON.stringify(v.map(String)) : null)
         : (typeof v === 'string' && v ? v : null);
+    }
+    if (req.body.memory_raw_file_paths !== undefined) {
+      const normalized = normalizeRawFilePaths(req.body.memory_raw_file_paths);
+      updates.memory_raw_file_paths = normalized === undefined ? null : normalized;
     }
 
     const updated = queries.updateSession(req.params.id, updates as any);

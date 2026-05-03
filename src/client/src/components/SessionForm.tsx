@@ -13,6 +13,7 @@ export interface SessionFormInitial {
   useWorktree: boolean;
   memoryInjectMode: MemoryInjectMode;
   memoryNodeIds: string[];
+  memoryRawFilePaths?: string[];
 }
 
 interface SessionFormProps {
@@ -27,6 +28,7 @@ interface SessionFormProps {
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
+    memoryRawFilePaths?: string[],
   ) => void;
   onCancel: () => void;
   projectCliTool?: string;
@@ -44,6 +46,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? false);
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initial?.memoryInjectMode ?? 'none');
   const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(initial?.memoryNodeIds ?? []);
+  const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
 
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
@@ -60,6 +63,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       useWorktree,
       memoryInjectMode,
       memoryNodeIds,
+      memoryRawFilePaths,
     );
   };
 
@@ -122,6 +126,8 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         mode={memoryInjectMode}
         selectedIds={memoryNodeIds}
         onChange={(m, ids) => { setMemoryInjectMode(m); setMemoryNodeIds(ids); }}
+        rawFilePaths={memoryRawFilePaths}
+        onChangeRawFiles={setMemoryRawFilePaths}
       />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="btn-secondary text-xs py-1.5 px-3">

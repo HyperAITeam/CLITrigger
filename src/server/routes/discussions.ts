@@ -8,7 +8,28 @@ import { extractActionItems, type ExtractedActionItem } from '../services/discus
 
 const router = Router();
 
-const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id', 'memory_inject_mode', 'memory_node_ids'] as const;
+const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id', 'memory_inject_mode', 'memory_node_ids', 'memory_raw_file_paths'] as const;
+const RAW_DIR_PREFIX = '.clitrigger/raw/';
+
+function normalizeRawFilePathsList(input: unknown): string[] {
+  if (!Array.isArray(input)) {
+    if (typeof input === 'string' && input) {
+      try {
+        const parsed = JSON.parse(input);
+        if (Array.isArray(parsed)) return normalizeRawFilePathsList(parsed);
+      } catch { /* ignore */ }
+    }
+    return [];
+  }
+  const cleaned: string[] = [];
+  for (const v of input) {
+    if (typeof v !== 'string') continue;
+    const p = v.replace(/\\/g, '/').trim();
+    if (!p || !p.startsWith(RAW_DIR_PREFIX) || p.includes('..')) continue;
+    cleaned.push(p);
+  }
+  return cleaned;
+}
 const LIMITED_EDITABLE_DISCUSSION_FIELDS = ['title', 'description'] as const;
 const RUNNABLE_DISCUSSION_STATUSES = new Set(['pending', 'failed']);
 const LIMITED_EDIT_DISCUSSION_STATUSES = new Set(['paused', 'completed']);
@@ -24,6 +45,7 @@ interface DiscussionPayload {
   implement_agent_id: string | null;
   memory_inject_mode: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids: string[];
+  memory_raw_file_paths: string[];
 }
 
 function parseDiscussionAgentIds(agentIdsJson: string): string[] {
@@ -74,6 +96,7 @@ function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionP
       : null,
     memory_inject_mode: memMode,
     memory_node_ids: memIds,
+    memory_raw_file_paths: normalizeRawFilePathsList(input.memory_raw_file_paths),
   };
 }
 
@@ -229,6 +252,7 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
     }
 
     const memNodeIdsJson = payload.memory_node_ids.length > 0 ? JSON.stringify(payload.memory_node_ids) : null;
+    const memRawJson = payload.memory_raw_file_paths.length > 0 ? JSON.stringify(payload.memory_raw_file_paths) : null;
     const discussion = queries.createDiscussion(
       req.params.id,
       payload.title,
@@ -239,6 +263,7 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       payload.implement_agent_id ?? undefined,
       payload.memory_inject_mode,
       memNodeIdsJson,
+      memRawJson,
     );
     res.status(201).json(discussion);
   } catch (err: unknown) {
@@ -313,6 +338,13 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
         return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
       } catch { return []; }
     })();
+    const existingRawPaths = (() => {
+      if (!discussion.memory_raw_file_paths) return [];
+      try {
+        const parsed = JSON.parse(discussion.memory_raw_file_paths);
+        return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+      } catch { return []; }
+    })();
     const mergedPayload = normalizeDiscussionPayload({
       title: discussion.title,
       description: discussion.description,
@@ -322,6 +354,7 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       implement_agent_id: discussion.implement_agent_id,
       memory_inject_mode: discussion.memory_inject_mode || 'none',
       memory_node_ids: existingMemIds,
+      memory_raw_file_paths: existingRawPaths,
       ...rawUpdates,
     });
 
@@ -331,7 +364,7 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
-    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids'>> = {};
+    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>> = {};
 
     if (rawUpdates.title !== undefined) {
       updates.title = mergedPayload.title;
@@ -356,6 +389,9 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
     }
     if (rawUpdates.memory_node_ids !== undefined) {
       updates.memory_node_ids = mergedPayload.memory_node_ids.length > 0 ? JSON.stringify(mergedPayload.memory_node_ids) : null;
+    }
+    if (rawUpdates.memory_raw_file_paths !== undefined) {
+      updates.memory_raw_file_paths = mergedPayload.memory_raw_file_paths.length > 0 ? JSON.stringify(mergedPayload.memory_raw_file_paths) : null;
     }
 
     const updated = queries.updateDiscussion(discussion.id, updates);

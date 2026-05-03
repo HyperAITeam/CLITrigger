@@ -7,7 +7,7 @@ import { logStreamer } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
 import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
+import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
@@ -566,11 +566,14 @@ Complete the task in the current directory.`;
 
     // Inject long-term memory if configured for this todo
     const memMode = ((todo.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
-    if (memMode !== 'none') {
+    const rawFilePaths = parseRawFilePaths(todo.memory_raw_file_paths);
+    if (memMode !== 'none' || rawFilePaths.length > 0) {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
         nodeIds: parseMemoryNodeIds(todo.memory_node_ids),
+        rawFilePaths,
+        projectRoot: project.path,
         query: `${todo.title}\n${todo.description ?? ''}`.trim(),
         log: (type, message) => queries.createTaskLog(todoId, type, message, roundNumber),
       });

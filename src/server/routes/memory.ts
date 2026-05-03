@@ -5,7 +5,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import * as queries from '../db/queries.js';
 import type { MemoryRelationType } from '../db/queries.js';
-import { buildMemoryBlock, type MemoryInjectMode } from '../services/memory-injector.js';
+import { buildMemoryBlock, buildRawFileBlock, type MemoryInjectMode } from '../services/memory-injector.js';
 import { ingestSource, lintWiki, buildSourceTextFromTodo, buildSourceTextFromDiscussion } from '../services/memory-ingest.js';
 import {
   appendWikilinkToBody,
@@ -994,14 +994,28 @@ router.post('/projects/:id/memory/preview', (req: Request<{ id: string }>, res: 
       res.status(404).json({ error: 'Project not found' });
       return;
     }
-    const { mode, nodeIds } = req.body ?? {};
+    const { mode, nodeIds, rawFilePaths } = req.body ?? {};
     const m: MemoryInjectMode = (mode === 'all' || mode === 'selected') ? mode : 'none';
     const ids = Array.isArray(nodeIds) ? nodeIds.map(String).filter(Boolean) : [];
-    const result = buildMemoryBlock({ projectId: req.params.id, mode: m, nodeIds: ids });
+    const rawPaths = Array.isArray(rawFilePaths) ? rawFilePaths.map(String).filter(Boolean) : [];
+
+    const nodeResult = m !== 'none'
+      ? buildMemoryBlock({ projectId: req.params.id, mode: m, nodeIds: ids })
+      : null;
+    const rawResult = (rawPaths.length > 0 && project.path)
+      ? buildRawFileBlock(project.path, rawPaths)
+      : null;
+
+    const segments: string[] = [];
+    if (nodeResult?.block) segments.push(nodeResult.block);
+    if (rawResult && rawResult.fileCount > 0) segments.push(rawResult.block);
+
     res.json({
-      prompt: result?.block ?? '',
-      nodeCount: result?.nodeCount ?? 0,
-      edgeCount: result?.edgeCount ?? 0,
+      prompt: segments.join('\n\n'),
+      nodeCount: nodeResult?.nodeCount ?? 0,
+      edgeCount: nodeResult?.edgeCount ?? 0,
+      rawFileCount: rawResult?.fileCount ?? 0,
+      rawSkipped: rawResult?.skipped ?? [],
     });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });

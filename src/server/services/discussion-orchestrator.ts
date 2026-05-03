@@ -6,7 +6,7 @@ import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
+import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { buildSourceTextFromDiscussion, runAutoIngestAndBroadcast } from './memory-ingest.js';
 
 function maybeAutoIngestDiscussion(discussionId: string): void {
@@ -248,11 +248,14 @@ export class DiscussionOrchestrator {
 
     // Inject long-term memory if configured for this discussion
     const memMode = ((discussion.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
-    if (memMode !== 'none') {
+    const rawFilePaths = parseRawFilePaths(discussion.memory_raw_file_paths);
+    if (memMode !== 'none' || rawFilePaths.length > 0) {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
         nodeIds: parseMemoryNodeIds(discussion.memory_node_ids),
+        rawFilePaths,
+        projectRoot: project.path,
         query: `${discussion.title}\n${discussion.description ?? ''}`.trim(),
         log: (type, msg) => queries.createDiscussionLog(discussionId, messageId, type, msg),
       });

@@ -342,6 +342,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'memory_nodes', column: 'source_type', definition: 'TEXT' },
     { table: 'memory_nodes', column: 'source_id', definition: 'TEXT' },
     { table: 'memory_nodes', column: 'source_path', definition: 'TEXT' },
+    { table: 'todos', column: 'memory_raw_file_paths', definition: 'TEXT' },
+    { table: 'discussions', column: 'memory_raw_file_paths', definition: 'TEXT' },
+    { table: 'sessions', column: 'memory_raw_file_paths', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

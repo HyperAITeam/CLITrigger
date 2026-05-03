@@ -68,8 +68,9 @@ export function previewMemoryInjection(
   projectId: string,
   mode: MemoryInjectMode,
   nodeIds: string[] = [],
-): Promise<{ prompt: string; nodeCount: number; edgeCount: number }> {
-  return post(`/api/projects/${projectId}/memory/preview`, { mode, nodeIds });
+  rawFilePaths: string[] = [],
+): Promise<{ prompt: string; nodeCount: number; edgeCount: number; rawFileCount: number; rawSkipped: { path: string; reason: string }[] }> {
+  return post(`/api/projects/${projectId}/memory/preview`, { mode, nodeIds, rawFilePaths });
 }
 
 export function getMemoryBacklinks(nodeId: string): Promise<MemoryBacklink[]> {

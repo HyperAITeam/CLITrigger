@@ -3,7 +3,7 @@ import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, type MemoryInjectMode } from './memory-injector.js';
+import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -138,11 +138,14 @@ export class SessionManager {
     // already contains the same block, and we don't want to fire a fresh
     // initial prompt on top of restored history.
     const memMode = ((session.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
-    if (!resume && memMode !== 'none') {
+    const rawFilePaths = parseRawFilePaths(session.memory_raw_file_paths);
+    if (!resume && (memMode !== 'none' || rawFilePaths.length > 0)) {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
         nodeIds: parseMemoryNodeIds(session.memory_node_ids),
+        rawFilePaths,
+        projectRoot: project.path,
         query: `${session.title}\n${session.description ?? ''}`.trim(),
         log: (type, message) => queries.createSessionLog(sessionId, type, message),
       });

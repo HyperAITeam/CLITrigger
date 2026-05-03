@@ -133,7 +133,7 @@ interface TodoItemProps {
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[]) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -435,6 +435,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         initialUseWorktree={todo.use_worktree ?? null}
         initialMemoryInjectMode={todo.memory_inject_mode ?? 'none'}
         initialMemoryNodeIds={todo.memory_node_ids ?? null}
+        initialMemoryRawFilePaths={todo.memory_raw_file_paths ?? null}
         projectId={todo.project_id}
         projectIsGitRepo={projectIsGitRepo}
         projectUseWorktree={projectUseWorktree}
@@ -444,8 +445,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         onDeleteImage={async (imageId) => {
           await todosApi.deleteTodoImage(todo.id, imageId);
         }}
-        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds) => {
-          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds);
+        onSave={async (title, description, cliTool, cliModel, newImages, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
+          await onEdit(todo.id, title, description, cliTool, cliModel, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
           if (newImages && newImages.length > 0) {
             await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
           }

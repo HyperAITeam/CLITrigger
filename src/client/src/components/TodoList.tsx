@@ -25,11 +25,11 @@ interface TodoListProps {
   projectCliModel?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[]) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[]) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
@@ -460,8 +460,8 @@ export default function TodoList({
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds) => {
-              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds);
+            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
+              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}
