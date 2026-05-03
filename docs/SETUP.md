@@ -498,6 +498,7 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 - **per-session 폰트 크기**: 탭바의 A−/A+ 버튼 또는 Ctrl/Cmd `+`/`-` 단축키로 8-28px 조정. 변경 시 PTY가 새 cols/rows로 즉시 resize됨
 - **xterm.js 렌더링**: ANSI 컬러, 커서 제어, TUI 박스 그리기 등이 그대로 표시되어 실제 터미널과 동일한 시각
 - 입력창에 메시지 입력 → Enter로 전송 (PTY로 stdin relay). 화살표/Ctrl+C 등 특수키도 그대로 전달
+- **이미지 페이스트**: 터미널에 스크린샷/이미지를 붙여넣으면 서버가 호스트 OS 클립보드에 비트맵을 직접 push하고 클라이언트가 PTY에 `ESC+v`(Alt+V)를 보내 Claude/Codex/Gemini가 자체 paste 핸들러로 `[Image #N]`을 렌더합니다. 사용자 프로젝트 트리에 디스크 파일이 만들어지지 않습니다 (Win32: PowerShell `Clipboard.SetImage` 메모리, macOS: `os.tmpdir()` 임시 파일 + osascript + 즉시 unlink, Linux: `wl-copy`/`xclip` stdin)
 - **■**로 일시 중지, **Cleanup** 버튼으로 워크트리 정리 (실행 중이 아닐 때만 표시)
 - 세션 row의 **Edit2** 버튼으로 인라인 편집 (running 시 disabled): 제목/설명/CLI/모델/워크트리 + 위키 주입 모드/항목 수정 가능
 - Git 저장소 프로젝트에서는 워크트리에 격리된 브랜치에서 작업 가능
@@ -1131,6 +1132,7 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/sessions/:id/pending-prompt | 세션 시작 시 보류 중인 초기 프롬프트 미리보기 |
 | POST | /api/sessions/:id/submit-initial | 보류된 초기 프롬프트를 PTY로 전송 |
 | POST | /api/sessions/:id/skip-initial | 보류된 초기 프롬프트 폐기 |
+| POST | /api/sessions/:id/paste-image | 클립보드 이미지를 호스트 OS 클립보드에 push (응답 후 클라이언트가 PTY로 `ESC+v` 전송) |
 | GET | /api/favorites | 즐겨찾기 목록 |
 | POST | /api/favorites | 즐겨찾기 생성 |
 | PUT | /api/favorites/:id | 즐겨찾기 수정 |
