@@ -270,6 +270,15 @@ export function initDatabase(db: Database.Database): void {
       value TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS session_tags (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -345,6 +354,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'discussions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'memory_raw_file_paths', definition: 'TEXT' },
+    { table: 'sessions', column: 'tag_id', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

@@ -93,7 +93,30 @@ const translations = {
     // Settings modal
     'settings.title': 'Settings',
     'settings.tabs.account': 'Account',
+    'settings.tabs.session': 'Sessions',
     'settings.tabs.tunnel': 'Tunnel',
+
+    // Session settings (panel inside Settings modal)
+    'sessionSettings.title': 'Session preferences',
+    'sessionSettings.description': 'Default behavior for new sessions and reusable color tags.',
+    'sessionSettings.saved': 'Saved',
+    'sessionSettings.worktree.title': 'Worktree default',
+    'sessionSettings.worktree.label': 'Use git worktree for new sessions',
+    'sessionSettings.worktree.hint': 'When enabled, every new session is created on its own branch in .worktrees/. Only applies to git repos.',
+    'sessionSettings.tags.title': 'Tags',
+    'sessionSettings.tags.description': 'Pick a name and color, then assign in the session form.',
+    'sessionSettings.tags.empty': 'No tags yet — add one above.',
+    'sessionSettings.tags.namePlaceholder': 'Tag name (e.g. exploring, deploy)',
+    'sessionSettings.tags.color': 'Color',
+    'sessionSettings.tags.add': 'Add',
+    'sessionSettings.tags.edit': 'Edit',
+    'sessionSettings.tags.delete': 'Delete',
+    'sessionSettings.tags.save': 'Save',
+    'sessionSettings.tags.cancel': 'Cancel',
+    'sessionSettings.tags.deleteConfirm': 'Delete tag "{name}"? Sessions tagged with it will become untagged.',
+
+    // Session form tag selector
+    'session.tag.none': 'No tag',
 
     // Account (password change)
     'account.title': 'Change password',
@@ -1183,7 +1206,30 @@ const translations = {
     // Settings modal
     'settings.title': '설정',
     'settings.tabs.account': '계정',
+    'settings.tabs.session': '세션',
     'settings.tabs.tunnel': '터널',
+
+    // Session settings (panel inside Settings modal)
+    'sessionSettings.title': '세션 환경설정',
+    'sessionSettings.description': '새 세션의 기본 동작과 재사용할 색상 태그를 관리합니다.',
+    'sessionSettings.saved': '저장되었습니다.',
+    'sessionSettings.worktree.title': 'Worktree 기본값',
+    'sessionSettings.worktree.label': '새 세션에 git worktree 사용',
+    'sessionSettings.worktree.hint': '켜두면 새 세션이 .worktrees/ 안의 별도 브랜치에서 생성됩니다. git 저장소에만 적용됩니다.',
+    'sessionSettings.tags.title': '태그',
+    'sessionSettings.tags.description': '이름과 색을 정해두면 세션 생성 폼에서 골라 붙일 수 있습니다.',
+    'sessionSettings.tags.empty': '아직 태그가 없습니다 — 위에서 하나 추가하세요.',
+    'sessionSettings.tags.namePlaceholder': '태그 이름 (예: 탐색, 배포)',
+    'sessionSettings.tags.color': '색',
+    'sessionSettings.tags.add': '추가',
+    'sessionSettings.tags.edit': '수정',
+    'sessionSettings.tags.delete': '삭제',
+    'sessionSettings.tags.save': '저장',
+    'sessionSettings.tags.cancel': '취소',
+    'sessionSettings.tags.deleteConfirm': '"{name}" 태그를 삭제할까요? 이 태그를 쓰던 세션들은 태그가 비워집니다.',
+
+    // Session form tag selector
+    'session.tag.none': '태그 없음',
 
     // Account (password change)
     'account.title': '비밀번호 변경',

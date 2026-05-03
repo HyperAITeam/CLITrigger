@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { KeyRound, Cloud } from 'lucide-react';
+import { KeyRound, Cloud, TerminalSquare } from 'lucide-react';
 import { useI18n } from '../i18n';
 import Modal from './Modal';
 import { TunnelSettingsPanel } from './TunnelSettings';
 import PasswordSettingsPanel from './PasswordSettingsPanel';
+import SessionSettingsPanel from './SessionSettingsPanel';
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab = 'account' | 'tunnel';
+type Tab = 'account' | 'session' | 'tunnel';
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { t } = useI18n();
@@ -20,6 +21,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   const tabs: { id: Tab; label: string; icon: typeof KeyRound }[] = [
     { id: 'account', label: t('settings.tabs.account'), icon: KeyRound },
+    { id: 'session', label: t('settings.tabs.session'), icon: TerminalSquare },
     { id: 'tunnel', label: t('settings.tabs.tunnel'), icon: Cloud },
   ];
 
@@ -55,6 +57,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           </aside>
           <div className="flex-1 min-w-0">
             {tab === 'account' && <PasswordSettingsPanel onClose={onClose} />}
+            {tab === 'session' && <SessionSettingsPanel onClose={onClose} />}
             {tab === 'tunnel' && <TunnelSettingsPanel onClose={onClose} />}
           </div>
         </div>

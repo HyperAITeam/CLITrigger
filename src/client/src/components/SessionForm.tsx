@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 import MemoryInjectControl from './MemoryInjectControl';
-import type { MemoryInjectMode } from '../types';
+import type { MemoryInjectMode, SessionTag } from '../types';
+import * as tagsApi from '../api/sessionTags';
+import * as settingsApi from '../api/sessionSettings';
 
 export interface SessionFormInitial {
   title: string;
@@ -14,6 +16,7 @@ export interface SessionFormInitial {
   memoryInjectMode: MemoryInjectMode;
   memoryNodeIds: string[];
   memoryRawFilePaths?: string[];
+  tagId?: string | null;
 }
 
 interface SessionFormProps {
@@ -29,6 +32,7 @@ interface SessionFormProps {
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
+    tagId?: string | null,
   ) => void;
   onCancel: () => void;
   projectCliTool?: string;
@@ -49,6 +53,21 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initial?.memoryInjectMode ?? 'none');
   const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(initial?.memoryNodeIds ?? []);
   const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
+  const [tagId, setTagId] = useState<string | null>(initial?.tagId ?? null);
+  const [tags, setTags] = useState<SessionTag[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    tagsApi.getSessionTags()
+      .then((list) => { if (!cancelled) setTags(list); })
+      .catch(() => { /* silent — settings panel surfaces errors */ });
+    if (!isEdit && isGitRepo) {
+      settingsApi.getSessionSettings()
+        .then((s) => { if (!cancelled) setUseWorktree(s.defaultUseWorktree); })
+        .catch(() => { /* keep default false */ });
+    }
+    return () => { cancelled = true; };
+  }, [isEdit, isGitRepo]);
 
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
@@ -56,7 +75,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
     onSave(
       title.trim(),
       description.trim(),
@@ -66,8 +84,11 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       memoryInjectMode,
       memoryNodeIds,
       memoryRawFilePaths,
+      tagId,
     );
   };
+
+  const selectedTag = tags.find((tt) => tt.id === tagId) ?? null;
 
   return (
     <form
@@ -111,6 +132,26 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
           ))}
         </select>
       </div>
+      {tags.length > 0 && (
+        <div className="flex items-center gap-2">
+          {selectedTag && (
+            <span
+              className="w-4 h-4 rounded-full shrink-0 border"
+              style={{ backgroundColor: selectedTag.color, borderColor: 'rgba(0,0,0,0.08)' }}
+            />
+          )}
+          <select
+            value={tagId ?? ''}
+            onChange={(e) => setTagId(e.target.value || null)}
+            className="input text-xs flex-1"
+          >
+            <option value="">{t('session.tag.none')}</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>{tag.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {isGitRepo && (
         <label className="flex items-center gap-2 text-xs text-warm-500 cursor-pointer select-none">
           <input
@@ -135,7 +176,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         <button type="button" onClick={onCancel} className="btn-secondary text-xs py-1.5 px-3">
           {t('form.cancel')}
         </button>
-        <button type="submit" disabled={!title.trim()} className="btn-primary text-xs py-1.5 px-3">
+        <button type="submit" className="btn-primary text-xs py-1.5 px-3">
           {isEdit ? t('session.save') : t('session.create')}
         </button>
       </div>

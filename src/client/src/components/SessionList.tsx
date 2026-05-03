@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2 } from 'lucide-react';
 import EmptyState from './EmptyState';
-import type { Session, MemoryInjectMode } from '../types';
+import type { Session, MemoryInjectMode, SessionTag } from '../types';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
+import * as tagsApi from '../api/sessionTags';
 import { parseMemoryNodeIds } from '../api/memory';
 
 function parseRawFilePaths(raw: string | null | undefined): string[] {
@@ -60,6 +61,21 @@ export default function SessionList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [tags, setTags] = useState<SessionTag[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    tagsApi.getSessionTags()
+      .then((list) => { if (!cancelled) setTags(list); })
+      .catch(() => { /* tags optional — silent */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const tagsById = useMemo(() => {
+    const map = new Map<string, SessionTag>();
+    for (const tag of tags) map.set(tag.id, tag);
+    return map;
+  }, [tags]);
 
   const editingSession = useMemo(
     () => (editingId ? sessions.find((s) => s.id === editingId) ?? null : null),
@@ -76,6 +92,7 @@ export default function SessionList({
       memoryInjectMode: (editingSession.memory_inject_mode as MemoryInjectMode | null) ?? 'none',
       memoryNodeIds: parseMemoryNodeIds(editingSession.memory_node_ids ?? null),
       memoryRawFilePaths: parseRawFilePaths(editingSession.memory_raw_file_paths ?? null),
+      tagId: editingSession.tag_id ?? null,
     };
   }, [editingSession]);
 
@@ -106,6 +123,7 @@ export default function SessionList({
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
+    tagId?: string | null,
   ) => {
     setCreating(true);
     try {
@@ -118,6 +136,7 @@ export default function SessionList({
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
         memory_raw_file_paths: memoryRawFilePaths,
+        tag_id: tagId ?? null,
       });
       onAddSession(session);
       setShowForm(false);
@@ -135,6 +154,7 @@ export default function SessionList({
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
+    tagId?: string | null,
   ) => {
     if (!editingId) return;
     setSaving(true);
@@ -149,6 +169,7 @@ export default function SessionList({
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
         memory_raw_file_paths: memoryRawFilePaths,
+        tag_id: tagId ?? null,
       });
       onUpdateSession(updated);
       setEditingId(null);
@@ -236,6 +257,21 @@ export default function SessionList({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
+                        {session.tag_id && tagsById.get(session.tag_id) && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium"
+                            style={{
+                              backgroundColor: `${tagsById.get(session.tag_id)!.color}22`,
+                              color: tagsById.get(session.tag_id)!.color,
+                            }}
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: tagsById.get(session.tag_id)!.color }}
+                            />
+                            {tagsById.get(session.tag_id)!.name}
+                          </span>
+                        )}
                         <h3 className="text-sm font-semibold text-warm-700 truncate">{session.title}</h3>
                         <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
                           {t(`status.${session.status}`) || session.status}

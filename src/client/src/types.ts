@@ -291,6 +291,16 @@ export interface Session {
   memory_inject_mode?: MemoryInjectMode | null;
   memory_node_ids?: string | null;
   memory_raw_file_paths?: string | null;
+  tag_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionTag {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }

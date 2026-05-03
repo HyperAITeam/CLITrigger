@@ -31,10 +31,17 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths } = req.body;
-    if (!title || typeof title !== 'string' || !title.trim()) {
-      res.status(400).json({ error: 'Title is required' });
-      return;
+    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id } = req.body;
+    const trimmedTitle = typeof title === 'string' ? title.trim() : '';
+    const finalTitle = trimmedTitle || `Session ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+    let normalizedTagId: string | null = null;
+    if (typeof tag_id === 'string' && tag_id.trim()) {
+      const tag = queries.getSessionTagById(tag_id.trim());
+      if (!tag) {
+        res.status(400).json({ error: 'Invalid tag_id' });
+        return;
+      }
+      normalizedTagId = tag.id;
     }
 
     const normalizedMemMode =
@@ -48,7 +55,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
 
     const session = queries.createSession(
       req.params.id,
-      title.trim(),
+      finalTitle,
       description?.trim() || undefined,
       cli_tool || undefined,
       cli_model || undefined,
@@ -56,6 +63,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       normalizedMemMode,
       normalizedMemIds,
       normalizedRaw === undefined ? null : normalizedRaw,
+      normalizedTagId,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
@@ -132,6 +140,18 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
     if (req.body.memory_raw_file_paths !== undefined) {
       const normalized = normalizeRawFilePaths(req.body.memory_raw_file_paths);
       updates.memory_raw_file_paths = normalized === undefined ? null : normalized;
+    }
+    if (req.body.tag_id !== undefined) {
+      if (req.body.tag_id === null || req.body.tag_id === '') {
+        updates.tag_id = null;
+      } else if (typeof req.body.tag_id === 'string') {
+        const tag = queries.getSessionTagById(req.body.tag_id.trim());
+        if (!tag) {
+          res.status(400).json({ error: 'Invalid tag_id' });
+          return;
+        }
+        updates.tag_id = tag.id;
+      }
     }
 
     const updated = queries.updateSession(req.params.id, updates as any);
