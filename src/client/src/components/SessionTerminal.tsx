@@ -473,13 +473,17 @@ function backspaceComposer(c: HangulComposer): boolean {
 
 function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
   let composing = false;
-  let lastCompositionEndAt = 0;
+  // After compositionend with data, xterm.js's helper textarea fires onData
+  // with the same composed string. Drop exactly that one onData by
+  // string-equality, then resume — a time-window guard would also drop a
+  // space/`?` typed within the window (the original symptom).
+  let pendingDedup: string | null = null;
   const handleCompStart = () => { composing = true; };
   const handleCompEnd = (e: Event) => {
     composing = false;
-    lastCompositionEndAt = Date.now();
     const data = (e as CompositionEvent).data;
     if (data) {
+      pendingDedup = data;
       sendMessage({ type: 'session:terminal-input', sessionId, input: data });
     }
   };
@@ -498,7 +502,11 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   container.addEventListener('paste', handlePaste, true);
   const onDataDisposable = term.onData((d) => {
     if (composing) return;
-    if (Date.now() - lastCompositionEndAt < 50) return;
+    if (pendingDedup !== null && d === pendingDedup) {
+      pendingDedup = null;
+      return;
+    }
+    pendingDedup = null;
     sendMessage({ type: 'session:terminal-input', sessionId, input: d });
   });
   return () => {
