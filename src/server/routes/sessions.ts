@@ -2,9 +2,12 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { execFileSync } from 'child_process';
 import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
 const router = Router();
 
@@ -177,6 +180,14 @@ router.delete('/sessions/:id', (req: Request<{ id: string }>, res: Response) => 
     if (session.status === 'running') {
       res.status(400).json({ error: 'Stop the session before deleting' });
       return;
+    }
+
+    const project = queries.getProjectById(session.project_id);
+    if (project) {
+      const pasteDir = path.join(session.worktree_path || project.path, '.clitrigger', 'paste-images');
+      if (fs.existsSync(pasteDir)) {
+        fs.rmSync(pasteDir, { recursive: true, force: true });
+      }
     }
 
     queries.deleteSession(req.params.id);
@@ -376,6 +387,11 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
       const updates: Record<string, null> = { worktree_path: null };
       if (deleteBranch) updates.branch_name = null;
       queries.updateSession(req.params.id, updates as any);
+    } else {
+      const pasteDir = path.join(project.path, '.clitrigger', 'paste-images');
+      if (fs.existsSync(pasteDir)) {
+        fs.rmSync(pasteDir, { recursive: true, force: true });
+      }
     }
 
     res.json({ success: true, ...result });
@@ -385,7 +401,36 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
   }
 });
 
-// POST /api/sessions/:id/paste-image — save clipboard image to session workdir, return absolute path
+// GET /api/sessions/:id/clipboard-image-path — check OS clipboard for copied image file path
+router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+
+    if (process.platform !== 'win32') {
+      res.json({ path: null });
+      return;
+    }
+
+    const out = execFileSync('powershell', [
+      '-NoProfile', '-Command',
+      'Get-Clipboard -Format FileDropList | ForEach-Object { $_.FullName }',
+    ], { encoding: 'utf-8', timeout: 3000, windowsHide: true }).trim();
+
+    if (!out) { res.json({ path: null }); return; }
+
+    const filePath = out.split(/\r?\n/).find(line => {
+      const ext = path.extname(line).toLowerCase();
+      return IMAGE_EXTENSIONS.has(ext) && fs.existsSync(line);
+    });
+
+    res.json({ path: filePath || null });
+  } catch {
+    res.json({ path: null });
+  }
+});
+
+// POST /api/sessions/:id/paste-image — save clipboard image to session workdir, return relative path
 router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Response) => {
   try {
     const session = queries.getSessionById(req.params.id);
@@ -399,7 +444,7 @@ router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const { data, name } = req.body as { data: string; name?: string };
+    const { data } = req.body as { data: string; name?: string };
     if (!data || typeof data !== 'string') {
       res.status(400).json({ error: 'data (base64 data URL) is required' });
       return;
@@ -422,13 +467,17 @@ router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Res
     const imgDir = path.join(workDir, '.clitrigger', 'paste-images');
     fs.mkdirSync(imgDir, { recursive: true });
 
-    const filename = name
-      ? `${Date.now()}-${name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      : `${Date.now()}-${uuidv4().slice(0, 8)}.${ext}`;
+    const existing = fs.readdirSync(imgDir);
+    const maxNum = existing.reduce((max, f) => {
+      const m = f.match(/^img(\d+)\./);
+      return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    const filename = `img${maxNum + 1}.${ext}`;
     const filePath = path.join(imgDir, filename);
     fs.writeFileSync(filePath, buffer);
 
-    res.json({ path: filePath });
+    const relPath = path.relative(workDir, filePath).replace(/\\/g, '/');
+    res.json({ path: relPath });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
