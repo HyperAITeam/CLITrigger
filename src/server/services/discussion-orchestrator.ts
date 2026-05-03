@@ -288,9 +288,12 @@ export class DiscussionOrchestrator {
           const existingSettings = fs.existsSync(settingsPath)
             ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
             : {};
+          // Claude's permission matcher normalizes paths to forward slashes; mixed separators
+          // (e.g. backslash dir + slash glob on Windows) silently fail to match.
+          const normalizedWorktreePath = discussion.worktree_path.replace(/\\/g, '/');
           existingSettings.permissions = {
             allow: [
-              `Read(${discussion.worktree_path}/**)`,`Edit(${discussion.worktree_path}/**)`,`Write(${discussion.worktree_path}/**)`,
+              `Read(${normalizedWorktreePath}/**)`,`Edit(${normalizedWorktreePath}/**)`,`Write(${normalizedWorktreePath}/**)`,
               'Bash(*)','Glob(*)','Grep(*)',
               'TodoRead','TodoWrite','WebFetch(*)',
             ],
