@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
-import { pasteImage } from '../api/sessions';
+import { pasteImage, getClipboardImagePath } from '../api/sessions';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SessionTerminalProps {
@@ -106,6 +106,15 @@ export default function SessionTerminal({
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const pasteFromClipboard = async () => {
       try {
+        // Check OS clipboard for a copied image file path first
+        try {
+          const clip = await getClipboardImagePath(sessionId);
+          if (clip.path) {
+            sendMessage({ type: 'session:terminal-input', sessionId, input: clip.path });
+            return;
+          }
+        } catch { /* fall through to browser clipboard */ }
+
         const items = await navigator.clipboard.read();
         for (const item of items) {
           const imageType = item.types.find(t => t.startsWith('image/'));

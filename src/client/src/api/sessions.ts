@@ -61,3 +61,7 @@ export function cleanupSession(id: string, deleteBranch = true): Promise<{ succe
 export function pasteImage(id: string, data: string, name?: string): Promise<{ path: string }> {
   return post(`/api/sessions/${id}/paste-image`, { data, name });
 }
+
+export function getClipboardImagePath(id: string): Promise<{ path: string | null }> {
+  return get(`/api/sessions/${id}/clipboard-image-path`);
+}
