@@ -92,6 +92,7 @@ export interface Todo {
   diff_files?: number | null;
   memory_inject_mode?: MemoryInjectMode | null;
   memory_node_ids?: string | null;
+  memory_raw_file_paths?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +237,7 @@ export interface Discussion {
   implement_agent_id: string | null;
   memory_inject_mode?: MemoryInjectMode | null;
   memory_node_ids?: string | null;
+  memory_raw_file_paths?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -288,6 +290,7 @@ export interface Session {
   total_tokens: number | null;
   memory_inject_mode?: MemoryInjectMode | null;
   memory_node_ids?: string | null;
+  memory_raw_file_paths?: string | null;
   created_at: string;
   updated_at: string;
 }

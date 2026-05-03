@@ -1,6 +1,11 @@
+import fs from 'fs';
+import path from 'path';
 import * as queries from '../db/queries.js';
 import type { MemoryNode, MemoryEdge } from '../db/queries.js';
 import { parseWikilinks } from './memory-wikilinks.js';
+
+const RAW_DIR_REL = '.clitrigger/raw';
+const DEFAULT_PER_FILE_CHAR_CAP = 50_000;
 
 export type MemoryInjectMode = 'none' | 'all' | 'selected' | 'auto';
 
@@ -136,4 +141,92 @@ export function parseMemoryNodeIds(raw: string | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+export function parseRawFilePaths(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface RawFileBlockResult {
+  block: string;
+  fileCount: number;
+  totalChars: number;
+  skipped: { path: string; reason: 'outside-raw-dir' | 'missing' | 'read-error' }[];
+}
+
+export interface RawFileBlockOptions {
+  perFileCharCap?: number;
+}
+
+export function buildRawFileBlock(
+  projectRoot: string,
+  paths: string[],
+  opts: RawFileBlockOptions = {},
+): RawFileBlockResult | null {
+  if (!projectRoot || paths.length === 0) return null;
+  const cap = Math.max(500, opts.perFileCharCap ?? DEFAULT_PER_FILE_CHAR_CAP);
+  const resolvedRoot = path.resolve(projectRoot);
+  const rawRoot = path.resolve(resolvedRoot, RAW_DIR_REL);
+
+  const skipped: RawFileBlockResult['skipped'] = [];
+  const items: { path: string; content: string }[] = [];
+
+  for (const rel of paths) {
+    const absPath = path.resolve(resolvedRoot, rel);
+    if (!absPath.startsWith(rawRoot + path.sep) && absPath !== rawRoot) {
+      skipped.push({ path: rel, reason: 'outside-raw-dir' });
+      continue;
+    }
+    if (!fs.existsSync(absPath)) {
+      skipped.push({ path: rel, reason: 'missing' });
+      continue;
+    }
+    let content: string;
+    try {
+      const stat = fs.statSync(absPath);
+      if (!stat.isFile()) {
+        skipped.push({ path: rel, reason: 'missing' });
+        continue;
+      }
+      content = fs.readFileSync(absPath, 'utf-8');
+    } catch {
+      skipped.push({ path: rel, reason: 'read-error' });
+      continue;
+    }
+    if (content.length > cap) {
+      content = content.slice(0, cap) + '\n[... truncated]';
+    }
+    items.push({ path: rel.replace(/\\/g, '/'), content });
+  }
+
+  if (items.length === 0) {
+    return { block: '', fileCount: 0, totalChars: 0, skipped };
+  }
+
+  const lines: string[] = [];
+  lines.push('<raw_source_files>');
+  lines.push('The following are unprocessed source markdown files captured at ingest time. Treat them as primary references — they may contain detail that was condensed out when the wiki nodes were curated. Each <raw_source_file> wraps the verbatim file content.');
+  lines.push('');
+  let totalChars = 0;
+  for (const item of items) {
+    const safePath = escapeAttr(item.path);
+    lines.push(`<raw_source_file path="${safePath}">`);
+    lines.push(item.content);
+    lines.push('</raw_source_file>');
+    totalChars += item.content.length;
+  }
+  lines.push('</raw_source_files>');
+
+  return {
+    block: lines.join('\n'),
+    fileCount: items.length,
+    totalChars,
+    skipped,
+  };
 }

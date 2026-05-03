@@ -13,6 +13,7 @@ export interface DiscussionFormValues {
   implement_agent_id: string;
   memory_inject_mode: MemoryInjectMode;
   memory_node_ids: string[];
+  memory_raw_file_paths: string[];
 }
 
 interface DiscussionFormProps {
@@ -35,6 +36,7 @@ const DEFAULT_VALUES: DiscussionFormValues = {
   implement_agent_id: '',
   memory_inject_mode: 'none',
   memory_node_ids: [],
+  memory_raw_file_paths: [],
 };
 
 export default function DiscussionForm({
@@ -110,6 +112,7 @@ export default function DiscussionForm({
       implement_agent_id: allowAdvancedFields && values.auto_implement ? values.implement_agent_id : undefined,
       memory_inject_mode: allowAdvancedFields ? values.memory_inject_mode : 'none',
       memory_node_ids: allowAdvancedFields && values.memory_inject_mode === 'selected' ? values.memory_node_ids : [],
+      memory_raw_file_paths: allowAdvancedFields ? values.memory_raw_file_paths : [],
     });
   };
 
@@ -315,6 +318,8 @@ export default function DiscussionForm({
                 mode={values.memory_inject_mode}
                 selectedIds={values.memory_node_ids}
                 onChange={(mode, ids) => setValues(prev => ({ ...prev, memory_inject_mode: mode, memory_node_ids: ids }))}
+                rawFilePaths={values.memory_raw_file_paths}
+                onChangeRawFiles={(paths) => setValues(prev => ({ ...prev, memory_raw_file_paths: paths }))}
               />
             </div>
           )}

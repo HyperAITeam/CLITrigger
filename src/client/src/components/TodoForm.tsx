@@ -6,6 +6,16 @@ import { useModels } from '../hooks/useModels';
 import type { ImageMeta, MemoryInjectMode, Todo } from '../types';
 import { getTodoImageUrl } from '../api/todos';
 import { parseMemoryNodeIds } from '../api/memory';
+
+function parseRawFilePaths(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
 import MemoryInjectControl from './MemoryInjectControl';
 
 export interface PendingImage {
@@ -16,7 +26,7 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[]) => void;
+  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
@@ -27,6 +37,7 @@ interface TodoFormProps {
   initialUseWorktree?: number | null;
   initialMemoryInjectMode?: MemoryInjectMode;
   initialMemoryNodeIds?: string | null;
+  initialMemoryRawFilePaths?: string | null;
   projectId?: string;
   projectCliTool?: string;
   projectCliModel?: string;
@@ -52,6 +63,7 @@ export default function TodoForm({
   initialUseWorktree = null,
   initialMemoryInjectMode = 'none',
   initialMemoryNodeIds = null,
+  initialMemoryRawFilePaths = null,
   projectId,
   projectCliTool = 'claude',
   projectCliModel = '',
@@ -73,6 +85,7 @@ export default function TodoForm({
   );
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initialMemoryInjectMode);
   const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(parseMemoryNodeIds(initialMemoryNodeIds));
+  const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(parseRawFilePaths(initialMemoryRawFilePaths));
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -156,7 +169,7 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, memoryNodeIds);
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -399,6 +412,8 @@ export default function TodoForm({
             mode={memoryInjectMode}
             selectedIds={memoryNodeIds}
             onChange={(mode, ids) => { setMemoryInjectMode(mode); setMemoryNodeIds(ids); }}
+            rawFilePaths={memoryRawFilePaths}
+            onChangeRawFiles={setMemoryRawFilePaths}
           />
         </div>
       )}

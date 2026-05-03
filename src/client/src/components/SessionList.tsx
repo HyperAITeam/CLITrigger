@@ -5,6 +5,16 @@ import type { Session, MemoryInjectMode } from '../types';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import { parseMemoryNodeIds } from '../api/memory';
+
+function parseRawFilePaths(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
 import SessionForm, { type SessionFormInitial } from './SessionForm';
 import { useSessionWindows } from './SessionWindowsHost';
 
@@ -63,6 +73,7 @@ export default function SessionList({
       useWorktree: editingSession.use_worktree === 1,
       memoryInjectMode: (editingSession.memory_inject_mode as MemoryInjectMode | null) ?? 'none',
       memoryNodeIds: parseMemoryNodeIds(editingSession.memory_node_ids ?? null),
+      memoryRawFilePaths: parseRawFilePaths(editingSession.memory_raw_file_paths ?? null),
     };
   }, [editingSession]);
 
@@ -92,6 +103,7 @@ export default function SessionList({
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
+    memoryRawFilePaths?: string[],
   ) => {
     setCreating(true);
     try {
@@ -103,6 +115,7 @@ export default function SessionList({
         use_worktree: useWorktree,
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
+        memory_raw_file_paths: memoryRawFilePaths,
       });
       onAddSession(session);
       setShowForm(false);
@@ -119,6 +132,7 @@ export default function SessionList({
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
+    memoryRawFilePaths?: string[],
   ) => {
     if (!editingId) return;
     setSaving(true);
@@ -132,6 +146,7 @@ export default function SessionList({
         use_worktree: useWorktree,
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
+        memory_raw_file_paths: memoryRawFilePaths,
       });
       onUpdateSession(updated);
       setEditingId(null);

@@ -10,6 +10,7 @@ export interface DiscussionInput {
   implement_agent_id?: string;
   memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids?: string[];
+  memory_raw_file_paths?: string[];
 }
 
 export interface DiscussionUpdateInput {
@@ -21,6 +22,7 @@ export interface DiscussionUpdateInput {
   implement_agent_id?: string | null;
   memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids?: string[];
+  memory_raw_file_paths?: string[];
 }
 
 // ── Agents ──
