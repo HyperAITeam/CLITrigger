@@ -473,8 +473,16 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 
 1. 프로젝트 상세 페이지에서 **세션** 탭 진입
 2. **"Add Session"** 클릭
-3. 제목, CLI 도구(Claude/Gemini/Codex), 모델, (Git 저장소라면) 워크트리 사용 여부 선택
+3. 제목(선택 — 빈 칸이면 서버가 `Session YYYY-MM-DD HH:MM`으로 자동 채움), CLI 도구(Claude/Gemini/Codex), 모델, (Git 저장소라면) 워크트리 사용 여부, 색상 태그(글로벌 설정에서 미리 만들어 두면 dropdown 노출) 선택
 4. 저장
+
+> **워크트리 디폴트 상속**: 신규 세션의 워크트리 체크박스 디폴트는 `프로젝트 use_worktree` 설정을 따르고, 그 위에 글로벌 **Settings → Sessions** 탭의 "Default use worktree"가 override 합니다. 편집 모드는 기존 세션 값을 그대로 유지.
+
+#### 색상 태그 + 글로벌 디폴트 (Settings → Sessions)
+
+좌상단 사이드바 톱니로 글로벌 **Settings 모달** → **Sessions** 탭에서:
+- **태그 CRUD**: 이름 + 헥스 색(`#RRGGBB`) 페어 등록. 한 번 만든 태그는 모든 프로젝트에서 공유. 태그 삭제 시 그 태그를 참조하던 세션의 `tag_id`는 자동으로 비워짐.
+- **워크트리 디폴트**: 신규 세션 생성 시 워크트리 체크박스 초기값을 강제 (프로젝트 정책 위에 한 번 더 override).
 
 #### 사용
 
@@ -498,6 +506,7 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 - **per-session 폰트 크기**: 탭바의 A−/A+ 버튼 또는 Ctrl/Cmd `+`/`-` 단축키로 8-28px 조정. 변경 시 PTY가 새 cols/rows로 즉시 resize됨
 - **xterm.js 렌더링**: ANSI 컬러, 커서 제어, TUI 박스 그리기 등이 그대로 표시되어 실제 터미널과 동일한 시각
 - 입력창에 메시지 입력 → Enter로 전송 (PTY로 stdin relay). 화살표/Ctrl+C 등 특수키도 그대로 전달
+- **클립보드 단축키** (iTerm2 / Windows Terminal 호환): Ctrl/Cmd+C는 selection이 있으면 복사, 없으면 SIGINT. Ctrl/Cmd+V와 Alt+V는 클립보드 텍스트를 PTY로 forward. Ctrl/Cmd+X는 selection 있으면 잘라내기, 없으면 그대로 PTY로. macOS는 `Option`을 Meta로 인식해 `Option+B`/`F` 같은 readline/tmux 단축키 정상 동작
 - **이미지 페이스트**: 터미널에 스크린샷/이미지를 붙여넣으면 서버가 호스트 OS 클립보드에 비트맵을 직접 push하고 클라이언트가 PTY에 `ESC+v`(Alt+V)를 보내 Claude/Codex/Gemini가 자체 paste 핸들러로 `[Image #N]`을 렌더합니다. 사용자 프로젝트 트리에 디스크 파일이 만들어지지 않습니다 (Win32: PowerShell `Clipboard.SetImage` 메모리, macOS: `os.tmpdir()` 임시 파일 + osascript + 즉시 unlink, Linux: `wl-copy`/`xclip` stdin)
 - **■**로 일시 중지, **Cleanup** 버튼으로 워크트리 정리 (실행 중이 아닐 때만 표시)
 - 세션 row의 **Edit2** 버튼으로 인라인 편집 (running 시 disabled): 제목/설명/CLI/모델/워크트리 + 위키 주입 모드/항목 수정 가능
@@ -879,6 +888,10 @@ todo / discussion 폼의 **위키 주입 (Wiki Injection)** 섹션에서 선택:
 
 선택 후 **프롬프트 미리보기** 모달로 실제로 LLM에 전달되는 `<long_term_memory>` 블록을 char/token 추정치와 함께 확인할 수 있습니다.
 
+#### 원본 md 파일 동시 주입 (Raw markdown injection)
+
+위와 별개로, 인제스트 시 보존된 원본 md 파일(`.clitrigger/raw/*.md`)을 **큐레이트 노드와 병렬로** 함께 주입할 수 있습니다 (todo/discussion/session 폼의 "원본 md 파일" 섹션). 노드 큐레이션이 압축/요약 과정에서 떨어뜨린 디테일이 필요할 때 원본을 그대로 모델에 전달하는 용도. mode가 `None`이어도 raw 파일이 선택되어 있으면 주입이 발동합니다 (모드와 직교). 파일당 50KB cap, `<raw_source_files>` 블록으로 wrap, `.clitrigger/raw/` 외부 경로는 차단.
+
 #### 동작 방식
 
 - 위키 블록은 프롬프트 **맨 앞에 prepend**되며 Claude/Gemini/Codex 모두 동일하게 동작 (CLI-agnostic)
@@ -1133,6 +1146,12 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/sessions/:id/submit-initial | 보류된 초기 프롬프트를 PTY로 전송 |
 | POST | /api/sessions/:id/skip-initial | 보류된 초기 프롬프트 폐기 |
 | POST | /api/sessions/:id/paste-image | 클립보드 이미지를 호스트 OS 클립보드에 push (응답 후 클라이언트가 PTY로 `ESC+v` 전송) |
+| GET | /api/session-tags | 세션 색상 태그 목록 |
+| POST | /api/session-tags | 세션 태그 생성 (이름 + `#RRGGBB`) |
+| PUT | /api/session-tags/:id | 세션 태그 수정 |
+| DELETE | /api/session-tags/:id | 세션 태그 삭제 (참조 세션의 tag_id는 자동 NULL clear) |
+| GET | /api/session-settings | 세션 글로벌 디폴트 조회 (현재 `defaultUseWorktree`) |
+| PUT | /api/session-settings | 세션 글로벌 디폴트 수정 |
 | GET | /api/favorites | 즐겨찾기 목록 |
 | POST | /api/favorites | 즐겨찾기 생성 |
 | PUT | /api/favorites/:id | 즐겨찾기 수정 |
