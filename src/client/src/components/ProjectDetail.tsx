@@ -883,6 +883,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           projectCliTool={project.cli_tool}
           projectCliModel={project.claude_model ?? undefined}
           isGitRepo={!!project.is_git_repo}
+          projectUseWorktree={project.use_worktree !== 0}
           onAddSession={handleAddSession}
           onUpdateSession={handleUpdateSession}
           onStopSession={handleStopSession}

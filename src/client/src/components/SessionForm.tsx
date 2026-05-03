@@ -34,16 +34,18 @@ interface SessionFormProps {
   projectCliTool?: string;
   projectCliModel?: string;
   isGitRepo?: boolean;
+  /** Default for `useWorktree` in create mode; ignored when `initial` is set. */
+  projectUseWorktree?: boolean;
 }
 
-export default function SessionForm({ projectId, initial, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo }: SessionFormProps) {
+export default function SessionForm({ projectId, initial, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo, projectUseWorktree }: SessionFormProps) {
   const { t } = useI18n();
   const isEdit = !!initial;
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [cliTool, setCliTool] = useState(initial?.cliTool ?? (projectCliTool || ''));
   const [cliModel, setCliModel] = useState(initial?.cliModel ?? (projectCliModel || ''));
-  const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? false);
+  const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? !!projectUseWorktree);
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initial?.memoryInjectMode ?? 'none');
   const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(initial?.memoryNodeIds ?? []);
   const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);

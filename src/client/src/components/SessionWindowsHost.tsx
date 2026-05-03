@@ -32,6 +32,8 @@ import {
 } from './group/groupTree';
 import { assignColor } from './group/colors';
 import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
+import * as sessionsApi from '../api/sessions';
+import { useI18n } from '../i18n';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 
@@ -178,10 +180,13 @@ export default function SessionWindowsHost({
   onEvent,
   children,
 }: HostProps) {
+  const { t } = useI18n();
   const [groups, setGroups] = useState<OpenGroup[]>([]);
   const zCounterRef = useRef(0);
   const groupsRef = useRef<OpenGroup[]>([]);
   groupsRef.current = groups;
+  const sessionsRef = useRef<Session[]>(sessions);
+  sessionsRef.current = sessions;
   const hydratedRef = useRef(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
@@ -317,7 +322,21 @@ export default function SessionWindowsHost({
     });
   }, []);
 
+  // SessionPane's auto-close only fires when status≠running, so it bypasses this confirm naturally.
+  const confirmRunningStop = useCallback((sessionIds: string[]): boolean => {
+    const running = sessionIds
+      .map(id => sessionsRef.current.find(s => s.id === id))
+      .filter((s): s is Session => !!s && s.status === 'running');
+    if (running.length === 0) return true;
+    if (!window.confirm(t('session.confirmStop'))) return false;
+    for (const s of running) {
+      sessionsApi.stopSession(s.id).catch(() => { /* swallow — UI tear-down proceeds */ });
+    }
+    return true;
+  }, [t]);
+
   const close = useCallback((sessionId: string) => {
+    if (!confirmRunningStop([sessionId])) return;
     setGroups((prev) => {
       const target = findGroupBySessionId(prev, sessionId);
       if (!target) return prev;
@@ -330,7 +349,7 @@ export default function SessionWindowsHost({
       delete intents[sessionId];
       return prev.map(g => g.id === target.id ? { ...g, root: newRoot, colors, intents } : g);
     });
-  }, []);
+  }, [confirmRunningStop]);
 
   const minimize = useCallback((sessionId: string) => {
     setGroups((prev) => {
@@ -355,8 +374,10 @@ export default function SessionWindowsHost({
   // ── Group-level API ──────────────────────────────────────────────────────
 
   const closeGroup = useCallback((groupId: string) => {
+    const group = groupsRef.current.find(g => g.id === groupId);
+    if (group && !confirmRunningStop(allSessionIds(group.root))) return;
     setGroups((prev) => prev.filter(g => g.id !== groupId));
-  }, []);
+  }, [confirmRunningStop]);
 
   const minimizeGroup = useCallback((groupId: string) => {
     setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, minimized: true } : g));
