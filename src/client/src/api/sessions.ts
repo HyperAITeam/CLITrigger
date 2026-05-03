@@ -57,3 +57,7 @@ export function getSessionLogs(id: string): Promise<SessionLog[]> {
 export function cleanupSession(id: string, deleteBranch = true): Promise<{ success: boolean; worktreeRemoved: boolean; branchDeleted: boolean }> {
   return post(`/api/sessions/${id}/cleanup`, { delete_branch: deleteBranch });
 }
+
+export function pasteImage(id: string, data: string, name?: string): Promise<{ path: string }> {
+  return post(`/api/sessions/${id}/paste-image`, { data, name });
+}

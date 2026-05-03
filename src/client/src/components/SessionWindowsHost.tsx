@@ -219,7 +219,7 @@ export default function SessionWindowsHost({
         if (!colors[id]) colors[id] = assignColor(Object.values(colors));
         if (!intents[id]) intents[id] = { intent: 'open', nonce: 0 };
       }
-      restored.push({ ...g, root: pruned, colors, intents, minimized: false });
+      restored.push({ ...g, root: pruned, colors, intents, minimized: !!g.minimized });
     }
     if (restored.length > 0) {
       zCounterRef.current = persisted.zCounter || restored.length;
@@ -687,6 +687,36 @@ export default function SessionWindowsHost({
   const visibleGroups = groups.filter(g => !g.minimized);
   const minimizedGroups = groups.filter(g => g.minimized);
 
+  // ── Dock tray drag-to-reorder ─────────────────────────────────────────
+  const dockDragRef = useRef<string | null>(null);
+  const dockDragOverRef = useRef<string | null>(null);
+
+  const onDockDragStart = useCallback((groupId: string) => {
+    dockDragRef.current = groupId;
+  }, []);
+
+  const onDockDragOver = useCallback((e: React.DragEvent, groupId: string) => {
+    e.preventDefault();
+    dockDragOverRef.current = groupId;
+  }, []);
+
+  const onDockDrop = useCallback((e: React.DragEvent, targetGroupId: string) => {
+    e.preventDefault();
+    const srcId = dockDragRef.current;
+    dockDragRef.current = null;
+    dockDragOverRef.current = null;
+    if (!srcId || srcId === targetGroupId) return;
+    setGroups(prev => {
+      const next = [...prev];
+      const srcIdx = next.findIndex(g => g.id === srcId);
+      const dstIdx = next.findIndex(g => g.id === targetGroupId);
+      if (srcIdx === -1 || dstIdx === -1) return prev;
+      const [moved] = next.splice(srcIdx, 1);
+      next.splice(dstIdx, 0, moved);
+      return next;
+    });
+  }, []);
+
   return (
     <SessionWindowsContext.Provider value={api}>
       {children}
@@ -724,6 +754,11 @@ export default function SessionWindowsHost({
             return (
               <div
                 key={g.id}
+                draggable
+                onDragStart={() => onDockDragStart(g.id)}
+                onDragOver={(e) => onDockDragOver(e, g.id)}
+                onDrop={(e) => onDockDrop(e, g.id)}
+                onDragEnd={() => { dockDragRef.current = null; dockDragOverRef.current = null; }}
                 onClick={() => restoreGroup(g.id)}
                 title={titles.join(' · ')}
                 style={{
@@ -737,7 +772,7 @@ export default function SessionWindowsHost({
                   fontFamily: CMD_FONT,
                   fontSize: 12,
                   color: CMD.titleText,
-                  cursor: 'pointer',
+                  cursor: 'grab',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
                   maxWidth: 240,
                   userSelect: 'none',
