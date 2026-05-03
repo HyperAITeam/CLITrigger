@@ -82,7 +82,7 @@ export default function SessionPane({
   useEffect(() => {
     if (session.status === 'running') return;
     if (!wasActiveRef.current) return;
-    if (phase !== 'subscribed' && phase !== 'starting' && phase !== 'stopping') return;
+    if (phase !== 'subscribed' && phase !== 'stopping') return;
     const tm = setTimeout(() => onClose(), 300);
     return () => clearTimeout(tm);
   }, [session.status, phase, onClose]);
@@ -92,7 +92,6 @@ export default function SessionPane({
     if (!dims) return;
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
-    wasActiveRef.current = true;
     setPhase('starting');
     setErrorMsg(null);
     setPendingError(null);
