@@ -240,10 +240,32 @@ export default function SessionTerminal({
       ? setupMobileImeInput({ container, term, sessionId, sendMessage })
       : setupDesktopInput({ container, term, sessionId, sendMessage });
 
+    // Defer the fit to the next animation frame so the ResizeObserver
+    // callback doesn't synchronously mutate layout (which can trigger a
+    // RO loop and leave xterm's DOM-rendered rows at stale Y positions).
+    // After a successful fit we force `term.refresh()` — without it, the
+    // viewport scrollbar that appears when scrollback exceeds the new
+    // visible area paints stale rows when dragged.
+    let fitPending = false;
+    const lastFitRef = { cols: term.cols, rows: term.rows };
     const ro = new ResizeObserver(() => {
-      try { fitAddon.fit(); } catch { /* ignore */ }
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = setTimeout(sendResize, 150);
+      if (fitPending) return;
+      fitPending = true;
+      requestAnimationFrame(() => {
+        fitPending = false;
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        try {
+          fitAddon.fit();
+          if (term.cols !== lastFitRef.cols || term.rows !== lastFitRef.rows) {
+            lastFitRef.cols = term.cols;
+            lastFitRef.rows = term.rows;
+            term.refresh(0, term.rows - 1);
+          }
+        } catch { /* ignore */ }
+        if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = setTimeout(sendResize, 150);
+      });
     });
     ro.observe(container);
 
@@ -293,7 +315,10 @@ export default function SessionTerminal({
     if (!term || !fitAddon) return;
     if (term.options.fontSize === fontSize) return;
     term.options.fontSize = fontSize;
-    try { fitAddon.fit(); } catch { /* container may be hidden */ }
+    try {
+      fitAddon.fit();
+      term.refresh(0, term.rows - 1);
+    } catch { /* container may be hidden */ }
     if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
     resizeTimerRef.current = setTimeout(() => {
       sendResizeRef.current?.();
