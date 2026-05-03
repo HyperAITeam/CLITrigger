@@ -106,19 +106,19 @@ export default function SessionTerminal({
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const pasteFromClipboard = async () => {
       try {
-        // Check OS clipboard for a copied image file path first
-        try {
-          const clip = await getClipboardImagePath(sessionId);
-          if (clip.path) {
-            sendMessage({ type: 'session:terminal-input', sessionId, input: clip.path });
-            return;
-          }
-        } catch { /* fall through to browser clipboard */ }
-
         const items = await navigator.clipboard.read();
         for (const item of items) {
           const imageType = item.types.find(t => t.startsWith('image/'));
           if (imageType) {
+            // Image in clipboard — check OS for existing file path (Explorer copy or recent screenshot)
+            try {
+              const clip = await getClipboardImagePath(sessionId);
+              if (clip.path) {
+                sendMessage({ type: 'session:terminal-input', sessionId, input: clip.path });
+                return;
+              }
+            } catch { /* fall through to blob upload */ }
+
             const blob = await item.getType(imageType);
             const reader = new FileReader();
             reader.onload = () => {
