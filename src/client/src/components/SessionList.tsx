@@ -24,6 +24,7 @@ interface SessionListProps {
   projectCliTool?: string;
   projectCliModel?: string;
   isGitRepo?: boolean;
+  projectUseWorktree?: boolean;
   onAddSession: (session: Session) => void;
   onUpdateSession: (session: Session) => void;
   onStopSession: (id: string) => Promise<void>;
@@ -45,6 +46,7 @@ export default function SessionList({
   projectCliTool,
   projectCliModel,
   isGitRepo,
+  projectUseWorktree,
   onAddSession,
   onUpdateSession,
   onStopSession,
@@ -180,6 +182,7 @@ export default function SessionList({
           projectCliTool={projectCliTool}
           projectCliModel={projectCliModel}
           isGitRepo={isGitRepo}
+          projectUseWorktree={projectUseWorktree}
         />
       )}
 
