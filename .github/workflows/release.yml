@@ -51,10 +51,17 @@ jobs:
             LICENSE \
             docs/
 
+      - name: Fetch release notes from main
+        run: |
+          git fetch --depth=1 origin main || true
+          git show origin/main:docs/release-notes/${{ github.ref_name }}.md \
+            > /tmp/release-notes.md 2>/dev/null \
+            || rm -f /tmp/release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: docs/release-notes/${{ github.ref_name }}.md
+          body_path: /tmp/release-notes.md
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: clitrigger-${{ github.ref_name }}.tar.gz
