@@ -401,7 +401,7 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
   }
 });
 
-// GET /api/sessions/:id/clipboard-image-path — check OS clipboard for copied image file path
+// GET /api/sessions/:id/clipboard-image-path — check OS clipboard for copied image file path or recent screenshot
 router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, res: Response) => {
   try {
     const session = queries.getSessionById(req.params.id);
@@ -412,19 +412,37 @@ router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, 
       return;
     }
 
+    const psScript = `
+$f = Get-Clipboard -Format FileDropList
+if ($f) { $f[0].FullName; exit }
+$dirs = @()
+$pics = [Environment]::GetFolderPath('MyPictures')
+$d = Join-Path $pics 'Screenshots'; if (Test-Path $d) { $dirs += $d }
+$d = Join-Path $pics '스크린샷'; if (Test-Path $d) { $dirs += $d }
+$od = $env:OneDrive
+if ($od) {
+  $d = Join-Path $od '사진\\스크린샷'; if (Test-Path $d) { $dirs += $d }
+  $d = Join-Path $od 'Pictures\\Screenshots'; if (Test-Path $d) { $dirs += $d }
+}
+$cutoff = (Get-Date).AddSeconds(-10)
+foreach ($d in $dirs) {
+  $r = Get-ChildItem $d -File | Where-Object { $_.LastWriteTime -gt $cutoff -and $_.Extension -match '\\.(png|jpg|jpeg|bmp)$' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if ($r) { $r.FullName; exit }
+}`;
+
     const out = execFileSync('powershell', [
-      '-NoProfile', '-Command',
-      'Get-Clipboard -Format FileDropList | ForEach-Object { $_.FullName }',
-    ], { encoding: 'utf-8', timeout: 3000, windowsHide: true }).trim();
+      '-NoProfile', '-Command', psScript,
+    ], { encoding: 'utf-8', timeout: 5000, windowsHide: true }).trim();
 
     if (!out) { res.json({ path: null }); return; }
 
-    const filePath = out.split(/\r?\n/).find(line => {
-      const ext = path.extname(line).toLowerCase();
-      return IMAGE_EXTENSIONS.has(ext) && fs.existsSync(line);
-    });
-
-    res.json({ path: filePath || null });
+    const filePath = out.split(/\r?\n/)[0].trim();
+    const ext = path.extname(filePath).toLowerCase();
+    if (IMAGE_EXTENSIONS.has(ext) && fs.existsSync(filePath)) {
+      res.json({ path: filePath });
+    } else {
+      res.json({ path: null });
+    }
   } catch {
     res.json({ path: null });
   }
