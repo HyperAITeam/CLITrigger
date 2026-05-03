@@ -944,6 +944,7 @@ export interface Session {
   memory_inject_mode: string | null;
   memory_node_ids: string | null;
   memory_raw_file_paths: string | null;
+  tag_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -958,13 +959,14 @@ export function createSession(
   memoryInjectMode?: string | null,
   memoryNodeIds?: string | null,
   memoryRawFilePaths?: string | null,
+  tagId?: string | null,
 ): Session {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     projectId,
@@ -976,6 +978,7 @@ export function createSession(
     memoryInjectMode ?? 'none',
     memoryNodeIds ?? null,
     memoryRawFilePaths ?? null,
+    tagId ?? null,
     now,
     now,
   );
@@ -992,7 +995,7 @@ export function getSessionById(id: string): Session | undefined {
   return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>>): Session | undefined {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id'>>): Session | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -1011,6 +1014,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.memory_inject_mode !== undefined) { fields.push('memory_inject_mode = ?'); values.push(updates.memory_inject_mode); }
   if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
   if (updates.memory_raw_file_paths !== undefined) { fields.push('memory_raw_file_paths = ?'); values.push(updates.memory_raw_file_paths); }
+  if (updates.tag_id !== undefined) { fields.push('tag_id = ?'); values.push(updates.tag_id); }
 
   if (fields.length === 0) return getSessionById(id);
 
@@ -1036,6 +1040,61 @@ export function getSessionsByStatus(status: string): Session[] {
 export function deleteSession(id: string): boolean {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Session Tags ──
+
+export interface SessionTag {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getSessionTags(): SessionTag[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM session_tags ORDER BY sort_order ASC, name ASC').all() as SessionTag[];
+}
+
+export function getSessionTagById(id: string): SessionTag | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM session_tags WHERE id = ?').get(id) as SessionTag | undefined;
+}
+
+export function createSessionTag(name: string, color: string): SessionTag {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  const maxRow = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as max FROM session_tags').get() as { max: number };
+  const nextOrder = (maxRow?.max ?? -1) + 1;
+  db.prepare(
+    'INSERT INTO session_tags (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, name, color, nextOrder, now, now);
+  return getSessionTagById(id)!;
+}
+
+export function updateSessionTag(id: string, updates: Partial<Pick<SessionTag, 'name' | 'color' | 'sort_order'>>): SessionTag | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color); }
+  if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(updates.sort_order); }
+  if (fields.length === 0) return getSessionTagById(id);
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+  db.prepare(`UPDATE session_tags SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getSessionTagById(id);
+}
+
+export function deleteSessionTag(id: string): boolean {
+  const db = getDatabase();
+  db.prepare('UPDATE sessions SET tag_id = NULL WHERE tag_id = ?').run(id);
+  const result = db.prepare('DELETE FROM session_tags WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
