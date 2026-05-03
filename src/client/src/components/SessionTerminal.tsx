@@ -90,22 +90,74 @@ export default function SessionTerminal({
       scrollback: 5000,
       theme: TERMINAL_THEME,
       allowProposedApi: true,
+      macOptionIsMeta: true,
     });
-    // Ctrl/Cmd + '=' / '+' / '-' adjust the per-session font size and
-    // suppress xterm's default key handling AND the browser's default zoom.
-    // Returning false from the handler stops xterm from forwarding the key.
+    // xterm.js core deliberately omits clipboard integration so the host can
+    // decide. Without this branch:
+    //   - Ctrl/Cmd+C with selection just sends SIGINT (^C) and never copies.
+    //   - Ctrl/Cmd+V sends ^V (literal-next) instead of pasting.
+    //   - Ctrl/Cmd+X sends ^X.
+    //   - On macOS the helper textarea has no text, so the browser's default
+    //     Cmd+C/V/X also no-ops.
+    // We branch on selection presence (Ctrl+C falls through to SIGINT when
+    // nothing is selected, matching iTerm2/Windows Terminal). Alt+V is
+    // additionally mapped to paste at the user's request.
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    const pasteFromClipboard = () => {
+      navigator.clipboard.readText().then((text) => {
+        if (text) sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+      }).catch(() => { /* non-secure context — paste-event fallback handles it */ });
+    };
     term.attachCustomKeyEventHandler((ev) => {
       if (ev.type !== 'keydown') return true;
-      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return true;
-      if (ev.key === '+' || ev.key === '=') {
+
+      const mod = isMac ? ev.metaKey : ev.ctrlKey;
+      const otherMod = isMac ? ev.ctrlKey : ev.metaKey;
+      const onlyMod = mod && !otherMod && !ev.altKey && !ev.shiftKey;
+      const key = ev.key.toLowerCase();
+
+      if (onlyMod && key === 'c') {
+        if (term.hasSelection()) {
+          ev.preventDefault();
+          navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+          return false;
+        }
+        return true; // no selection → let SIGINT through
+      }
+      if (onlyMod && key === 'v') {
         ev.preventDefault();
-        bumpSessionFontSize(sessionId, +1);
+        pasteFromClipboard();
         return false;
       }
-      if (ev.key === '-' || ev.key === '_') {
+      if (onlyMod && key === 'x') {
+        if (term.hasSelection()) {
+          ev.preventDefault();
+          navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+          term.clearSelection();
+          return false;
+        }
+        return true;
+      }
+      // Alt+V → paste (Linux terminal convention some users prefer).
+      // Resolves before macOptionIsMeta's ESC+v conversion.
+      if (ev.altKey && !ev.ctrlKey && !ev.metaKey && !ev.shiftKey && key === 'v') {
         ev.preventDefault();
-        bumpSessionFontSize(sessionId, -1);
+        pasteFromClipboard();
         return false;
+      }
+
+      // Ctrl/Cmd + '=' / '+' / '-' adjust the per-session font size.
+      if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {
+        if (ev.key === '+' || ev.key === '=') {
+          ev.preventDefault();
+          bumpSessionFontSize(sessionId, +1);
+          return false;
+        }
+        if (ev.key === '-' || ev.key === '_') {
+          ev.preventDefault();
+          bumpSessionFontSize(sessionId, -1);
+          return false;
+        }
       }
       return true;
     });
@@ -431,8 +483,19 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
       sendMessage({ type: 'session:terminal-input', sessionId, input: data });
     }
   };
+  // Browser paste event fires inside a user gesture even on http:// origins
+  // where navigator.clipboard.readText() is blocked, so this catches LAN-IP
+  // access via cloudflared-disabled scenarios.
+  const handlePaste = (e: ClipboardEvent) => {
+    const text = e.clipboardData?.getData('text/plain');
+    if (text) {
+      e.preventDefault();
+      sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+    }
+  };
   container.addEventListener('compositionstart', handleCompStart, true);
   container.addEventListener('compositionend', handleCompEnd, true);
+  container.addEventListener('paste', handlePaste, true);
   const onDataDisposable = term.onData((d) => {
     if (composing) return;
     if (Date.now() - lastCompositionEndAt < 50) return;
@@ -442,6 +505,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
     onDataDisposable.dispose();
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
+    container.removeEventListener('paste', handlePaste, true);
   };
 }
 
