@@ -26,6 +26,7 @@ interface SessionListProps {
   projectCliModel?: string;
   isGitRepo?: boolean;
   projectUseWorktree?: boolean;
+  projectDefaultBranch?: string;
   onAddSession: (session: Session) => void;
   onUpdateSession: (session: Session) => void;
   onStopSession: (id: string) => Promise<void>;
@@ -48,6 +49,7 @@ export default function SessionList({
   projectCliModel,
   isGitRepo,
   projectUseWorktree,
+  projectDefaultBranch,
   onAddSession,
   onUpdateSession,
   onStopSession,
@@ -285,10 +287,10 @@ export default function SessionList({
                           {session.cli_tool || 'claude'}
                           {session.cli_model ? ` / ${session.cli_model}` : ''}
                         </span>
-                        {session.branch_name && (
+                        {(session.branch_name || (isGitRepo && projectDefaultBranch)) && (
                           <span className="text-2xs text-accent/70 flex items-center gap-0.5">
                             <GitBranch size={12} />
-                            {session.branch_name}
+                            {session.branch_name || projectDefaultBranch}
                           </span>
                         )}
                       </div>
