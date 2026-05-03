@@ -123,8 +123,11 @@ export default function SessionTerminal({
             const reader = new FileReader();
             reader.onload = () => {
               const dataUrl = reader.result as string;
-              pasteImage(sessionId, dataUrl).then(({ path }) => {
-                sendMessage({ type: 'session:terminal-input', sessionId, input: path });
+              // Server pushes the image into the host OS clipboard; we then
+              // trigger the CLI's native Alt+V handler so it reads the bytes
+              // itself. ESC+v is the terminal sequence for Alt+V.
+              pasteImage(sessionId, dataUrl).then(() => {
+                sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
               }).catch(() => {});
             };
             reader.readAsDataURL(blob);
@@ -530,8 +533,8 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result as string;
-            pasteImage(sessionId, dataUrl, file.name).then(({ path }) => {
-              sendMessage({ type: 'session:terminal-input', sessionId, input: path });
+            pasteImage(sessionId, dataUrl, file.name).then(() => {
+              sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
             }).catch(() => {});
           };
           reader.readAsDataURL(file);

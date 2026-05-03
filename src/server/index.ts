@@ -125,6 +125,29 @@ if (staleSessions.length > 0) {
   }
 }
 
+// One-shot legacy paste-images cleanup. Older builds saved clipboard
+// screenshots into `<project>/.clitrigger/paste-images/` (and worktrees);
+// the new flow writes the image directly to the host OS clipboard, so
+// anything still sitting in project trees is leftover noise. Best-effort —
+// every fs op is swallowed so a hostile path can't block boot.
+for (const p of getAllProjects()) {
+  try {
+    const projDir = path.join(p.path, '.clitrigger', 'paste-images');
+    if (fs.existsSync(projDir)) fs.rmSync(projDir, { recursive: true, force: true });
+  } catch { /* ignore */ }
+  try {
+    const worktreesRoot = path.join(p.path, '.worktrees');
+    if (fs.existsSync(worktreesRoot)) {
+      for (const wt of fs.readdirSync(worktreesRoot)) {
+        try {
+          const wtDir = path.join(worktreesRoot, wt, '.clitrigger', 'paste-images');
+          if (fs.existsSync(wtDir)) fs.rmSync(wtDir, { recursive: true, force: true });
+        } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 // Auto-cleanup old logs (default 30 days)
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
 const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);

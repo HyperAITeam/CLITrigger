@@ -6,6 +6,7 @@ import { execFileSync } from 'child_process';
 import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { writeImageToClipboard } from '../services/clipboard-writer.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -180,14 +181,6 @@ router.delete('/sessions/:id', (req: Request<{ id: string }>, res: Response) => 
     if (session.status === 'running') {
       res.status(400).json({ error: 'Stop the session before deleting' });
       return;
-    }
-
-    const project = queries.getProjectById(session.project_id);
-    if (project) {
-      const pasteDir = path.join(session.worktree_path || project.path, '.clitrigger', 'paste-images');
-      if (fs.existsSync(pasteDir)) {
-        fs.rmSync(pasteDir, { recursive: true, force: true });
-      }
     }
 
     queries.deleteSession(req.params.id);
@@ -387,11 +380,6 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
       const updates: Record<string, null> = { worktree_path: null };
       if (deleteBranch) updates.branch_name = null;
       queries.updateSession(req.params.id, updates as any);
-    } else {
-      const pasteDir = path.join(project.path, '.clitrigger', 'paste-images');
-      if (fs.existsSync(pasteDir)) {
-        fs.rmSync(pasteDir, { recursive: true, force: true });
-      }
     }
 
     res.json({ success: true, ...result });
@@ -430,17 +418,16 @@ router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, 
   }
 });
 
-// POST /api/sessions/:id/paste-image — save clipboard image to session workdir, return relative path
-router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Response) => {
+// POST /api/sessions/:id/paste-image — push the clipboard bitmap straight into
+// the host OS clipboard so the CLI subprocess (Claude/Codex/Gemini) can read it
+// via its native Alt+V handler. After this returns success, the client should
+// emit `\x1bv` over the PTY stream so the CLI fires its image-paste path.
+// No file is written to disk.
+router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const session = queries.getSessionById(req.params.id);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-    const project = queries.getProjectById(session.project_id);
-    if (!project) {
-      res.status(404).json({ error: 'Project not found' });
       return;
     }
 
@@ -456,28 +443,14 @@ router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const ext = match[1] === 'jpeg' ? 'jpg' : match[1] === 'svg+xml' ? 'svg' : match[1];
     const buffer = Buffer.from(match[2], 'base64');
     if (buffer.length > 10 * 1024 * 1024) {
       res.status(400).json({ error: 'Image exceeds 10MB limit' });
       return;
     }
 
-    const workDir = session.worktree_path || project.path;
-    const imgDir = path.join(workDir, '.clitrigger', 'paste-images');
-    fs.mkdirSync(imgDir, { recursive: true });
-
-    const existing = fs.readdirSync(imgDir);
-    const maxNum = existing.reduce((max, f) => {
-      const m = f.match(/^img(\d+)\./);
-      return m ? Math.max(max, parseInt(m[1], 10)) : max;
-    }, 0);
-    const filename = `img${maxNum + 1}.${ext}`;
-    const filePath = path.join(imgDir, filename);
-    fs.writeFileSync(filePath, buffer);
-
-    const relPath = path.relative(workDir, filePath).replace(/\\/g, '/');
-    res.json({ path: relPath });
+    await writeImageToClipboard(buffer);
+    res.json({ pasted: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

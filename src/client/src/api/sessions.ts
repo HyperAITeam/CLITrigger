@@ -58,7 +58,7 @@ export function cleanupSession(id: string, deleteBranch = true): Promise<{ succe
   return post(`/api/sessions/${id}/cleanup`, { delete_branch: deleteBranch });
 }
 
-export function pasteImage(id: string, data: string, name?: string): Promise<{ path: string }> {
+export function pasteImage(id: string, data: string, name?: string): Promise<{ pasted: true }> {
   return post(`/api/sessions/${id}/paste-image`, { data, name });
 }
 
