@@ -1,4 +1,7 @@
 import { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
@@ -376,6 +379,56 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
     }
 
     res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/sessions/:id/paste-image — save clipboard image to session workdir, return absolute path
+router.post('/sessions/:id/paste-image', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const project = queries.getProjectById(session.project_id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const { data, name } = req.body as { data: string; name?: string };
+    if (!data || typeof data !== 'string') {
+      res.status(400).json({ error: 'data (base64 data URL) is required' });
+      return;
+    }
+
+    const match = data.match(/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,(.+)$/);
+    if (!match) {
+      res.status(400).json({ error: 'Invalid image data URL format' });
+      return;
+    }
+
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length > 10 * 1024 * 1024) {
+      res.status(400).json({ error: 'Image exceeds 10MB limit' });
+      return;
+    }
+
+    const workDir = session.worktree_path || project.path;
+    const imgDir = path.join(workDir, '.clitrigger', 'paste-images');
+    fs.mkdirSync(imgDir, { recursive: true });
+
+    const filename = name
+      ? `${Date.now()}-${name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      : `${Date.now()}-${uuidv4().slice(0, 8)}.${ext}`;
+    const filePath = path.join(imgDir, filename);
+    fs.writeFileSync(filePath, buffer);
+
+    res.json({ path: filePath });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

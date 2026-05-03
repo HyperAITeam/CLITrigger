@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
+import { pasteImage } from '../api/sessions';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SessionTerminalProps {
@@ -103,10 +104,29 @@ export default function SessionTerminal({
     // nothing is selected, matching iTerm2/Windows Terminal). Alt+V is
     // additionally mapped to paste at the user's request.
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-    const pasteFromClipboard = () => {
-      navigator.clipboard.readText().then((text) => {
+    const pasteFromClipboard = async () => {
+      try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find(t => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const reader = new FileReader();
+            reader.onload = () => {
+              const dataUrl = reader.result as string;
+              pasteImage(sessionId, dataUrl).then(({ path }) => {
+                sendMessage({ type: 'session:terminal-input', sessionId, input: path });
+              }).catch(() => {});
+            };
+            reader.readAsDataURL(blob);
+            return;
+          }
+        }
+        const text = await navigator.clipboard.readText();
         if (text) sendMessage({ type: 'session:terminal-input', sessionId, input: text });
-      }).catch(() => { /* non-secure context — paste-event fallback handles it */ });
+      } catch {
+        // non-secure context — paste-event fallback handles it
+      }
     };
     term.attachCustomKeyEventHandler((ev) => {
       if (ev.type !== 'keydown') return true;
@@ -491,6 +511,25 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   // where navigator.clipboard.readText() is blocked, so this catches LAN-IP
   // access via cloudflared-disabled scenarios.
   const handlePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            pasteImage(sessionId, dataUrl, file.name).then(({ path }) => {
+              sendMessage({ type: 'session:terminal-input', sessionId, input: path });
+            }).catch(() => {});
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
     const text = e.clipboardData?.getData('text/plain');
     if (text) {
       e.preventDefault();
