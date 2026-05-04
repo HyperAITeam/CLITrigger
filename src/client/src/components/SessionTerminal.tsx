@@ -618,90 +618,25 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
       if (cols <= 0 || rows <= 0) return;
       const screenRect = screen.getBoundingClientRect();
       if (screenRect.width === 0 || screenRect.height === 0) return;
-      // Prefer xterm's own cell metrics (matches what xterm.js's CompositionHelper
-      // uses internally when it later repositions on compositionupdate). Falling
-      // back to screenRect/cols leaves a sub-pixel rounding error that — combined
-      // with the offset gap below — can shift the OS IME panel a full cell off.
-      const internalCell = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })
-        ._core?._renderService?.dimensions?.css?.cell;
-      const cellW = internalCell?.width || (screenRect.width / cols);
-      const cellH = internalCell?.height || (screenRect.height / rows);
+      const cellW = screenRect.width / cols;
+      const cellH = screenRect.height / rows;
       const buf = term.buffer.active;
       const cursorX = Math.min(buf.cursorX, cols - 1);
       const cursorY = Math.max(0, Math.min(buf.cursorY, rows - 1));
-      // helper.style.left is relative to its offsetParent (xterm.js's
-      // .xterm-helpers wrapper). On some layouts that wrapper does not sit
-      // exactly at .xterm-screen's origin, so applying just `cursorX * cellW`
-      // lands one cell to the left of the visible cursor cell. Bridge the gap
-      // by computing the screen's position in viewport coords and converting
-      // back into the offsetParent's local frame.
-      const offsetParent = (helper.offsetParent as HTMLElement | null) ?? helper.parentElement;
-      const parentRect = offsetParent ? offsetParent.getBoundingClientRect() : null;
-      const offsetLeft = parentRect ? screenRect.left - parentRect.left : 0;
-      const offsetTop = parentRect ? screenRect.top - parentRect.top : 0;
-      helper.style.left = `${offsetLeft + cursorX * cellW}px`;
-      helper.style.top = `${offsetTop + cursorY * cellH}px`;
+      helper.style.left = `${cursorX * cellW}px`;
+      helper.style.top = `${cursorY * cellH}px`;
       helper.style.width = `${Math.max(cellW, 1)}px`;
       helper.style.height = `${Math.max(cellH, 1)}px`;
     } catch { /* defensive: xterm DOM may not be fully built yet */ }
   };
   positionHelperAtCursor();
 
-  // CLIs like Claude Code/Codex/Gemini hide xterm's native cursor and draw
-  // their own block cursor by inverting the previous cell, so PTY buffer.x
-  // sits one cell ahead of the visible cursor. xterm's CompositionHelper
-  // re-positions the visible composition view at `buffer.x * cellW` on every
-  // compositionupdate, which lands one cell to the right of where the user
-  // sees the cursor. Detect that pattern and shift the entire .xterm-helpers
-  // wrapper (which contains both the invisible textarea and the visible
-  // composition view) left by one cell during composition, then restore.
-  let helpersTransformBackup: string | null = null;
-  let imeDebugLogged = false;
-  const helpersEl = (): HTMLElement | null =>
-    container.querySelector('.xterm-helpers') as HTMLElement | null;
   const handleCompStart = () => {
     composing = true;
     positionHelperAtCursor();
-    try {
-      const buf = term.buffer.active;
-      const internalCell = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })
-        ._core?._renderService?.dimensions?.css?.cell;
-      const cellW = internalCell?.width || 0;
-      const line = buf.getLine(buf.cursorY);
-      const prevCell = buf.cursorX > 0 ? line?.getCell(buf.cursorX - 1) : undefined;
-      const currCell = line?.getCell(buf.cursorX);
-      const prevCellInverse = prevCell?.isInverse?.() === 1;
-      const currCellInverse = currCell?.isInverse?.() === 1;
-      const helpers = helpersEl();
-      let transformApplied = false;
-      if (helpers && cellW > 0 && buf.cursorX > 0 && prevCellInverse) {
-        if (helpersTransformBackup === null) helpersTransformBackup = helpers.style.transform;
-        helpers.style.transform = `translateX(${-cellW}px)`;
-        transformApplied = true;
-      }
-      if (!imeDebugLogged) {
-        imeDebugLogged = true;
-        // eslint-disable-next-line no-console
-        console.log('[CLITrigger IME]', {
-          cursorX: buf.cursorX,
-          cursorY: buf.cursorY,
-          cellW,
-          prevCellInverse,
-          currCellInverse,
-          transformApplied,
-        });
-      }
-    } catch { /* defensive: xterm internals may shift between versions */ }
-  };
-  const restoreHelpersTransform = () => {
-    if (helpersTransformBackup === null) return;
-    const helpers = helpersEl();
-    if (helpers) helpers.style.transform = helpersTransformBackup;
-    helpersTransformBackup = null;
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
-    restoreHelpersTransform();
     const data = (e as CompositionEvent).data;
     if (data) {
       pendingDedup = data;
@@ -751,7 +686,6 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   });
   return () => {
     onDataDisposable.dispose();
-    restoreHelpersTransform();
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
