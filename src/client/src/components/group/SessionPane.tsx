@@ -276,6 +276,7 @@ export default function SessionPane({
         subscribeBinary={subscribeBinary}
         onEvent={onEvent}
         fontSize={fontSize}
+        inputBlocked={pendingPromptLength !== null}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
@@ -287,6 +288,9 @@ export default function SessionPane({
               <span style={{ color: CMD.dim, marginLeft: 8 }}>
                 {pendingPromptLength.toLocaleString()} chars
               </span>
+              <div style={{ color: CMD.warning, fontSize: 10, marginTop: 2 }}>
+                {t('session.initialPrompt.blocked') || 'Press Send or Skip before typing — keystrokes are ignored until then.'}
+              </div>
             </span>
             <button
               onClick={togglePreview}
@@ -347,6 +351,7 @@ const pendingBannerStyle: React.CSSProperties = {
   top: 0, left: 0, right: 0,
   background: 'rgba(28,28,38,0.96)',
   borderBottom: `1px solid ${CMD.separator}`,
+  borderLeft: `3px solid ${CMD.warning}`,
   padding: '8px 10px',
   color: CMD.bright,
   fontFamily: CMD_FONT,

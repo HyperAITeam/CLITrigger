@@ -143,6 +143,12 @@ export function initWebSocket(server: Server): void {
         // Raw keystrokes from xterm.js (CR, arrow keys, Ctrl+C, etc).
         // Bypasses the `\n → submitSeq` translation that `writeToStdin` applies.
         if (msg.type === 'session:terminal-input' && typeof msg.sessionId === 'string' && typeof msg.input === 'string') {
+          // Defense in depth: drop keystrokes while the server is still
+          // holding the initial prompt for review. The client gates this
+          // too, but if it ever leaks through (stale build, race), we don't
+          // want the user's typing to silently land in the PTY before the
+          // held description is dispatched.
+          if (sessionManager.hasPendingPrompt(msg.sessionId)) return;
           const session = getSessionById(msg.sessionId);
           if (session && session.process_pid && session.status === 'running') {
             claudeManager.writeStdinRaw(session.process_pid, msg.input);
