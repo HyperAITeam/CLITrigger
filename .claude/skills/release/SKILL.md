@@ -45,30 +45,13 @@ Follow these phases exactly, in order.
 
 ---
 
-### Phase 3: Commit & Tag
+### Phase 3: 릴리즈 노트 작성
 
-1. **Stage files**:
-   ```
-   git add package.json package-lock.json
-   ```
+`docs/release-notes/v<new-version>.md`에 한국어 사용자 대상 릴리즈 노트를 작성한다. push 후 GitHub Actions(`.github/workflows/release.yml`)가 태그 체크아웃 tree에서 이 파일을 읽어 GitHub Release body로 사용한다 (파일이 없으면 자동 PR 인덱스로 폴백).
 
-2. **Commit** with a standardized message:
-   ```
-   git commit -m "chore(release): v<new-version>"
-   ```
+이 phase에서는 **파일만 작성**하고 commit하지 않는다. 다음 Phase 4가 release 커밋에 노트 파일을 함께 stage 해서 태그가 노트를 포함한 커밋을 가리키도록 한다.
 
-3. **Create tag**:
-   ```
-   git tag v<new-version>
-   ```
-
----
-
-### Phase 4: 릴리즈 노트 작성
-
-`docs/release-notes/v<new-version>.md`에 한국어 사용자 대상 릴리즈 노트를 작성한다. push 후 GitHub Actions(`.github/workflows/release.yml`)가 이 파일을 GitHub Release body로 사용한다 (파일이 없으면 자동 PR 인덱스로 폴백).
-
-#### 4-1. 직전 태그 결정
+#### 3-1. 직전 태그 결정
 
 ```
 git tag --sort=-v:refname | head -1
@@ -77,7 +60,7 @@ git tag --sort=-v:refname | head -1
 - 결과가 비어 있으면 첫 릴리즈로 간주하고 노트 본문에 "초기 릴리즈" 명시. 커밋 범위는 첫 커밋부터 HEAD까지.
 - 결과가 있으면 `<PREV_TAG>` 변수로 사용. Phase 1에서 새 태그 중복 체크가 끝났으므로 항상 새 태그보다 이전.
 
-#### 4-2. 변경 재료 수집
+#### 3-2. 변경 재료 수집
 
 다음 두 가지를 모아 한 번에 본다:
 
@@ -89,7 +72,7 @@ git tag --sort=-v:refname | head -1
    - 이미 한국어로 큐레이션된 본문이 있으므로 release 노트는 이걸 **요약/재구성**하는 데 집중. 통째 복붙 금지.
    - changelog entry가 0개면(짧은 패치 릴리즈) 커밋 메시지 + 핵심 diff만 보고 직접 작성.
 
-#### 4-3. 노트 파일 작성
+#### 3-3. 노트 파일 작성
 
 `docs/release-notes/v<new-version>.md`를 신규로 만든다. 폴더가 없으면 같이 만든다.
 
@@ -154,20 +137,32 @@ npm i -g clitrigger@<new-version>
 - 같은 주제의 여러 커밋(WIP/fixup 포함)은 하나의 항목으로 통합한다.
 - `docs/changelog/` entry가 있으면 그걸 **요약**할 것. 본문을 그대로 옮기지 않는다.
 
-#### 4-4. 사용자에게 안내
+#### 3-4. 사용자 검수 시점 안내 (선택)
 
-스킬은 파일만 작성하고 자동 commit하지 않는다. 다음 안내를 출력한다:
+이 시점에서 commit·tag를 만들기 전에 노트 본문을 검수받고 싶으면 사용자에게 알리고 잠시 멈출 수 있다. "OK"를 받으면 Phase 4로 진행. 별도 검수 요청이 없으면 바로 Phase 4로 넘어가도 된다 (어차피 Phase 5 종료 후 push 전까지 사용자가 노트를 더 다듬을 기회는 있음).
 
-```
-릴리즈 노트 초안: docs/release-notes/v<new-version>.md
+---
 
-이 파일을 검토/수정한 뒤 별도 커밋으로 push 하세요:
-  git add docs/release-notes/v<new-version>.md
-  git commit -m "docs(release): v<new-version> notes"
-  git push origin main v<new-version>
-```
+### Phase 4: Commit & Tag
 
-자동 commit/amend는 하지 않는다. Phase 1~3에서 만든 release 커밋·태그의 일관성을 깨뜨릴 수 있고, 노트는 사람이 한 번 검수하는 게 안전하다.
+릴리즈 노트 파일을 release 커밋과 같은 커밋에 stage 해서, 태그가 노트를 포함한 커밋을 가리키도록 한다.
+
+1. **Stage files** (노트 파일 포함):
+   ```
+   git add package.json package-lock.json docs/release-notes/v<new-version>.md
+   ```
+
+2. **Commit** with a standardized message:
+   ```
+   git commit -m "chore(release): v<new-version>"
+   ```
+
+3. **Create tag**:
+   ```
+   git tag v<new-version>
+   ```
+
+이제 `git show v<new-version> --stat`에 노트 파일이 포함되어 있어야 한다. 태그 ref만 체크아웃해도 `docs/release-notes/v<new-version>.md`가 보인다.
 
 ---
 
@@ -175,10 +170,10 @@ npm i -g clitrigger@<new-version>
 
 Report to the user:
 - Previous version -> New version
-- Commit hash
+- Commit hash (노트 파일 포함)
 - Tag name
-- 릴리즈 노트 파일 경로 (`docs/release-notes/v<new-version>.md`)
-- Remind them to push: `git push origin main v<new-version>` (노트를 별도 커밋한 뒤)
-- Note: GitHub Actions will automatically run typecheck, tests, build, and publish to npm. 노트 파일이 있으면 GitHub Release body로 그대로 사용된다.
+- 릴리즈 노트 파일 경로 (`docs/release-notes/v<new-version>.md`) — 같은 커밋에 포함됨
+- Remind them to push: `git push origin main v<new-version>`
+- Note: GitHub Actions가 태그 체크아웃 tree에서 노트 파일을 읽어 GitHub Release body로 사용한다. 노트가 없으면 자동 PR 인덱스로 폴백.
 
 **Do NOT push automatically.** Let the user push when ready.

@@ -54,12 +54,11 @@ jobs:
             LICENSE \
             docs/
 
-      - name: Fetch release notes from main
+      - name: Locate release notes
         run: |
-          git fetch --depth=1 origin main || true
-          git show origin/main:docs/release-notes/${{ github.ref_name }}.md \
-            > /tmp/release-notes.md 2>/dev/null \
-            || rm -f /tmp/release-notes.md
+          if [ -f "docs/release-notes/${{ github.ref_name }}.md" ]; then
+            cp "docs/release-notes/${{ github.ref_name }}.md" /tmp/release-notes.md
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
