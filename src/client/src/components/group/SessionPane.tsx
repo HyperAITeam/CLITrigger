@@ -20,6 +20,7 @@ import { CMD, CMD_FONT } from '../terminal-theme';
 import { useI18n } from '../../i18n';
 import * as sessionsApi from '../../api/sessions';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
+import { useSessionTheme } from '../../hooks/useSessionTheme';
 import type { Session } from '../../types';
 import type { WsEvent } from '../../hooks/useWebSocket';
 
@@ -198,6 +199,7 @@ export default function SessionPane({
   const isRunning = session.status === 'running';
   const subscribed = phase === 'subscribed';
   const [fontSize] = useSessionFontSize(session.id);
+  const [, terminalTheme] = useSessionTheme(session.id);
 
   const overlayContent = (() => {
     if (phase === 'starting' || phase === 'pendingFit') {
@@ -279,6 +281,7 @@ export default function SessionPane({
         subscribeBinary={subscribeBinary}
         onEvent={onEvent}
         fontSize={fontSize}
+        theme={terminalTheme}
         inputBlocked={phase === 'pendingFit' || phase === 'starting' || pendingPromptLength !== null}
       />
       {overlayContent}

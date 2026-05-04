@@ -6,6 +6,7 @@ import { X, Minus, ZoomIn, ZoomOut } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
+import SessionThemePicker from '../SessionThemePicker';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import type { LayoutStack, Path } from './groupTree';
 import type { Session } from '../../types';
@@ -199,6 +200,7 @@ export default function StackView({
         >
           <ZoomIn size={13} />
         </button>
+        <SessionThemePicker sessionId={stack.activeTab} />
         {groupActions && (
           <>
             <button
