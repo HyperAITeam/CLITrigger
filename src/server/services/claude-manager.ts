@@ -103,7 +103,14 @@ export class ClaudeManager {
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
 
     if (adapter.requiresTty || mode === 'interactive') {
-      const stdinPrompt = adapter.needsStdin(mode) ? adapter.formatStdinPrompt(prompt, mode) : undefined;
+      // Empty prompt (sessions stash the real prompt in pendingInitialPrompts and
+      // deliver it later via writeToStdin) must NOT produce a stdinPrompt — the
+      // delayStdinUntilReady path would otherwise write '\n'→submitSeq ('\r' or
+      // '\r\n') to the PTY on ready, submitting the user's startupInputBuffer
+      // type-ahead as if they pressed Enter.
+      const stdinPrompt = adapter.needsStdin(mode) && prompt
+        ? adapter.formatStdinPrompt(prompt, mode)
+        : undefined;
       const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows);
       return { ...result, command: adapter.command, args };
     }

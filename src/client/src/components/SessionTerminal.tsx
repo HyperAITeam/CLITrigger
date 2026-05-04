@@ -583,7 +583,43 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   // string-equality, then resume — a time-window guard would also drop a
   // space/`?` typed within the window (the original symptom).
   let pendingDedup: string | null = null;
-  const handleCompStart = () => { composing = true; };
+
+  // xterm.js's CompositionHelper only repositions the helper textarea on
+  // compositionupdate (not compositionstart), so on the very first Hangul
+  // jamo the OS IME candidate window reads the textarea's default
+  // `left: -9999em` (xterm.css) and shows the panel far from the cursor —
+  // typically clipped to the viewport's bottom-right. Pre-position the
+  // textarea at the cursor on mount and again in the compositionstart
+  // capture phase so the OS sees correct coords before drawing the panel.
+  // Cell width/height are derived from .xterm-screen's bounding rect to
+  // avoid touching xterm's private renderService.
+  const positionHelperAtCursor = () => {
+    try {
+      const helper = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
+      const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
+      if (!helper || !screen) return;
+      const cols = term.cols;
+      const rows = term.rows;
+      if (cols <= 0 || rows <= 0) return;
+      const screenRect = screen.getBoundingClientRect();
+      if (screenRect.width === 0 || screenRect.height === 0) return;
+      const cellW = screenRect.width / cols;
+      const cellH = screenRect.height / rows;
+      const buf = term.buffer.active;
+      const cursorX = Math.min(buf.cursorX, cols - 1);
+      const cursorY = Math.max(0, Math.min(buf.cursorY, rows - 1));
+      helper.style.left = `${cursorX * cellW}px`;
+      helper.style.top = `${cursorY * cellH}px`;
+      helper.style.width = `${Math.max(cellW, 1)}px`;
+      helper.style.height = `${Math.max(cellH, 1)}px`;
+    } catch { /* defensive: xterm DOM may not be fully built yet */ }
+  };
+  positionHelperAtCursor();
+
+  const handleCompStart = () => {
+    composing = true;
+    positionHelperAtCursor();
+  };
   const handleCompEnd = (e: Event) => {
     composing = false;
     const data = (e as CompositionEvent).data;
