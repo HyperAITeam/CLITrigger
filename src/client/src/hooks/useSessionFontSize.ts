@@ -6,23 +6,35 @@ import { DEFAULT_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_SIZE } from '../components/t
 // share the same value for one session, so we keep a module-level cache and
 // notify subscribers via a per-sessionId listener set rather than going
 // through React context (which would force a SessionWindow-wide re-render).
+//
+// Sessions whose fontSize was never explicitly set (no localStorage key)
+// fall back to a runtime-mutable globalDefault. Settings → Sessions can
+// change this default at any time; we broadcast the new value to active
+// subscribers whose sessions still inherit the default (no localStorage key
+// yet, no module cache hit) so unmodified panes resize live without reload.
 
 const cache = new Map<string, number>();
 const listeners = new Map<string, Set<(size: number) => void>>();
+let globalDefault = DEFAULT_FONT_SIZE;
 
 function lsKey(sessionId: string): string {
   return `sessionFontSize:${sessionId}`;
 }
 
 function clamp(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_FONT_SIZE;
+  if (!Number.isFinite(n)) return globalDefault;
   return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(n)));
+}
+
+function hasExplicit(sessionId: string): boolean {
+  if (cache.has(sessionId)) return true;
+  try { return localStorage.getItem(lsKey(sessionId)) !== null; } catch { return false; }
 }
 
 function load(sessionId: string): number {
   const cached = cache.get(sessionId);
   if (cached !== undefined) return cached;
-  let v = DEFAULT_FONT_SIZE;
+  let v: number | null = null;
   try {
     const raw = localStorage.getItem(lsKey(sessionId));
     if (raw !== null) {
@@ -30,6 +42,11 @@ function load(sessionId: string): number {
       if (Number.isFinite(parsed)) v = clamp(parsed);
     }
   } catch { /* localStorage unavailable */ }
+  if (v === null) {
+    // Inherit globalDefault — do NOT cache, so a later change to globalDefault
+    // takes effect for sessions that never set their own value.
+    return clamp(globalDefault);
+  }
   cache.set(sessionId, v);
   return v;
 }
@@ -53,6 +70,24 @@ export function setSessionFontSize(sessionId: string, size: number): void {
 
 export function bumpSessionFontSize(sessionId: string, delta: number): void {
   write(sessionId, load(sessionId) + delta);
+}
+
+export function setGlobalDefaultFontSize(size: number): void {
+  const next = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(size)));
+  if (!Number.isFinite(next)) return;
+  if (next === globalDefault) return;
+  globalDefault = next;
+  // Notify active subscribers whose sessions still inherit the default.
+  // Sessions with an explicit localStorage value (or a module cache hit) keep
+  // their own value untouched.
+  listeners.forEach((subs, sid) => {
+    if (hasExplicit(sid)) return;
+    subs.forEach((fn) => fn(next));
+  });
+}
+
+export function getGlobalDefaultFontSize(): number {
+  return globalDefault;
 }
 
 export function useSessionFontSize(sessionId: string): [number, (size: number) => void, (delta: number) => void] {

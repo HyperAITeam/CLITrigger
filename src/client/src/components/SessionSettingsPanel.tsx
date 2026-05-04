@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitBranch } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Pencil, Trash2, Check, X, GitBranch, Type } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
 import * as tagsApi from '../api/sessionTags';
 import * as settingsApi from '../api/sessionSettings';
+import { setGlobalDefaultFontSize } from '../hooks/useSessionFontSize';
+import { DEFAULT_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_SIZE } from './terminal-theme';
 import type { SessionTag } from '../types';
 
 interface PanelProps {
@@ -28,8 +30,10 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
 
   const [tags, setTags] = useState<SessionTag[]>([]);
   const [defaultUseWorktree, setDefaultUseWorktree] = useState(false);
+  const [defaultFontSize, setDefaultFontSize] = useState<number>(DEFAULT_FONT_SIZE);
   const [loaded, setLoaded] = useState(false);
   const [savingWorktree, setSavingWorktree] = useState(false);
+  const fontSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(TAG_PALETTE[0]);
@@ -47,6 +51,8 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         if (cancelled) return;
         setTags(tagList);
         setDefaultUseWorktree(settings.defaultUseWorktree);
+        setDefaultFontSize(settings.defaultFontSize);
+        setGlobalDefaultFontSize(settings.defaultFontSize);
         setNewColor(pickPaletteColor(tagList));
         setLoaded(true);
       })
@@ -59,6 +65,28 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   const trimmedNewName = newName.trim();
   const canCreate = !!trimmedNewName && !creating;
   const sortedTags = useMemo(() => [...tags].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [tags]);
+
+  useEffect(() => {
+    return () => {
+      if (fontSaveTimerRef.current) clearTimeout(fontSaveTimerRef.current);
+    };
+  }, []);
+
+  const handleChangeFontSize = (raw: number) => {
+    if (!Number.isFinite(raw)) return;
+    const clamped = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(raw)));
+    setDefaultFontSize(clamped);
+    setGlobalDefaultFontSize(clamped);
+    if (fontSaveTimerRef.current) clearTimeout(fontSaveTimerRef.current);
+    fontSaveTimerRef.current = setTimeout(() => {
+      settingsApi.updateSessionSettings({ defaultFontSize: clamped })
+        .then((updated) => {
+          setDefaultFontSize(updated.defaultFontSize);
+          setGlobalDefaultFontSize(updated.defaultFontSize);
+        })
+        .catch((err) => toastError(err instanceof Error ? err.message : 'Save failed'));
+    }, 350);
+  };
 
   const handleToggleWorktree = async (next: boolean) => {
     setSavingWorktree(true);
@@ -147,6 +175,40 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         </label>
         <p className="mt-1 text-2xs ml-6" style={{ color: 'var(--color-text-muted)' }}>
           {t('sessionSettings.worktree.hint')}
+        </p>
+      </section>
+
+      <section className="mb-7">
+        <h3 className="text-sm font-semibold text-warm-700 mb-2 flex items-center gap-1.5">
+          <Type size={14} />
+          {t('sessionSettings.fontSize.title')}
+        </h3>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={MIN_FONT_SIZE}
+            max={MAX_FONT_SIZE}
+            step={1}
+            value={defaultFontSize}
+            disabled={!loaded}
+            onChange={(e) => handleChangeFontSize(parseInt(e.target.value, 10))}
+            className="flex-1 max-w-xs"
+            aria-label={t('sessionSettings.fontSize.label')}
+          />
+          <input
+            type="number"
+            min={MIN_FONT_SIZE}
+            max={MAX_FONT_SIZE}
+            step={1}
+            value={defaultFontSize}
+            disabled={!loaded}
+            onChange={(e) => handleChangeFontSize(parseInt(e.target.value, 10))}
+            className="input text-sm w-20"
+          />
+          <span className="text-xs text-warm-400">px</span>
+        </div>
+        <p className="mt-1 text-2xs" style={{ color: 'var(--color-text-muted)' }}>
+          {t('sessionSettings.fontSize.hint')}
         </p>
       </section>
 

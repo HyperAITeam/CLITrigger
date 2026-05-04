@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -10,11 +11,20 @@ import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import DiscussionDetail from './components/DiscussionDetail';
 import ReviewQueue from './components/ReviewQueue';
+import { getSessionSettings } from './api/sessionSettings';
+import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
 
 function App() {
   const { authenticated, authRequired, setupRequired, loading, login, logout, setup } = useAuth();
   const { connected, onEvent, sendMessage, subscribeBinary } = useWebSocket(authenticated);
   const { t } = useI18n();
+
+  useEffect(() => {
+    if (!authenticated) return;
+    getSessionSettings()
+      .then((s) => setGlobalDefaultFontSize(s.defaultFontSize))
+      .catch(() => { /* fall back to built-in default */ });
+  }, [authenticated]);
 
   if (loading) {
     return (

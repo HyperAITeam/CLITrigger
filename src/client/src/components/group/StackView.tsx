@@ -185,7 +185,7 @@ export default function StackView({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => bumpActiveFontSize(-1)}
           aria-label="decrease-font"
-          title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px)`}
+          title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px) · Ctrl+wheel`}
           style={groupBtnStyle}
         >
           <ZoomOut size={13} />
@@ -195,7 +195,7 @@ export default function StackView({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => bumpActiveFontSize(+1)}
           aria-label="increase-font"
-          title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px)`}
+          title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px) · Ctrl+wheel`}
           style={groupBtnStyle}
         >
           <ZoomIn size={13} />
