@@ -213,6 +213,23 @@ export default function SessionTerminal({
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Ctrl/Cmd + wheel → font zoom. React onWheel is passive by default so we
+    // attach natively with passive:false to be able to preventDefault and stop
+    // the browser from triggering page zoom. Non-zoom wheel events still get
+    // their bubble stopped (page scroll guard) and pass through to xterm's own
+    // scrollback handler.
+    const onContainerWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.deltaY === 0) return;
+        bumpSessionFontSize(sessionId, e.deltaY < 0 ? +1 : -1);
+        return;
+      }
+      e.stopPropagation();
+    };
+    container.addEventListener('wheel', onContainerWheel, { passive: false });
+
     try { fitAddon.fit(); } catch { /* container may be 0×0 momentarily */ }
     if (term.cols > 0 && term.rows > 0) {
       onFittedRef.current?.(term.cols, term.rows);
@@ -286,6 +303,7 @@ export default function SessionTerminal({
     return () => {
       ro.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      container.removeEventListener('wheel', onContainerWheel);
       inputCleanup();
       unsubBinary();
       unsubEvent();
@@ -380,11 +398,6 @@ export default function SessionTerminal({
       )}
       <div
         ref={containerRef}
-        // Block wheel from bubbling up to ancestors. xterm.js handles its own
-        // scroll within the viewport; if the user wheels up while there's
-        // nothing in the scrollback, the event would otherwise propagate to
-        // a parent and scroll the page or the surrounding window chrome.
-        onWheel={(e) => { e.stopPropagation(); }}
         style={{ height: '100%', width: '100%' }}
       />
     </div>
