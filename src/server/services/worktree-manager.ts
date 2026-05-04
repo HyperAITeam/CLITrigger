@@ -3,6 +3,19 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
+export interface PushBranchSpec {
+  local: string;
+  remote: string;
+  setUpstream: boolean;
+}
+
+export interface GitPushOptions {
+  remote?: string;
+  branches?: PushBranchSpec[];
+  pushAllTags?: boolean;
+  force?: boolean;
+}
+
 export class WorktreeManager {
   /**
    * Sanitize a todo title into a valid branch name.
@@ -359,16 +372,48 @@ export class WorktreeManager {
     return `${result.summary?.changes ?? 0} changes, ${result.summary?.insertions ?? 0} insertions, ${result.summary?.deletions ?? 0} deletions`;
   }
 
-  async gitPush(dirPath: string, remote = 'origin', branch?: string, setUpstream = false): Promise<string> {
+  async gitPush(dirPath: string, opts: GitPushOptions = {}): Promise<string> {
     const git = createGit(dirPath);
-    if (setUpstream) {
-      const args = ['push', '-u', remote];
-      if (branch) args.push(branch);
-      await git.raw(args);
-    } else {
-      await git.push(remote, branch);
+    const remote = opts.remote || 'origin';
+    const pushAllTags = opts.pushAllTags === true;
+    const force = opts.force === true;
+    const branches = (opts.branches || []).filter((b) => b && b.local);
+
+    const flags: string[] = [];
+    if (force) flags.push('--force-with-lease');
+    if (pushAllTags) flags.push('--tags');
+
+    if (branches.length === 0) {
+      await git.raw(['push', remote, ...flags]);
+      return 'ok';
+    }
+
+    const upstream = branches.filter((b) => b.setUpstream);
+    const plain = branches.filter((b) => !b.setUpstream);
+    const refspec = (b: PushBranchSpec) => {
+      const dst = (b.remote || '').trim() || b.local;
+      return `${b.local}:${dst}`;
+    };
+
+    if (plain.length > 0) {
+      await git.raw(['push', remote, ...flags, ...plain.map(refspec)]);
+    }
+    if (upstream.length > 0) {
+      // --tags is invalid in some git versions when combined with -u + refspecs;
+      // applying tags only on the first call is enough since tags are repo-wide.
+      const upstreamFlags = flags.filter((f) => f !== '--tags' || plain.length === 0);
+      await git.raw(['push', '-u', remote, ...upstreamFlags, ...upstream.map(refspec)]);
     }
     return 'ok';
+  }
+
+  async getRemotes(dirPath: string): Promise<Array<{ name: string; url: string }>> {
+    const git = createGit(dirPath);
+    const remotes = await git.getRemotes(true);
+    return remotes.map((r) => ({
+      name: r.name,
+      url: r.refs?.push || r.refs?.fetch || '',
+    }));
   }
 
   async gitFetch(dirPath: string, remote = 'origin', prune = false): Promise<void> {

@@ -149,8 +149,30 @@ export function gitPull(id: string, remote?: string, branch?: string): Promise<{
   return post(`/api/projects/${id}/git-pull`, { remote, branch });
 }
 
-export function gitPush(id: string, remote?: string, branch?: string, setUpstream?: boolean): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-push`, { remote, branch, setUpstream });
+export interface PushBranchSpec {
+  local: string;
+  remote: string;
+  setUpstream: boolean;
+}
+
+export interface GitPushPayload {
+  remote?: string;
+  branches?: PushBranchSpec[];
+  pushAllTags?: boolean;
+  force?: boolean;
+}
+
+export function gitPush(id: string, payload?: GitPushPayload): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-push`, payload || {});
+}
+
+export interface GitRemote {
+  name: string;
+  url: string;
+}
+
+export function getGitRemotes(id: string): Promise<{ remotes: GitRemote[] }> {
+  return get(`/api/projects/${id}/git-remotes`);
 }
 
 export function gitFetch(id: string, remote?: string, prune?: boolean): Promise<{ ok: boolean }> {

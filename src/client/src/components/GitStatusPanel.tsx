@@ -6,6 +6,7 @@ import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/proj
 import { useI18n } from '../i18n';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import Modal from './Modal';
+import PushDialog from './PushDialog';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 
 interface GitStatusPanelProps {
@@ -199,6 +200,7 @@ function CommitGraphSvg({ graphNodes, totalRows }: { graphNodes: GraphNode[]; to
 
 function ActionToolbar({
   projectId,
+  projectName,
   onRefresh,
   busy,
   setBusy,
@@ -206,6 +208,7 @@ function ActionToolbar({
   statusFiles,
 }: {
   projectId: string;
+  projectName: string;
   onRefresh: () => void;
   busy: boolean;
   setBusy: (b: boolean) => void;
@@ -287,7 +290,7 @@ function ActionToolbar({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
         } />
-        <ToolbarBtn label={t('git.push')} onClick={() => exec(() => projectsApi.gitPush(projectId))} icon={
+        <ToolbarBtn label={t('git.push')} onClick={() => setActiveModal('push')} icon={
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
           </svg>
@@ -334,6 +337,14 @@ function ActionToolbar({
       </div>
 
       {/* Modals */}
+      <PushDialog
+        open={activeModal === 'push'}
+        onClose={closeModal}
+        projectId={projectId}
+        projectName={projectName}
+        onPushed={onRefresh}
+      />
+
       {activeModal === 'commit' && (
         <GitModal title={t('git.commit')}>
           <textarea
@@ -1761,6 +1772,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       <div className="card mb-2 overflow-hidden">
         <ActionToolbar
           projectId={project.id}
+          projectName={project.name}
           onRefresh={refresh}
           busy={busy}
           setBusy={setBusy}
