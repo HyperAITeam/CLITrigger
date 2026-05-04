@@ -28,6 +28,14 @@ interface SessionTerminalProps {
   height?: number | string;
   /** Per-session terminal font size in px. Defaults to DEFAULT_FONT_SIZE. */
   fontSize?: number;
+  /**
+   * When true, swallow keystrokes / paste / clipboard events instead of
+   * forwarding them to the PTY. Used while a server-held initial prompt
+   * is awaiting Send/Skip — keeps the user's typing from leaking into the
+   * CLI before the held prompt is dispatched. Resize / subscribe still
+   * pass through.
+   */
+  inputBlocked?: boolean;
 }
 
 const TERMINAL_THEME = {
@@ -64,7 +72,10 @@ export default function SessionTerminal({
   onEvent,
   height = '100%',
   fontSize = DEFAULT_FONT_SIZE,
+  inputBlocked = false,
 }: SessionTerminalProps) {
+  const inputBlockedRef = useRef(inputBlocked);
+  inputBlockedRef.current = inputBlocked;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -81,6 +92,16 @@ export default function SessionTerminal({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    // Wrap sendMessage so any `session:terminal-input` is silently dropped
+    // while the server is holding an initial prompt awaiting Send/Skip.
+    // Resize / subscribe / unsubscribe still flow through unchanged so the
+    // PTY learns about geometry changes and can be subscribed to.
+    const guardedSend = (event: object) => {
+      const type = (event as { type?: string }).type;
+      if (inputBlockedRef.current && type === 'session:terminal-input') return;
+      sendMessage(event);
+    };
 
     const term = new Terminal({
       fontFamily: CMD_FONT,
@@ -105,12 +126,13 @@ export default function SessionTerminal({
     // additionally mapped to paste at the user's request.
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const pasteFromClipboard = async () => {
+      if (inputBlockedRef.current) return;
       try {
         // Check OS clipboard for a copied image file path first
         try {
           const clip = await getClipboardImagePath(sessionId);
           if (clip.path) {
-            sendMessage({ type: 'session:terminal-input', sessionId, input: clip.path });
+            guardedSend({ type: 'session:terminal-input', sessionId, input: clip.path });
             return;
           }
         } catch { /* fall through to browser clipboard */ }
@@ -127,7 +149,7 @@ export default function SessionTerminal({
               // trigger the CLI's native Alt+V handler so it reads the bytes
               // itself. ESC+v is the terminal sequence for Alt+V.
               pasteImage(sessionId, dataUrl).then(() => {
-                sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
+                guardedSend({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
               }).catch(() => {});
             };
             reader.readAsDataURL(blob);
@@ -135,7 +157,7 @@ export default function SessionTerminal({
           }
         }
         const text = await navigator.clipboard.readText();
-        if (text) sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+        if (text) guardedSend({ type: 'session:terminal-input', sessionId, input: text });
       } catch {
         // non-secure context — paste-event fallback handles it
       }
@@ -237,8 +259,8 @@ export default function SessionTerminal({
     // through an overlay textarea with a client-side Hangul composer that
     // assembles jamo/syllables into precomposed Hangul before sending to PTY.
     const inputCleanup = isMobileImeDevice()
-      ? setupMobileImeInput({ container, term, sessionId, sendMessage })
-      : setupDesktopInput({ container, term, sessionId, sendMessage });
+      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend })
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a

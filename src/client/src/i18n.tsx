@@ -920,6 +920,7 @@ const translations = {
     'session.initialPrompt.send': 'Send',
     'session.initialPrompt.skip': 'Skip',
     'session.initialPrompt.loading': 'loading…',
+    'session.initialPrompt.blocked': 'Press Send or Skip before typing — keystrokes are ignored until then.',
     'group.closeTab': 'Close tab',
 
     // Analytics
@@ -2032,6 +2033,7 @@ const translations = {
     'session.initialPrompt.send': '보내기',
     'session.initialPrompt.skip': '건너뛰기',
     'session.initialPrompt.loading': '불러오는 중…',
+    'session.initialPrompt.blocked': '타이핑하려면 보내기 또는 건너뛰기를 먼저 눌러주세요. 그 전엔 입력이 무시됩니다.',
     'session.fontIncrease': '글자 크게',
     'group.closeTab': '탭 닫기',
 
