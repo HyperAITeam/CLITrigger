@@ -596,9 +596,44 @@ router.post('/:id/git-pull', async (req: Request<{ id: string }>, res: Response)
 router.post('/:id/git-push', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
-    const { remote, branch, setUpstream } = req.body;
-    await worktreeManager.gitPush(dirPath, remote, branch, setUpstream);
+    const body = (req.body || {}) as {
+      remote?: string;
+      branch?: string;
+      setUpstream?: boolean;
+      branches?: Array<{ local: string; remote?: string; setUpstream?: boolean }>;
+      pushAllTags?: boolean;
+      force?: boolean;
+    };
+
+    let branches = (body.branches || []).map((b) => ({
+      local: String(b.local || '').trim(),
+      remote: String(b.remote || '').trim(),
+      setUpstream: !!b.setUpstream,
+    })).filter((b) => b.local);
+
+    // Backward compatibility: { branch, setUpstream } style
+    if (branches.length === 0 && body.branch) {
+      branches = [{ local: body.branch, remote: body.branch, setUpstream: !!body.setUpstream }];
+    }
+
+    await worktreeManager.gitPush(dirPath, {
+      remote: body.remote,
+      branches,
+      pushAllTags: !!body.pushAllTags,
+      force: !!body.force,
+    });
     res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/projects/:id/git-remotes
+router.get('/:id/git-remotes', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const remotes = await worktreeManager.getRemotes(dirPath);
+    res.json({ remotes });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
