@@ -206,6 +206,9 @@ export default function SessionPane({
           <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
             {t('session.starting') || 'starting…'}
           </span>
+          <span style={{ color: CMD.warning, fontFamily: CMD_FONT, fontSize: 10, marginTop: 6 }}>
+            {t('session.starting.keysIgnored') || 'keystrokes are ignored until the session is ready'}
+          </span>
         </div>
       );
     }
@@ -276,7 +279,7 @@ export default function SessionPane({
         subscribeBinary={subscribeBinary}
         onEvent={onEvent}
         fontSize={fontSize}
-        inputBlocked={pendingPromptLength !== null}
+        inputBlocked={phase === 'pendingFit' || phase === 'starting' || pendingPromptLength !== null}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
