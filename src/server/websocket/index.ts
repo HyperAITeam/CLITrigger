@@ -149,10 +149,10 @@ export function initWebSocket(server: Server): void {
           // want the user's typing to silently land in the PTY before the
           // held description is dispatched.
           if (sessionManager.hasPendingPrompt(msg.sessionId)) return;
-          const session = getSessionById(msg.sessionId);
-          if (session && session.process_pid && session.status === 'running') {
-            claudeManager.writeStdinRaw(session.process_pid, msg.input);
-          }
+          // Routes through SessionManager so type-ahead arriving while the
+          // PTY is still spawning lands in startupInputBuffer instead of
+          // being silently dropped at the gate-2 (process_pid=0) check.
+          sessionManager.writeTerminalInput(msg.sessionId, msg.input);
         }
 
         if (msg.type === 'session:resize' && typeof msg.sessionId === 'string' &&
