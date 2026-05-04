@@ -647,12 +647,61 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   };
   positionHelperAtCursor();
 
+  // CLIs like Claude Code/Codex/Gemini hide xterm's native cursor and draw
+  // their own block cursor by inverting the previous cell, so PTY buffer.x
+  // sits one cell ahead of the visible cursor. xterm's CompositionHelper
+  // re-positions the visible composition view at `buffer.x * cellW` on every
+  // compositionupdate, which lands one cell to the right of where the user
+  // sees the cursor. Detect that pattern and shift the entire .xterm-helpers
+  // wrapper (which contains both the invisible textarea and the visible
+  // composition view) left by one cell during composition, then restore.
+  let helpersTransformBackup: string | null = null;
+  let imeDebugLogged = false;
+  const helpersEl = (): HTMLElement | null =>
+    container.querySelector('.xterm-helpers') as HTMLElement | null;
   const handleCompStart = () => {
     composing = true;
     positionHelperAtCursor();
+    try {
+      const buf = term.buffer.active;
+      const internalCell = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })
+        ._core?._renderService?.dimensions?.css?.cell;
+      const cellW = internalCell?.width || 0;
+      const line = buf.getLine(buf.cursorY);
+      const prevCell = buf.cursorX > 0 ? line?.getCell(buf.cursorX - 1) : undefined;
+      const currCell = line?.getCell(buf.cursorX);
+      const prevCellInverse = prevCell?.isInverse?.() === 1;
+      const currCellInverse = currCell?.isInverse?.() === 1;
+      const helpers = helpersEl();
+      let transformApplied = false;
+      if (helpers && cellW > 0 && buf.cursorX > 0 && prevCellInverse) {
+        if (helpersTransformBackup === null) helpersTransformBackup = helpers.style.transform;
+        helpers.style.transform = `translateX(${-cellW}px)`;
+        transformApplied = true;
+      }
+      if (!imeDebugLogged) {
+        imeDebugLogged = true;
+        // eslint-disable-next-line no-console
+        console.log('[CLITrigger IME]', {
+          cursorX: buf.cursorX,
+          cursorY: buf.cursorY,
+          cellW,
+          prevCellInverse,
+          currCellInverse,
+          transformApplied,
+        });
+      }
+    } catch { /* defensive: xterm internals may shift between versions */ }
+  };
+  const restoreHelpersTransform = () => {
+    if (helpersTransformBackup === null) return;
+    const helpers = helpersEl();
+    if (helpers) helpers.style.transform = helpersTransformBackup;
+    helpersTransformBackup = null;
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
+    restoreHelpersTransform();
     const data = (e as CompositionEvent).data;
     if (data) {
       pendingDedup = data;
@@ -702,6 +751,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   });
   return () => {
     onDataDisposable.dispose();
+    restoreHelpersTransform();
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
