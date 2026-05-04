@@ -235,6 +235,16 @@ export default function SessionTerminal({
       onFittedRef.current?.(term.cols, term.rows);
     }
 
+    // Auto-focus the helper textarea so keystrokes (and IME composition)
+    // land in xterm immediately on mount. Without this, focus stays on
+    // whatever was focused before (form Submit button, or body) and the
+    // user's first keystrokes — including a Hangul jamo that would have
+    // started a composition — go nowhere. Only steal from body so we
+    // don't yank focus away from someone editing another input.
+    if (document.activeElement === document.body || document.activeElement === null) {
+      try { term.focus(); } catch { /* ignore */ }
+    }
+
     const sendResize = () => {
       const cols = term.cols;
       const rows = term.rows;

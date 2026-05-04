@@ -22,6 +22,16 @@ export class SessionManager {
   // emits its ready indicator.
   private pendingInitialPrompts: Map<string, string> = new Map();
 
+  // Per-session type-ahead queue. While the session has status='running'
+  // but the PTY hasn't spawned yet (process_pid still 0), every
+  // terminal-input WS message is appended here instead of being dropped
+  // or written to a non-existent PTY. A buffer presence is the gate —
+  // `writeTerminalInput` always checks the map first; the drain block at
+  // the end of `startSession` deletes the entry atomically with the
+  // process_pid DB update so subsequent input goes straight to the PTY
+  // without any reordering window.
+  private startupInputBuffer: Map<string, string[]> = new Map();
+
   /**
    * Hook the raw PTY byte stream of `pid` into:
    *   1. live binary WS frames to currently subscribed clients
@@ -154,8 +164,24 @@ export class SessionManager {
       }
     }
 
-    // Mark as running
+    // Decide whether to hold the initial prompt for Send/Skip BEFORE flipping
+    // status='running' so the WS handler's gate-1 (`hasPendingPrompt`) covers
+    // the entire spawn window. Otherwise type-ahead arriving in the
+    // [status=running, pendingPrompt-not-yet-set] window would slip past the
+    // gate, land in startupInputBuffer, then get drained into the PTY
+    // before the held description is dispatched.
+    if (!resume && prompt.trim()) {
+      this.pendingInitialPrompts.set(sessionId, prompt);
+    } else {
+      this.pendingInitialPrompts.delete(sessionId);
+    }
+
+    // Mark as running and open the type-ahead buffer in lockstep. From this
+    // point until the drain block below, every terminal-input WS message
+    // lands in the buffer so the user can start typing while the PTY is
+    // still spawning.
     queries.updateSessionStatus(sessionId, 'running');
+    this.startupInputBuffer.set(sessionId, []);
 
     let workDir = project.path;
     let worktreePath: string | null = null;
@@ -177,25 +203,14 @@ export class SessionManager {
           queries.createSessionLog(sessionId, 'output', `Created worktree on branch ${branchName}`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          this.startupInputBuffer.delete(sessionId);
+          this.pendingInitialPrompts.delete(sessionId);
           queries.updateSessionStatus(sessionId, 'failed');
           queries.createSessionLog(sessionId, 'error', `Failed to create worktree: ${message}`);
           broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
           return;
         }
       }
-    }
-
-    // Hold the prompt for explicit user-initiated submission instead of letting
-    // claude-manager's ready-detector auto-fire it. The PTY is launched with an
-    // empty stdinPrompt; the SessionWindow surfaces a pre-flight Send/Skip panel
-    // that calls submitInitialPrompt() / skipInitialPrompt() on user click.
-    // On resume we skip this entirely — firing the original description on top
-    // of restored conversation history would re-issue a request the user
-    // already completed.
-    if (!resume && prompt.trim()) {
-      this.pendingInitialPrompts.set(sessionId, prompt);
-    } else {
-      this.pendingInitialPrompts.delete(sessionId);
     }
 
     let pid: number;
@@ -217,6 +232,8 @@ export class SessionManager {
       this.subscribeRawForSession(sessionId, pid);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      this.startupInputBuffer.delete(sessionId);
+      this.pendingInitialPrompts.delete(sessionId);
       queries.updateSessionStatus(sessionId, 'failed');
       queries.createSessionLog(sessionId, 'error', `Failed to start ${adapter.displayName}: ${message}`);
       // Clean up worktree on failure
@@ -227,7 +244,20 @@ export class SessionManager {
       return;
     }
 
+    // Atomic drain: persist process_pid, remove the buffer, replay queued
+    // bytes — all in a single synchronous block. JS being single-threaded
+    // guarantees no WS message can sneak between the DB update and the
+    // map.delete, so a message arriving on the next event-loop tick will
+    // see process_pid set and no buffer, and write straight to the PTY in
+    // correct order after the replayed bytes.
     queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath });
+    const queued = this.startupInputBuffer.get(sessionId);
+    this.startupInputBuffer.delete(sessionId);
+    if (queued && queued.length > 0) {
+      for (const input of queued) {
+        try { claudeManager.writeStdinRaw(pid, input); } catch { /* ignore */ }
+      }
+    }
     const logMsg = useWorktree
       ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [interactive]`
       : `Started ${adapter.displayName} (PID: ${pid}) [interactive]`;
@@ -247,6 +277,7 @@ export class SessionManager {
       // session immediately shows the final output.
       this.flushAndForgetRaw(sessionId);
       this.pendingInitialPrompts.delete(sessionId);
+      this.startupInputBuffer.delete(sessionId);
       const current = queries.getSessionById(sessionId);
       if (current && current.status === 'running') {
         const status = exitCode === 0 ? 'completed' : 'failed';
@@ -266,6 +297,7 @@ export class SessionManager {
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);
       this.pendingInitialPrompts.delete(sessionId);
+      this.startupInputBuffer.delete(sessionId);
       try {
         queries.updateSessionStatus(sessionId, 'failed');
         queries.updateSession(sessionId, { process_pid: 0 });
@@ -286,12 +318,36 @@ export class SessionManager {
     }
     this.flushAndForgetRaw(sessionId);
     this.pendingInitialPrompts.delete(sessionId);
+    this.startupInputBuffer.delete(sessionId);
 
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
 
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
+  }
+
+  /**
+   * Route a `session:terminal-input` WS payload to the right destination.
+   * If the session is mid-spawn (`startupInputBuffer` has an entry) the
+   * bytes are queued for the drain block at the end of `startSession`,
+   * preserving the user's type-ahead in order. Otherwise the bytes are
+   * written straight to the PTY — but only if the session is actually
+   * running with a live process_pid, so a stray write to a dead session
+   * is silently dropped.
+   *
+   * Note: the WS handler still gates on `hasPendingPrompt` before calling
+   * this, so type-ahead never leaks past the Send/Skip pre-flight.
+   */
+  writeTerminalInput(sessionId: string, input: string): void {
+    const buf = this.startupInputBuffer.get(sessionId);
+    if (buf) {
+      buf.push(input);
+      return;
+    }
+    const session = queries.getSessionById(sessionId);
+    if (!session || session.status !== 'running' || !session.process_pid) return;
+    try { claudeManager.writeStdinRaw(session.process_pid, input); } catch { /* ignore */ }
   }
 
   /**

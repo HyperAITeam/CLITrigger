@@ -204,19 +204,19 @@ export default function SessionPane({
   const overlayContent = (() => {
     if (phase === 'starting' || phase === 'pendingFit') {
       return (
-        <div style={overlayStyle}>
+        <div style={{ ...overlayStyle, pointerEvents: 'none' }}>
           <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
             {t('session.starting') || 'starting…'}
           </span>
-          <span style={{ color: CMD.warning, fontFamily: CMD_FONT, fontSize: 10, marginTop: 6 }}>
-            {t('session.starting.keysIgnored') || 'keystrokes are ignored until the session is ready'}
+          <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 10, marginTop: 6 }}>
+            {t('session.starting.typeAhead') || 'type-ahead is captured and replayed once ready'}
           </span>
         </div>
       );
     }
     if (phase === 'stopping') {
       return (
-        <div style={overlayStyle}>
+        <div style={{ ...overlayStyle, pointerEvents: 'none' }}>
           <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
             {t('session.stopping') || 'stopping…'}
           </span>
@@ -282,7 +282,7 @@ export default function SessionPane({
         onEvent={onEvent}
         fontSize={fontSize}
         theme={terminalTheme}
-        inputBlocked={phase === 'pendingFit' || phase === 'starting' || pendingPromptLength !== null}
+        inputBlocked={pendingPromptLength !== null}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
