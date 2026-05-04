@@ -73,6 +73,9 @@ export default function SessionTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastResizeRef = useRef<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Separate timer for fontSize-driven resizes so ResizeObserver's 150ms
+  // debounce can't overwrite (and shorten) the fontSize debounce window.
+  const fontSizeResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscribedSentRef = useRef(false);
   const onFittedRef = useRef(onFitted);
   onFittedRef.current = onFitted;
@@ -313,6 +316,7 @@ export default function SessionTerminal({
     return () => {
       ro.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
       container.removeEventListener('wheel', onContainerWheel);
       inputCleanup();
       unsubBinary();
@@ -350,7 +354,14 @@ export default function SessionTerminal({
 
   // Apply font-size changes without re-creating the terminal: update xterm
   // option, re-fit (cols/rows shrink/grow at the same container size), then
-  // broadcast the new dimensions to the PTY through the same debounce.
+  // broadcast the new dimensions to the PTY through a long debounce.
+  //
+  // The PTY resize is debounced 300ms (vs. ResizeObserver's 150ms) because
+  // each SIGWINCH causes Claude/Codex/Gemini to re-emit their welcome banner
+  // into the main screen buffer, stacking duplicates in xterm's scrollback.
+  // Coalescing rapid Ctrl+=/Ctrl+- presses into a single resize keeps the
+  // duplication count bounded. The fontSize timer uses a dedicated ref so
+  // ResizeObserver callbacks can't shorten the window.
   useEffect(() => {
     const term = termRef.current;
     const fitAddon = fitAddonRef.current;
@@ -361,10 +372,14 @@ export default function SessionTerminal({
       fitAddon.fit();
       term.refresh(0, term.rows - 1);
     } catch { /* container may be hidden */ }
-    if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-    resizeTimerRef.current = setTimeout(() => {
+    // Skip the resize broadcast entirely if the cell grid didn't actually
+    // change — avoids a needless SIGWINCH (and CLI redraw) for sub-pixel
+    // font tweaks that fit the same cols/rows.
+    if (term.cols === lastResizeRef.current.cols && term.rows === lastResizeRef.current.rows) return;
+    if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
+    fontSizeResizeTimerRef.current = setTimeout(() => {
       sendResizeRef.current?.();
-    }, 50);
+    }, 300);
   }, [fontSize]);
 
   // Apply theme changes without re-creating the terminal. xterm.js repaints
