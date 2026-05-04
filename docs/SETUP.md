@@ -480,9 +480,10 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
 
 #### 색상 태그 + 글로벌 디폴트 (Settings → Sessions)
 
-좌상단 사이드바 톱니로 글로벌 **Settings 모달** → **Sessions** 탭에서:
+좌상단 사이드바 톱니로 글로벌 **Settings 모달**(사이드바 하단에 현재 빌드 버전 `v<version>` 표기) → **Sessions** 탭에서:
 - **태그 CRUD**: 이름 + 헥스 색(`#RRGGBB`) 페어 등록. 한 번 만든 태그는 모든 프로젝트에서 공유. 태그 삭제 시 그 태그를 참조하던 세션의 `tag_id`는 자동으로 비워짐.
 - **워크트리 디폴트**: 신규 세션 생성 시 워크트리 체크박스 초기값을 강제 (프로젝트 정책 위에 한 번 더 override).
+- **터미널 기본 폰트 사이즈**: 8-28px 범위 range + number input. 350ms 디바운스 저장, 라이브 broadcast로 per-session 줌이 없는 세션이 즉시 반영. 이미 줌된 세션은 자기 사이즈 유지.
 
 #### 사용
 
@@ -490,7 +491,7 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
   - **▶ 버튼**: 새 floating window에서 세션 시작 (PTY를 실제 viewport 크기로 초기화하여 CLI TUI 정렬 정확)
   - **행 클릭**: 기존 세션을 floating window에서 열기 (재생 모드, Start 버튼 클릭 시 시작)
 - **Floating Window UI**:
-  - macOS 스타일의 titlebar로 드래그 가능하고 우측 하단 모서리로 리사이즈
+  - macOS 스타일의 titlebar로 드래그 가능, 8방향 리사이즈 (4 엣지 + 4 코너) 지원 (코너가 z-index 우선)
   - 최소 320×200, 위치와 크기는 per-session 저장
   - 모바일 (<768px)에서는 fullscreen 모드로 자동 전환
   - ❌ 버튼으로 닫을 수 있음 (실행 중이면 확인 요청)
@@ -503,7 +504,8 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
   - 뷰포트 가장자리 8px 내로 드래그 시 좌/우 절반 또는 4 코너 quarter로 스냅 (preview 표시 후 commit)
   - 윈도우 간 sticky 스냅 (10px threshold) — 인접 윈도우 엣지에 자석처럼
   - 타이틀바 minimize 버튼 → 좌하단 dock tray에 chip으로 보관, 클릭 시 restore (서버 PTY는 그대로 살아있음)
-- **per-session 폰트 크기**: 탭바의 A−/A+ 버튼 또는 Ctrl/Cmd `+`/`-` 단축키로 8-28px 조정. 변경 시 PTY가 새 cols/rows로 즉시 resize됨
+- **per-session 폰트 크기**: 탭바의 A−/A+ 버튼, Ctrl/Cmd `+`/`-` 단축키, 또는 **Ctrl/Cmd + 마우스 휠**로 8-28px 조정. 글로벌 기본값(Settings → Sessions)에서 출발하고 줌 즉시 per-session 영속화. PTY는 cell grid가 실제로 바뀔 때만 resize 브로드캐스트(welcome banner 중복 방지)
+- **per-session 터미널 테마**: 탭바의 팔레트 버튼으로 8개 브랜드 프리셋(Default/Claude/Vercel/Supabase/Stripe/Spotify/Ferrari/NVIDIA) 또는 Custom 5색 native color picker 선택. localStorage 영속화 (DB 마이그레이션 없음)
 - **xterm.js 렌더링**: ANSI 컬러, 커서 제어, TUI 박스 그리기 등이 그대로 표시되어 실제 터미널과 동일한 시각
 - 입력창에 메시지 입력 → Enter로 전송 (PTY로 stdin relay). 화살표/Ctrl+C 등 특수키도 그대로 전달
 - **클립보드 단축키** (iTerm2 / Windows Terminal 호환): Ctrl/Cmd+C는 selection이 있으면 복사, 없으면 SIGINT. Ctrl/Cmd+V와 Alt+V는 클립보드 텍스트를 PTY로 forward. Ctrl/Cmd+X는 selection 있으면 잘라내기, 없으면 그대로 PTY로. macOS는 `Option`을 Meta로 인식해 `Option+B`/`F` 같은 readline/tmux 단축키 정상 동작
@@ -1150,7 +1152,7 @@ git worktree prune   # 깨진 worktree 정리
 | POST | /api/session-tags | 세션 태그 생성 (이름 + `#RRGGBB`) |
 | PUT | /api/session-tags/:id | 세션 태그 수정 |
 | DELETE | /api/session-tags/:id | 세션 태그 삭제 (참조 세션의 tag_id는 자동 NULL clear) |
-| GET | /api/session-settings | 세션 글로벌 디폴트 조회 (현재 `defaultUseWorktree`) |
+| GET | /api/session-settings | 세션 글로벌 디폴트 조회 (`defaultUseWorktree`, `defaultFontSize`) |
 | PUT | /api/session-settings | 세션 글로벌 디폴트 수정 |
 | GET | /api/favorites | 즐겨찾기 목록 |
 | POST | /api/favorites | 즐겨찾기 생성 |
