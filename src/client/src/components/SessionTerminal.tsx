@@ -618,13 +618,29 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
       if (cols <= 0 || rows <= 0) return;
       const screenRect = screen.getBoundingClientRect();
       if (screenRect.width === 0 || screenRect.height === 0) return;
-      const cellW = screenRect.width / cols;
-      const cellH = screenRect.height / rows;
+      // Prefer xterm's own cell metrics (matches what xterm.js's CompositionHelper
+      // uses internally when it later repositions on compositionupdate). Falling
+      // back to screenRect/cols leaves a sub-pixel rounding error that — combined
+      // with the offset gap below — can shift the OS IME panel a full cell off.
+      const internalCell = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })
+        ._core?._renderService?.dimensions?.css?.cell;
+      const cellW = internalCell?.width || (screenRect.width / cols);
+      const cellH = internalCell?.height || (screenRect.height / rows);
       const buf = term.buffer.active;
       const cursorX = Math.min(buf.cursorX, cols - 1);
       const cursorY = Math.max(0, Math.min(buf.cursorY, rows - 1));
-      helper.style.left = `${cursorX * cellW}px`;
-      helper.style.top = `${cursorY * cellH}px`;
+      // helper.style.left is relative to its offsetParent (xterm.js's
+      // .xterm-helpers wrapper). On some layouts that wrapper does not sit
+      // exactly at .xterm-screen's origin, so applying just `cursorX * cellW`
+      // lands one cell to the left of the visible cursor cell. Bridge the gap
+      // by computing the screen's position in viewport coords and converting
+      // back into the offsetParent's local frame.
+      const offsetParent = (helper.offsetParent as HTMLElement | null) ?? helper.parentElement;
+      const parentRect = offsetParent ? offsetParent.getBoundingClientRect() : null;
+      const offsetLeft = parentRect ? screenRect.left - parentRect.left : 0;
+      const offsetTop = parentRect ? screenRect.top - parentRect.top : 0;
+      helper.style.left = `${offsetLeft + cursorX * cellW}px`;
+      helper.style.top = `${offsetTop + cursorY * cellH}px`;
       helper.style.width = `${Math.max(cellW, 1)}px`;
       helper.style.height = `${Math.max(cellH, 1)}px`;
     } catch { /* defensive: xterm DOM may not be fully built yet */ }
