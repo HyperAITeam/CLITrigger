@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
 import { pasteImage, getClipboardImagePath } from '../api/sessions';
+import { TERMINAL_PRESETS } from '../lib/terminal-presets';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SessionTerminalProps {
@@ -29,6 +30,12 @@ interface SessionTerminalProps {
   /** Per-session terminal font size in px. Defaults to DEFAULT_FONT_SIZE. */
   fontSize?: number;
   /**
+   * Per-session xterm.js color theme. Defaults to the cmd-style preset.
+   * Can be swapped at runtime — the effect below mirrors the change to
+   * the live Terminal instance without re-creating it.
+   */
+  theme?: ITheme;
+  /**
    * When true, swallow keystrokes / paste / clipboard events instead of
    * forwarding them to the PTY. Used while a server-held initial prompt
    * is awaiting Send/Skip — keeps the user's typing from leaking into the
@@ -38,29 +45,7 @@ interface SessionTerminalProps {
   inputBlocked?: boolean;
 }
 
-const TERMINAL_THEME = {
-  background: CMD.bg,
-  foreground: CMD.text,
-  cursor: CMD.bright,
-  cursorAccent: CMD.bg,
-  selectionBackground: '#264f78',
-  black: '#0c0c0c',
-  red: '#f14c4c',
-  green: '#16c60c',
-  yellow: '#cca700',
-  blue: '#3b78ff',
-  magenta: '#b4009e',
-  cyan: '#61d6d6',
-  white: '#cccccc',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#16c60c',
-  brightYellow: '#f9f1a5',
-  brightBlue: '#569cd6',
-  brightMagenta: '#b4009e',
-  brightCyan: '#9cdcfe',
-  brightWhite: '#f2f2f2',
-};
+const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
 export default function SessionTerminal({
   sessionId,
@@ -72,8 +57,15 @@ export default function SessionTerminal({
   onEvent,
   height = '100%',
   fontSize = DEFAULT_FONT_SIZE,
+  theme,
   inputBlocked = false,
 }: SessionTerminalProps) {
+  // Latest theme prop is consumed once on mount (xterm Terminal init takes
+  // theme by value) and then reapplied via term.options.theme in a separate
+  // effect below. Keep a ref so the mount effect uses the most recent value
+  // without re-mounting on every theme change.
+  const themeRef = useRef<ITheme | undefined>(theme);
+  themeRef.current = theme;
   const inputBlockedRef = useRef(inputBlocked);
   inputBlockedRef.current = inputBlocked;
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -110,7 +102,7 @@ export default function SessionTerminal({
       cursorBlink: isRunning,
       convertEol: false,
       scrollback: 5000,
-      theme: TERMINAL_THEME,
+      theme: themeRef.current ?? TERMINAL_THEME,
       allowProposedApi: true,
       macOptionIsMeta: true,
     });
@@ -347,11 +339,22 @@ export default function SessionTerminal({
     }, 50);
   }, [fontSize]);
 
+  // Apply theme changes without re-creating the terminal. xterm.js repaints
+  // on options.theme assignment; refresh() is needed because already-rendered
+  // rows otherwise keep their old colors until the next write.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = theme ?? TERMINAL_THEME;
+    try { term.refresh(0, term.rows - 1); } catch { /* term disposed */ }
+  }, [theme]);
+
+  const wrapperBg = theme?.background ?? CMD.bg;
   return (
     <div
       style={{
         position: 'relative',
-        background: CMD.bg,
+        background: wrapperBg,
         padding: 8,
         height,
         width: '100%',
