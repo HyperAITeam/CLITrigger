@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
@@ -55,6 +55,51 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
   const [tagId, setTagId] = useState<string | null>(initial?.tagId ?? null);
   const [tags, setTags] = useState<SessionTag[]>([]);
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  // Windows EXE + Korean IME: xterm's helper textarea retains the native HWND
+  // keyboard focus after a session has been interacted with, so React's
+  // autoFocus on the title input only moves DOM focus — clicks land but the
+  // caret never activates. Force a native focus handoff: blur the previous
+  // active element, ask the main process to refocus webContents (recovers the
+  // OS-level focus), then focus the title input across two RAFs so xterm's
+  // own focus restoration has settled. Also park every xterm helper textarea
+  // out of the focus traversal for the form's lifetime.
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    prev?.blur?.();
+    (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI?.imeReset?.();
+
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => titleRef.current?.focus());
+    });
+
+    const helpers = Array.from(document.querySelectorAll<HTMLTextAreaElement>('.xterm-helper-textarea'));
+    const prevHelpers = helpers.map((h) => ({
+      el: h,
+      tabIndex: h.tabIndex,
+      ariaHidden: h.getAttribute('aria-hidden'),
+    }));
+    helpers.forEach((h) => {
+      h.tabIndex = -1;
+      h.setAttribute('aria-hidden', 'true');
+      h.blur();
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      prevHelpers.forEach(({ el, tabIndex, ariaHidden }) => {
+        el.tabIndex = tabIndex;
+        if (ariaHidden === null) el.removeAttribute('aria-hidden');
+        else el.setAttribute('aria-hidden', ariaHidden);
+      });
+    };
+    // Mount-time only — running this on every initial change would steal focus
+    // away from the user mid-edit when the parent reuses the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,12 +141,12 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       className="card p-4 space-y-3 animate-scale-in"
     >
       <input
+        ref={titleRef}
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={t('session.title')}
         className="input w-full text-sm"
-        autoFocus
       />
       <textarea
         value={description}
