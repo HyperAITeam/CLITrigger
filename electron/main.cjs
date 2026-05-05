@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, shell, Menu, nativeTheme, ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -7,6 +8,7 @@ const { pathToFileURL } = require('node:url');
 let mainWindow = null;
 let serverPort = null;
 let cleanupStarted = false;
+let updateCheckInFlight = false;
 
 const userDataDir = app.getPath('userData');
 const configFile = path.join(userDataDir, 'config.json');
@@ -156,6 +158,78 @@ ipcMain.on('ime:reset', () => {
   }
 });
 
+function checkForUpdates({ silent } = { silent: true }) {
+  if (!app.isPackaged) {
+    if (!silent) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        message: '개발 모드에서는 업데이트 확인을 사용할 수 없습니다.',
+      });
+    }
+    return;
+  }
+  if (updateCheckInFlight) return;
+  updateCheckInFlight = true;
+  autoUpdater
+    .checkForUpdates()
+    .catch((err) => {
+      console.error('[updater] check failed:', (err && err.message) || err);
+      if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'error',
+          title: '업데이트 확인 실패',
+          message: '업데이트를 확인하는 중 오류가 발생했습니다.',
+          detail: String((err && err.message) || err),
+        });
+      }
+    })
+    .finally(() => {
+      updateCheckInFlight = false;
+    });
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] error:', (err && err.message) || err);
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] update available:', info && info.version);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[updater] up-to-date');
+  });
+
+  autoUpdater.on('download-progress', (p) => {
+    console.log(`[updater] downloading ${Math.round(p.percent)}%`);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'info',
+        buttons: ['지금 재시작', '나중에'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'CLITrigger 업데이트 준비 완료',
+        message: `새 버전 ${info && info.version}이(가) 다운로드되었습니다.`,
+        detail: '지금 재시작하면 업데이트가 적용됩니다. 나중에 선택 시 다음 종료 시점에 자동 설치됩니다.',
+      })
+      .then((result) => {
+        if (result.response === 0) autoUpdater.quitAndInstall();
+      });
+  });
+
+  setTimeout(() => checkForUpdates({ silent: true }), 5000);
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -179,6 +253,11 @@ function buildMenu() {
           click: () => {
             if (serverPort) shell.openExternal(`http://127.0.0.1:${serverPort}`);
           },
+        },
+        { type: 'separator' },
+        {
+          label: '업데이트 확인',
+          click: () => checkForUpdates({ silent: false }),
         },
       ],
     },
@@ -220,6 +299,7 @@ if (!gotLock) {
       const { port } = await bootServer();
       buildMenu();
       createWindow(port);
+      setupAutoUpdater();
     } catch (err) {
       dialog.showErrorBox(
         'CLITrigger failed to start',
