@@ -11,6 +11,7 @@ import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllPro
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
+import svnRouter from './routes/svn.js';
 import todosRouter from './routes/todos.js';
 import executionRouter from './routes/execution.js';
 import logsRouter from './routes/logs.js';
@@ -208,6 +209,7 @@ registerPlugin(harnessPlugin);
 
 // --- Routes ---
 app.use('/api/projects', projectsRouter);
+app.use('/api/projects', svnRouter);
 app.use('/api', todosRouter);
 app.use('/api', executionRouter);
 app.use('/api', logsRouter);

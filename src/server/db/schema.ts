@@ -355,6 +355,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'discussions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'tag_id', definition: 'TEXT' },
+    { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
+    { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of migrations) {
@@ -363,6 +365,13 @@ export function initDatabase(db: Database.Database): void {
     } catch {
       // Column already exists - ignore
     }
+  }
+
+  // Backfill vcs_type from legacy is_git_repo flag. Idempotent — only touches NULL rows.
+  try {
+    db.prepare(`UPDATE projects SET vcs_type = 'git' WHERE vcs_type IS NULL AND is_git_repo = 1`).run();
+  } catch {
+    // ignore — column may not exist yet on extremely old DBs that fail the ALTER above
   }
 
   // Migrate legacy integration columns to plugin_configs table

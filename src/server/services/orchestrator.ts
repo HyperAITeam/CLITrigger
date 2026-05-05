@@ -73,6 +73,8 @@ export class Orchestrator {
     const project = queries.getProjectById(projectId);
     if (!project) return 3;
     if (project.is_git_repo && !project.use_worktree) return 1;
+    // SVN projects share a single working copy in phase 1 — serialize.
+    if (project.vcs_type === 'svn') return 1;
     return project.max_concurrent ?? 3;
   }
 
