@@ -139,6 +139,15 @@ function createWindow(port) {
   }
 
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // Windows lock-screen / screensaver hands the native HWND keyboard focus
+  // off to the lock UI; on resume it doesn't always return to webContents,
+  // leaving every input (SessionForm, SessionTerminal) dead until the user
+  // minimizes and restores. Re-focus webContents on every window focus event
+  // so the OS-level focus is always routed back into the renderer.
+  mainWindow.on('focus', () => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.focus();
+  });
 }
 
 ipcMain.on('ime:reset', () => {
