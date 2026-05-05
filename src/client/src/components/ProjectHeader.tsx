@@ -152,6 +152,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
   const [memoryAutoIngest, setMemoryAutoIngest] = useState(!!project.memory_auto_ingest);
+  const [svnEnabled, setSvnEnabled] = useState(!!project.svn_enabled);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
@@ -256,6 +257,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
         use_worktree: useWorktree ? 1 : 0,
         npm_auto_install: npmAutoInstall ? 1 : 0,
         memory_auto_ingest: memoryAutoIngest ? 1 : 0,
+        svn_enabled: svnEnabled ? 1 : 0,
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
@@ -785,6 +787,23 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               <span className="text-xs text-warm-600">{t('wiki.autoIngest')}</span>
             </label>
           </div>
+
+          {/* SVN (opt-in per project, default off) */}
+          {!project.is_git_repo && (
+            <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+              <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.svnTitle')}</h4>
+              <p className="text-2xs text-warm-500 mb-3">{t('header.svnHint')}</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={svnEnabled}
+                  onChange={(e) => setSvnEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs text-warm-600">{t('header.svnEnable')}</span>
+              </label>
+            </div>
+          )}
 
           </>
           )}

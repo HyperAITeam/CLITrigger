@@ -5,6 +5,7 @@ import { execFileSync, exec } from 'child_process';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { isSvnRepository } from '../lib/svn.js';
 import { cleanupProjectImages } from './images.js';
 
 const router = Router();
@@ -244,7 +245,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     const safePath = pathCheck.resolved!;
     const isGitRepo = await worktreeManager.isGitRepository(safePath);
-    const project = createProject(name, safePath, default_branch, isGitRepo ? 1 : 0);
+    // SVN detection is opt-in per project; not run at create time.
+    // Users enable it later via Settings → "Enable SVN" which triggers detection.
+    const vcsType: string | null = isGitRepo ? 'git' : null;
+    const project = createProject(name, safePath, default_branch, isGitRepo ? 1 : 0, vcsType);
     res.status(201).json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -282,11 +286,18 @@ router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Project not found' });
       return;
     }
-    if (!project.is_git_repo) {
+    if (!project.is_git_repo || !project.vcs_type) {
       try {
         const isGitRepo = await worktreeManager.isGitRepository(project.path);
         if (isGitRepo) {
-          project = updateProject(req.params.id, { is_git_repo: 1 }) ?? project;
+          const patch: { is_git_repo?: number; vcs_type?: string } = {};
+          if (!project.is_git_repo) patch.is_git_repo = 1;
+          if (project.vcs_type !== 'git') patch.vcs_type = 'git';
+          if (Object.keys(patch).length > 0) {
+            project = updateProject(req.params.id, patch) ?? project;
+          }
+        } else if (project.svn_enabled && !project.vcs_type && await isSvnRepository(project.path)) {
+          project = updateProject(req.params.id, { vcs_type: 'svn' }) ?? project;
         }
       } catch { /* best-effort; ignore failures */ }
     }
@@ -298,7 +309,7 @@ router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
 });
 
 // PUT /api/projects/:id - update project
-router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
+router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const existing = getProjectById(req.params.id);
     if (!existing) {
@@ -306,8 +317,27 @@ router.put('/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest } = req.body;
-    const project = updateProject(req.params.id, { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest });
+    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, svn_enabled } = req.body;
+
+    // Handle SVN enable/disable transitions:
+    //   off → on  : run detection now and set vcs_type='svn' if .svn/ found
+    //   on  → off : clear vcs_type if it was 'svn' so the tab and routes go quiet
+    let vcsTypePatch: string | null | undefined = undefined;
+    if (svn_enabled !== undefined && Number(svn_enabled) !== existing.svn_enabled) {
+      if (Number(svn_enabled) === 1) {
+        try {
+          if (await isSvnRepository(existing.path)) vcsTypePatch = 'svn';
+        } catch { /* leave vcs_type unchanged on detection error */ }
+      } else if (existing.vcs_type === 'svn') {
+        vcsTypePatch = null;
+      }
+    }
+
+    const project = updateProject(req.params.id, {
+      name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest,
+      ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
+      ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
+    });
 
     const cliChanged =
       (cli_tool !== undefined && cli_tool !== existing.cli_tool) ||

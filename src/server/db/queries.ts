@@ -9,6 +9,8 @@ export interface Project {
   path: string;
   default_branch: string;
   is_git_repo: number;
+  vcs_type: string | null;
+  svn_enabled: number;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
@@ -39,14 +41,20 @@ export interface Project {
   updated_at: string;
 }
 
-export function createProject(name: string, projectPath: string, defaultBranch = 'main', isGitRepo = 1): Project {
+export function createProject(
+  name: string,
+  projectPath: string,
+  defaultBranch = 'main',
+  isGitRepo = 1,
+  vcsType: string | null = null
+): Project {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO projects (id, name, path, default_branch, is_git_repo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, projectPath, defaultBranch, isGitRepo, now, now);
+    `INSERT INTO projects (id, name, path, default_branch, is_git_repo, vcs_type, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, projectPath, defaultBranch, isGitRepo, vcsType, now, now);
   return getProjectById(id)!;
 }
 
@@ -60,7 +68,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -69,6 +77,8 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.path !== undefined) { fields.push('path = ?'); values.push(updates.path); }
   if (updates.default_branch !== undefined) { fields.push('default_branch = ?'); values.push(updates.default_branch); }
   if (updates.is_git_repo !== undefined) { fields.push('is_git_repo = ?'); values.push(updates.is_git_repo); }
+  if (updates.vcs_type !== undefined) { fields.push('vcs_type = ?'); values.push(updates.vcs_type); }
+  if (updates.svn_enabled !== undefined) { fields.push('svn_enabled = ?'); values.push(updates.svn_enabled); }
   if (updates.max_concurrent !== undefined) { fields.push('max_concurrent = ?'); values.push(updates.max_concurrent); }
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }

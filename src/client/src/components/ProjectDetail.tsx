@@ -17,6 +17,7 @@ import { useI18n } from '../i18n';
 import { useNotification } from '../hooks/useNotification';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
+import SvnStatusPanel from './SvnStatusPanel';
 import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import SessionWindowsHost from './SessionWindowsHost';
@@ -821,6 +822,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
           { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
+          ...(project.svn_enabled && project.vcs_type === 'svn' ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
           { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
@@ -920,6 +922,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       )}
       {activeTab === 'git' && project.is_git_repo ? (
         <GitStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
+      ) : null}
+      {activeTab === 'svn' && project.svn_enabled && project.vcs_type === 'svn' ? (
+        <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'schedules' && (
         <ScheduleList

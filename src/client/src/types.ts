@@ -4,6 +4,8 @@ export interface Project {
   path: string;
   default_branch: string;
   is_git_repo: number;
+  vcs_type: string | null;
+  svn_enabled: number;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
