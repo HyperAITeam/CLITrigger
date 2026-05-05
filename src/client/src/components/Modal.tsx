@@ -5,7 +5,7 @@ import { cn } from '../lib/cn';
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   position?: 'center' | 'top';
   animation?: 'scale' | 'slide-up';
   disableEscClose?: boolean;
@@ -18,6 +18,7 @@ const SIZE_CLASSES: Record<NonNullable<ModalProps['size']>, string> = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
 };
 
 const ANIMATION_CLASSES: Record<NonNullable<ModalProps['animation']>, string> = {

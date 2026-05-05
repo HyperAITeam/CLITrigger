@@ -113,6 +113,11 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  /* Native form controls inherit the action accent — no browser-default magenta. */
+  input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--color-accent);
+  }
+
   ::selection {
     background-color: var(--color-selection-bg);
     color: var(--color-selection-text);
