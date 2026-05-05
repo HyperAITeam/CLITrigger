@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, shell, Menu, nativeTheme } = require('electron');
+const { app, BrowserWindow, dialog, shell, Menu, nativeTheme, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -140,6 +140,12 @@ function createWindow(port) {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+ipcMain.on('ime:reset', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.focus();
+  }
+});
 
 function buildMenu() {
   const isMac = process.platform === 'darwin';
