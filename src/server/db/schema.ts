@@ -357,6 +357,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'sessions', column: 'tag_id', definition: 'TEXT' },
     { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
+    { table: 'projects', column: 'is_svn_wc', definition: 'INTEGER DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of migrations) {
