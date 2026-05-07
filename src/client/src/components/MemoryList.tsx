@@ -248,7 +248,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
       </div>
 
       {/* Main: sidebar + content (Activity tab uses full width with no sidebar) */}
-      <div ref={outerRef} className="flex border border-warm-200 rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: 480 }}>
+      <div ref={outerRef} className="flex border border-warm-200 rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 340px)', minHeight: 480 }}>
 
         {subTab === 'activity' ? (
           <ActivityPanel
