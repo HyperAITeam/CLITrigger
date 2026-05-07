@@ -37,7 +37,7 @@ cd src/client && npx vitest run src/path/to/file.test.tsx  # single client test
 npm run typecheck              # server + client
 
 # Desktop (Windows)
-build-win.bat                  # EXE + portable (NSIS). --skip-install/-s skips npm ci; --msix switches to appx target with auto-generated self-signed cert
+build-win.bat                  # EXE + portable (NSIS). --skip-install/-s skips npm ci; --msix switches to appx target with auto-generated self-signed cert; set CSC_KEY_PASSWORD env var to override the default PFX password (defaults to 'clitrigger' if unset)
 ```
 
 ## Architecture
