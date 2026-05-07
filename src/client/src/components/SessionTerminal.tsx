@@ -6,6 +6,8 @@ import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
 import { pasteImage, getClipboardImagePath } from '../api/sessions';
 import { TERMINAL_PRESETS } from '../lib/terminal-presets';
+import { useToast } from '../hooks/useToast';
+import ToastContainer from './Toast';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface SessionTerminalProps {
@@ -84,6 +86,13 @@ export default function SessionTerminal({
   const sendResizeRef = useRef<(() => void) | null>(null);
   const [replaying, setReplaying] = useState(true);
 
+  // useToast must be called from the component body, but pasteFromClipboard
+  // lives inside the mount-only useEffect. Stash the dispatcher in a ref so
+  // the effect reads the latest reference without re-mounting xterm.
+  const { toasts, warning: toastWarning, dismiss: dismissToast } = useToast();
+  const toastWarningRef = useRef(toastWarning);
+  toastWarningRef.current = toastWarning;
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -121,17 +130,15 @@ export default function SessionTerminal({
     // additionally mapped to paste at the user's request.
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const pasteFromClipboard = async () => {
-      if (inputBlockedRef.current) return;
-      try {
-        // Check OS clipboard for a copied image file path first
-        try {
-          const clip = await getClipboardImagePath(sessionId);
-          if (clip.path) {
-            guardedSend({ type: 'session:terminal-input', sessionId, input: clip.path });
-            return;
-          }
-        } catch { /* fall through to browser clipboard */ }
+      if (inputBlockedRef.current) {
+        console.debug('[paste] inputBlocked → ignored');
+        return;
+      }
 
+      // 1) Try image MIME via clipboard.read(). On HTTP/LAN-IP origins this
+      //    rejects — we swallow that and fall through to readText() so the
+      //    text path isn't lost along with the image probe.
+      try {
         const items = await navigator.clipboard.read();
         for (const item of items) {
           const imageType = item.types.find(t => t.startsWith('image/'));
@@ -140,22 +147,54 @@ export default function SessionTerminal({
             const reader = new FileReader();
             reader.onload = () => {
               const dataUrl = reader.result as string;
-              // Server pushes the image into the host OS clipboard; we then
-              // trigger the CLI's native Alt+V handler so it reads the bytes
-              // itself. ESC+v is the terminal sequence for Alt+V.
+              console.debug('[paste] image via clipboard.read(), bytes=', blob.size);
               pasteImage(sessionId, dataUrl).then(() => {
                 guardedSend({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-              }).catch(() => {});
+              }).catch((err) => console.warn('[paste] pasteImage failed:', err));
             };
             reader.readAsDataURL(blob);
             return;
           }
         }
-        const text = await navigator.clipboard.readText();
-        if (text) guardedSend({ type: 'session:terminal-input', sessionId, input: text });
-      } catch {
-        // non-secure context — paste-event fallback handles it
+      } catch (err) {
+        console.debug('[paste] clipboard.read() rejected, falling through:', err);
       }
+
+      // 2) Try plain text. readText() is more permissive than read() and may
+      //    succeed even when read() rejects.
+      let text: string | null = null;
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (err) {
+        console.warn('[paste] clipboard.readText() failed:', err);
+      }
+      if (text) {
+        console.debug('[paste] sending text, len=', text.length);
+        guardedSend({ type: 'session:terminal-input', sessionId, input: text });
+        return;
+      }
+
+      // 3) Text empty — fall back to OS-clipboard image-file-path lookup
+      //    (Windows Explorer file copy / recent Screenshots polyfill). Only
+      //    runs when the browser clipboard had no usable text/image, so it
+      //    can't intercept a real text paste anymore.
+      try {
+        const clip = await getClipboardImagePath(sessionId);
+        if (clip.path) {
+          console.debug('[paste] empty browser clipboard, using OS file path:', clip.path);
+          guardedSend({ type: 'session:terminal-input', sessionId, input: clip.path });
+          return;
+        }
+      } catch (err) {
+        console.debug('[paste] getClipboardImagePath failed:', err);
+      }
+
+      // Truly nothing to paste. Surface this so the user knows it wasn't
+      // silently dropped — most common cause is HTTP-origin clipboard
+      // permission denial; the right-click → Paste menu fires the native
+      // paste event and uses the container fallback below.
+      console.warn('[paste] no content available (text empty, no image, no file path)');
+      toastWarningRef.current?.('붙여넣을 내용을 클립보드에서 읽지 못했습니다. 우클릭 → 붙여넣기를 시도해 보세요.');
     };
     term.attachCustomKeyEventHandler((ev) => {
       if (ev.type !== 'keydown') return true;
@@ -425,6 +464,7 @@ export default function SessionTerminal({
         ref={containerRef}
         style={{ height: '100%', width: '100%' }}
       />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -657,9 +697,10 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result as string;
+            console.debug('[paste-fallback] image via paste event, bytes=', file.size);
             pasteImage(sessionId, dataUrl, file.name).then(() => {
               sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-            }).catch(() => {});
+            }).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
           };
           reader.readAsDataURL(file);
           return;
@@ -669,7 +710,10 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
     const text = e.clipboardData?.getData('text/plain');
     if (text) {
       e.preventDefault();
+      console.debug('[paste-fallback] sending text, len=', text.length);
       sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+    } else {
+      console.debug('[paste-fallback] paste event had no usable text/image');
     }
   };
   container.addEventListener('compositionstart', handleCompStart, true);
