@@ -49,6 +49,17 @@ interface SessionTerminalProps {
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
+// Wrap multi-line paste content in DEC bracketed paste sequences so modern
+// CLI TUIs (Claude / Gemini / Codex Ink) treat embedded LFs as paste content
+// rather than individual Enter keys, which otherwise causes multi-line paste
+// to look truncated or scrambled. We only wrap when '\n' is present —
+// single-line paste was working as raw input and we don't want to send
+// escape sequences for the common case.
+function wrapBracketedPaste(text: string): string {
+  if (!text.includes('\n')) return text;
+  return `\x1b[200~${text}\x1b[201~`;
+}
+
 export default function SessionTerminal({
   sessionId,
   isRunning,
@@ -169,8 +180,9 @@ export default function SessionTerminal({
         console.warn('[paste] clipboard.readText() failed:', err);
       }
       if (text) {
-        console.debug('[paste] sending text, len=', text.length);
-        guardedSend({ type: 'session:terminal-input', sessionId, input: text });
+        const multiline = text.includes('\n');
+        console.debug('[paste] sending text, len=', text.length, 'multiline=', multiline);
+        guardedSend({ type: 'session:terminal-input', sessionId, input: wrapBracketedPaste(text) });
         return;
       }
 
@@ -710,8 +722,9 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
     const text = e.clipboardData?.getData('text/plain');
     if (text) {
       e.preventDefault();
-      console.debug('[paste-fallback] sending text, len=', text.length);
-      sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+      const multiline = text.includes('\n');
+      console.debug('[paste-fallback] sending text, len=', text.length, 'multiline=', multiline);
+      sendMessage({ type: 'session:terminal-input', sessionId, input: wrapBracketedPaste(text) });
     } else {
       console.debug('[paste-fallback] paste event had no usable text/image');
     }
