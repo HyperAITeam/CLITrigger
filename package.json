@@ -184,6 +184,12 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
+    },
+    "appx": {
+      "applicationId": "CLITrigger",
+      "identityName": "com.clitrigger.app",
+      "publisher": "CN=CLITrigger Dev",
+      "publisherDisplayName": "CLITrigger"
     }
   }
 }
