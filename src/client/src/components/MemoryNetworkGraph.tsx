@@ -336,14 +336,14 @@ export default function MemoryNetworkGraph({
 
   if (rawNodes.length === 0) {
     return (
-      <div className="h-[600px] rounded-xl border border-warm-200 flex items-center justify-center text-warm-500 text-sm bg-[#1A1A1A]">
+      <div className="h-full rounded-xl border border-warm-200 flex items-center justify-center text-warm-500 text-sm bg-[#1A1A1A]">
         {t('wiki.empty')}
       </div>
     );
   }
 
   return (
-    <div className="relative h-[600px] rounded-xl border border-warm-200 overflow-hidden" style={{ background: '#1A1A1A' }}>
+    <div className="relative h-full rounded-xl border border-warm-200 overflow-hidden" style={{ background: '#1A1A1A' }}>
       <input
         value={search}
         onChange={e => setSearch(e.target.value)}
