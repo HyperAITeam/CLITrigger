@@ -789,6 +789,11 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
 
   return (
     <SessionWindowsHost
+      // Remount per-project so the host's groups state + localStorage
+      // hydration are isolated by project. Without this, the same host
+      // instance handles A → B → A navigation and ends up writing one
+      // project's groups to another's localStorage key.
+      key={id!}
       projectId={id!}
       sessions={sessions}
       sendMessage={sendMessage}

@@ -8,10 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 import SessionWindow from './SessionWindow';
-import { CMD, CMD_FONT } from './terminal-theme';
 import {
   type LayoutNode,
   type Path,
@@ -27,7 +24,6 @@ import {
   setSplitSizes as treeSetSplitSizes,
   pruneInvalid,
   allSessionIds,
-  activeSessionIds,
   simplify,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
@@ -148,6 +144,11 @@ function lsKey(projectId: string) {
 interface PersistShape {
   groups: OpenGroup[];
   zCounter: number;
+  // Snapshot of session.title indexed by session id, captured at the moment
+  // we persisted. Needed because the global dock tray reads minimized
+  // groups across all projects without loading each project's sessions
+  // list, so it has no other way to render real labels.
+  titles?: Record<string, string>;
 }
 
 function readPersisted(projectId: string): PersistShape | null {
@@ -201,57 +202,65 @@ export default function SessionWindowsHost({
   children,
 }: HostProps) {
   const { t } = useI18n();
-  const [groups, setGroups] = useState<OpenGroup[]>([]);
-  const zCounterRef = useRef(0);
-  const groupsRef = useRef<OpenGroup[]>([]);
+  // Read persisted state synchronously on the very first render. Previously
+  // we left `groups` empty until a separate hydrate effect could run after
+  // `sessions` arrived, but the persist effect (below) fires on the same
+  // first commit and wrote the empty `[]` to localStorage before hydrate
+  // got a chance — wiping out the very state we were about to restore.
+  // The host is keyed by projectId in ProjectDetail so this initializer
+  // runs exactly once per project visit (no cross-project state bleed).
+  // Restored tabs are demoted to 'open'/nonce 0 (replay-only) so they don't
+  // re-spawn a PTY they never owned; invalid session ids stay in the tree
+  // briefly and are removed by the prune effect once `sessions` loads —
+  // StackView already renders `null` for missing sessions in the interim.
+  const [initialState] = useState<{ groups: OpenGroup[]; zCounter: number }>(() => {
+    const p = readPersisted(projectId);
+    if (!p) return { groups: [], zCounter: 0 };
+    const restored: OpenGroup[] = p.groups.map(g => {
+      const ids = allSessionIds(g.root);
+      const idsSet = new Set(ids);
+      const colors: Record<string, string> = {};
+      for (const k of Object.keys(g.colors || {})) {
+        if (idsSet.has(k)) colors[k] = g.colors[k];
+      }
+      const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
+      for (const id of ids) {
+        intents[id] = { intent: 'open', nonce: 0 };
+        if (!colors[id]) colors[id] = assignColor(Object.values(colors));
+      }
+      // Clamp persisted geometry so an interrupted drag/resize or schema
+      // drift can't restore the group off-screen or with NaN dims that
+      // render as an invisible click-trap over the page.
+      const safeGeom = sanitizeGeom({ x: g.x, y: g.y, w: g.w, h: g.h });
+      return { ...g, ...safeGeom, colors, intents, minimized: !!g.minimized };
+    });
+    return { groups: restored, zCounter: p.zCounter || restored.length };
+  });
+  const [groups, setGroups] = useState<OpenGroup[]>(initialState.groups);
+  const zCounterRef = useRef<number>(initialState.zCounter);
+  const groupsRef = useRef<OpenGroup[]>(groups);
   groupsRef.current = groups;
   const sessionsRef = useRef<Session[]>(sessions);
   sessionsRef.current = sessions;
-  const hydratedRef = useRef(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   dragStateRef.current = dragState;
 
-  // Hydrate from localStorage once `sessions` has loaded so we can validly
-  // prune ids that no longer exist server-side. Skip while sessions is still
-  // empty (likely loading) — otherwise we'd discard everything on mount.
+  // Persist on every change. Also snapshot session titles (so the global
+  // dock tray can render real labels for chips from other projects without
+  // having to load those projects' sessions), then notify the tray to
+  // re-read (the `storage` event doesn't fire on same-tab writes).
   useEffect(() => {
-    if (hydratedRef.current) return;
-    if (sessions.length === 0) return;
-    hydratedRef.current = true;
-    const persisted = readPersisted(projectId);
-    if (!persisted) return;
-    const validIds = new Set(sessions.map(s => s.id));
-    const restored: OpenGroup[] = [];
-    for (const g of persisted.groups) {
-      const pruned = pruneInvalid(g.root, validIds);
-      if (!pruned) continue;
-      // Keep only colors/intents for ids still present.
-      const ids = new Set(allSessionIds(pruned));
-      const colors: Record<string, string> = {};
-      for (const k of Object.keys(g.colors)) if (ids.has(k)) colors[k] = g.colors[k];
-      const intents: Record<string, { intent: WindowIntent; nonce: number }> = {};
-      for (const k of Object.keys(g.intents || {})) {
-        if (ids.has(k)) intents[k] = { intent: 'open', nonce: 0 }; // restored tabs are replay-only
+    const titles: Record<string, string> = {};
+    for (const g of groups) {
+      for (const sid of allSessionIds(g.root)) {
+        const s = sessions.find(x => x.id === sid);
+        if (s?.title) titles[sid] = s.title;
       }
-      // Ensure every id has a color/intent entry.
-      for (const id of ids) {
-        if (!colors[id]) colors[id] = assignColor(Object.values(colors));
-        if (!intents[id]) intents[id] = { intent: 'open', nonce: 0 };
-      }
-      const safeGeom = sanitizeGeom({ x: g.x, y: g.y, w: g.w, h: g.h });
-      restored.push({ ...g, ...safeGeom, root: pruned, colors, intents, minimized: !!g.minimized });
     }
-    if (restored.length > 0) {
-      zCounterRef.current = persisted.zCounter || restored.length;
-      setGroups(restored);
-    }
-  }, [projectId, sessions]);
-
-  // Persist on every change.
-  useEffect(() => {
-    writePersisted(projectId, { groups, zCounter: zCounterRef.current });
-  }, [projectId, groups]);
+    writePersisted(projectId, { groups, zCounter: zCounterRef.current, titles });
+    window.dispatchEvent(new CustomEvent('session-windows:changed'));
+  }, [projectId, groups, sessions]);
 
   // Auto-prune groups when a session disappears server-side. Skip while
   // sessions is empty (likely a loading blip) so we don't nuke restored state.
@@ -403,6 +412,62 @@ export default function SessionWindowsHost({
   const minimizeGroup = useCallback((groupId: string) => {
     setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, minimized: true } : g));
   }, []);
+
+  // GlobalSessionDockTray dispatches these when a chip is clicked / closed.
+  // Same-project chips route through these events so confirmRunningStop /
+  // z-ordering go through the canonical paths. Cross-project chips don't
+  // reach here — the tray modifies the other project's localStorage directly
+  // and the destination host picks up the change on next mount.
+  useEffect(() => {
+    const onRestoreEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { projectId?: string; groupId?: string } | undefined;
+      if (!detail?.projectId || !detail.groupId) return;
+      if (detail.projectId !== projectId) return;
+      setGroups((prev) => {
+        const target = prev.find(g => g.id === detail.groupId);
+        if (!target) return prev;
+        zCounterRef.current += 1;
+        const z = zCounterRef.current;
+        return prev.map(g => g.id === detail.groupId ? { ...g, minimized: false, z } : g);
+      });
+    };
+    const onCloseEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { projectId?: string; groupId?: string } | undefined;
+      if (!detail?.projectId || !detail.groupId) return;
+      if (detail.projectId !== projectId) return;
+      const group = groupsRef.current.find(g => g.id === detail.groupId);
+      if (group && !confirmRunningStop(allSessionIds(group.root))) return;
+      setGroups((prev) => prev.filter(g => g.id !== detail.groupId));
+    };
+    window.addEventListener('session-windows:restore', onRestoreEvent);
+    window.addEventListener('session-windows:close', onCloseEvent);
+    return () => {
+      window.removeEventListener('session-windows:restore', onRestoreEvent);
+      window.removeEventListener('session-windows:close', onCloseEvent);
+    };
+  }, [projectId, confirmRunningStop]);
+
+  // Cross-project restore handoff: tray writes `pendingSessionRestore` to
+  // sessionStorage then navigates; the destination host (this one, after
+  // remount via key={projectId}) picks it up here on mount and un-minimizes
+  // the requested group. Mismatched projectIds are ignored so the intent
+  // survives an accidental wrong-project mount.
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingSessionRestore');
+    if (!raw) return;
+    try {
+      const intent = JSON.parse(raw) as { projectId?: string; groupId?: string };
+      if (intent.projectId !== projectId || !intent.groupId) return;
+      sessionStorage.removeItem('pendingSessionRestore');
+      setGroups((prev) => {
+        const target = prev.find(g => g.id === intent.groupId);
+        if (!target) return prev;
+        zCounterRef.current += 1;
+        const z = zCounterRef.current;
+        return prev.map(g => g.id === intent.groupId ? { ...g, minimized: false, z } : g);
+      });
+    } catch { /* ignore malformed intent */ }
+  }, [projectId]);
 
   const restoreGroup = useCallback((groupId: string) => {
     setGroups((prev) => {
@@ -728,38 +793,10 @@ export default function SessionWindowsHost({
     return map;
   }, [sessions]);
 
+  // Minimized chips are now rendered by GlobalSessionDockTray at the App
+  // level so they stay visible across workspace switches. This host only
+  // renders the visible (non-minimized) floating windows for its project.
   const visibleGroups = groups.filter(g => !g.minimized);
-  const minimizedGroups = groups.filter(g => g.minimized);
-
-  // ── Dock tray drag-to-reorder ─────────────────────────────────────────
-  const dockDragRef = useRef<string | null>(null);
-  const dockDragOverRef = useRef<string | null>(null);
-
-  const onDockDragStart = useCallback((groupId: string) => {
-    dockDragRef.current = groupId;
-  }, []);
-
-  const onDockDragOver = useCallback((e: React.DragEvent, groupId: string) => {
-    e.preventDefault();
-    dockDragOverRef.current = groupId;
-  }, []);
-
-  const onDockDrop = useCallback((e: React.DragEvent, targetGroupId: string) => {
-    e.preventDefault();
-    const srcId = dockDragRef.current;
-    dockDragRef.current = null;
-    dockDragOverRef.current = null;
-    if (!srcId || srcId === targetGroupId) return;
-    setGroups(prev => {
-      const next = [...prev];
-      const srcIdx = next.findIndex(g => g.id === srcId);
-      const dstIdx = next.findIndex(g => g.id === targetGroupId);
-      if (srcIdx === -1 || dstIdx === -1) return prev;
-      const [moved] = next.splice(srcIdx, 1);
-      next.splice(dstIdx, 0, moved);
-      return next;
-    });
-  }, []);
 
   return (
     <SessionWindowsContext.Provider value={api}>
@@ -780,74 +817,6 @@ export default function SessionWindowsHost({
           />
         );
       })}
-      {minimizedGroups.length > 0 && createPortal(
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 8, left: 8,
-            display: 'flex', gap: 6,
-            zIndex: 900,
-            maxWidth: 'calc(100vw - 16px)',
-            flexWrap: 'wrap',
-          }}
-        >
-          {minimizedGroups.map((g) => {
-            const ids = activeSessionIds(g.root);
-            const titles = ids.map(id => sessionsById.get(id)?.title || id);
-            const label = titles.length === 1 ? titles[0] : `${titles[0]} +${titles.length - 1}`;
-            return (
-              <div
-                key={g.id}
-                draggable
-                onDragStart={() => onDockDragStart(g.id)}
-                onDragOver={(e) => onDockDragOver(e, g.id)}
-                onDrop={(e) => onDockDrop(e, g.id)}
-                onDragEnd={() => { dockDragRef.current = null; dockDragOverRef.current = null; }}
-                onClick={() => restoreGroup(g.id)}
-                title={titles.join(' · ')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: CMD.titleBg,
-                  border: `1px solid ${CMD.separator}`,
-                  borderRadius: 6,
-                  padding: '4px 6px 4px 4px',
-                  fontFamily: CMD_FONT,
-                  fontSize: 12,
-                  color: CMD.titleText,
-                  cursor: 'grab',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                  maxWidth: 240,
-                  userSelect: 'none',
-                }}
-              >
-                {/* color band */}
-                <div style={{ display: 'flex', height: 14, width: 14, borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
-                  {ids.map((id, idx) => (
-                    <div key={idx} style={{ flex: 1, background: g.colors[id] || CMD.titleText }} />
-                  ))}
-                </div>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                  {label}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); closeGroup(g.id); }}
-                  aria-label="close"
-                  style={{
-                    background: 'transparent', border: 'none', color: CMD.titleText,
-                    cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', borderRadius: 3,
-                  }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
       {/* Tab drag visual: dock overlay over hovered stack */}
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
