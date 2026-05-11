@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: 오늘(또는 지정 날짜)의 git 커밋을 분석하여 docs/changelog/, SETUP.md, CLAUDE.md 문서를 자동 업데이트합니다.
+description: 오늘(또는 지정 날짜)의 git 커밋을 분석하여 docs/changelog/ 와 SETUP.md 문서를 자동 업데이트합니다. (CLAUDE.md는 기본 대상에서 제외)
 argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..hash2]"
 ---
 
@@ -8,12 +8,13 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 
 ## 목적
 
-특정 날짜(기본: 오늘)의 git 커밋을 분석하여 프로젝트 문서 3종을 일관되게 업데이트합니다:
+특정 날짜(기본: 오늘)의 git 커밋을 분석하여 다음 문서를 일관되게 업데이트합니다:
 
 - `docs/changelog/YYYY-MM/YYYY-MM-DD.md` — 해당 날짜 변경 이력 파일 신규 생성 (또는 같은 날 추가 항목이면 `-2`/`-3` suffix)
 - `docs/changelog/README.md` — 인덱스에 한 줄 추가
 - `docs/SETUP.md` — 사용법/API 테이블 반영
-- `CLAUDE.md` — 아키텍처 설명 반영
+
+**CLAUDE.md는 이 스킬의 기본 업데이트 대상이 아닙니다.** 일상적인 기능 추가/수정은 changelog와 SETUP.md만 갱신하고, CLAUDE.md는 손대지 않습니다. CLAUDE.md는 기존 설명에 **사실과 다른 부분(실수)이 있다고 명확히 확인된 경우에만** 그 부분만 정확히 고치도록 합니다 — 자세한 조건은 "Step 6: CLAUDE.md 처리" 참조.
 
 ## 워크플로우
 
@@ -56,7 +57,8 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 1. `docs/changelog/README.md` — 인덱스 형식과 가장 최근 entry의 월/파일명 패턴 파악
 2. 직전 entry 파일 1-2개 (예: `docs/changelog/YYYY-MM/YYYY-MM-DD.md`) — 본문 스타일과 톤 파악
 3. `docs/SETUP.md` — 섹션 번호, API 테이블 위치 파악
-4. `CLAUDE.md` — Architecture 섹션의 현재 내용 파악
+
+**CLAUDE.md는 읽지 않습니다.** (기본 대상이 아니므로 Step 6에서 실수 정정 조건이 만족될 때만 부분적으로 읽습니다.)
 
 ### Step 4: 날짜별 changelog 파일 생성 + 인덱스 갱신
 
@@ -137,23 +139,27 @@ argument-hint: "[선택사항: 날짜 YYYY-MM-DD 또는 커밋 범위 hash1..has
 
 - SETUP.md는 수정하지 않음
 
-### Step 6: CLAUDE.md 업데이트
+### Step 6: CLAUDE.md 처리 (기본은 "건드리지 않음")
 
-Architecture 섹션의 해당 항목 설명을 업데이트합니다:
+**기본 동작: CLAUDE.md를 수정하지 않는다.** 새 기능 / 새 컴포넌트 / 새 라우트 / 새 DB 컬럼이 추가됐다는 이유만으로 CLAUDE.md를 갱신하지 않습니다. 정상 워크플로에서는 changelog + SETUP.md만으로 변경이 충분히 문서화됩니다.
 
-- **서비스 역할 변경**: `Services` 목록의 해당 서비스 설명 수정
-- **새 패턴 도입**: `Key Patterns` 목록에 항목 추가
-- **새 컴포넌트/라우트**: `Components`, `Routes` 설명 업데이트
-- **DB 테이블 변경**: `Database` 설명의 테이블 카운트/목록 업데이트
+**예외: CLAUDE.md의 기존 설명이 실수(사실 오류)로 확인된 경우에만** 그 부분을 정확히 정정합니다. 다음 조건이 **모두** 충족될 때만 수정합니다:
 
-**주의사항**:
+1. 사용자가 명시적으로 "CLAUDE.md를 고쳐"라고 지시했거나, 이번 커밋이 CLAUDE.md의 기존 진술과 직접 모순되는 변경이어야 함 (예: CLAUDE.md에 "X는 항상 Y한다"고 적혀 있는데, 이번 커밋이 그 동작을 바꿈)
+2. 새 정보를 **추가**하는 게 아니라 **잘못된 기존 정보를 교체**하는 작업이어야 함
+3. 수정 범위는 잘못된 부분에 한정 — 같은 문단에 부가 설명을 끼워 넣거나, 새 컴포넌트 / 새 라우트 / 새 패턴을 그 김에 끼워 넣지 말 것
+
+위 조건이 하나라도 안 맞으면 **CLAUDE.md는 손대지 않고 Step 7로 진행**합니다. 새 기능 설명은 changelog와 SETUP.md에 충분히 들어 있어야 합니다.
+
+**수정하는 경우의 주의사항** (실수 정정이 확정된 후):
 - CLAUDE.md는 영어로 작성
 - 기존 bullet point 스타일과 상세도 수준 유지
-- 불필요한 정보 추가 금지 (예: 커밋 해시, 날짜 등)
+- 잘못된 부분의 단어/구절만 교체. 주변 문장에 부가 설명을 끼워 넣지 말 것
+- 불필요한 정보 추가 금지 (예: 커밋 해시, 날짜, 새 기능 홍보 문구)
 
 ### Step 7: 결과 요약
 
-모든 업데이트 완료 후 요약을 출력합니다:
+모든 업데이트 완료 후 요약을 출력합니다. CLAUDE.md를 건드리지 않은 경우 그 행은 표에서 제외합니다 (정상 동작 — 따로 언급할 필요 없음).
 
 ```markdown
 ## 문서 업데이트 완료
@@ -165,8 +171,9 @@ Architecture 섹션의 해당 항목 설명을 업데이트합니다:
 | `docs/changelog/YYYY-MM/YYYY-MM-DD.md` | 신규 entry 파일 생성: "제목" |
 | `docs/changelog/README.md` | 인덱스에 한 줄 추가 |
 | `docs/SETUP.md` | 섹션 X 추가, API 테이블 Y개 행 추가 |
-| `CLAUDE.md` | Architecture 섹션 Z개 항목 업데이트 |
 ```
+
+CLAUDE.md를 실수 정정 조건에 따라 수정한 경우에만 별도 행을 추가하고 어떤 사실 오류를 어떻게 고쳤는지 한 줄로 기록합니다.
 
 ## 예외사항
 
@@ -184,4 +191,4 @@ Architecture 섹션의 해당 항목 설명을 업데이트합니다:
 | `docs/changelog/README.md` | 인덱스 (월별 섹션 + 날짜별 entry 링크) |
 | `docs/changelog/YYYY-MM/YYYY-MM-DD.md` | 날짜별 entry 본문 |
 | `docs/SETUP.md` | 설치/사용법 가이드 (섹션 번호 + API 테이블) |
-| `CLAUDE.md` | 프로젝트 아키텍처 설명 (영어) |
+| `CLAUDE.md` | 프로젝트 아키텍처 설명 (영어). **이 스킬의 기본 업데이트 대상이 아님** — 사실 오류 정정 시에만 부분 수정 |
