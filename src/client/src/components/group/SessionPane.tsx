@@ -51,8 +51,15 @@ export default function SessionPane({
 }: SessionPaneProps) {
   const { t } = useI18n();
 
+  // Always start at 'pendingFit' when an interactive PTY is expected — even
+  // for restored running sessions. Going straight to 'subscribed' at mount
+  // lets SessionTerminal's `subscribed` effect fire `session:subscribe` +
+  // `session:resize` before the portal/container has settled, which SIGWINCHs
+  // the PTY at a transient tiny size and corrupts the buffer (visible the
+  // moment the user resizes the window). handleFitted promotes to 'subscribed'
+  // once the RO has produced a stable measurement.
   const initialPhase: Phase = (() => {
-    if (session.status === 'running') return 'subscribed';
+    if (session.status === 'running') return 'pendingFit';
     if (intent === 'start' || intent === 'resume') return 'pendingFit';
     return 'replay-only';
   })();
@@ -71,10 +78,13 @@ export default function SessionPane({
   const [pendingError, setPendingError] = useState<string | null>(null);
   // Tracks whether this pane has actively run a session in its lifetime
   // (started here OR opened while running). Used to gate auto-close.
-  const wasActiveRef = useRef(initialPhase === 'subscribed');
+  const wasActiveRef = useRef(session.status === 'running');
 
   useEffect(() => {
-    if (session.status === 'running' && phase !== 'subscribed' && phase !== 'starting') {
+    // Don't auto-promote out of 'pendingFit' — handleFitted does that with
+    // valid cols/rows in hand. Otherwise SIGWINCHing the PTY at transient
+    // dims races with replay and corrupts the screen buffer.
+    if (session.status === 'running' && phase !== 'subscribed' && phase !== 'starting' && phase !== 'pendingFit') {
       wasActiveRef.current = true;
       setPhase('subscribed');
     }
@@ -192,9 +202,18 @@ export default function SessionPane({
   const handleFitted = useCallback((cols: number, rows: number) => {
     fittedRef.current = { cols, rows };
     if (phase === 'pendingFit') {
-      void tryStart();
+      if (session.status === 'running') {
+        // Restored running session (e.g. user switched projects and came
+        // back) — the PTY is already alive, so skip POST /start (which would
+        // spawn a duplicate) and go straight to subscribed now that we have
+        // real dims to send with session:resize.
+        wasActiveRef.current = true;
+        setPhase('subscribed');
+      } else {
+        void tryStart();
+      }
     }
-  }, [phase, tryStart]);
+  }, [phase, tryStart, session.status]);
 
   const isRunning = session.status === 'running';
   const subscribed = phase === 'subscribed';

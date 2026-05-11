@@ -308,10 +308,15 @@ export default function SessionTerminal({
     };
     container.addEventListener('wheel', onContainerWheel, { passive: false });
 
+    // Best-effort initial fit so xterm has a sensible cols/rows for any
+    // synchronous writes that arrive before the first ResizeObserver tick.
+    // We do NOT call onFitted here — the portal/container can still be
+    // settling on mount (especially after a workspace switch with state
+    // rehydrated from localStorage), so the rect may briefly be tiny or
+    // 0×0. Notifying the parent here would SIGWINCH the PTY at a wrong
+    // size; the ResizeObserver callback below waits for a stable, non-zero
+    // measurement before firing onFitted exactly once.
     try { fitAddon.fit(); } catch { /* container may be 0×0 momentarily */ }
-    if (term.cols > 0 && term.rows > 0) {
-      onFittedRef.current?.(term.cols, term.rows);
-    }
 
     // Auto-focus the helper textarea so keystrokes (and IME composition)
     // land in xterm immediately on mount. Without this, focus stays on
@@ -379,6 +384,7 @@ export default function SessionTerminal({
     // viewport scrollbar that appears when scrollback exceeds the new
     // visible area paints stale rows when dragged.
     let fitPending = false;
+    let firstFitNotified = false;
     const lastFitRef = { cols: term.cols, rows: term.rows };
     const ro = new ResizeObserver(() => {
       if (fitPending) return;
@@ -395,6 +401,16 @@ export default function SessionTerminal({
             term.refresh(0, term.rows - 1);
           }
         } catch { /* ignore */ }
+        // Fire onFitted once with a stable measurement. The parent uses this
+        // to either POST /start (new session) or transition a restored
+        // running session to 'subscribed' — both paths must see the real
+        // viewport dims, not the transient values from the immediate-mount
+        // fit. Thresholds guard against the brief sub-cell-grid measurements
+        // we've observed during portal mount on workspace switch.
+        if (!firstFitNotified && term.cols >= 20 && term.rows >= 5) {
+          firstFitNotified = true;
+          onFittedRef.current?.(term.cols, term.rows);
+        }
         if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
         resizeTimerRef.current = setTimeout(sendResize, 150);
       });
