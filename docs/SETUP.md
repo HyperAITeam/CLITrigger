@@ -983,6 +983,35 @@ Claude / Gemini / Codex CLI의 사용자 설정 파일(settings, 메모리, MCP 
 
 Codex의 경우 프로젝트가 `~/.codex/config.toml`의 trusted 목록에 없으면 응답에 `trustLevelMissing` 경고가 포함되며 패널에 표시됩니다.
 
+### 33. 파일 탐색기 (Files 탭)
+
+프로젝트 폴더 트리를 앱 안에서 탐색하고 텍스트/이미지/PDF/오디오/비디오를 인라인으로 미리보기. **읽기 전용** — 파일 수정/스테이징은 기존 Git 탭이 담당합니다.
+
+#### 진입 방법
+
+프로젝트 상세 페이지 탭 바 맨 앞의 **Files** 탭. 좁은 뷰포트에서도 가로 스크롤 없이 도달하도록 plugin 탭들보다 앞에 배치되어 있습니다.
+
+#### 사용법
+
+| 기능 | 동작 |
+|------|------|
+| 트리 확장 | 디렉토리 클릭 시 lazy 자식 fetch (`GET /api/projects/:id/files?path=<rel>`) |
+| 파일 미리보기 | 파일 클릭 시 우측 패널에 인라인 렌더링 |
+| 텍스트 (≤2MB) | `GET /files/content`로 인라인 텍스트 응답 |
+| 이미지 / PDF / 오디오 / 비디오 (≤50MB) | `GET /files/binary`를 `<img>` / `<iframe>` / `<audio>` / `<video>`에 직접 바인딩 |
+| 알 수 없는 바이너리 | 다운로드 링크 폴백 |
+| 숨김 파일 토글 | 좌측 상단 `Show hidden files`로 dot-prefix 파일 노출 |
+| 경로 복사 | 우측 상단 `Copy path` |
+| 좌/우 분할 너비 | 가운데 드래그 가능한 리사이저 (localStorage 영속화) |
+
+#### 기본 hide 항목
+
+`showHidden=1` 없이는 항상 숨김: `.git`, `node_modules`, `.worktrees`, `.DS_Store`.
+
+#### 경로 트래버설 가드
+
+서버의 `resolveSafe()`가 `path.resolve()` 후 프로젝트 root prefix 검사로 traversal 차단 — `../`로 root 밖으로 나가는 모든 경로는 `403`.
+
 ---
 
 ## 상태 설명
@@ -1186,7 +1215,10 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/sessions/:id/pending-prompt | 세션 시작 시 보류 중인 초기 프롬프트 미리보기 |
 | POST | /api/sessions/:id/submit-initial | 보류된 초기 프롬프트를 PTY로 전송 |
 | POST | /api/sessions/:id/skip-initial | 보류된 초기 프롬프트 폐기 |
-| POST | /api/sessions/:id/paste-image | 클립보드 이미지를 호스트 OS 클립보드에 push (응답 후 클라이언트가 PTY로 `ESC+v` 전송) |
+| POST | /api/sessions/:id/paste-image | 클립보드 이미지를 호스트 OS 클립보드에 push + 같은 트랜잭션에서 PTY로 `ESC+v` 주입 (동시 페이스트 레이스 방지, `hasPendingPrompt` 게이트) |
+| GET | /api/projects/:id/files | 디렉토리 lazy 리스팅 (트래버설 가드 + 기본 hide list: `.git`/`node_modules`/`.worktrees`/`.DS_Store`) |
+| GET | /api/projects/:id/files/content | 텍스트 파일 인라인 미리보기 (≤2MB, NUL byte heuristic으로 바이너리 폴백) |
+| GET | /api/projects/:id/files/binary | 바이너리 파일 스트리밍 (≤50MB, Content-Type 헤더 — `<img>`/`<video>`/`<audio>`/`<iframe>` 인라인용) |
 | GET | /api/session-tags | 세션 색상 태그 목록 |
 | POST | /api/session-tags | 세션 태그 생성 (이름 + `#RRGGBB`) |
 | PUT | /api/session-tags/:id | 세션 태그 수정 |
