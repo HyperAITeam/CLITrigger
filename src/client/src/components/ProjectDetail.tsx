@@ -812,6 +812,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {/* Segmented tab control */}
       <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
+          { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
           ...getPluginsWithTabs(project).map((plugin) => {
             const helpKey = `tabs.${plugin.id}.help`;
             const help = t(helpKey);
@@ -829,7 +830,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
           ...(project.svn_enabled && project.vcs_type === 'svn' ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
-          { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
           { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
