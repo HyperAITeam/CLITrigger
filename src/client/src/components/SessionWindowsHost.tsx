@@ -112,11 +112,31 @@ interface HostProps {
 
 const DEFAULT_W = 720;
 const DEFAULT_H = 460;
+const MIN_W = 320;
+const MIN_H = 200;
 const CASCADE_STEP = 30;
 const CASCADE_BASE_X = 80;
 const CASCADE_BASE_Y = 80;
 const TITLEBAR_VISIBLE = 80;
 const CHROME_HEIGHT = 28;
+
+// Repair persisted geometry so a corrupt entry (collapsed to 0×0, far off-
+// screen, NaN) can't load as an invisible-but-clickable wrapper that steals
+// pointer events from the page underneath. Defensive against schema drift
+// and bugs in interrupted drag/resize gestures.
+function sanitizeGeom(g: WindowGeom): WindowGeom {
+  const vpW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vpH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  let w = Number.isFinite(g.w) && g.w >= MIN_W ? g.w : DEFAULT_W;
+  let h = Number.isFinite(g.h) && g.h >= MIN_H ? g.h : DEFAULT_H;
+  w = Math.min(w, vpW);
+  h = Math.min(h, vpH);
+  let x = Number.isFinite(g.x) ? g.x : CASCADE_BASE_X;
+  let y = Number.isFinite(g.y) ? g.y : CASCADE_BASE_Y;
+  x = Math.max(Math.min(x, vpW - TITLEBAR_VISIBLE), -(w - TITLEBAR_VISIBLE));
+  y = Math.max(Math.min(y, vpH - CHROME_HEIGHT), 0);
+  return { x, y, w, h };
+}
 // Pixels of mousemove from drag start that count as "intent to tear" — any
 // further and the tab pops out of the docked group as a floating window.
 const TAB_DETACH_THRESHOLD = 12;
@@ -219,7 +239,8 @@ export default function SessionWindowsHost({
         if (!colors[id]) colors[id] = assignColor(Object.values(colors));
         if (!intents[id]) intents[id] = { intent: 'open', nonce: 0 };
       }
-      restored.push({ ...g, root: pruned, colors, intents, minimized: !!g.minimized });
+      const safeGeom = sanitizeGeom({ x: g.x, y: g.y, w: g.w, h: g.h });
+      restored.push({ ...g, ...safeGeom, root: pruned, colors, intents, minimized: !!g.minimized });
     }
     if (restored.length > 0) {
       zCounterRef.current = persisted.zCounter || restored.length;
@@ -533,9 +554,29 @@ export default function SessionWindowsHost({
       });
     };
 
-    const onUp = () => {
+    let cleaned = false;
+    const detachListeners = () => {
+      if (cleaned) return;
+      cleaned = true;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onAbort);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    // Abort: cancel the gesture cleanly when interrupted (alt-tab, tab
+    // hide, Escape) before mouseup reaches us. If the tab has already
+    // been torn into a floating group, leave it where it is; if not yet
+    // detached, the tab simply stays in its original stack.
+    const onAbort = () => {
+      detachListeners();
+      setDragState(null);
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
+    const onVis = () => { if (document.hidden) onAbort(); };
+
+    const onUp = () => {
+      detachListeners();
       const cur = dragStateRef.current;
       setDragState(null);
       if (!cur) return;
@@ -556,6 +597,9 @@ export default function SessionWindowsHost({
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onAbort);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
   }, []);
 
   const applyDock = useCallback((srcGroupId: string, srcSessionId: string, dstGroupId: string, dstPath: Path, side: DockSide) => {

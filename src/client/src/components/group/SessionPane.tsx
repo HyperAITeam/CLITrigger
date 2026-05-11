@@ -283,6 +283,7 @@ export default function SessionPane({
         fontSize={fontSize}
         theme={terminalTheme}
         inputBlocked={pendingPromptLength !== null}
+        autoFocusOnMount={visible}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
