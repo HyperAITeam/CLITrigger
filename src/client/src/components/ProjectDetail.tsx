@@ -24,6 +24,7 @@ import SessionWindowsHost from './SessionWindowsHost';
 import AnalyticsPanel from './AnalyticsPanel';
 import PlannerList from './PlannerList';
 import MemoryList from './MemoryList';
+import FileExplorer from './FileExplorer';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -823,6 +824,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
           ...(project.svn_enabled && project.vcs_type === 'svn' ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
+          { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
           { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
@@ -926,6 +928,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'svn' && project.svn_enabled && project.vcs_type === 'svn' ? (
         <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
+      {activeTab === 'files' && id && (
+        <FileExplorer projectId={id} />
+      )}
       {activeTab === 'schedules' && (
         <ScheduleList
           schedules={schedules}
