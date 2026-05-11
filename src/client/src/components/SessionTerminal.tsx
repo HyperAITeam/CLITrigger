@@ -149,11 +149,24 @@ export default function SessionTerminal({
     // nothing is selected, matching iTerm2/Windows Terminal). Alt+V is
     // additionally mapped to paste at the user's request.
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    // Timestamp of the last paste gesture the keydown handler claimed. The
+    // container's `paste` event fires for the same Ctrl/Cmd+V, so handlePaste
+    // checks this to skip re-running the upload + ESC+v flow.
+    let pasteHandledAt = 0;
     const pasteFromClipboard = async () => {
       if (inputBlockedRef.current) {
         console.debug('[paste] inputBlocked → ignored');
         return;
       }
+      // The browser fires a `paste` ClipboardEvent for the same Ctrl/Cmd+V
+      // (preventDefault on keydown doesn't suppress it), so we claim the
+      // gesture synchronously to make handlePaste bail. We only claim when
+      // the clipboard API will actually work — on non-secure origins
+      // (LAN-IP http://) navigator.clipboard.read throws and we'd need
+      // handlePaste's clipboardData path as the real handler, so leave
+      // the claim cleared there.
+      if (!window.isSecureContext) return;
+      pasteHandledAt = Date.now();
 
       // 1) Try image MIME via clipboard.read(). On HTTP/LAN-IP origins this
       //    rejects — we swallow that and fall through to readText() so the
@@ -168,9 +181,11 @@ export default function SessionTerminal({
             reader.onload = () => {
               const dataUrl = reader.result as string;
               console.debug('[paste] image via clipboard.read(), bytes=', blob.size);
-              pasteImage(sessionId, dataUrl).then(() => {
-                guardedSend({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-              }).catch((err) => console.warn('[paste] pasteImage failed:', err));
+              // Server pushes the image into the host OS clipboard AND injects
+              // ESC+v into the PTY in the same transaction (see paste-image
+              // route) so two concurrent paste-image requests can't race on
+              // the shared OS clipboard. We don't send ESC+v here.
+              pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
             };
             reader.readAsDataURL(blob);
             return;
@@ -352,9 +367,10 @@ export default function SessionTerminal({
     // syllables. setupMobileImeInput hides xterm's helper and runs input
     // through an overlay textarea with a client-side Hangul composer that
     // assembles jamo/syllables into precomposed Hangul before sending to PTY.
+    const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
     const inputCleanup = isMobileImeDevice()
-      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend })
-      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend });
+      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled })
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a
@@ -514,6 +530,12 @@ interface InputSetupArgs {
   term: Terminal;
   sessionId: string;
   sendMessage: (event: object) => void;
+  // True when the xterm keydown handler just claimed this paste gesture.
+  // The browser still fires a `paste` ClipboardEvent for the same Ctrl/Cmd+V
+  // (preventDefault on keydown doesn't suppress it), so without this gate
+  // every image paste runs the upload + ESC+v path twice and the CLI renders
+  // `[Image #1]` followed by a duplicate `[Image #2]`.
+  isPasteAlreadyHandled: () => boolean;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -664,7 +686,7 @@ function backspaceComposer(c: HangulComposer): boolean {
   return true;
 }
 
-function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
+function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled }: InputSetupArgs): () => void {
   let composing = false;
   // After compositionend with data, xterm.js's helper textarea fires onData
   // with the same composed string. Drop exactly that one onData by
@@ -718,8 +740,15 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   };
   // Browser paste event fires inside a user gesture even on http:// origins
   // where navigator.clipboard.readText() is blocked, so this catches LAN-IP
-  // access via cloudflared-disabled scenarios.
+  // access via cloudflared-disabled scenarios. It ALSO fires for the same
+  // Ctrl/Cmd+V the keydown handler already handled (preventDefault on
+  // keydown doesn't suppress the paste event), so we bail when the keydown
+  // path just claimed the gesture.
   const handlePaste = (e: ClipboardEvent) => {
+    if (isPasteAlreadyHandled()) {
+      e.preventDefault();
+      return;
+    }
     const items = e.clipboardData?.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
@@ -731,9 +760,9 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
           reader.onload = () => {
             const dataUrl = reader.result as string;
             console.debug('[paste-fallback] image via paste event, bytes=', file.size);
-            pasteImage(sessionId, dataUrl, file.name).then(() => {
-              sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-            }).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
+            // Server injects ESC+v after writing the clipboard; see the
+            // paste-image route. We don't send it from the client.
+            pasteImage(sessionId, dataUrl, file.name).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
           };
           reader.readAsDataURL(file);
           return;
