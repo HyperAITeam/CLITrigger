@@ -45,6 +45,14 @@ interface SessionTerminalProps {
    * pass through.
    */
   inputBlocked?: boolean;
+  /**
+   * Gate for the mount-time `term.focus()` call. Even with the body-only
+   * guard, a hidden pane (display:none StackView tab, restored-but-hidden
+   * floating window) shouldn't steal focus from a form input the user is
+   * actively typing in. Parents set this to true only when the pane is
+   * visibly mounted (StackView's active tab in a non-minimized group).
+   */
+  autoFocusOnMount?: boolean;
 }
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
@@ -72,6 +80,7 @@ export default function SessionTerminal({
   fontSize = DEFAULT_FONT_SIZE,
   theme,
   inputBlocked = false,
+  autoFocusOnMount = false,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
   // theme by value) and then reapplied via term.options.theme in a separate
@@ -293,10 +302,22 @@ export default function SessionTerminal({
     // land in xterm immediately on mount. Without this, focus stays on
     // whatever was focused before (form Submit button, or body) and the
     // user's first keystrokes — including a Hangul jamo that would have
-    // started a composition — go nowhere. Only steal from body so we
-    // don't yank focus away from someone editing another input.
-    if (document.activeElement === document.body || document.activeElement === null) {
-      try { term.focus(); } catch { /* ignore */ }
+    // started a composition — go nowhere. Gated on `autoFocusOnMount` so
+    // hidden panes (display:none tabs, minimized floating windows) don't
+    // race against a user typing in a form input elsewhere. Also defends
+    // against any focusable element below body (input/textarea/select/
+    // contenteditable) in case a parent forgot to pass the gate.
+    if (autoFocusOnMount) {
+      const ae = document.activeElement as HTMLElement | null;
+      const isFormish = !!ae && (
+        ae.tagName === 'INPUT' ||
+        ae.tagName === 'TEXTAREA' ||
+        ae.tagName === 'SELECT' ||
+        ae.isContentEditable
+      );
+      if (!isFormish && (ae === null || ae === document.body)) {
+        try { term.focus(); } catch { /* ignore */ }
+      }
     }
 
     const sendResize = () => {
