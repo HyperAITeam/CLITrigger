@@ -683,6 +683,10 @@ const translations = {
     'files.binaryNotPreviewable': 'Binary file — preview not available.',
     'files.download': 'Download',
     'files.preview.empty': 'Select a file to preview.',
+    'files.viewMode.rendered': 'Rendered',
+    'files.viewMode.source': 'Source',
+    'files.viewMode.toggleHint': 'Toggle between rendered and source view',
+    'files.html.sandboxNotice': 'Safe preview — scripts and external resources are blocked.',
 
     // Wiki (Karpathy LLM-Wiki pattern)
     'wiki.title': 'Wiki',
@@ -1862,6 +1866,10 @@ const translations = {
     'files.binaryNotPreviewable': '바이너리 파일 — 미리보기 불가.',
     'files.download': '다운로드',
     'files.preview.empty': '파일을 선택해 미리보기를 확인하세요.',
+    'files.viewMode.rendered': '렌더',
+    'files.viewMode.source': '소스',
+    'files.viewMode.toggleHint': '렌더 / 소스 뷰 전환',
+    'files.html.sandboxNotice': '안전 미리보기 — 스크립트와 외부 리소스가 차단되었습니다.',
 
     // Wiki (Karpathy LLM-Wiki 패턴)
     'wiki.title': '위키',
