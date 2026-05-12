@@ -1,4 +1,4 @@
-import { get } from './client';
+import { get, post } from './client';
 
 export interface FileEntry {
   name: string;
@@ -46,4 +46,12 @@ export function getFileContent(projectId: string, path: string): Promise<FileCon
 
 export function getBinaryFileUrl(projectId: string, path: string): string {
   return `/api/projects/${projectId}/files/binary?path=${encodeURIComponent(path)}`;
+}
+
+export function openFile(
+  projectId: string,
+  path: string,
+  mode: 'open' | 'reveal',
+): Promise<{ ok: true }> {
+  return post(`/api/projects/${projectId}/files/open`, { path, mode });
 }

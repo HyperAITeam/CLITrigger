@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import { exec } from 'child_process';
 import { getProjectById } from '../db/queries.js';
 
 const router = Router();
@@ -221,6 +222,56 @@ router.get('/:id/files/binary', (req: Request<{ id: string }>, res: Response) =>
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
     res.sendFile(safe.abs);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/projects/:id/files/open  body: { path: string, mode?: 'open' | 'reveal' }
+// Opens the target with the OS default app, or reveals it in the file manager.
+router.post('/:id/files/open', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { path: relPath, mode } = (req.body ?? {}) as { path?: unknown; mode?: unknown };
+    if (typeof relPath !== 'string') {
+      res.status(400).json({ error: 'path is required' });
+      return;
+    }
+    const safe = resolveSafe(req.params.id, relPath);
+    if (!safe) {
+      res.status(403).json({ error: 'Path is outside project root or project not found' });
+      return;
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(safe.abs);
+    } catch {
+      res.status(404).json({ error: 'Path does not exist' });
+      return;
+    }
+
+    const isDir = stat.isDirectory();
+    // reveal is only meaningful for files; for directories it degrades to "open".
+    const wantReveal = mode === 'reveal' && !isDir;
+
+    if (process.platform === 'win32') {
+      if (wantReveal) {
+        exec(`explorer.exe /select,"${safe.abs}"`);
+      } else if (isDir) {
+        exec(`explorer.exe "${safe.abs}"`);
+      } else {
+        exec(`start "" "${safe.abs}"`, { windowsHide: true });
+      }
+    } else if (process.platform === 'darwin') {
+      exec(wantReveal ? `open -R "${safe.abs}"` : `open "${safe.abs}"`);
+    } else {
+      // Linux: no portable "reveal" — fall back to opening the containing folder.
+      const target = wantReveal ? path.dirname(safe.abs) : safe.abs;
+      exec(`xdg-open "${target}"`);
+    }
+
+    res.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
