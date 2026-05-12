@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown, ChevronRight, FileText, FileImage, FileCode, FileVideo, FileAudio,
   Folder, FolderOpen, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { listFiles, getFileContent, getBinaryFileUrl } from '../api/files';
+import { listFiles, getFileContent, getBinaryFileUrl, openFile } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { ApiError } from '../api/client';
 
@@ -95,6 +96,7 @@ function TreeRow({
   selectedPath,
   onToggle,
   onSelect,
+  onContextMenu,
 }: {
   entry: FileEntry;
   depth: number;
@@ -103,6 +105,7 @@ function TreeRow({
   selectedPath: string | null;
   onToggle: (path: string, entry: FileEntry) => void;
   onSelect: (path: string, entry: FileEntry) => void;
+  onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
 }) {
   const isDir = entry.type === 'directory';
   const expanded = state?.expanded ?? false;
@@ -116,6 +119,7 @@ function TreeRow({
         else onSelect(fullPath, entry);
       }}
       onDoubleClick={() => { if (isDir) onSelect(fullPath, entry); }}
+      onContextMenu={(e) => onContextMenu(e, fullPath, entry)}
       className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded transition-colors ${
         isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
       }`}
@@ -145,6 +149,7 @@ function TreeBranch({
   showHidden,
   selectedPath,
   onSelect,
+  onContextMenu,
 }: {
   projectId: string;
   parentPath: string;
@@ -155,6 +160,7 @@ function TreeBranch({
   showHidden: boolean;
   selectedPath: string | null;
   onSelect: (path: string, entry: FileEntry) => void;
+  onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
 }) {
   const toggle = useCallback(async (full: string, entry: FileEntry) => {
     const prev = nodeStates.get(full);
@@ -211,6 +217,7 @@ function TreeBranch({
               selectedPath={selectedPath}
               onToggle={toggle}
               onSelect={onSelect}
+              onContextMenu={onContextMenu}
             />
             {entry.type === 'directory' && state?.expanded && (
               <>
@@ -236,6 +243,7 @@ function TreeBranch({
                     showHidden={showHidden}
                     selectedPath={selectedPath}
                     onSelect={onSelect}
+                    onContextMenu={onContextMenu}
                   />
                 )}
               </>
@@ -306,6 +314,16 @@ function PreviewPanel({
     navigator.clipboard.writeText(path).catch(() => { /* swallow */ });
   };
 
+  const openInOS = () => {
+    if (!path) return;
+    openFile(projectId, path, 'open').catch(() => { /* swallow */ });
+  };
+
+  const revealInOS = () => {
+    if (!path) return;
+    openFile(projectId, path, 'reveal').catch(() => { /* swallow */ });
+  };
+
   if (!path || !entry) {
     return (
       <div className="flex-1 flex items-center justify-center text-xs text-warm-400">
@@ -328,6 +346,20 @@ function PreviewPanel({
         <span className="truncate font-medium text-warm-800">{path}</span>
         <span className="text-warm-400 shrink-0">{formatSize(meta?.size ?? entry.size)}</span>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={openInOS}
+            className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+            title={t('files.openInOS')}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={revealInOS}
+            className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+            title={t('files.revealInExplorer')}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={copyPath}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
@@ -396,6 +428,130 @@ function PreviewPanel({
   );
 }
 
+// ---- Context menu (portal + viewport clamp) ----
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  path: string;
+  entry: FileEntry;
+}
+
+function ContextMenu({
+  state,
+  projectId,
+  onClose,
+}: {
+  state: ContextMenuState;
+  projectId: string;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: state.y, left: state.x, visible: false });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    let left = state.x;
+    let top = state.y;
+    if (left + w > vw - 8) left = Math.max(8, vw - 8 - w);
+    if (top + h > vh - 8) top = Math.max(8, vh - 8 - h);
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
+    setPos({ top, left, visible: true });
+  }, [state.x, state.y]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onScroll = () => onClose();
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+
+  const isDir = state.entry.type === 'directory';
+
+  const callOpen = (mode: 'open' | 'reveal') => {
+    openFile(projectId, state.path, mode).catch(() => { /* swallow */ });
+    onClose();
+  };
+
+  const copyPath = () => {
+    navigator.clipboard.writeText(state.path).catch(() => { /* swallow */ });
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed z-tooltip min-w-[180px] rounded-lg py-1 shadow-elevated text-xs"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        opacity: pos.visible ? 1 : 0,
+        backgroundColor: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
+      }}
+    >
+      {isDir ? (
+        <button
+          type="button"
+          onClick={() => callOpen('open')}
+          className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span>{t('files.openFolder')}</span>
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => callOpen('open')}
+            className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>{t('files.openInOS')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => callOpen('reveal')}
+            className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>{t('files.revealInExplorer')}</span>
+          </button>
+        </>
+      )}
+      <div className="my-1 border-t border-warm-200" />
+      <button
+        type="button"
+        onClick={copyPath}
+        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+      >
+        <Copy className="w-3.5 h-3.5" />
+        <span>{t('files.copyPath')}</span>
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 // ---- Main component ----
 
 export default function FileExplorer({ projectId }: FileExplorerProps) {
@@ -407,6 +563,7 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const lsKey = `fileExplorer:${projectId}`;
   const [paneWidth, setPaneWidth] = useState<number>(() => {
@@ -455,6 +612,11 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const handleSelect = useCallback((path: string, entry: FileEntry) => {
     setSelectedPath(path);
     setSelectedEntry(entry);
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, fullPath: string, entry: FileEntry) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, path: fullPath, entry });
   }, []);
 
   const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
@@ -510,6 +672,7 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
               showHidden={showHidden}
               selectedPath={selectedPath}
               onSelect={handleSelect}
+              onContextMenu={handleContextMenu}
             />
           )}
         </div>
@@ -519,6 +682,14 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
 
       {/* Right: preview */}
       <PreviewPanel projectId={projectId} path={selectedPath} entry={selectedEntry} />
+
+      {contextMenu && (
+        <ContextMenu
+          state={contextMenu}
+          projectId={projectId}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
