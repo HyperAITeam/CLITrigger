@@ -1,4 +1,4 @@
-import { get } from './client';
+import { get, put } from './client';
 
 export interface FileEntry {
   name: string;
@@ -46,4 +46,19 @@ export function getFileContent(projectId: string, path: string): Promise<FileCon
 
 export function getBinaryFileUrl(projectId: string, path: string): string {
   return `/api/projects/${projectId}/files/binary?path=${encodeURIComponent(path)}`;
+}
+
+export interface SaveFileResult {
+  path: string;
+  size: number;
+  mtime: number;
+}
+
+export function saveFileContent(
+  projectId: string,
+  path: string,
+  content: string,
+  mtime: number,
+): Promise<SaveFileResult> {
+  return put(`/api/projects/${projectId}/files/content`, { path, content, mtime });
 }

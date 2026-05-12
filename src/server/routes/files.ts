@@ -184,6 +184,80 @@ router.get('/:id/files/content', (req: Request<{ id: string }>, res: Response) =
   }
 });
 
+// PUT /api/projects/:id/files/content — overwrite a text file's contents.
+// Body: { path: string, content: string, mtime: number } where `mtime` is the
+// disk mtimeMs the client last observed. If the file's current mtime on disk
+// does not match, we 409 so the client can prompt the user to reload (prevents
+// stomping changes made by a CLI subprocess or external editor).
+router.put('/:id/files/content', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const body = req.body as { path?: unknown; content?: unknown; mtime?: unknown } | undefined;
+    const relPath = typeof body?.path === 'string' ? body.path : '';
+    const content = typeof body?.content === 'string' ? body.content : null;
+    const expectedMtime = typeof body?.mtime === 'number' ? body.mtime : null;
+    if (!relPath || content === null || expectedMtime === null) {
+      res.status(400).json({ error: 'path, content, and mtime are required' });
+      return;
+    }
+    const safe = resolveSafe(req.params.id, relPath);
+    if (!safe) {
+      res.status(403).json({ error: 'Path is outside project root or project not found' });
+      return;
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(safe.abs);
+    } catch {
+      res.status(404).json({ error: 'File does not exist' });
+      return;
+    }
+    if (!stat.isFile()) {
+      res.status(400).json({ error: 'Path is not a file' });
+      return;
+    }
+
+    // Block binary edits — clients should not POST text content for files we
+    // serve as binary. SVG is the exception (text-based XML).
+    const ext = path.extname(safe.abs).toLowerCase();
+    const mime = MIME_BY_EXT[ext];
+    if (mime && !mime.startsWith('text/') && mime !== 'image/svg+xml') {
+      res.status(415).json({ error: 'Binary files cannot be edited as text' });
+      return;
+    }
+
+    const byteLength = Buffer.byteLength(content, 'utf8');
+    if (byteLength > TEXT_SIZE_CAP) {
+      res.status(413).json({ error: 'Content too large', size: byteLength, cap: TEXT_SIZE_CAP });
+      return;
+    }
+
+    // Conflict check: did anyone else write since we loaded?
+    if (stat.mtimeMs !== expectedMtime) {
+      res.status(409).json({
+        error: 'File changed on disk since it was loaded',
+        currentMtime: stat.mtimeMs,
+        expectedMtime,
+      });
+      return;
+    }
+
+    try {
+      fs.writeFileSync(safe.abs, content, 'utf8');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'write failed';
+      res.status(500).json({ error: message });
+      return;
+    }
+
+    const after = fs.statSync(safe.abs);
+    res.json({ path: relPath, size: after.size, mtime: after.mtimeMs });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // GET /api/projects/:id/files/binary?path=<rel> — streams binary file with
 // proper Content-Type so <img>/<video> tags can render it inline.
 router.get('/:id/files/binary', (req: Request<{ id: string }>, res: Response) => {

@@ -2,13 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown, ChevronRight, FileText, FileImage, FileCode, FileVideo, FileAudio,
   Folder, FolderOpen, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink,
-  Code2, Sparkles,
+  Code2, Sparkles, Pencil, Save, X,
 } from 'lucide-react';
+import CodeMirror, { type Extension } from '@uiw/react-codemirror';
+import { markdown } from '@codemirror/lang-markdown';
+import { html } from '@codemirror/lang-html';
+import { javascript } from '@codemirror/lang-javascript';
+import { json } from '@codemirror/lang-json';
+import { css } from '@codemirror/lang-css';
+import { python } from '@codemirror/lang-python';
+import { oneDark } from '@codemirror/theme-one-dark';
 import { useI18n } from '../i18n';
-import { listFiles, getFileContent, getBinaryFileUrl } from '../api/files';
+import { listFiles, getFileContent, getBinaryFileUrl, saveFileContent } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { ApiError } from '../api/client';
+import { useTheme } from '../hooks/useTheme';
+import { useToast } from '../hooks/useToast';
 import MarkdownContent from './MarkdownContent';
+import ToastContainer from './Toast';
 
 interface FileExplorerProps {
   projectId: string;
@@ -35,6 +46,17 @@ const AUDIO_EXT = new Set(['.mp3', '.wav', '.ogg', '.flac']);
 const PDF_EXT = new Set(['.pdf']);
 const MARKDOWN_EXT = new Set(['.md', '.markdown']);
 const HTML_EXT = new Set(['.html', '.htm']);
+
+function languageExtensionFor(ext: string): Extension[] {
+  if (MARKDOWN_EXT.has(ext)) return [markdown()];
+  if (HTML_EXT.has(ext)) return [html()];
+  if (ext === '.js' || ext === '.jsx' || ext === '.mjs' || ext === '.cjs') return [javascript()];
+  if (ext === '.ts' || ext === '.tsx') return [javascript({ typescript: true, jsx: ext === '.tsx' })];
+  if (ext === '.json') return [json()];
+  if (ext === '.css' || ext === '.scss' || ext === '.sass' || ext === '.less') return [css()];
+  if (ext === '.py') return [python()];
+  return [];
+}
 
 function extOf(name: string): string {
   const i = name.lastIndexOf('.');
@@ -257,18 +279,32 @@ function PreviewPanel({
   projectId,
   path,
   entry,
+  onDirtyChange,
 }: {
   projectId: string;
   path: string | null;
   entry: FileEntry | null;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const { toasts, success: toastSuccess, error: toastError, dismiss: dismissToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [binaryMime, setBinaryMime] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ size: number; mtime: number } | null>(null);
   const [viewMode, setViewMode] = useState<'rendered' | 'source'>('rendered');
+  const [editMode, setEditMode] = useState(false);
+  const [editorValue, setEditorValue] = useState('');
+  const [savedValue, setSavedValue] = useState('');
+  const [savedMtime, setSavedMtime] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const dirty = editMode && editorValue !== savedValue;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (!path || !entry || entry.type !== 'file') {
@@ -276,6 +312,10 @@ function PreviewPanel({
       setBinaryMime(null);
       setError(null);
       setMeta(null);
+      setEditMode(false);
+      setEditorValue('');
+      setSavedValue('');
+      setSavedMtime(null);
       return;
     }
     let cancelled = false;
@@ -285,6 +325,10 @@ function PreviewPanel({
     setBinaryMime(null);
     setMeta(null);
     setViewMode('rendered');
+    setEditMode(false);
+    setEditorValue('');
+    setSavedValue('');
+    setSavedMtime(null);
     getFileContent(projectId, path)
       .then((res) => {
         if (cancelled) return;
@@ -293,6 +337,9 @@ function PreviewPanel({
           setBinaryMime(res.mime);
         } else {
           setTextContent(res.content);
+          setEditorValue(res.content);
+          setSavedValue(res.content);
+          setSavedMtime(res.mtime);
         }
       })
       .catch((err) => {
@@ -328,6 +375,49 @@ function PreviewPanel({
   const isMarkdown = MARKDOWN_EXT.has(ext);
   const isHtml = HTML_EXT.has(ext);
   const canToggleView = (isMarkdown || isHtml) && textContent !== null;
+  const editable = !loading && !error && textContent !== null && !binaryMime;
+
+  const handleSave = useCallback(async () => {
+    if (!path || savedMtime == null || saving) return;
+    setSaving(true);
+    try {
+      const res = await saveFileContent(projectId, path, editorValue, savedMtime);
+      setSavedValue(editorValue);
+      setSavedMtime(res.mtime);
+      setTextContent(editorValue);
+      setMeta({ size: res.size, mtime: res.mtime });
+      toastSuccess(t('files.editor.saved'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        toastError(t('files.editor.conflict'));
+      } else if (err instanceof Error) {
+        toastError(`${t('files.editor.saveFailed')}: ${err.message}`);
+      } else {
+        toastError(t('files.editor.saveFailed'));
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [path, savedMtime, editorValue, saving, projectId, toastSuccess, toastError, t]);
+
+  const handleEnterEdit = useCallback(() => {
+    if (!editable) return;
+    if (isMarkdown || isHtml) setViewMode('source');
+    setEditMode(true);
+  }, [editable, isMarkdown, isHtml]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (dirty && !window.confirm(t('files.editor.discardConfirm'))) return;
+    setEditorValue(savedValue);
+    setEditMode(false);
+  }, [dirty, savedValue, t]);
+
+  const onEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      void handleSave();
+    }
+  }, [handleSave]);
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col">
@@ -336,8 +426,46 @@ function PreviewPanel({
         {iconFor(entry, false)}
         <span className="truncate font-medium text-warm-800">{path}</span>
         <span className="text-warm-400 shrink-0">{formatSize(meta?.size ?? entry.size)}</span>
+        {dirty && (
+          <span className="text-amber-600 shrink-0 text-[10px] uppercase tracking-wide">
+            • {t('files.editor.dirty')}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
-          {canToggleView && (
+          {editMode ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={!dirty || saving}
+                className="px-1.5 py-1 rounded text-warm-700 hover:bg-warm-100 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center gap-1"
+                title={t('files.editor.save')}
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>{t('files.editor.save')}</span>
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                disabled={saving}
+                className="px-1.5 py-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 inline-flex items-center gap-1"
+                title={t('files.editor.cancel')}
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>{t('files.editor.cancel')}</span>
+              </button>
+            </>
+          ) : (
+            editable && (
+              <button
+                onClick={handleEnterEdit}
+                className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
+                title={t('files.editor.edit')}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>{t('files.editor.edit')}</span>
+              </button>
+            )
+          )}
+          {!editMode && canToggleView && (
             <button
               onClick={() => setViewMode((m) => (m === 'rendered' ? 'source' : 'rendered'))}
               className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
@@ -378,12 +506,25 @@ function PreviewPanel({
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
-        {!loading && !error && textContent !== null && isMarkdown && viewMode === 'rendered' && (
+        {!loading && !error && editMode && (
+          <div className="h-full" onKeyDown={onEditorKeyDown}>
+            <CodeMirror
+              value={editorValue}
+              onChange={setEditorValue}
+              extensions={languageExtensionFor(ext)}
+              theme={theme === 'dark' ? oneDark : 'light'}
+              height="100%"
+              className="h-full text-xs"
+              basicSetup={{ lineNumbers: true, foldGutter: false, highlightActiveLine: true }}
+            />
+          </div>
+        )}
+        {!loading && !error && !editMode && textContent !== null && isMarkdown && viewMode === 'rendered' && (
           <div className="p-4">
             <MarkdownContent content={textContent} />
           </div>
         )}
-        {!loading && !error && textContent !== null && isHtml && viewMode === 'rendered' && (
+        {!loading && !error && !editMode && textContent !== null && isHtml && viewMode === 'rendered' && (
           <div className="flex flex-col h-full">
             <div className="px-3 py-1.5 text-xs text-warm-500 bg-warm-50 border-b border-warm-200 shrink-0">
               {t('files.html.sandboxNotice')}
@@ -396,7 +537,7 @@ function PreviewPanel({
             />
           </div>
         )}
-        {!loading && !error && textContent !== null && !(isMarkdown && viewMode === 'rendered') && !(isHtml && viewMode === 'rendered') && (
+        {!loading && !error && !editMode && textContent !== null && !(isMarkdown && viewMode === 'rendered') && !(isHtml && viewMode === 'rendered') && (
           <pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>
         )}
         {!loading && !error && binaryMime && isImage && (
@@ -438,6 +579,7 @@ function PreviewPanel({
           </div>
         )}
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -471,6 +613,10 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   }, [paneWidth, lsKey]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const previewDirtyRef = useRef(false);
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    previewDirtyRef.current = dirty;
+  }, []);
 
   const loadRoot = useCallback(async () => {
     setRootLoading(true);
@@ -499,9 +645,10 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   }, []);
 
   const handleSelect = useCallback((path: string, entry: FileEntry) => {
+    if (previewDirtyRef.current && !window.confirm(t('files.editor.discardConfirm'))) return;
     setSelectedPath(path);
     setSelectedEntry(entry);
-  }, []);
+  }, [t]);
 
   const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
 
@@ -564,7 +711,12 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
       <Resizer onResize={onResize} />
 
       {/* Right: preview */}
-      <PreviewPanel projectId={projectId} path={selectedPath} entry={selectedEntry} />
+      <PreviewPanel
+        projectId={projectId}
+        path={selectedPath}
+        entry={selectedEntry}
+        onDirtyChange={handleDirtyChange}
+      />
     </div>
   );
 }
