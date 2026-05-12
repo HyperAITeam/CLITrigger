@@ -1,6 +1,10 @@
 @echo off
 setlocal
 
+REM Anchor cwd to project root so the script works whether invoked from the
+REM repo root or from inside scripts/. %~dp0 always ends with a backslash.
+pushd "%~dp0.."
+
 set SKIP_INSTALL=0
 set BUILD_MSIX=0
 if not defined CSC_KEY_PASSWORD set CSC_KEY_PASSWORD=clitrigger
@@ -9,6 +13,7 @@ if not defined CSC_KEY_PASSWORD set CSC_KEY_PASSWORD=clitrigger
 if "%1"=="--skip-install" (set SKIP_INSTALL=1 & shift & goto :parse_args)
 if "%1"=="-s"             (set SKIP_INSTALL=1 & shift & goto :parse_args)
 if "%1"=="--msix"         (set BUILD_MSIX=1   & shift & goto :parse_args)
+if "%1"=="-m"             (set BUILD_MSIX=1   & shift & goto :parse_args)
 
 if %SKIP_INSTALL%==1 (
   echo [1/4] Skipping server dependencies (--skip-install)
@@ -67,7 +72,9 @@ goto :end
 :error
 echo.
 echo Build failed.
+popd
 exit /b 1
 
 :end
+popd
 endlocal
