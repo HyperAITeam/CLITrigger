@@ -32,6 +32,14 @@ import * as sessionsApi from '../api/sessions';
 import { useI18n } from '../i18n';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
+import {
+  openBus,
+  MAIN_WINDOW_ID,
+  newPopoutId,
+  HEARTBEAT_MS,
+  HEARTBEAT_TIMEOUT_MS,
+  type BusMessage,
+} from './popout/popoutBus';
 
 interface WindowGeom {
   x: number;
@@ -51,6 +59,12 @@ export interface OpenGroup extends WindowGeom {
   // Per-tab intent so freshly-added tabs auto-start while existing tabs stay
   // in replay-only mode. Bumping the nonce re-triggers a start attempt.
   intents: Record<string, { intent: WindowIntent; nonce: number }>;
+  // 'main' = rendered by the primary BrowserRouter window; popout_xxx = owned
+  // by a child OS window opened via window.open(). Each window filters the
+  // groups array by `ownerWindowId === MY_WINDOW_ID` so the same persisted
+  // state can describe both. Optional in the type for backward-compat with
+  // pre-popout persisted entries; undefined is treated as 'main'.
+  ownerWindowId?: string;
 }
 
 interface DragState {
@@ -87,6 +101,14 @@ export interface SessionWindowsAPI {
   beginTabDrag: (groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => void;
   // Dock an entire single-stack group into another group.
   dockGroup: (srcGroupId: string, dstGroupId: string, dstPath: Path, side: DockSide) => void;
+  // Pop the group out as a separate OS window (window.open). Main hands the
+  // group to a popout via the BroadcastChannel bus and removes it from its
+  // own rendered set. No-op for split-root groups in Phase 1.
+  //
+  // `opts.atScreenX/Y` positions the new OS window at those absolute screen
+  // coordinates (chrome-offset applied) — used by drag-out so the popout
+  // appears under the user's cursor. Omitted → near the source window.
+  popOutGroup: (groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => void;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -136,6 +158,10 @@ function sanitizeGeom(g: WindowGeom): WindowGeom {
 // Pixels of mousemove from drag start that count as "intent to tear" — any
 // further and the tab pops out of the docked group as a floating window.
 const TAB_DETACH_THRESHOLD = 12;
+// Screen-coord distance the cursor must travel outside the main window's
+// bounds (after an eager-detach has happened) before the floating group
+// is promoted to a separate OS window via popOutGroup.
+const TAB_TEAR_OUT_THRESHOLD = 60;
 
 function lsKey(projectId: string) {
   return `sessionGroups:${projectId}`;
@@ -232,8 +258,22 @@ export default function SessionWindowsHost({
       // drift can't restore the group off-screen or with NaN dims that
       // render as an invisible click-trap over the page.
       const safeGeom = sanitizeGeom({ x: g.x, y: g.y, w: g.w, h: g.h });
-      return { ...g, ...safeGeom, colors, intents, minimized: !!g.minimized };
+      // Pre-popout entries have no ownerWindowId — coerce to 'main'. Popout-
+      // owned entries keep their owner so a refresh of main doesn't snatch
+      // back a group that a popout window still holds; the liveness check
+      // below reclaims it after HEARTBEAT_TIMEOUT_MS of silence.
+      const ownerWindowId = g.ownerWindowId || MAIN_WINDOW_ID;
+      return { ...g, ...safeGeom, colors, intents, minimized: !!g.minimized, ownerWindowId };
     });
+    // Seed liveness tracker: if a popout was alive at the moment main
+    // refreshed (or we navigated to another project and back), we have no
+    // entry in alivePopoutsRef yet, so the sweep would never time it out.
+    // Seeding with `now` gives each owner a HEARTBEAT_TIMEOUT_MS grace
+    // window during which the popout must beat at least once to keep its
+    // ownership claim; otherwise we reclaim. Both the orphan-popout-crash
+    // and cross-project remount cases are covered by the same seed.
+    // (alivePopoutsRef itself is declared below; this initializer can't
+    // touch it directly. We push these into a separate one-shot effect.)
     return { groups: restored, zCounter: p.zCounter || restored.length };
   });
   const [groups, setGroups] = useState<OpenGroup[]>(initialState.groups);
@@ -303,6 +343,7 @@ export default function SessionWindowsHost({
       root: makeStack([sessionId], sessionId),
       colors: { [sessionId]: assignColor([]) },
       intents: { [sessionId]: { intent, nonce: 0 } },
+      ownerWindowId: MAIN_WINDOW_ID,
     };
   }, []);
 
@@ -549,6 +590,7 @@ export default function SessionWindowsHost({
           root: makeStack([sessionId], sessionId),
           colors: { [sessionId]: srcColor },
           intents: { [sessionId]: srcIntent },
+          ownerWindowId: MAIN_WINDOW_ID,
         };
         const next: OpenGroup[] = [];
         for (const g of prev) {
@@ -571,7 +613,25 @@ export default function SessionWindowsHost({
       });
     };
 
+    // Once the floating group has been promoted to an OS window we stop
+    // sliding it and detach the gesture — the OS owns the window now.
+    let tornOut = false;
+
+    const isCursorOutsideMainWindow = (ev: MouseEvent): boolean => {
+      const winL = window.screenX;
+      const winT = window.screenY;
+      const winR = winL + window.outerWidth;
+      const winB = winT + window.outerHeight;
+      return (
+        ev.screenX < winL - TAB_TEAR_OUT_THRESHOLD ||
+        ev.screenX > winR + TAB_TEAR_OUT_THRESHOLD ||
+        ev.screenY < winT - TAB_TEAR_OUT_THRESHOLD ||
+        ev.screenY > winB + TAB_TEAR_OUT_THRESHOLD
+      );
+    };
+
     const onMove = (ev: MouseEvent) => {
+      if (tornOut) return;
       const cur = dragStateRef.current;
       if (!cur) return;
 
@@ -585,6 +645,33 @@ export default function SessionWindowsHost({
         const newX = clamp(ev.clientX - 60, -(DEFAULT_W - TITLEBAR_VISIBLE), vpW - TITLEBAR_VISIBLE);
         const newY = clamp(ev.clientY - 12, 0, vpH - CHROME_HEIGHT);
         setGroups((prev) => prev.map(g => g.id === detachedId ? { ...g, x: newX, y: newY } : g));
+      }
+
+      // Tear-out → OS window: only meaningful once detached (we need an id
+      // to hand off). The check is screen-coord-based and multi-monitor
+      // tolerant (negative values intentionally not clamped). Bail out of
+      // the gesture cleanly: detach listeners, clear hover state, and call
+      // popOutGroup which performs the handoff + window.open.
+      //
+      // Race guard: performEagerDetach above schedules a React state update
+      // that may not have flushed yet on the next mousemove tick, so
+      // groupsRef wouldn't see the detached group and popOutGroup would
+      // no-op. Skip this iteration in that case — the next move will retry
+      // (a few ms later) once React has committed.
+      if (
+        detachedId &&
+        isCursorOutsideMainWindow(ev) &&
+        groupsRef.current.some(g => g.id === detachedId)
+      ) {
+        const popFn = popOutGroupRef.current;
+        if (popFn) {
+          tornOut = true;
+          const idToPop = detachedId;
+          detachListeners();
+          setDragState(null);
+          popFn(idToPop, { atScreenX: ev.screenX, atScreenY: ev.screenY });
+          return;
+        }
       }
 
       // Hit-test for a dock target. `elementsFromPoint` (plural) walks the
@@ -778,14 +865,210 @@ export default function SessionWindowsHost({
     });
   }, []);
 
+  // ── Popout (OS-window) integration ───────────────────────────────────────
+  //
+  // Main holds a project-scoped BroadcastChannel. When the user clicks
+  // "Pop out" on a single-stack group, main:
+  //   1. assigns a fresh popoutId and writes it to the group's ownerWindowId
+  //      (filter side-effect: main no longer renders the group)
+  //   2. broadcasts a `group-handoff` with the full OpenGroup payload
+  //   3. window.open(/popout/...) — the new BrowserWindow / browser tab
+  //      mounts PopoutPage which posts `hello` on mount; if the handoff
+  //      already arrived first, fine; if not, our hello handler re-emits.
+  //
+  // Heartbeat: popouts beat every HEARTBEAT_MS. Main tracks last-seen and
+  // reclaims (resets ownerWindowId to 'main') after HEARTBEAT_TIMEOUT_MS.
+  // This handles popout crash, user closing without clicking Re-dock, and
+  // the case where main refreshes (rehydrates ownership=popout_x) while
+  // the popout is gone.
+  const busRef = useRef<ReturnType<typeof openBus> | null>(null);
+  const alivePopoutsRef = useRef<Map<string, number>>(new Map());
+  // Cache of full OpenGroup payloads keyed by groupId, so we can answer a
+  // popout's `hello` after we've already removed the group from React state.
+  const handoffCacheRef = useRef<Map<string, OpenGroup>>(new Map());
+  // Forward reference to popOutGroup so beginTabDrag (defined earlier) can
+  // invoke it for tab-tear-out → OS-window without restructuring the file.
+  // Assigned below right after popOutGroup is defined.
+  const popOutGroupRef = useRef<((groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => void) | null>(null);
+
+  const popOutGroup = useCallback((groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => {
+    const group = groupsRef.current.find(g => g.id === groupId);
+    if (!group) return;
+    // Phase 1 limitation: only single-stack groups can pop out. Split-root
+    // groups would need PopoutPage to render the full layout tree which is
+    // deferred. Surface a notice and bail rather than silently doing nothing.
+    if (group.root.kind !== 'stack') {
+      window.alert(t('session.popout.splitNotSupported') || 'Only single-stack groups can pop out in this version.');
+      return;
+    }
+    const popoutId = newPopoutId();
+    const handoffPayload: OpenGroup = { ...group, ownerWindowId: popoutId };
+    handoffCacheRef.current.set(groupId, handoffPayload);
+    alivePopoutsRef.current.set(popoutId, Date.now());
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: popoutId } : g));
+    busRef.current?.post({ t: 'group-handoff', to: popoutId, groupId, group: handoffPayload });
+    // Position the new OS window. Drag-out path supplies cursor screen
+    // coords so the popout opens under the user's pointer with a small
+    // chrome offset. Button-click path falls back to the source window's
+    // position in screen space. Negative values are clamped to 0 because
+    // window.open rejects negative left/top on most platforms.
+    const cursorMode = opts && (typeof opts.atScreenX === 'number' || typeof opts.atScreenY === 'number');
+    const left = cursorMode
+      ? Math.max(0, (opts?.atScreenX ?? window.screenX + group.x) - 40)
+      : Math.max(0, window.screenX + group.x);
+    const top = cursorMode
+      ? Math.max(0, (opts?.atScreenY ?? window.screenY + group.y) - 12)
+      : Math.max(0, window.screenY + group.y);
+    const feat = [
+      'popup',
+      `width=${Math.max(400, group.w)}`,
+      `height=${Math.max(300, group.h + 40)}`,
+      `left=${left}`,
+      `top=${top}`,
+    ].join(',');
+    const url = `/popout/${encodeURIComponent(projectId)}/${encodeURIComponent(groupId)}?wid=${encodeURIComponent(popoutId)}`;
+    const w = window.open(url, '_blank', feat);
+    if (!w) {
+      // Popup blocked. Roll back ownership so the group reappears in main.
+      handoffCacheRef.current.delete(groupId);
+      alivePopoutsRef.current.delete(popoutId);
+      setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: MAIN_WINDOW_ID } : g));
+      window.alert(t('session.popout.blocked') || 'Popup blocked. Allow popups for this site to use Pop Out.');
+    }
+  }, [projectId, t]);
+  // Keep the forward ref pointed at the latest popOutGroup callback so
+  // beginTabDrag (defined earlier) can invoke it for tear-out → OS window.
+  popOutGroupRef.current = popOutGroup;
+
+  // Bus subscription: handle messages from popout children. Lives in the
+  // host so we can mutate the React `groups` state directly. Survives the
+  // host's lifetime and is torn down on unmount.
+  useEffect(() => {
+    const bus = openBus(projectId);
+    busRef.current = bus;
+    const onMsg = (msg: BusMessage) => {
+      if (msg.t === 'hello') {
+        // A popout has mounted and is asking for its group. Look up in cache
+        // (we keep the payload after handoff for exactly this re-ask).
+        const cached = handoffCacheRef.current.get(msg.groupId);
+        if (cached && cached.ownerWindowId === msg.from) {
+          bus.post({ t: 'group-handoff', to: msg.from, groupId: msg.groupId, group: cached });
+        } else {
+          // Maybe the popout just relaunched after main refreshed — find the
+          // current group in React state by id and resend.
+          const live = groupsRef.current.find(g => g.id === msg.groupId);
+          if (live && live.ownerWindowId === msg.from) {
+            bus.post({ t: 'group-handoff', to: msg.from, groupId: msg.groupId, group: live });
+          }
+        }
+      } else if (msg.t === 'group-return' || msg.t === 'bye') {
+        // Popout returned ownership. Re-render in main. For group-return we
+        // accept the popout's latest payload (active tab, geometry changes
+        // they may have made). For `bye` without a payload we keep whatever
+        // we have but flip the owner back to main.
+        if (msg.t === 'group-return') {
+          const payload = msg.group as OpenGroup | undefined;
+          if (payload && payload.id === msg.groupId) {
+            handoffCacheRef.current.delete(msg.groupId);
+            alivePopoutsRef.current.delete(msg.from);
+            setGroups((prev) => {
+              // If main no longer has this group in its array, restore it.
+              const exists = prev.find(g => g.id === msg.groupId);
+              const restored: OpenGroup = { ...payload, ownerWindowId: MAIN_WINDOW_ID };
+              return exists
+                ? prev.map(g => g.id === msg.groupId ? restored : g)
+                : [...prev, restored];
+            });
+          }
+        } else {
+          alivePopoutsRef.current.delete(msg.from);
+          setGroups((prev) => prev.map(g =>
+            g.ownerWindowId === msg.from ? { ...g, ownerWindowId: MAIN_WINDOW_ID } : g,
+          ));
+        }
+      } else if (msg.t === 'group-close') {
+        // Popout closed the group entirely (e.g. user closed the tab inside
+        // the popout). Drop it from main as well.
+        handoffCacheRef.current.delete(msg.groupId);
+        setGroups((prev) => prev.filter(g => g.id !== msg.groupId));
+      } else if (msg.t === 'heartbeat') {
+        // Mark popout alive. ownedGroupIds is informational; the popoutId is
+        // the key for liveness.
+        alivePopoutsRef.current.set(msg.from, Date.now());
+      } else if (msg.t === 'group-update') {
+        // Popout edited the group locally (active tab, geometry). Mirror the
+        // patch into main's persisted state so a cold reload preserves it.
+        const patch = msg.patch as Partial<OpenGroup>;
+        setGroups((prev) => prev.map(g => g.id === msg.groupId ? { ...g, ...patch } : g));
+      }
+    };
+    const unsub = bus.subscribe(onMsg);
+    return () => {
+      unsub();
+      bus.close();
+      busRef.current = null;
+    };
+  }, [projectId]);
+
+  // One-shot seed for liveness tracking on mount. Covers two cases:
+  // (1) main refreshed while a popout was alive — persisted state still
+  //     names the popoutId as owner but alivePopoutsRef is empty.
+  // (2) cross-project navigation: this host unmounts/remounts with a new
+  //     projectId, same persisted shape.
+  // Without seeding, the sweep would never time these out and orphaned
+  // groups would be invisible forever in main. Seeding with `now` starts
+  // the HEARTBEAT_TIMEOUT_MS grace clock — popouts that are actually alive
+  // will beat at least once before the deadline.
+  useEffect(() => {
+    const now = Date.now();
+    for (const g of initialState.groups) {
+      if (g.ownerWindowId && g.ownerWindowId !== MAIN_WINDOW_ID) {
+        alivePopoutsRef.current.set(g.ownerWindowId, now);
+      }
+    }
+    // Intentionally one-shot: subsequent renders' groups updates come from
+    // popOutGroup / bus messages which manage alivePopoutsRef themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Liveness sweep: reclaim popouts that haven't beaten in HEARTBEAT_TIMEOUT_MS.
+  // Runs every HEARTBEAT_MS. Also a grace period for the very-first popout
+  // mount: we seed last-seen=now in popOutGroup before opening the window.
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const now = Date.now();
+      const dead: string[] = [];
+      for (const [pid, last] of alivePopoutsRef.current.entries()) {
+        if (now - last > HEARTBEAT_TIMEOUT_MS) dead.push(pid);
+      }
+      if (dead.length === 0) return;
+      for (const pid of dead) alivePopoutsRef.current.delete(pid);
+      // Clear cached handoff payloads for groups whose owner just died.
+      // The cache is keyed by groupId, so we have to scan; small N (≤ open
+      // popouts in this project), runs at most every HEARTBEAT_MS.
+      const deadSet = new Set(dead);
+      for (const g of groupsRef.current) {
+        if (g.ownerWindowId && deadSet.has(g.ownerWindowId)) {
+          handoffCacheRef.current.delete(g.id);
+        }
+      }
+      setGroups((prev) => prev.map(g =>
+        g.ownerWindowId && dead.includes(g.ownerWindowId)
+          ? { ...g, ownerWindowId: MAIN_WINDOW_ID }
+          : g,
+      ));
+    }, HEARTBEAT_MS);
+    return () => clearInterval(tick);
+  }, []);
+
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
-    beginTabDrag, dockGroup,
+    beginTabDrag, dockGroup, popOutGroup,
   }), [openOrFocus, close, focus, minimize, restore, isOpen,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup]);
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
@@ -795,8 +1078,12 @@ export default function SessionWindowsHost({
 
   // Minimized chips are now rendered by GlobalSessionDockTray at the App
   // level so they stay visible across workspace switches. This host only
-  // renders the visible (non-minimized) floating windows for its project.
-  const visibleGroups = groups.filter(g => !g.minimized);
+  // renders the visible (non-minimized) floating windows for its project,
+  // and only those it owns — popout-owned groups are rendered by their
+  // respective OS child window via PopoutPage.
+  const visibleGroups = groups.filter(g =>
+    !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
+  );
 
   return (
     <SessionWindowsContext.Provider value={api}>
