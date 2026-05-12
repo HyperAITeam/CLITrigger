@@ -12,6 +12,7 @@ import ProjectDetail from './components/ProjectDetail';
 import DiscussionDetail from './components/DiscussionDetail';
 import ReviewQueue from './components/ReviewQueue';
 import GlobalSessionDockTray from './components/GlobalSessionDockTray';
+import PopoutPage from './components/popout/PopoutPage';
 import { getSessionSettings } from './api/sessionSettings';
 import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
 
@@ -90,43 +91,65 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Layout
-        onLogout={logout}
-        authRequired={authRequired}
-        connected={connected}
-        onEvent={onEvent}
-      >
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ProjectList onEvent={onEvent} />
-            }
-          />
-          <Route
-            path="/review"
-            element={
-              <ReviewQueue onEvent={onEvent} />
-            }
-          />
-          <Route
-            path="/projects/:id"
-            element={
-              <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} subscribeBinary={subscribeBinary} />
-            }
-          />
-          <Route
-            path="/projects/:id/discussions/:discussionId"
-            element={
-              <DiscussionDetail onEvent={onEvent} connected={connected} />
-            }
-          />
-        </Routes>
-      </Layout>
-      {/* Renders minimized session chips for every project so they stay
-          visible across workspace switches. Lives inside BrowserRouter so
-          it can use useNavigate/useLocation to route restore clicks. */}
-      <GlobalSessionDockTray />
+      <Routes>
+        {/* Pop-out child windows open into this route via window.open().
+            Rendered outside Layout so it gets the whole viewport — no
+            sidebar, no global dock tray, no particle bg. */}
+        <Route
+          path="/popout/:projectId/:groupId"
+          element={
+            <PopoutPage
+              sendMessage={sendMessage}
+              subscribeBinary={subscribeBinary}
+              onEvent={onEvent}
+            />
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <>
+              <Layout
+                onLogout={logout}
+                authRequired={authRequired}
+                connected={connected}
+                onEvent={onEvent}
+              >
+                <Routes>
+                  <Route
+                    path="/"
+                    element={
+                      <ProjectList onEvent={onEvent} />
+                    }
+                  />
+                  <Route
+                    path="/review"
+                    element={
+                      <ReviewQueue onEvent={onEvent} />
+                    }
+                  />
+                  <Route
+                    path="/projects/:id"
+                    element={
+                      <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} subscribeBinary={subscribeBinary} />
+                    }
+                  />
+                  <Route
+                    path="/projects/:id/discussions/:discussionId"
+                    element={
+                      <DiscussionDetail onEvent={onEvent} connected={connected} />
+                    }
+                  />
+                </Routes>
+              </Layout>
+              {/* Renders minimized session chips for every project so they stay
+                  visible across workspace switches. Lives inside BrowserRouter so
+                  it can use useNavigate/useLocation to route restore clicks. */}
+              <GlobalSessionDockTray />
+            </>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }

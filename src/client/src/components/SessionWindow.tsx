@@ -38,6 +38,10 @@ const CHROME_HEIGHT = 22;
 const COLOR_BAND_HEIGHT = 4;
 const SNAP_EDGE_THRESHOLD = 8;
 const SNAP_NEIGHBOR_THRESHOLD = 10;
+// Distance in screen pixels the cursor must travel outside the main window's
+// bounds during a chrome drag before the group is auto-popped out as a
+// separate OS window. Generous so a wobble at the edge doesn't trigger.
+const TEAR_OUT_THRESHOLD = 60;
 
 type SnapZone = 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
@@ -178,7 +182,45 @@ export default function SessionWindow({
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
     const onVis = () => { if (document.hidden) onAbort(); };
 
+    // Single-stack groups can pop themselves out as separate OS windows
+    // when dragged outside the main window's bounds. Only the single-stack
+    // chrome (which has `detectDock=true`) is eligible — split-root chrome
+    // skips this because the popout page doesn't render multi-stack layouts
+    // in Phase 1. We guard with a closure flag so the gesture completes
+    // its abort path exactly once.
+    let tornOut = false;
+    const canTearOut = detectDock && group.root.kind === 'stack';
     const onMove = (ev: MouseEvent) => {
+      if (tornOut) return;
+      if (canTearOut) {
+        // Screen-coord based out-of-bounds check. window.screenX/Y is the
+        // outer-frame top-left in OS screen coords; outerWidth/Height
+        // covers the OS frame. Multi-monitor negatives are valid — do not
+        // clamp. `screenX/Y` on the event is in those same coords.
+        const winL = window.screenX;
+        const winT = window.screenY;
+        const winR = winL + window.outerWidth;
+        const winB = winT + window.outerHeight;
+        const outside =
+          ev.screenX < winL - TEAR_OUT_THRESHOLD ||
+          ev.screenX > winR + TEAR_OUT_THRESHOLD ||
+          ev.screenY < winT - TEAR_OUT_THRESHOLD ||
+          ev.screenY > winB + TEAR_OUT_THRESHOLD;
+        if (outside) {
+          tornOut = true;
+          // Commit the geometry we have, then tear out. Detach listeners
+          // before calling popOutGroup so we don't see another mousemove
+          // after the group has been handed off.
+          detachListeners();
+          dockHoverRef.current = null;
+          setDockHover(null);
+          snapZoneRef.current = null;
+          setSnapZone(null);
+          api.setGroupGeometry(group.id, { ...geomRef.current });
+          api.popOutGroup(group.id, { atScreenX: ev.screenX, atScreenY: ev.screenY });
+          return;
+        }
+      }
       const dx = ev.clientX - startMouseX;
       const dy = ev.clientY - startMouseY;
       let nx = clamp(startGeom.x + dx, -(startGeom.w - TITLEBAR_VISIBLE), vpW - TITLEBAR_VISIBLE);
@@ -557,6 +599,7 @@ export default function SessionWindow({
             groupActions={{
               onMinimizeGroup: () => api.minimizeGroup(group.id),
               onCloseGroup: () => api.closeGroup(group.id),
+              onPopOutGroup: () => api.popOutGroup(group.id),
             }}
           />
         )}

@@ -125,13 +125,76 @@ function createWindow(port) {
     `http://127.0.0.1:${port}`,
     `http://localhost:${port}`,
   ];
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  // Parse a `features` CSV string like "popup,width=800,height=540,left=120,top=80"
+  // into numeric x/y/width/height we can forward into Electron's
+  // overrideBrowserWindowOptions. Electron drops the features-derived sizing
+  // when override is returned, so this re-forwards what the renderer asked
+  // for; without it the popout would spawn at Electron's default cascade
+  // position instead of under the user's cursor (drag-out is unusable).
+  const parseFeatures = (features) => {
+    const out = {};
+    if (typeof features !== 'string') return out;
+    for (const part of features.split(',')) {
+      const eq = part.indexOf('=');
+      if (eq < 0) continue;
+      const key = part.slice(0, eq).trim().toLowerCase();
+      const val = Number(part.slice(eq + 1).trim());
+      if (!Number.isFinite(val)) continue;
+      if (key === 'width') out.width = val;
+      else if (key === 'height') out.height = val;
+      else if (key === 'left') out.x = val;
+      else if (key === 'top') out.y = val;
+    }
+    return out;
+  };
+
+  mainWindow.webContents.setWindowOpenHandler(({ url, features }) => {
     const isLocal = localOrigins.some((o) => url.startsWith(o));
     if (!isLocal) {
       shell.openExternal(url);
       return { action: 'deny' };
     }
+    // Session pop-out windows: open as a real OS child window with the same
+    // preload + isolation as the main window. Without overrideBrowserWindowOptions
+    // Electron uses small defaults and doesn't apply the preload, which
+    // breaks IME reset + auto-updater bridges the popout may also call.
+    let popoutPath;
+    try { popoutPath = new URL(url).pathname; } catch { popoutPath = ''; }
+    if (popoutPath.startsWith('/popout/')) {
+      const feat = parseFeatures(features);
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: feat.width || 800,
+          height: feat.height || 540,
+          // x/y intentionally only forwarded when supplied — Electron treats
+          // an absent x/y as "let the OS place the window" which is the right
+          // default for the button-click path.
+          ...(typeof feat.x === 'number' ? { x: feat.x } : {}),
+          ...(typeof feat.y === 'number' ? { y: feat.y } : {}),
+          minWidth: 360,
+          minHeight: 240,
+          backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
+          webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false,
+          },
+        },
+      };
+    }
     return { action: 'allow' };
+  });
+
+  // Newly-created child windows (popouts) inherit the main window's
+  // setWindowOpenHandler but not the lock-screen focus-recovery handler.
+  // Attach the same focus → webContents.focus() bridge so xterm typing
+  // doesn't go dead after resume.
+  mainWindow.webContents.on('did-create-window', (childWin) => {
+    childWin.on('focus', () => {
+      if (!childWin.isDestroyed()) childWin.webContents.focus();
+    });
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
@@ -152,7 +215,16 @@ function createWindow(port) {
   });
 }
 
-ipcMain.on('ime:reset', () => {
+ipcMain.on('ime:reset', (event) => {
+  // Route the focus call to the sender's webContents so popout child
+  // windows reclaim their own keyboard focus, not the main window's.
+  // Falls back to mainWindow only if the sender is gone (race during
+  // teardown).
+  const sender = event && event.sender;
+  if (sender && !sender.isDestroyed()) {
+    sender.focus();
+    return;
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.focus();
   }
@@ -229,12 +301,6 @@ function setupAutoUpdater() {
 
   setTimeout(() => checkForUpdates({ silent: true }), 5000);
 }
-
-ipcMain.on('ime:reset', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.focus();
-  }
-});
 
 function buildMenu() {
   const isMac = process.platform === 'darwin';

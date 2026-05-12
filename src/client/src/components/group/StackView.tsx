@@ -2,7 +2,7 @@
 // All panes (one per tab) stay mounted simultaneously — only `display` is
 // toggled — so PTY live output never drops when the user switches tabs.
 
-import { X, Minus, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, Minus, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -38,6 +38,9 @@ export interface StackViewProps {
   groupActions?: {
     onMinimizeGroup: () => void;
     onCloseGroup: () => void;
+    // Optional: present only in the main app window, not inside a popout
+    // (a popout can't pop itself out further).
+    onPopOutGroup?: () => void;
   };
 }
 
@@ -203,6 +206,18 @@ export default function StackView({
         <SessionThemePicker sessionId={stack.activeTab} />
         {groupActions && (
           <>
+            {groupActions.onPopOutGroup && (
+              <button
+                data-no-drag
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={groupActions.onPopOutGroup}
+                aria-label="pop-out"
+                title={t('session.popOut') || 'Pop out to separate window'}
+                style={groupBtnStyle}
+              >
+                <ExternalLink size={13} />
+              </button>
+            )}
             <button
               data-no-drag
               onMouseDown={(e) => e.stopPropagation()}
