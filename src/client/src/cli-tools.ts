@@ -1,6 +1,6 @@
 import { getModels, type ModelMap, type ModelOption } from './api/models';
 
-export type CliTool = 'claude' | 'gemini' | 'codex';
+export type CliTool = 'claude' | 'gemini' | 'codex' | 'raw-shell';
 
 export interface CliModelOption {
   value: string;
@@ -48,6 +48,12 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
       { value: 'o3', label: 'o3' },
       { value: 'o4-mini', label: 'o4-mini' },
     ],
+  },
+  {
+    value: 'raw-shell',
+    label: 'Raw Shell (OS default)',
+    supportsInteractive: true,
+    models: [],
   },
 ];
 

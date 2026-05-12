@@ -95,6 +95,7 @@ export default function SessionList({
       memoryNodeIds: parseMemoryNodeIds(editingSession.memory_node_ids ?? null),
       memoryRawFilePaths: parseRawFilePaths(editingSession.memory_raw_file_paths ?? null),
       tagId: editingSession.tag_id ?? null,
+      sessionAliasId: editingSession.session_alias_id ?? null,
     };
   }, [editingSession]);
 
@@ -126,6 +127,7 @@ export default function SessionList({
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
     tagId?: string | null,
+    sessionAliasId?: string | null,
   ) => {
     setCreating(true);
     try {
@@ -139,6 +141,7 @@ export default function SessionList({
         memory_node_ids: memoryNodeIds,
         memory_raw_file_paths: memoryRawFilePaths,
         tag_id: tagId ?? null,
+        session_alias_id: sessionAliasId ?? null,
       });
       onAddSession(session);
       setShowForm(false);
@@ -157,6 +160,7 @@ export default function SessionList({
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
     tagId?: string | null,
+    sessionAliasId?: string | null,
   ) => {
     if (!editingId) return;
     setSaving(true);
@@ -172,6 +176,7 @@ export default function SessionList({
         memory_node_ids: memoryNodeIds,
         memory_raw_file_paths: memoryRawFilePaths,
         tag_id: tagId ?? null,
+        session_alias_id: sessionAliasId ?? null,
       });
       onUpdateSession(updated);
       setEditingId(null);

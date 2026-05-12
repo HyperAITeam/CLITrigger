@@ -3,10 +3,11 @@ import { Plus, Pencil, Trash2, Check, X, GitBranch, Type } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
 import * as tagsApi from '../api/sessionTags';
+import * as aliasesApi from '../api/sessionAliases';
 import * as settingsApi from '../api/sessionSettings';
 import { setGlobalDefaultFontSize } from '../hooks/useSessionFontSize';
 import { DEFAULT_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_SIZE } from './terminal-theme';
-import type { SessionTag } from '../types';
+import type { SessionTag, SessionAlias } from '../types';
 
 interface PanelProps {
   onClose?: () => void;
@@ -44,16 +45,27 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   const [editColor, setEditColor] = useState(TAG_PALETTE[0]);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // ── Aliases (raw-shell command presets) ──
+  const [aliases, setAliases] = useState<SessionAlias[]>([]);
+  const [newAliasName, setNewAliasName] = useState('');
+  const [newAliasCmd, setNewAliasCmd] = useState('');
+  const [creatingAlias, setCreatingAlias] = useState(false);
+  const [editingAliasId, setEditingAliasId] = useState<string | null>(null);
+  const [editAliasName, setEditAliasName] = useState('');
+  const [editAliasCmd, setEditAliasCmd] = useState('');
+  const [savingAliasEdit, setSavingAliasEdit] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([tagsApi.getSessionTags(), settingsApi.getSessionSettings()])
-      .then(([tagList, settings]) => {
+    Promise.all([tagsApi.getSessionTags(), settingsApi.getSessionSettings(), aliasesApi.getSessionAliases()])
+      .then(([tagList, settings, aliasList]) => {
         if (cancelled) return;
         setTags(tagList);
         setDefaultUseWorktree(settings.defaultUseWorktree);
         setDefaultFontSize(settings.defaultFontSize);
         setGlobalDefaultFontSize(settings.defaultFontSize);
         setNewColor(pickPaletteColor(tagList));
+        setAliases(aliasList);
         setLoaded(true);
       })
       .catch((err) => {
@@ -148,6 +160,65 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
     try {
       await tagsApi.deleteSessionTag(tag.id);
       setTags((prev) => prev.filter((x) => x.id !== tag.id));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Delete failed');
+    }
+  };
+
+  const trimmedNewAliasName = newAliasName.trim();
+  const trimmedNewAliasCmd = newAliasCmd.trim();
+  const canCreateAlias = !!trimmedNewAliasName && !!trimmedNewAliasCmd && !creatingAlias;
+  const sortedAliases = useMemo(() => [...aliases].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [aliases]);
+
+  const handleCreateAlias = async () => {
+    if (!canCreateAlias) return;
+    setCreatingAlias(true);
+    try {
+      const alias = await aliasesApi.createSessionAlias({ name: trimmedNewAliasName, command_template: trimmedNewAliasCmd });
+      setAliases((prev) => [...prev, alias]);
+      setNewAliasName('');
+      setNewAliasCmd('');
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Create failed');
+    } finally {
+      setCreatingAlias(false);
+    }
+  };
+
+  const startEditAlias = (alias: SessionAlias) => {
+    setEditingAliasId(alias.id);
+    setEditAliasName(alias.name);
+    setEditAliasCmd(alias.command_template);
+  };
+
+  const cancelEditAlias = () => {
+    setEditingAliasId(null);
+    setEditAliasName('');
+    setEditAliasCmd('');
+  };
+
+  const handleSaveAliasEdit = async () => {
+    if (!editingAliasId) return;
+    const name = editAliasName.trim();
+    const cmd = editAliasCmd.trim();
+    if (!name || !cmd) return;
+    setSavingAliasEdit(true);
+    try {
+      const updated = await aliasesApi.updateSessionAlias(editingAliasId, { name, command_template: cmd });
+      setAliases((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      cancelEditAlias();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingAliasEdit(false);
+    }
+  };
+
+  const handleDeleteAlias = async (alias: SessionAlias) => {
+    if (!confirm(`Delete alias "${alias.name}"? Sessions using it will fall back to OS default shell.`)) return;
+    try {
+      await aliasesApi.deleteSessionAlias(alias.id);
+      setAliases((prev) => prev.filter((x) => x.id !== alias.id));
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Delete failed');
     }
@@ -314,6 +385,122 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
                         onClick={() => handleDelete(tag)}
                         className="p-1.5 text-warm-400 hover:text-status-error hover:bg-warm-100 rounded"
                         title={t('sessionSettings.tags.delete')}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-7">
+        <h3 className="text-sm font-semibold text-warm-700 mb-2">Session aliases</h3>
+        <p className="text-xs text-warm-400 mb-3">
+          Saved command presets for Raw Shell sessions. Each alias spawns the command directly (no shell interpretation) — use{' '}
+          <code className="px-1 py-0.5 rounded bg-warm-100 text-warm-700">bash -c '…'</code> for pipes or redirects.
+        </p>
+
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            type="text"
+            value={newAliasName}
+            onChange={(e) => setNewAliasName(e.target.value)}
+            placeholder="Name (e.g. WSL Ubuntu)"
+            className="input text-sm w-44"
+            maxLength={64}
+          />
+          <input
+            type="text"
+            value={newAliasCmd}
+            onChange={(e) => setNewAliasCmd(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateAlias(); } }}
+            placeholder="Command (e.g. wsl -d Ubuntu)"
+            className="input text-sm flex-1 font-mono"
+            maxLength={1024}
+          />
+          <button
+            type="button"
+            onClick={handleCreateAlias}
+            disabled={!canCreateAlias}
+            className="btn-primary text-sm py-1.5 px-3 inline-flex items-center gap-1"
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
+
+        {sortedAliases.length === 0 ? (
+          <p className="text-xs text-warm-400 italic py-3">No aliases yet.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {sortedAliases.map((alias) => {
+              const editing = editingAliasId === alias.id;
+              return (
+                <li
+                  key={alias.id}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  {editing ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editAliasName}
+                        onChange={(e) => setEditAliasName(e.target.value)}
+                        className="input text-sm w-44"
+                        maxLength={64}
+                      />
+                      <input
+                        type="text"
+                        value={editAliasCmd}
+                        onChange={(e) => setEditAliasCmd(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleSaveAliasEdit(); }
+                          if (e.key === 'Escape') cancelEditAlias();
+                        }}
+                        autoFocus
+                        className="input text-sm flex-1 font-mono"
+                        maxLength={1024}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveAliasEdit}
+                        disabled={savingAliasEdit || !editAliasName.trim() || !editAliasCmd.trim()}
+                        className="p-1.5 text-status-success hover:bg-status-success/10 rounded"
+                        title="Save"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditAlias}
+                        className="p-1.5 text-warm-400 hover:bg-warm-100 rounded"
+                        title="Cancel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm text-warm-700 w-44 truncate">{alias.name}</span>
+                      <code className="text-xs text-warm-500 flex-1 truncate font-mono">{alias.command_template}</code>
+                      <button
+                        type="button"
+                        onClick={() => startEditAlias(alias)}
+                        className="p-1.5 text-warm-400 hover:text-warm-700 hover:bg-warm-100 rounded"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAlias(alias)}
+                        className="p-1.5 text-warm-400 hover:text-status-error hover:bg-warm-100 rounded"
+                        title="Delete"
                       >
                         <Trash2 size={14} />
                       </button>
