@@ -32,12 +32,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
+import * as projectsApi from '../api/projects';
+import type { Project } from '../types';
+import { resolveProjectColor } from '../lib/projectColor';
 
 interface MinimizedChip {
   projectId: string;
   groupId: string;
   sessionIds: string[];
-  colors: Record<string, string>;
   titles: Record<string, string>;
 }
 
@@ -59,7 +61,6 @@ function readAllMinimized(): MinimizedChip[] {
             id: string;
             minimized?: boolean;
             root?: LayoutNode;
-            colors?: Record<string, string>;
           }>;
           titles?: Record<string, string>;
         };
@@ -71,7 +72,6 @@ function readAllMinimized(): MinimizedChip[] {
             projectId,
             groupId: g.id,
             sessionIds: allSessionIds(g.root),
-            colors: g.colors ?? {},
             titles,
           });
         }
@@ -93,9 +93,23 @@ export default function GlobalSessionDockTray() {
   const navigate = useNavigate();
   const location = useLocation();
   const [chips, setChips] = useState<MinimizedChip[]>(() => readAllMinimized());
+  const [projectMap, setProjectMap] = useState<Record<string, Project>>({});
   const currentProjectId = getCurrentProjectId(location.pathname);
 
   const refresh = useCallback(() => setChips(readAllMinimized()), []);
+
+  useEffect(() => {
+    const load = () => projectsApi.getProjects()
+      .then((list) => {
+        const map: Record<string, Project> = {};
+        for (const p of list) map[p.id] = p;
+        setProjectMap(map);
+      })
+      .catch(() => { /* ignore — falls back to id-hash color */ });
+    load();
+    window.addEventListener('projects:changed', load);
+    return () => window.removeEventListener('projects:changed', load);
+  }, []);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -197,11 +211,14 @@ export default function GlobalSessionDockTray() {
               userSelect: 'none',
             }}
           >
-            <div style={{ display: 'flex', height: 14, width: 14, borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
-              {chip.sessionIds.map((id, idx) => (
-                <div key={idx} style={{ flex: 1, background: chip.colors[id] || CMD.titleText }} />
-              ))}
-            </div>
+            <div
+              style={{
+                height: 12, width: 12, borderRadius: 3, flexShrink: 0,
+                background: projectMap[chip.projectId]
+                  ? resolveProjectColor(projectMap[chip.projectId])
+                  : resolveProjectColor({ id: chip.projectId }),
+              }}
+            />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
             </span>

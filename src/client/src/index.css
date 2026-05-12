@@ -504,3 +504,11 @@
   from { width: 100%; }
   to { width: 0%; }
 }
+
+@keyframes workspaceDotPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.55); }
+}
+.workspace-dot-pulse {
+  animation: workspaceDotPulse 1.4s ease-in-out infinite;
+}

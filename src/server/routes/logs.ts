@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 import fs from 'fs';
-import { getTaskLogsByTodoId, getTodoById, getTodosByProjectId } from '../db/queries.js';
+import { getTaskLogsByTodoId, getTodoById } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
+import { getProjectStatusSummary } from '../services/project-status.js';
 
 interface ChangedFile {
   status: string; // 'A' | 'M' | 'D' | 'R' | 'C' etc.
@@ -206,10 +207,8 @@ router.get('/projects/:id/status', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    const todos = getTodosByProjectId(req.params.id);
-    const running = todos.filter(t => t.status === 'running').length;
-    const completed = todos.filter(t => t.status === 'completed').length;
-    res.json({ project_id: req.params.id, total: todos.length, running, completed });
+    const summary = getProjectStatusSummary(req.params.id);
+    res.json({ project_id: req.params.id, ...summary });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

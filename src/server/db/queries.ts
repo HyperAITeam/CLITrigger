@@ -37,6 +37,7 @@ export interface Project {
   show_token_usage: number;
   npm_auto_install: number;
   memory_auto_ingest: number;
+  color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,7 +69,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -105,6 +106,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.show_token_usage !== undefined) { fields.push('show_token_usage = ?'); values.push(updates.show_token_usage); }
   if (updates.npm_auto_install !== undefined) { fields.push('npm_auto_install = ?'); values.push(updates.npm_auto_install); }
   if (updates.memory_auto_ingest !== undefined) { fields.push('memory_auto_ingest = ?'); values.push(updates.memory_auto_ingest); }
+  if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color); }
 
   if (fields.length === 0) return getProjectById(id);
 

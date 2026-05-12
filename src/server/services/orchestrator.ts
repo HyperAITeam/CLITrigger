@@ -13,6 +13,7 @@ import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
 import { buildSourceTextFromTodo, runAutoIngestAndBroadcast } from './memory-ingest.js';
+import { broadcastProjectStatus as broadcastProjectStatusShared } from './project-status.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -117,18 +118,11 @@ export class Orchestrator {
 
   /**
    * Broadcast the current project status summary via WebSocket.
+   * Counts todos + sessions + discussions so the sidebar dot pulses
+   * for any background activity, not only running todos.
    */
   private broadcastProjectStatus(projectId: string): void {
-    const todos = queries.getTodosByProjectId(projectId);
-    const running = todos.filter((t) => t.status === 'running').length;
-    const completed = todos.filter((t) => t.status === 'completed').length;
-    broadcaster.broadcast({
-      type: 'project:status-changed',
-      projectId,
-      running,
-      completed,
-      total: todos.length,
-    });
+    broadcastProjectStatusShared(projectId);
   }
 
   /**
