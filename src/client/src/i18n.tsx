@@ -687,6 +687,14 @@ const translations = {
     'files.viewMode.source': 'Source',
     'files.viewMode.toggleHint': 'Toggle between rendered and source view',
     'files.html.sandboxNotice': 'Safe preview — scripts and external resources are blocked.',
+    'files.editor.edit': 'Edit',
+    'files.editor.save': 'Save',
+    'files.editor.cancel': 'Cancel',
+    'files.editor.saved': 'Saved',
+    'files.editor.saveFailed': 'Save failed',
+    'files.editor.conflict': 'File changed on disk — reopen it to see the new content.',
+    'files.editor.discardConfirm': 'Discard unsaved changes?',
+    'files.editor.dirty': 'Modified',
 
     // Wiki (Karpathy LLM-Wiki pattern)
     'wiki.title': 'Wiki',
@@ -1870,6 +1878,14 @@ const translations = {
     'files.viewMode.source': '소스',
     'files.viewMode.toggleHint': '렌더 / 소스 뷰 전환',
     'files.html.sandboxNotice': '안전 미리보기 — 스크립트와 외부 리소스가 차단되었습니다.',
+    'files.editor.edit': '편집',
+    'files.editor.save': '저장',
+    'files.editor.cancel': '취소',
+    'files.editor.saved': '저장됨',
+    'files.editor.saveFailed': '저장 실패',
+    'files.editor.conflict': '파일이 디스크에서 변경되었습니다 — 다시 열어주세요.',
+    'files.editor.discardConfirm': '변경사항을 폐기하시겠습니까?',
+    'files.editor.dirty': '변경됨',
 
     // Wiki (Karpathy LLM-Wiki 패턴)
     'wiki.title': '위키',
