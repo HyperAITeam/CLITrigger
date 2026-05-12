@@ -2,7 +2,7 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { isModelSupported } from '../db/queries.js';
 
-export type CliTool = 'claude' | 'gemini' | 'codex';
+export type CliTool = 'claude' | 'gemini' | 'codex' | 'raw-shell';
 export type CliMode = 'headless' | 'interactive' | 'verbose';
 export type SandboxMode = 'strict' | 'permissive';
 
@@ -328,10 +328,44 @@ const codexAdapter: CliAdapter = {
   },
 };
 
+// Raw OS shell session. No AI CLI involved — spawns the platform's default
+// interactive shell so the session window doubles as a regular terminal.
+// Initial prompt / memory injection / sandbox / --continue are all bypassed
+// by session-manager when the tool is raw-shell.
+function detectRawShellCommand(): { command: string; args: string[] } {
+  if (process.platform === 'win32') {
+    return { command: 'powershell.exe', args: ['-NoLogo'] };
+  }
+  const sh = process.env.SHELL || '/bin/bash';
+  return { command: sh, args: ['-i'] };
+}
+
+const rawShellInfo = detectRawShellCommand();
+
+const rawShellAdapter: CliAdapter = {
+  command: rawShellInfo.command,
+  displayName: 'Raw Shell',
+  supportsInteractive: true,
+  requiresTty: true,
+  outputFormat: 'text',
+  delayStdinUntilReady: false,
+  stdinSubmitSequence: '\r',
+  buildArgs() {
+    return [...rawShellInfo.args];
+  },
+  needsStdin() {
+    return true;
+  },
+  formatStdinPrompt() {
+    return '';
+  },
+};
+
 const adapters: Record<CliTool, CliAdapter> = {
   claude: claudeAdapter,
   gemini: geminiAdapter,
   codex: codexAdapter,
+  'raw-shell': rawShellAdapter,
 };
 
 export function getAdapter(tool: CliTool): CliAdapter {

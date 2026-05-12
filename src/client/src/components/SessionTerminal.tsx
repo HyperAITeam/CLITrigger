@@ -53,6 +53,13 @@ interface SessionTerminalProps {
    * visibly mounted (StackView's active tab in a non-minimized group).
    */
   autoFocusOnMount?: boolean;
+  /**
+   * When true, skip the image-paste branch (clipboard.read() image MIME +
+   * `paste-image` upload + server-side ESC+v). Text paste still works via
+   * the normal readText / clipboardData fallback. Set by raw-shell sessions
+   * — there's no CLI subprocess waiting for `[Image #N]` to interpret.
+   */
+  disableImagePaste?: boolean;
 }
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
@@ -81,6 +88,7 @@ export default function SessionTerminal({
   theme,
   inputBlocked = false,
   autoFocusOnMount = false,
+  disableImagePaste = false,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
   // theme by value) and then reapplied via term.options.theme in a separate
@@ -90,6 +98,8 @@ export default function SessionTerminal({
   themeRef.current = theme;
   const inputBlockedRef = useRef(inputBlocked);
   inputBlockedRef.current = inputBlocked;
+  const disableImagePasteRef = useRef(disableImagePaste);
+  disableImagePasteRef.current = disableImagePaste;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -171,28 +181,33 @@ export default function SessionTerminal({
       // 1) Try image MIME via clipboard.read(). On HTTP/LAN-IP origins this
       //    rejects — we swallow that and fall through to readText() so the
       //    text path isn't lost along with the image probe.
-      try {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          const imageType = item.types.find(t => t.startsWith('image/'));
-          if (imageType) {
-            const blob = await item.getType(imageType);
-            const reader = new FileReader();
-            reader.onload = () => {
-              const dataUrl = reader.result as string;
-              console.debug('[paste] image via clipboard.read(), bytes=', blob.size);
-              // Server pushes the image into the host OS clipboard AND injects
-              // ESC+v into the PTY in the same transaction (see paste-image
-              // route) so two concurrent paste-image requests can't race on
-              // the shared OS clipboard. We don't send ESC+v here.
-              pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
-            };
-            reader.readAsDataURL(blob);
-            return;
+      //    Skipped entirely for raw-shell sessions: there's no AI CLI to
+      //    interpret `[Image #N]`, so an image paste just becomes a regular
+      //    text paste (whatever text the clipboard also holds, if any).
+      if (!disableImagePasteRef.current) {
+        try {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            const imageType = item.types.find(t => t.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = reader.result as string;
+                console.debug('[paste] image via clipboard.read(), bytes=', blob.size);
+                // Server pushes the image into the host OS clipboard AND injects
+                // ESC+v into the PTY in the same transaction (see paste-image
+                // route) so two concurrent paste-image requests can't race on
+                // the shared OS clipboard. We don't send ESC+v here.
+                pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
+              };
+              reader.readAsDataURL(blob);
+              return;
+            }
           }
+        } catch (err) {
+          console.debug('[paste] clipboard.read() rejected, falling through:', err);
         }
-      } catch (err) {
-        console.debug('[paste] clipboard.read() rejected, falling through:', err);
       }
 
       // 2) Try plain text. readText() is more permissive than read() and may
@@ -373,9 +388,10 @@ export default function SessionTerminal({
     // through an overlay textarea with a client-side Hangul composer that
     // assembles jamo/syllables into precomposed Hangul before sending to PTY.
     const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
+    const isImagePasteDisabled = () => disableImagePasteRef.current;
     const inputCleanup = isMobileImeDevice()
-      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled })
-      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled });
+      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled })
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a
@@ -552,6 +568,10 @@ interface InputSetupArgs {
   // every image paste runs the upload + ESC+v path twice and the CLI renders
   // `[Image #1]` followed by a duplicate `[Image #2]`.
   isPasteAlreadyHandled: () => boolean;
+  // True for raw-shell sessions: skip the image MIME branch of the paste
+  // fallback so a clipboard image doesn't get uploaded. Text paste path
+  // still runs.
+  isImagePasteDisabled?: () => boolean;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -702,7 +722,7 @@ function backspaceComposer(c: HangulComposer): boolean {
   return true;
 }
 
-function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled }: InputSetupArgs): () => void {
+function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled, isImagePasteDisabled }: InputSetupArgs): () => void {
   let composing = false;
   // After compositionend with data, xterm.js's helper textarea fires onData
   // with the same composed string. Drop exactly that one onData by
@@ -766,7 +786,10 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       return;
     }
     const items = e.clipboardData?.items;
-    if (items) {
+    // Raw-shell sessions skip image upload — there's no AI CLI to interpret
+    // `[Image #N]`. Text on the clipboard still pastes through the branch
+    // below.
+    if (items && !isImagePasteDisabled?.()) {
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
           e.preventDefault();
