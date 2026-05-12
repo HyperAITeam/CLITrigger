@@ -24,6 +24,7 @@ import SessionWindowsHost from './SessionWindowsHost';
 import AnalyticsPanel from './AnalyticsPanel';
 import PlannerList from './PlannerList';
 import MemoryList from './MemoryList';
+import FileExplorer from './FileExplorer';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -788,6 +789,11 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
 
   return (
     <SessionWindowsHost
+      // Remount per-project so the host's groups state + localStorage
+      // hydration are isolated by project. Without this, the same host
+      // instance handles A → B → A navigation and ends up writing one
+      // project's groups to another's localStorage key.
+      key={id!}
       projectId={id!}
       sessions={sessions}
       sendMessage={sendMessage}
@@ -806,6 +812,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {/* Segmented tab control */}
       <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
+          { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
           ...getPluginsWithTabs(project).map((plugin) => {
             const helpKey = `tabs.${plugin.id}.help`;
             const help = t(helpKey);
@@ -926,6 +933,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'svn' && project.svn_enabled && project.vcs_type === 'svn' ? (
         <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
+      {activeTab === 'files' && id && (
+        <FileExplorer projectId={id} />
+      )}
       {activeTab === 'schedules' && (
         <ScheduleList
           schedules={schedules}

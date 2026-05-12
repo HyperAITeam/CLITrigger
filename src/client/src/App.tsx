@@ -11,6 +11,7 @@ import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import DiscussionDetail from './components/DiscussionDetail';
 import ReviewQueue from './components/ReviewQueue';
+import GlobalSessionDockTray from './components/GlobalSessionDockTray';
 import { getSessionSettings } from './api/sessionSettings';
 import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
 
@@ -122,6 +123,10 @@ function App() {
           />
         </Routes>
       </Layout>
+      {/* Renders minimized session chips for every project so they stay
+          visible across workspace switches. Lives inside BrowserRouter so
+          it can use useNavigate/useLocation to route restore clicks. */}
+      <GlobalSessionDockTray />
     </BrowserRouter>
   );
 }

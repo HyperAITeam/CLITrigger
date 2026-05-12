@@ -7,6 +7,7 @@ import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
+import { claudeManager } from '../services/claude-manager.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -418,11 +419,14 @@ router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, 
   }
 });
 
-// POST /api/sessions/:id/paste-image — push the clipboard bitmap straight into
-// the host OS clipboard so the CLI subprocess (Claude/Codex/Gemini) can read it
-// via its native Alt+V handler. After this returns success, the client should
-// emit `\x1bv` over the PTY stream so the CLI fires its image-paste path.
-// No file is written to disk.
+// POST /api/sessions/:id/paste-image — push the bitmap into the host OS
+// clipboard and inject `\x1bv` (Alt+V) into the PTY so the CLI subprocess
+// (Claude/Codex/Gemini) fires its native image-paste handler in the same
+// transaction. The ESC+v MUST be sent server-side, immediately after the
+// clipboard write, so concurrent paste-image requests can't race on the
+// shared OS clipboard (e.g. paste-B's write landing before paste-A's CLI
+// read fires, which would leak B's bitmap into A's [Image #N]). No file
+// is written to disk.
 router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const session = queries.getSessionById(req.params.id);
@@ -450,6 +454,16 @@ router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, re
     }
 
     await writeImageToClipboard(buffer);
+    // Mirror the websocket gate (`hasPendingPrompt`) so a paste during the
+    // Send/Skip pre-flight banner doesn't leak ESC+v into a PTY that's
+    // still waiting on the initial prompt.
+    if (
+      session.process_pid &&
+      session.status === 'running' &&
+      !sessionManager.hasPendingPrompt(session.id)
+    ) {
+      claudeManager.writeStdinRaw(session.process_pid, '\x1bv');
+    }
     res.json({ pasted: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

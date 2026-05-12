@@ -45,6 +45,14 @@ interface SessionTerminalProps {
    * pass through.
    */
   inputBlocked?: boolean;
+  /**
+   * Gate for the mount-time `term.focus()` call. Even with the body-only
+   * guard, a hidden pane (display:none StackView tab, restored-but-hidden
+   * floating window) shouldn't steal focus from a form input the user is
+   * actively typing in. Parents set this to true only when the pane is
+   * visibly mounted (StackView's active tab in a non-minimized group).
+   */
+  autoFocusOnMount?: boolean;
 }
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
@@ -72,6 +80,7 @@ export default function SessionTerminal({
   fontSize = DEFAULT_FONT_SIZE,
   theme,
   inputBlocked = false,
+  autoFocusOnMount = false,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
   // theme by value) and then reapplied via term.options.theme in a separate
@@ -140,11 +149,24 @@ export default function SessionTerminal({
     // nothing is selected, matching iTerm2/Windows Terminal). Alt+V is
     // additionally mapped to paste at the user's request.
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    // Timestamp of the last paste gesture the keydown handler claimed. The
+    // container's `paste` event fires for the same Ctrl/Cmd+V, so handlePaste
+    // checks this to skip re-running the upload + ESC+v flow.
+    let pasteHandledAt = 0;
     const pasteFromClipboard = async () => {
       if (inputBlockedRef.current) {
         console.debug('[paste] inputBlocked → ignored');
         return;
       }
+      // The browser fires a `paste` ClipboardEvent for the same Ctrl/Cmd+V
+      // (preventDefault on keydown doesn't suppress it), so we claim the
+      // gesture synchronously to make handlePaste bail. We only claim when
+      // the clipboard API will actually work — on non-secure origins
+      // (LAN-IP http://) navigator.clipboard.read throws and we'd need
+      // handlePaste's clipboardData path as the real handler, so leave
+      // the claim cleared there.
+      if (!window.isSecureContext) return;
+      pasteHandledAt = Date.now();
 
       // 1) Try image MIME via clipboard.read(). On HTTP/LAN-IP origins this
       //    rejects — we swallow that and fall through to readText() so the
@@ -159,9 +181,11 @@ export default function SessionTerminal({
             reader.onload = () => {
               const dataUrl = reader.result as string;
               console.debug('[paste] image via clipboard.read(), bytes=', blob.size);
-              pasteImage(sessionId, dataUrl).then(() => {
-                guardedSend({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-              }).catch((err) => console.warn('[paste] pasteImage failed:', err));
+              // Server pushes the image into the host OS clipboard AND injects
+              // ESC+v into the PTY in the same transaction (see paste-image
+              // route) so two concurrent paste-image requests can't race on
+              // the shared OS clipboard. We don't send ESC+v here.
+              pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
             };
             reader.readAsDataURL(blob);
             return;
@@ -284,19 +308,36 @@ export default function SessionTerminal({
     };
     container.addEventListener('wheel', onContainerWheel, { passive: false });
 
+    // Best-effort initial fit so xterm has a sensible cols/rows for any
+    // synchronous writes that arrive before the first ResizeObserver tick.
+    // We do NOT call onFitted here — the portal/container can still be
+    // settling on mount (especially after a workspace switch with state
+    // rehydrated from localStorage), so the rect may briefly be tiny or
+    // 0×0. Notifying the parent here would SIGWINCH the PTY at a wrong
+    // size; the ResizeObserver callback below waits for a stable, non-zero
+    // measurement before firing onFitted exactly once.
     try { fitAddon.fit(); } catch { /* container may be 0×0 momentarily */ }
-    if (term.cols > 0 && term.rows > 0) {
-      onFittedRef.current?.(term.cols, term.rows);
-    }
 
     // Auto-focus the helper textarea so keystrokes (and IME composition)
     // land in xterm immediately on mount. Without this, focus stays on
     // whatever was focused before (form Submit button, or body) and the
     // user's first keystrokes — including a Hangul jamo that would have
-    // started a composition — go nowhere. Only steal from body so we
-    // don't yank focus away from someone editing another input.
-    if (document.activeElement === document.body || document.activeElement === null) {
-      try { term.focus(); } catch { /* ignore */ }
+    // started a composition — go nowhere. Gated on `autoFocusOnMount` so
+    // hidden panes (display:none tabs, minimized floating windows) don't
+    // race against a user typing in a form input elsewhere. Also defends
+    // against any focusable element below body (input/textarea/select/
+    // contenteditable) in case a parent forgot to pass the gate.
+    if (autoFocusOnMount) {
+      const ae = document.activeElement as HTMLElement | null;
+      const isFormish = !!ae && (
+        ae.tagName === 'INPUT' ||
+        ae.tagName === 'TEXTAREA' ||
+        ae.tagName === 'SELECT' ||
+        ae.isContentEditable
+      );
+      if (!isFormish && (ae === null || ae === document.body)) {
+        try { term.focus(); } catch { /* ignore */ }
+      }
     }
 
     const sendResize = () => {
@@ -331,9 +372,10 @@ export default function SessionTerminal({
     // syllables. setupMobileImeInput hides xterm's helper and runs input
     // through an overlay textarea with a client-side Hangul composer that
     // assembles jamo/syllables into precomposed Hangul before sending to PTY.
+    const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
     const inputCleanup = isMobileImeDevice()
-      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend })
-      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend });
+      ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled })
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a
@@ -342,6 +384,7 @@ export default function SessionTerminal({
     // viewport scrollbar that appears when scrollback exceeds the new
     // visible area paints stale rows when dragged.
     let fitPending = false;
+    let firstFitNotified = false;
     const lastFitRef = { cols: term.cols, rows: term.rows };
     const ro = new ResizeObserver(() => {
       if (fitPending) return;
@@ -358,6 +401,16 @@ export default function SessionTerminal({
             term.refresh(0, term.rows - 1);
           }
         } catch { /* ignore */ }
+        // Fire onFitted once with a stable measurement. The parent uses this
+        // to either POST /start (new session) or transition a restored
+        // running session to 'subscribed' — both paths must see the real
+        // viewport dims, not the transient values from the immediate-mount
+        // fit. Thresholds guard against the brief sub-cell-grid measurements
+        // we've observed during portal mount on workspace switch.
+        if (!firstFitNotified && term.cols >= 20 && term.rows >= 5) {
+          firstFitNotified = true;
+          onFittedRef.current?.(term.cols, term.rows);
+        }
         if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
         resizeTimerRef.current = setTimeout(sendResize, 150);
       });
@@ -493,6 +546,12 @@ interface InputSetupArgs {
   term: Terminal;
   sessionId: string;
   sendMessage: (event: object) => void;
+  // True when the xterm keydown handler just claimed this paste gesture.
+  // The browser still fires a `paste` ClipboardEvent for the same Ctrl/Cmd+V
+  // (preventDefault on keydown doesn't suppress it), so without this gate
+  // every image paste runs the upload + ESC+v path twice and the CLI renders
+  // `[Image #1]` followed by a duplicate `[Image #2]`.
+  isPasteAlreadyHandled: () => boolean;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -643,7 +702,7 @@ function backspaceComposer(c: HangulComposer): boolean {
   return true;
 }
 
-function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSetupArgs): () => void {
+function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled }: InputSetupArgs): () => void {
   let composing = false;
   // After compositionend with data, xterm.js's helper textarea fires onData
   // with the same composed string. Drop exactly that one onData by
@@ -697,8 +756,15 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
   };
   // Browser paste event fires inside a user gesture even on http:// origins
   // where navigator.clipboard.readText() is blocked, so this catches LAN-IP
-  // access via cloudflared-disabled scenarios.
+  // access via cloudflared-disabled scenarios. It ALSO fires for the same
+  // Ctrl/Cmd+V the keydown handler already handled (preventDefault on
+  // keydown doesn't suppress the paste event), so we bail when the keydown
+  // path just claimed the gesture.
   const handlePaste = (e: ClipboardEvent) => {
+    if (isPasteAlreadyHandled()) {
+      e.preventDefault();
+      return;
+    }
     const items = e.clipboardData?.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
@@ -710,9 +776,9 @@ function setupDesktopInput({ container, term, sessionId, sendMessage }: InputSet
           reader.onload = () => {
             const dataUrl = reader.result as string;
             console.debug('[paste-fallback] image via paste event, bytes=', file.size);
-            pasteImage(sessionId, dataUrl, file.name).then(() => {
-              sendMessage({ type: 'session:terminal-input', sessionId, input: '\x1bv' });
-            }).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
+            // Server injects ESC+v after writing the clipboard; see the
+            // paste-image route. We don't send it from the client.
+            pasteImage(sessionId, dataUrl, file.name).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
           };
           reader.readAsDataURL(file);
           return;

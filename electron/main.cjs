@@ -230,6 +230,12 @@ function setupAutoUpdater() {
   setTimeout(() => checkForUpdates({ silent: true }), 5000);
 }
 
+ipcMain.on('ime:reset', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.focus();
+  }
+});
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
