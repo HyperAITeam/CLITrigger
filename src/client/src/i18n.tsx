@@ -628,6 +628,7 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
     'tabs.svn': 'SVN',
+    'tabs.files': 'Files',
     'tabs.planner': 'Planner',
     'tabs.wiki': 'Wiki',
     'tabs.analytics': 'Analytics',
@@ -667,7 +668,21 @@ const translations = {
     'header.svnTitle': 'SVN (Subversion)',
     'header.svnHint': 'Off by default. When enabled, the project is checked for a .svn/ working copy and an SVN tab is shown when found.',
     'header.svnEnable': 'Enable SVN for this project',
+    'tabs.files.help': 'Browse the project folder tree and preview files inline — text, images, PDFs, audio, video — without leaving the app. Read-only.',
     'tabs.analytics.help': 'Execution and cost analytics. Token usage by CLI, status distribution, and daily cost trends in interactive charts.',
+
+    // Files tab
+    'files.root': 'Root',
+    'files.empty': 'Empty folder',
+    'files.loading': 'Loading…',
+    'files.refresh': 'Refresh',
+    'files.showHidden': 'Show hidden files',
+    'files.hideHidden': 'Hide hidden files',
+    'files.copyPath': 'Copy path',
+    'files.tooLarge': 'File too large to preview (max 2 MB).',
+    'files.binaryNotPreviewable': 'Binary file — preview not available.',
+    'files.download': 'Download',
+    'files.preview.empty': 'Select a file to preview.',
 
     // Wiki (Karpathy LLM-Wiki pattern)
     'wiki.title': 'Wiki',
@@ -1792,6 +1807,7 @@ const translations = {
     'tabs.github': 'GitHub',
     'tabs.git': 'Git',
     'tabs.svn': 'SVN',
+    'tabs.files': '파일',
     'tabs.planner': '플래너',
     'tabs.wiki': '위키',
     'tabs.analytics': '통계',
@@ -1831,7 +1847,21 @@ const translations = {
     'header.svnTitle': 'SVN (Subversion)',
     'header.svnHint': '기본값 OFF. 켜면 프로젝트에 .svn/ 워킹카피가 있는지 검사하고, 발견 시 SVN 탭이 표시됩니다.',
     'header.svnEnable': '이 프로젝트에서 SVN 활성화',
+    'tabs.files.help': '프로젝트 폴더 트리를 앱 안에서 탐색하고 텍스트/이미지/PDF/오디오/비디오를 인라인으로 미리보기. 읽기 전용입니다.',
     'tabs.analytics.help': '실행 통계와 비용 분석. CLI별 토큰 사용량, 상태 분포, 일별 비용 추이를 차트로 시각화합니다.',
+
+    // 파일 탭
+    'files.root': '루트',
+    'files.empty': '빈 폴더',
+    'files.loading': '불러오는 중...',
+    'files.refresh': '새로고침',
+    'files.showHidden': '숨김 파일 보기',
+    'files.hideHidden': '숨김 파일 숨기기',
+    'files.copyPath': '경로 복사',
+    'files.tooLarge': '미리보기를 표시하기엔 파일이 너무 큽니다 (최대 2MB).',
+    'files.binaryNotPreviewable': '바이너리 파일 — 미리보기 불가.',
+    'files.download': '다운로드',
+    'files.preview.empty': '파일을 선택해 미리보기를 확인하세요.',
 
     // Wiki (Karpathy LLM-Wiki 패턴)
     'wiki.title': '위키',

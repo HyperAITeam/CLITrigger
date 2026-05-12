@@ -150,11 +150,33 @@ export default function SessionWindow({
       prevPointerEvents = wrapper.style.pointerEvents;
       wrapper.style.pointerEvents = 'none';
     }
-    const restorePointerEvents = () => {
+    let cleaned = false;
+    const detachListeners = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onAbort);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVis);
       if (detectDock && wrapper) {
         wrapper.style.pointerEvents = prevPointerEvents;
       }
     };
+    // Abort path: fires when the gesture is interrupted (window blur, tab
+    // hide, Escape) before mouseup reaches us. Commits the current
+    // geometry to React state and drops any preview overlays, so the
+    // wrapper doesn't leak pointer-events:none past the gesture.
+    const onAbort = () => {
+      detachListeners();
+      dockHoverRef.current = null;
+      setDockHover(null);
+      snapZoneRef.current = null;
+      setSnapZone(null);
+      api.setGroupGeometry(group.id, { ...geomRef.current });
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
+    const onVis = () => { if (document.hidden) onAbort(); };
 
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startMouseX;
@@ -202,9 +224,7 @@ export default function SessionWindow({
       }
     };
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      restorePointerEvents();
+      detachListeners();
       // Resolution priority: dock > edge snap > free move.
       if (detectDock && dockHoverRef.current && dockHoverRef.current.zone) {
         const dh = dockHoverRef.current;
@@ -233,6 +253,9 @@ export default function SessionWindow({
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onAbort);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
   }, [isMobile, api, group.id, group.root]);
 
   const onChromeMouseDown = useCallback(
@@ -288,13 +311,33 @@ export default function SessionWindow({
         }
         geomRef.current = { x: nx, y: ny, w: nw, h: nh };
       };
-      const onUp = () => {
+      let cleaned = false;
+      const detachListeners = () => {
+        if (cleaned) return;
+        cleaned = true;
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        window.removeEventListener('blur', onAbort);
+        window.removeEventListener('keydown', onKey);
+        document.removeEventListener('visibilitychange', onVis);
+      };
+      // Abort: commit whatever geometry we have so the window doesn't get
+      // stuck mid-resize if the gesture is interrupted (alt-tab, etc.).
+      const onAbort = () => {
+        detachListeners();
+        api.setGroupGeometry(group.id, { ...geomRef.current });
+      };
+      const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
+      const onVis = () => { if (document.hidden) onAbort(); };
+      const onUp = () => {
+        detachListeners();
         api.setGroupGeometry(group.id, { ...geomRef.current });
       };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
+      window.addEventListener('blur', onAbort);
+      window.addEventListener('keydown', onKey);
+      document.addEventListener('visibilitychange', onVis);
     },
     [isMobile, api, group.id],
   );
