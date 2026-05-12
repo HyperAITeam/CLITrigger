@@ -17,6 +17,8 @@ import ProjectForm from './ProjectForm';
 import FavoriteForm from './FavoriteForm';
 import SettingsModal from './SettingsModal';
 import ToastContainer from './Toast';
+import ProjectColorPicker from './ProjectColorPicker';
+import { resolveProjectColor } from '../lib/projectColor';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -30,6 +32,8 @@ interface ProjectStatus {
   running: number;
   completed: number;
   total: number;
+  running_sessions: number;
+  running_discussions: number;
 }
 
 function iconForType(type: FavoriteType) {
@@ -43,6 +47,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [colorPicker, setColorPicker] = useState<{ project: Project; x: number; y: number } | null>(null);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [showFavoriteForm, setShowFavoriteForm] = useState(false);
   const [editingFavorite, setEditingFavorite] = useState<Favorite | null>(null);
@@ -158,6 +163,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             running: event.running ?? 0,
             completed: event.completed ?? 0,
             total: event.total ?? 0,
+            running_sessions: event.running_sessions ?? 0,
+            running_discussions: event.running_discussions ?? 0,
           },
         }));
       }
@@ -328,12 +335,20 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           {projects.map((project) => {
             const status = statusMap[project.id];
             const isActive = activeProjectId === String(project.id);
-            const hasRunning = status && status.running > 0;
+            const activeWork = status
+              ? status.running + status.running_sessions + status.running_discussions
+              : 0;
+            const hasActivity = activeWork > 0;
+            const tagColor = resolveProjectColor(project);
             return (
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
                 onClick={handleNav}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setColorPicker({ project, x: e.clientX, y: e.clientY });
+                }}
                 className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''}`}
                 style={isActive
                   ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
@@ -341,11 +356,18 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 }
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+                  <span
+                    className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full"
+                    style={{ backgroundColor: tagColor }}
+                  />
                 )}
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  hasRunning ? 'bg-status-running animate-pulse' : ''
-                }`} style={hasRunning ? undefined : { backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)' }} />
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${hasActivity ? 'workspace-dot-pulse' : ''}`}
+                  style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
+                  title={hasActivity
+                    ? `${t('sidebar.workspaces')} · ${activeWork} ${t('detail.live')}`
+                    : project.name}
+                />
                 <span className="truncate flex-1">{project.name}</span>
                 <button
                   onClick={(e) => handleDeleteProject(project.id, e)}
@@ -423,6 +445,25 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           initial={editingFavorite ?? undefined}
           onSubmit={handleSubmitFavorite}
           onCancel={() => { setShowFavoriteForm(false); setEditingFavorite(null); }}
+        />
+      )}
+
+      {colorPicker && (
+        <ProjectColorPicker
+          project={colorPicker.project}
+          anchorX={colorPicker.x}
+          anchorY={colorPicker.y}
+          onPick={async (color) => {
+            try {
+              const updated = await projectsApi.updateProject(colorPicker.project.id, { color });
+              setProjects((prev) => prev.map((p) => p.id === updated.id ? { ...p, color: updated.color } : p));
+              window.dispatchEvent(new Event('projects:changed'));
+            } catch (err) {
+              toastError(err instanceof Error ? err.message : 'Failed to update color');
+            }
+            setColorPicker(null);
+          }}
+          onClose={() => setColorPicker(null)}
         />
       )}
 

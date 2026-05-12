@@ -32,6 +32,7 @@ export interface Project {
   show_token_usage: number;
   npm_auto_install: number;
   memory_auto_ingest: number;
+  color: string | null;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;

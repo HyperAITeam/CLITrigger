@@ -23,7 +23,7 @@ export function createProject(data: { name: string; path: string }): Promise<Pro
   return post('/api/projects', data);
 }
 
-export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'svn_enabled'>>): Promise<Project> {
+export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'svn_enabled' | 'color'>>): Promise<Project> {
   return put(`/api/projects/${id}`, data);
 }
 
@@ -65,7 +65,7 @@ export function stopProject(id: string): Promise<void> {
   return post(`/api/projects/${id}/stop`);
 }
 
-export function getProjectStatus(id: string): Promise<{ running: number; completed: number; total: number }> {
+export function getProjectStatus(id: string): Promise<{ running: number; completed: number; total: number; running_sessions: number; running_discussions: number }> {
   return get(`/api/projects/${id}/status`);
 }
 

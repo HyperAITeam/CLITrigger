@@ -8,6 +8,26 @@ import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { buildSourceTextFromDiscussion, runAutoIngestAndBroadcast } from './memory-ingest.js';
+import { broadcastProjectStatus } from './project-status.js';
+
+function broadcastDiscussionProjectStatus(discussionId: string): void {
+  try {
+    const d = queries.getDiscussionById(discussionId);
+    if (d) broadcastProjectStatus(d.project_id);
+  } catch { /* ignore */ }
+}
+
+// Wraps the WS broadcast so every discussion status change also refreshes
+// the parent project's status (sidebar dot pulses on running discussions).
+function dispatchDiscussionStatus(payload: {
+  discussionId: string;
+  status: string;
+  currentRound: number;
+  currentAgentId: string | null;
+}): void {
+  broadcaster.broadcast({ type: 'discussion:status-changed', ...payload });
+  broadcastDiscussionProjectStatus(payload.discussionId);
+}
 
 function maybeAutoIngestDiscussion(discussionId: string): void {
   try {
@@ -77,7 +97,7 @@ export class DiscussionOrchestrator {
           console.error(`[discussion] Failed to create worktree for discussion ${discussionId}:`, message);
           queries.updateDiscussionStatus(discussionId, 'failed');
           queries.createDiscussionLog(discussionId, null, 'error', `Failed to create worktree: ${message}`);
-          broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: 0, currentAgentId: null });
+          dispatchDiscussionStatus({ discussionId, status: 'failed', currentRound: 0, currentAgentId: null });
           return;
         }
         queries.updateDiscussion(discussionId, { branch_name: branchName, worktree_path: worktreePath });
@@ -102,13 +122,13 @@ export class DiscussionOrchestrator {
     if (!nextMessage) {
       queries.updateDiscussionStatus(discussionId, 'completed');
       queries.updateDiscussion(discussionId, { current_agent_id: null });
-      broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'completed', currentRound: discussion.current_round, currentAgentId: null });
+      dispatchDiscussionStatus({ discussionId, status: 'completed', currentRound: discussion.current_round, currentAgentId: null });
       return;
     }
 
     queries.updateDiscussionStatus(discussionId, 'running');
     queries.updateDiscussion(discussionId, { current_round: nextMessage.round_number, current_agent_id: nextMessage.agent_id });
-    broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: nextMessage.round_number, currentAgentId: nextMessage.agent_id });
+    dispatchDiscussionStatus({ discussionId, status: 'running', currentRound: nextMessage.round_number, currentAgentId: nextMessage.agent_id });
 
     await this.runAgentTurn(discussionId, nextMessage.id);
   }
@@ -136,7 +156,7 @@ export class DiscussionOrchestrator {
     queries.updateDiscussion(discussionId, { process_pid: 0 });
     queries.createDiscussionLog(discussionId, null, 'info', 'Discussion paused by user.');
 
-    broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'paused', currentRound: discussion.current_round, currentAgentId: null });
+    dispatchDiscussionStatus({ discussionId, status: 'paused', currentRound: discussion.current_round, currentAgentId: null });
   }
 
   /**
@@ -213,7 +233,7 @@ export class DiscussionOrchestrator {
 
     queries.updateDiscussionStatus(discussionId, 'running');
     queries.updateDiscussion(discussionId, { current_round: implRound, current_agent_id: agentId });
-    broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: implRound, currentAgentId: agentId });
+    dispatchDiscussionStatus({ discussionId, status: 'running', currentRound: implRound, currentAgentId: agentId });
 
     await this.runAgentTurn(discussionId, msg.id, true);
   }
@@ -342,7 +362,7 @@ export class DiscussionOrchestrator {
           queries.updateDiscussion(discussionId, { process_pid: 0 });
           queries.createDiscussionLog(discussionId, messageId, 'error', `${message.agent_name} failed (exit code ${exitCode}).`);
           broadcaster.broadcast({ type: 'discussion:message-changed', discussionId, messageId, agentId: message.agent_id, agentName: message.agent_name, round: message.round_number, status: 'failed' });
-          broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
+          dispatchDiscussionStatus({ discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
         }
       }).catch((err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -352,7 +372,7 @@ export class DiscussionOrchestrator {
         queries.updateDiscussion(discussionId, { process_pid: 0 });
         queries.createDiscussionLog(discussionId, messageId, 'error', `Process error: ${errMsg}`);
         broadcaster.broadcast({ type: 'discussion:message-changed', discussionId, messageId, agentId: message.agent_id, agentName: message.agent_name, round: message.round_number, status: 'failed' });
-        broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
+        dispatchDiscussionStatus({ discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -361,7 +381,7 @@ export class DiscussionOrchestrator {
       queries.updateDiscussionStatus(discussionId, 'failed');
       queries.createDiscussionLog(discussionId, messageId, 'error', `Failed to start ${adapter.displayName}: ${errMsg}`);
       broadcaster.broadcast({ type: 'discussion:message-changed', discussionId, messageId, agentId: message.agent_id, agentName: message.agent_name, round: message.round_number, status: 'failed' });
-      broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
+      dispatchDiscussionStatus({ discussionId, status: 'failed', currentRound: message.round_number, currentAgentId: message.agent_id });
     }
   }
 
@@ -381,7 +401,7 @@ export class DiscussionOrchestrator {
       queries.updateDiscussionStatus(discussionId, 'completed');
       queries.updateDiscussion(discussionId, { current_agent_id: null });
       queries.createDiscussionLog(discussionId, null, 'info', 'Implementation completed. Discussion finished.');
-      broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'completed', currentRound: currentMsg.round_number, currentAgentId: null });
+      dispatchDiscussionStatus({ discussionId, status: 'completed', currentRound: currentMsg.round_number, currentAgentId: null });
       maybeAutoIngestDiscussion(discussionId);
       return;
     }
@@ -393,7 +413,7 @@ export class DiscussionOrchestrator {
 
     if (nextInRound) {
       queries.updateDiscussion(discussionId, { current_agent_id: nextInRound.agent_id });
-      broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: currentMsg.round_number, currentAgentId: nextInRound.agent_id });
+      dispatchDiscussionStatus({ discussionId, status: 'running', currentRound: currentMsg.round_number, currentAgentId: nextInRound.agent_id });
       await this.runAgentTurn(discussionId, nextInRound.id);
       return;
     }
@@ -415,7 +435,7 @@ export class DiscussionOrchestrator {
 
       if (firstInNextRound) {
         queries.updateDiscussion(discussionId, { current_round: nextRound, current_agent_id: firstInNextRound.agent_id });
-        broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: nextRound, currentAgentId: firstInNextRound.agent_id });
+        dispatchDiscussionStatus({ discussionId, status: 'running', currentRound: nextRound, currentAgentId: firstInNextRound.agent_id });
         await this.runAgentTurn(discussionId, firstInNextRound.id);
         return;
       }
@@ -426,7 +446,7 @@ export class DiscussionOrchestrator {
       const implAgent = queries.getDiscussionAgentById(discussion.implement_agent_id);
       if (implAgent) {
         queries.createDiscussionLog(discussionId, null, 'info', `All discussion rounds completed. Auto-implementing with ${implAgent.name}...`);
-        broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'running', currentRound: discussion.max_rounds, currentAgentId: implAgent.id });
+        dispatchDiscussionStatus({ discussionId, status: 'running', currentRound: discussion.max_rounds, currentAgentId: implAgent.id });
         await this.triggerImplementation(discussionId, implAgent.id, { fromAutoImplement: true });
         return;
       }
@@ -437,7 +457,7 @@ export class DiscussionOrchestrator {
     queries.updateDiscussionStatus(discussionId, 'completed');
     queries.updateDiscussion(discussionId, { current_agent_id: null });
     queries.createDiscussionLog(discussionId, null, 'info', 'All discussion rounds completed.');
-    broadcaster.broadcast({ type: 'discussion:status-changed', discussionId, status: 'completed', currentRound: discussion.max_rounds, currentAgentId: null });
+    dispatchDiscussionStatus({ discussionId, status: 'completed', currentRound: discussion.max_rounds, currentAgentId: null });
     maybeAutoIngestDiscussion(discussionId);
   }
 

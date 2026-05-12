@@ -4,6 +4,7 @@ import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapter
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
+import { broadcastProjectStatus } from './project-status.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -208,6 +209,7 @@ export class SessionManager {
           queries.updateSessionStatus(sessionId, 'failed');
           queries.createSessionLog(sessionId, 'error', `Failed to create worktree: ${message}`);
           broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
+          broadcastProjectStatus(session.project_id);
           return;
         }
       }
@@ -241,6 +243,7 @@ export class SessionManager {
         try { await worktreeManager.removeWorktree(project.path, worktreePath); } catch { /* ignore */ }
       }
       broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
+      broadcastProjectStatus(session.project_id);
       return;
     }
 
@@ -270,6 +273,7 @@ export class SessionManager {
       );
     }
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running' });
+    broadcastProjectStatus(session.project_id);
 
     // Handle process exit
     exitPromise.then((exitCode) => {
@@ -293,6 +297,7 @@ export class SessionManager {
         }
         broadcaster.broadcast({ type: 'session:log', sessionId, message: msg, logType: exitCode === 0 ? 'output' : 'error' });
         broadcaster.broadcast({ type: 'session:status-changed', sessionId, status });
+        broadcastProjectStatus(session.project_id);
       }
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);
@@ -303,6 +308,7 @@ export class SessionManager {
         queries.updateSession(sessionId, { process_pid: 0 });
       } catch { /* ignore */ }
       broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
+      broadcastProjectStatus(session.project_id);
     });
   }
 
@@ -325,6 +331,7 @@ export class SessionManager {
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
 
     broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
+    broadcastProjectStatus(session.project_id);
   }
 
   /**
