@@ -88,17 +88,22 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
 
   // Live-update the local sessions list from WS events so the popout sees
   // status transitions (running → stopped) without polling — SessionPane's
-  // auto-close fires when status leaves running.
+  // auto-close fires when status leaves running. Mirrors the incremental
+  // patch pattern in ProjectDetail (no full refetch). The only session
+  // mutation WS event the server actually emits is `session:status-changed`;
+  // creation/deletion arrive via REST in this UI.
   useEffect(() => {
     const unsub = onEvent((event) => {
-      if (event.type === 'session:created' || event.type === 'session:updated' || event.type === 'session:status') {
-        sessionsApi.getSessions(projectId).then(setSessions).catch(() => { /* keep last */ });
-      } else if (event.type === 'session:deleted') {
-        setSessions((prev) => prev.filter(s => s.id !== (event as { sessionId?: string }).sessionId));
+      if (event.type === 'session:status-changed' && event.sessionId) {
+        setSessions((prev) => prev.map((s) =>
+          s.id === event.sessionId
+            ? { ...s, status: event.status as Session['status'], updated_at: new Date().toISOString() }
+            : s,
+        ));
       }
     });
     return unsub;
-  }, [onEvent, projectId]);
+  }, [onEvent]);
 
   // Bus: open, hello on mount, handle handoff. Heartbeat. beforeunload bye.
   useEffect(() => {
