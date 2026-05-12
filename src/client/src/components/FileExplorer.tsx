@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown, ChevronRight, FileText, FileImage, FileCode, FileVideo, FileAudio,
   Folder, FolderOpen, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink,
+  Code2, Sparkles,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { listFiles, getFileContent, getBinaryFileUrl } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { ApiError } from '../api/client';
+import MarkdownContent from './MarkdownContent';
 
 interface FileExplorerProps {
   projectId: string;
@@ -31,6 +33,8 @@ const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.i
 const VIDEO_EXT = new Set(['.mp4', '.webm', '.mov']);
 const AUDIO_EXT = new Set(['.mp3', '.wav', '.ogg', '.flac']);
 const PDF_EXT = new Set(['.pdf']);
+const MARKDOWN_EXT = new Set(['.md', '.markdown']);
+const HTML_EXT = new Set(['.html', '.htm']);
 
 function extOf(name: string): string {
   const i = name.lastIndexOf('.');
@@ -264,6 +268,7 @@ function PreviewPanel({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [binaryMime, setBinaryMime] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ size: number; mtime: number } | null>(null);
+  const [viewMode, setViewMode] = useState<'rendered' | 'source'>('rendered');
 
   useEffect(() => {
     if (!path || !entry || entry.type !== 'file') {
@@ -279,6 +284,7 @@ function PreviewPanel({
     setTextContent(null);
     setBinaryMime(null);
     setMeta(null);
+    setViewMode('rendered');
     getFileContent(projectId, path)
       .then((res) => {
         if (cancelled) return;
@@ -319,6 +325,9 @@ function PreviewPanel({
   const isPdf = binaryMime === 'application/pdf' || PDF_EXT.has(ext);
   const isVideo = binaryMime?.startsWith('video/') || VIDEO_EXT.has(ext);
   const isAudio = binaryMime?.startsWith('audio/') || AUDIO_EXT.has(ext);
+  const isMarkdown = MARKDOWN_EXT.has(ext);
+  const isHtml = HTML_EXT.has(ext);
+  const canToggleView = (isMarkdown || isHtml) && textContent !== null;
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col">
@@ -328,6 +337,25 @@ function PreviewPanel({
         <span className="truncate font-medium text-warm-800">{path}</span>
         <span className="text-warm-400 shrink-0">{formatSize(meta?.size ?? entry.size)}</span>
         <div className="ml-auto flex items-center gap-1">
+          {canToggleView && (
+            <button
+              onClick={() => setViewMode((m) => (m === 'rendered' ? 'source' : 'rendered'))}
+              className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
+              title={t('files.viewMode.toggleHint')}
+            >
+              {viewMode === 'rendered' ? (
+                <>
+                  <Code2 className="w-3.5 h-3.5" />
+                  <span>{t('files.viewMode.source')}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t('files.viewMode.rendered')}</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={copyPath}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
@@ -350,7 +378,25 @@ function PreviewPanel({
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
-        {!loading && !error && textContent !== null && (
+        {!loading && !error && textContent !== null && isMarkdown && viewMode === 'rendered' && (
+          <div className="p-4">
+            <MarkdownContent content={textContent} />
+          </div>
+        )}
+        {!loading && !error && textContent !== null && isHtml && viewMode === 'rendered' && (
+          <div className="flex flex-col h-full">
+            <div className="px-3 py-1.5 text-xs text-warm-500 bg-warm-50 border-b border-warm-200 shrink-0">
+              {t('files.html.sandboxNotice')}
+            </div>
+            <iframe
+              srcDoc={textContent}
+              sandbox=""
+              title={entry.name}
+              className="flex-1 w-full border-0 bg-white min-h-[60vh]"
+            />
+          </div>
+        )}
+        {!loading && !error && textContent !== null && !(isMarkdown && viewMode === 'rendered') && !(isHtml && viewMode === 'rendered') && (
           <pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>
         )}
         {!loading && !error && binaryMime && isImage && (
