@@ -294,7 +294,6 @@ export interface Session {
   memory_node_ids?: string | null;
   memory_raw_file_paths?: string | null;
   tag_id?: string | null;
-  session_alias_id?: string | null;
   created_at: string;
   updated_at: string;
 }

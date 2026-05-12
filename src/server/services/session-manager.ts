@@ -4,7 +4,6 @@ import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapter
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
-import { parseCommandString } from '../lib/shell-parse.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -226,32 +225,11 @@ export class SessionManager {
     let pid: number;
     let exitPromise: Promise<number>;
 
-    // Resolve session alias for raw-shell: when set, the alias's command
-    // template replaces the OS-default shell from rawShellAdapter. Missing
-    // alias (deleted after session creation) falls back to OS default with
-    // a log entry rather than failing the start.
-    let aliasOverride: { command: string; args: string[] } | undefined;
-    if (isRawShell && session.session_alias_id) {
-      const alias = queries.getSessionAliasById(session.session_alias_id);
-      if (!alias) {
-        queries.createSessionLog(sessionId, 'output', `Session alias not found (id=${session.session_alias_id}); falling back to OS default shell`);
-      } else {
-        try {
-          aliasOverride = parseCommandString(alias.command_template);
-          queries.createSessionLog(sessionId, 'output', `Using alias "${alias.name}": ${alias.command_template}`);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          queries.createSessionLog(sessionId, 'output', `Alias "${alias.name}" has an unparseable command template (${message}); falling back to OS default shell`);
-        }
-      }
-    }
-
     try {
       const result = await claudeManager.startClaude(
         workDir, '', cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, undefined, resume,
         opts?.cols ?? 100, opts?.rows ?? 30,
-        aliasOverride,
       );
       pid = result.pid;
       exitPromise = result.exitPromise;

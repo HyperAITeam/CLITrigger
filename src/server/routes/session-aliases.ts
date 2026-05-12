@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import * as queries from '../db/queries.js';
-import { parseCommandString } from '../lib/shell-parse.js';
 
 const router = Router();
 
@@ -15,13 +14,6 @@ function validateCommandTemplate(cmd: unknown): string | null {
   if (typeof cmd !== 'string') return null;
   const trimmed = cmd.trim();
   if (!trimmed || trimmed.length > 1024) return null;
-  // Round-trip through the tokenizer so a template that yields zero tokens
-  // (e.g. only quote characters) is rejected at write time, not at spawn time.
-  try {
-    parseCommandString(trimmed);
-  } catch {
-    return null;
-  }
   return trimmed;
 }
 
@@ -38,7 +30,7 @@ router.post('/session-aliases', (req: Request, res: Response) => {
     const name = validateName(req.body?.name);
     const command = validateCommandTemplate(req.body?.command_template);
     if (!name) return res.status(400).json({ error: 'Invalid name (1-64 chars)' });
-    if (!command) return res.status(400).json({ error: 'Invalid command template (must yield at least one token)' });
+    if (!command) return res.status(400).json({ error: 'Invalid command template (1-1024 chars)' });
     const existing = queries.getSessionAliases().find((a) => a.name.toLowerCase() === name.toLowerCase());
     if (existing) return res.status(409).json({ error: 'Alias name already exists' });
     res.status(201).json(queries.createSessionAlias(name, command));
@@ -63,7 +55,7 @@ router.put('/session-aliases/:id', (req: Request<{ id: string }>, res: Response)
     }
     if (req.body?.command_template !== undefined) {
       const command = validateCommandTemplate(req.body.command_template);
-      if (!command) return res.status(400).json({ error: 'Invalid command template (must yield at least one token)' });
+      if (!command) return res.status(400).json({ error: 'Invalid command template (1-1024 chars)' });
       updates.command_template = command;
     }
     if (req.body?.sort_order !== undefined && Number.isFinite(req.body.sort_order)) {

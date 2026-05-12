@@ -90,7 +90,7 @@ export class ClaudeManager {
    * Uses node-pty for tools that require a TTY (e.g. Codex),
    * falls back to child_process.spawn for others.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number, overrides?: { command?: string; args?: string[] }): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -100,12 +100,7 @@ export class ClaudeManager {
     args: string[];
   }> {
     const adapter = getAdapter(tool);
-    const baseArgs = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
-    // Session aliases substitute the command + args entirely — adapter is
-    // still consulted for stdinSubmitSequence / readyIndicator / auto-respond
-    // rules (none apply for raw-shell today, but the wiring stays uniform).
-    const args = overrides?.args ?? baseArgs;
-    const effectiveCommand = overrides?.command;
+    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
 
     if (adapter.requiresTty || mode === 'interactive') {
       // Empty prompt (sessions stash the real prompt in pendingInitialPrompts and
@@ -116,8 +111,8 @@ export class ClaudeManager {
       const stdinPrompt = adapter.needsStdin(mode) && prompt
         ? adapter.formatStdinPrompt(prompt, mode)
         : undefined;
-      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows, effectiveCommand);
-      return { ...result, command: effectiveCommand ?? adapter.command, args };
+      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows);
+      return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
     return { ...result, command: adapter.command, args };
@@ -126,7 +121,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number, overrideCommand?: string): Promise<{
+  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -134,7 +129,7 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     return new Promise((resolve, reject) => {
-      const command = overrideCommand ?? adapter.command;
+      const command = adapter.command;
       const displayName = adapter.displayName;
       const delayStdin = !!adapter.delayStdinUntilReady;
       const autoRespondRules = adapter.autoRespondRules ?? [];

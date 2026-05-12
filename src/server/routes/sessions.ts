@@ -39,7 +39,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, session_alias_id } = req.body;
+    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id } = req.body;
     const trimmedTitle = typeof title === 'string' ? title.trim() : '';
     const finalTitle = trimmedTitle || `Session ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
     let normalizedTagId: string | null = null;
@@ -50,15 +50,6 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
         return;
       }
       normalizedTagId = tag.id;
-    }
-    let normalizedAliasId: string | null = null;
-    if (typeof session_alias_id === 'string' && session_alias_id.trim()) {
-      const alias = queries.getSessionAliasById(session_alias_id.trim());
-      if (!alias) {
-        res.status(400).json({ error: 'Invalid session_alias_id' });
-        return;
-      }
-      normalizedAliasId = alias.id;
     }
 
     const normalizedMemMode =
@@ -81,7 +72,6 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       normalizedMemIds,
       normalizedRaw === undefined ? null : normalizedRaw,
       normalizedTagId,
-      normalizedAliasId,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
@@ -171,19 +161,6 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
         updates.tag_id = tag.id;
       }
     }
-    if (req.body.session_alias_id !== undefined) {
-      if (req.body.session_alias_id === null || req.body.session_alias_id === '') {
-        updates.session_alias_id = null;
-      } else if (typeof req.body.session_alias_id === 'string') {
-        const alias = queries.getSessionAliasById(req.body.session_alias_id.trim());
-        if (!alias) {
-          res.status(400).json({ error: 'Invalid session_alias_id' });
-          return;
-        }
-        updates.session_alias_id = alias.id;
-      }
-    }
-
     const updated = queries.updateSession(req.params.id, updates as any);
     res.json(updated);
   } catch (err: unknown) {

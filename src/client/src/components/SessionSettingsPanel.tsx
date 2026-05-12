@@ -400,8 +400,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       <section className="mt-7">
         <h3 className="text-sm font-semibold text-warm-700 mb-2">Session aliases</h3>
         <p className="text-xs text-warm-400 mb-3">
-          Saved command presets for Raw Shell sessions. Each alias spawns the command directly (no shell interpretation) — use{' '}
-          <code className="px-1 py-0.5 rounded bg-warm-100 text-warm-700">bash -c '…'</code> for pipes or redirects.
+          Saved command snippets. Click the ⌘ icon in any session window's titlebar to insert one as input — Enter is yours to press.
         </p>
 
         <div className="flex items-center gap-2 mb-3">

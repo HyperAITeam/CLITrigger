@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { GitBranch, Plus } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
 import MemoryInjectControl from './MemoryInjectControl';
-import type { MemoryInjectMode, SessionTag, SessionAlias } from '../types';
+import type { MemoryInjectMode, SessionTag } from '../types';
 import * as tagsApi from '../api/sessionTags';
-import * as aliasesApi from '../api/sessionAliases';
 import * as settingsApi from '../api/sessionSettings';
 
 export interface SessionFormInitial {
@@ -18,7 +17,6 @@ export interface SessionFormInitial {
   memoryNodeIds: string[];
   memoryRawFilePaths?: string[];
   tagId?: string | null;
-  sessionAliasId?: string | null;
 }
 
 interface SessionFormProps {
@@ -35,7 +33,6 @@ interface SessionFormProps {
     memoryNodeIds?: string[],
     memoryRawFilePaths?: string[],
     tagId?: string | null,
-    sessionAliasId?: string | null,
   ) => void;
   onCancel: () => void;
   projectCliTool?: string;
@@ -58,14 +55,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
   const [tagId, setTagId] = useState<string | null>(initial?.tagId ?? null);
   const [tags, setTags] = useState<SessionTag[]>([]);
-  const [sessionAliasId, setSessionAliasId] = useState<string | null>(initial?.sessionAliasId ?? null);
-  const [aliases, setAliases] = useState<SessionAlias[]>([]);
-  // Quick-add modal state for raw-shell aliases.
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickAddName, setQuickAddName] = useState('');
-  const [quickAddCmd, setQuickAddCmd] = useState('');
-  const [quickAddError, setQuickAddError] = useState<string | null>(null);
-  const [quickAddSaving, setQuickAddSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   // Windows EXE + Korean IME: xterm's helper textarea retains the native HWND
@@ -117,9 +106,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
     tagsApi.getSessionTags()
       .then((list) => { if (!cancelled) setTags(list); })
       .catch(() => { /* silent — settings panel surfaces errors */ });
-    aliasesApi.getSessionAliases()
-      .then((list) => { if (!cancelled) setAliases(list); })
-      .catch(() => { /* silent — settings panel surfaces errors */ });
     if (!isEdit && isGitRepo) {
       settingsApi.getSessionSettings()
         .then((s) => { if (!cancelled) setUseWorktree(s.defaultUseWorktree); })
@@ -149,28 +135,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       memoryNodeIds,
       memoryRawFilePaths,
       tagId,
-      isRawShell ? sessionAliasId : null,
     );
-  };
-
-  const handleQuickAddAlias = async () => {
-    const name = quickAddName.trim();
-    const cmd = quickAddCmd.trim();
-    if (!name || !cmd) return;
-    setQuickAddSaving(true);
-    setQuickAddError(null);
-    try {
-      const alias = await aliasesApi.createSessionAlias({ name, command_template: cmd });
-      setAliases((prev) => [alias, ...prev]);
-      setSessionAliasId(alias.id);
-      setQuickAddOpen(false);
-      setQuickAddName('');
-      setQuickAddCmd('');
-    } catch (err) {
-      setQuickAddError(err instanceof Error ? err.message : 'Failed');
-    } finally {
-      setQuickAddSaving(false);
-    }
   };
 
   const selectedTag = tags.find((tt) => tt.id === tagId) ?? null;
@@ -220,64 +185,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
             ))}
           </select>
         )}
-        {isRawShell && (
-          <>
-            <select
-              value={sessionAliasId ?? ''}
-              onChange={(e) => setSessionAliasId(e.target.value || null)}
-              className="input text-xs flex-1"
-            >
-              <option value="">OS default shell</option>
-              {aliases.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => { setQuickAddOpen(true); setQuickAddError(null); }}
-              className="btn-secondary text-xs px-2 inline-flex items-center gap-1"
-              title="Quick add alias"
-            >
-              <Plus size={12} />
-            </button>
-          </>
-        )}
       </div>
-      {quickAddOpen && (
-        <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="text-xs font-semibold text-warm-700">New alias</div>
-          <input
-            type="text"
-            value={quickAddName}
-            onChange={(e) => setQuickAddName(e.target.value)}
-            placeholder="Name (e.g. WSL Ubuntu)"
-            className="input text-sm w-full"
-            maxLength={64}
-            autoFocus
-          />
-          <input
-            type="text"
-            value={quickAddCmd}
-            onChange={(e) => setQuickAddCmd(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleQuickAddAlias(); } }}
-            placeholder="Command (e.g. wsl -d Ubuntu)"
-            className="input text-sm w-full font-mono"
-            maxLength={1024}
-          />
-          {quickAddError && <div className="text-2xs text-status-error">{quickAddError}</div>}
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setQuickAddOpen(false)} className="btn-ghost text-xs py-1 px-2">Cancel</button>
-            <button
-              type="button"
-              onClick={handleQuickAddAlias}
-              disabled={quickAddSaving || !quickAddName.trim() || !quickAddCmd.trim()}
-              className="btn-primary text-xs py-1 px-2"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      )}
       {tags.length > 0 && (
         <div className="flex items-center gap-2">
           {selectedTag && (
