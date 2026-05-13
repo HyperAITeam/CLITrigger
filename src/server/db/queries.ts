@@ -1110,6 +1110,61 @@ export function deleteSessionTag(id: string): boolean {
   return result.changes > 0;
 }
 
+// ── Session Aliases ──
+
+export interface SessionAlias {
+  id: string;
+  name: string;
+  command_template: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getSessionAliases(): SessionAlias[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM session_aliases ORDER BY sort_order ASC, name ASC').all() as SessionAlias[];
+}
+
+export function getSessionAliasById(id: string): SessionAlias | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM session_aliases WHERE id = ?').get(id) as SessionAlias | undefined;
+}
+
+export function createSessionAlias(name: string, commandTemplate: string): SessionAlias {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  const maxRow = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as max FROM session_aliases').get() as { max: number };
+  const nextOrder = (maxRow?.max ?? -1) + 1;
+  db.prepare(
+    'INSERT INTO session_aliases (id, name, command_template, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, name, commandTemplate, nextOrder, now, now);
+  return getSessionAliasById(id)!;
+}
+
+export function updateSessionAlias(id: string, updates: Partial<Pick<SessionAlias, 'name' | 'command_template' | 'sort_order'>>): SessionAlias | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.command_template !== undefined) { fields.push('command_template = ?'); values.push(updates.command_template); }
+  if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(updates.sort_order); }
+  if (fields.length === 0) return getSessionAliasById(id);
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+  db.prepare(`UPDATE session_aliases SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getSessionAliasById(id);
+}
+
+export function deleteSessionAlias(id: string): boolean {
+  const db = getDatabase();
+  db.prepare('UPDATE sessions SET session_alias_id = NULL WHERE session_alias_id = ?').run(id);
+  const result = db.prepare('DELETE FROM session_aliases WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
 // ── Session Logs ──
 
 export interface SessionLog {

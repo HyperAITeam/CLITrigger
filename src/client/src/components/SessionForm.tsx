@@ -117,6 +117,11 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
   const toolConfig = getToolConfig(selectedTool);
+  // Raw shell: no model, no auto-submitted prompt, no wiki/memory injection.
+  // Description/model/memory state is left untouched in the form so toggling
+  // back to an AI CLI doesn't lose what the user already typed; the inputs
+  // are just hidden while raw-shell is selected and the server ignores them.
+  const isRawShell = selectedTool === 'raw-shell';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,13 +153,15 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         placeholder={t('session.title')}
         className="input w-full text-sm"
       />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder={t('session.description')}
-        className="input w-full text-sm min-h-[60px] resize-y"
-        rows={2}
-      />
+      {!isRawShell && (
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t('session.description')}
+          className="input w-full text-sm min-h-[60px] resize-y"
+          rows={2}
+        />
+      )}
       <div className="flex gap-2">
         <select
           value={cliTool}
@@ -166,16 +173,18 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
             <option key={tool.value} value={tool.value}>{tool.label}</option>
           ))}
         </select>
-        <select
-          value={cliModel}
-          onChange={(e) => setCliModel(e.target.value)}
-          className="input text-xs flex-1"
-        >
-          <option value="">{t('session.model')} (Default)</option>
-          {toolConfig.models.filter((m) => m.value).map((model) => (
-            <option key={model.value} value={model.value}>{model.label}</option>
-          ))}
-        </select>
+        {!isRawShell && (
+          <select
+            value={cliModel}
+            onChange={(e) => setCliModel(e.target.value)}
+            className="input text-xs flex-1"
+          >
+            <option value="">{t('session.model')} (Default)</option>
+            {toolConfig.models.filter((m) => m.value).map((model) => (
+              <option key={model.value} value={model.value}>{model.label}</option>
+            ))}
+          </select>
+        )}
       </div>
       {tags.length > 0 && (
         <div className="flex items-center gap-2">
@@ -209,14 +218,16 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
           {t('session.worktree')}
         </label>
       )}
-      <MemoryInjectControl
-        projectId={projectId}
-        mode={memoryInjectMode}
-        selectedIds={memoryNodeIds}
-        onChange={(m, ids) => { setMemoryInjectMode(m); setMemoryNodeIds(ids); }}
-        rawFilePaths={memoryRawFilePaths}
-        onChangeRawFiles={setMemoryRawFilePaths}
-      />
+      {!isRawShell && (
+        <MemoryInjectControl
+          projectId={projectId}
+          mode={memoryInjectMode}
+          selectedIds={memoryNodeIds}
+          onChange={(m, ids) => { setMemoryInjectMode(m); setMemoryNodeIds(ids); }}
+          rawFilePaths={memoryRawFilePaths}
+          onChangeRawFiles={setMemoryRawFilePaths}
+        />
+      )}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="btn-secondary text-xs py-1.5 px-3">
           {t('form.cancel')}

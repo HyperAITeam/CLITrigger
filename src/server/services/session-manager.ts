@@ -120,10 +120,14 @@ export class SessionManager {
     if (!supportsInteractiveMode(cliTool)) {
       throw new Error(`${cliTool} does not support interactive mode`);
     }
+    const isRawShell = cliTool === 'raw-shell';
 
     const useWorktree = !!session.use_worktree && !!project.is_git_repo;
     const resume = !!opts?.continueSession;
     if (resume) {
+      if (isRawShell) {
+        throw new Error('Resume is not supported for raw shell sessions');
+      }
       // --continue is currently only wired for Claude in interactive mode.
       // Gemini/Codex have the adapter flag but their interactive resume is
       // not yet validated, so reject early with a clear message.
@@ -148,9 +152,11 @@ export class SessionManager {
     // as one combined first turn. Skipped on resume — the prior conversation
     // already contains the same block, and we don't want to fire a fresh
     // initial prompt on top of restored history.
+    // Raw-shell never consumes a prompt at all — it's a regular OS shell —
+    // so memory injection is unconditionally skipped.
     const memMode = ((session.memory_inject_mode as MemoryInjectMode | null) || 'none') as MemoryInjectMode;
     const rawFilePaths = parseRawFilePaths(session.memory_raw_file_paths);
-    if (!resume && (memMode !== 'none' || rawFilePaths.length > 0)) {
+    if (!isRawShell && !resume && (memMode !== 'none' || rawFilePaths.length > 0)) {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
@@ -171,7 +177,10 @@ export class SessionManager {
     // [status=running, pendingPrompt-not-yet-set] window would slip past the
     // gate, land in startupInputBuffer, then get drained into the PTY
     // before the held description is dispatched.
-    if (!resume && prompt.trim()) {
+    // Raw-shell never auto-submits an initial prompt — running an arbitrary
+    // string in a shell would execute it as a command, which is unsafe and
+    // not what "session description" means for raw shells.
+    if (!isRawShell && !resume && prompt.trim()) {
       this.pendingInitialPrompts.set(sessionId, prompt);
     } else {
       this.pendingInitialPrompts.delete(sessionId);

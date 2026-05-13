@@ -161,7 +161,6 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
         updates.tag_id = tag.id;
       }
     }
-
     const updated = queries.updateSession(req.params.id, updates as any);
     res.json(updated);
   } catch (err: unknown) {
@@ -432,6 +431,10 @@ router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, re
     const session = queries.getSessionById(req.params.id);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    if (session.cli_tool === 'raw-shell') {
+      res.status(400).json({ error: 'Image paste is only supported for AI CLI sessions' });
       return;
     }
 
