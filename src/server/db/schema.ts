@@ -279,6 +279,15 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS session_aliases (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      command_template TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -355,6 +364,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'discussions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'tag_id', definition: 'TEXT' },
+    { table: 'sessions', column: 'session_alias_id', definition: 'TEXT' },
     { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'is_svn_wc', definition: 'INTEGER DEFAULT 0' },

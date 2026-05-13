@@ -1,4 +1,4 @@
-import { get, post } from './client';
+import { get, post, put } from './client';
 
 export interface FileEntry {
   name: string;
@@ -54,4 +54,19 @@ export function openFile(
   mode: 'open' | 'reveal',
 ): Promise<{ ok: true }> {
   return post(`/api/projects/${projectId}/files/open`, { path, mode });
+}
+
+export interface SaveFileResult {
+  path: string;
+  size: number;
+  mtime: number;
+}
+
+export function saveFileContent(
+  projectId: string,
+  path: string,
+  content: string,
+  mtime: number,
+): Promise<SaveFileResult> {
+  return put(`/api/projects/${projectId}/files/content`, { path, content, mtime });
 }

@@ -308,6 +308,15 @@ export interface SessionTag {
   updated_at: string;
 }
 
+export interface SessionAlias {
+  id: string;
+  name: string;
+  command_template: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SessionLog {
   id: string;
   session_id: string;

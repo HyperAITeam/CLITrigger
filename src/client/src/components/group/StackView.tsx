@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
 import SessionThemePicker from '../SessionThemePicker';
+import SessionAliasInserter from '../SessionAliasInserter';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import type { LayoutStack, Path } from './groupTree';
 import type { Session } from '../../types';
@@ -183,6 +184,7 @@ export default function StackView({
             and the empty area between still bubbles mousedown to the parent
             for group dragging. */}
         <div style={{ flex: 1, minWidth: 8 }} />
+        <SessionAliasInserter sessionId={stack.activeTab} sendMessage={sendMessage} />
         <button
           data-no-drag
           onMouseDown={(e) => e.stopPropagation()}

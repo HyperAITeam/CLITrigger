@@ -303,6 +303,7 @@ export default function SessionPane({
         theme={terminalTheme}
         inputBlocked={pendingPromptLength !== null}
         autoFocusOnMount={visible}
+        disableImagePaste={session.cli_tool === 'raw-shell'}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
