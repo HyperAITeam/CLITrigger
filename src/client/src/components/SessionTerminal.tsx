@@ -140,7 +140,7 @@ export default function SessionTerminal({
     const term = new Terminal({
       fontFamily: CMD_FONT,
       fontSize,
-      lineHeight: 1,
+      lineHeight: 0.95,
       cursorBlink: isRunning,
       convertEol: false,
       scrollback: 5000,
