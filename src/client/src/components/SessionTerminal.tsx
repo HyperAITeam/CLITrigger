@@ -535,6 +535,13 @@ export default function SessionTerminal({
     if (term.cols === lastResizeRef.current.cols && term.rows === lastResizeRef.current.rows) return;
     if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
     fontSizeResizeTimerRef.current = setTimeout(() => {
+      // Claude/Codex/Gemini re-emit their welcome banner on SIGWINCH, which
+      // stacks duplicates in scrollback. Wiping the xterm display buffer
+      // *before* the resize broadcast lets the CLI's redraw land on a clean
+      // screen — the trade-off is that any prior on-screen output (welcome,
+      // earlier conversation) disappears from the visible scrollback on every
+      // grid-changing font zoom. The PTY-side conversation is unaffected.
+      try { termRef.current?.clear(); } catch { /* ignore */ }
       sendResizeRef.current?.();
     }, 300);
   }, [fontSize]);
