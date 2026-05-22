@@ -415,5 +415,9 @@ const overlayStyle: React.CSSProperties = {
   background: 'rgba(12,12,12,0.85)',
   display: 'flex', flexDirection: 'column',
   alignItems: 'center', justifyContent: 'center',
-  zIndex: 2,
+  // CanvasAddon stacks multiple <canvas> layers inside the xterm container,
+  // some of which may resolve above z-index:2 in the parent stacking context
+  // and visually cover this overlay's button. Bumping high keeps clicks
+  // (Start / Retry) reliably reaching the overlay regardless of renderer.
+  zIndex: 1000,
 };
