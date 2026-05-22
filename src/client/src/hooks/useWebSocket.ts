@@ -10,6 +10,8 @@ export interface WsEvent {
   running?: number;
   completed?: number;
   total?: number;
+  running_sessions?: number;
+  running_discussions?: number;
   commitHash?: string;
   mode?: string;
   worktree_path?: string | null;
