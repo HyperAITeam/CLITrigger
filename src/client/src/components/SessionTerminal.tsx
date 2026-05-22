@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
@@ -104,7 +103,6 @@ export default function SessionTerminal({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const canvasAddonRef = useRef<CanvasAddon | null>(null);
   const lastResizeRef = useRef<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Separate timer for fontSize-driven resizes so ResizeObserver's 150ms
@@ -308,22 +306,6 @@ export default function SessionTerminal({
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Canvas renderer draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
-    // cell-sized rects instead of font glyphs, eliminating the vertical gaps
-    // that the default DOM renderer leaves between rows of ASCII art (e.g.
-    // the Claude Code splash robot). Canvas2D is reliable inside portals and
-    // across many simultaneous Terminal instances (unlike WebGL's per-context
-    // browser limit). Wrapped in try/catch — falls back to the DOM renderer
-    // if Canvas is unavailable for any reason. Stored in a ref so the
-    // fontSize-change effect can dispose+reload it to rebuild the glyph atlas
-    // for the new cell dimensions.
-    try {
-      const addon = new CanvasAddon();
-      term.loadAddon(addon);
-      canvasAddonRef.current = addon;
-    } catch {
-      canvasAddonRef.current = null;
-    }
 
     // Ctrl/Cmd + wheel → font zoom. React onWheel is passive by default so we
     // attach natively with passive:false to be able to preventDefault and stop
@@ -461,8 +443,6 @@ export default function SessionTerminal({
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
-      canvasAddonRef.current?.dispose();
-      canvasAddonRef.current = null;
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
@@ -509,22 +489,6 @@ export default function SessionTerminal({
     if (!term || !fitAddon) return;
     if (term.options.fontSize === fontSize) return;
     term.options.fontSize = fontSize;
-    // CanvasAddon caches a glyph atlas sized for the old cell dimensions; after
-    // fontSize changes it keeps stamping old-size glyphs at new-size cell grid
-    // positions, producing visibly torn/misaligned ASCII art. Disposing and
-    // re-loading rebuilds the atlas at the new size. The fallback DOM renderer
-    // takes over momentarily between dispose and load — harmless visually.
-    if (canvasAddonRef.current) {
-      try {
-        canvasAddonRef.current.dispose();
-      } catch { /* ignore */ }
-      canvasAddonRef.current = null;
-      try {
-        const addon = new CanvasAddon();
-        term.loadAddon(addon);
-        canvasAddonRef.current = addon;
-      } catch { /* DOM renderer remains active */ }
-    }
     try {
       fitAddon.fit();
       term.refresh(0, term.rows - 1);
