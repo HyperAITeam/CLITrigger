@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
@@ -307,22 +307,19 @@ export default function SessionTerminal({
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // WebGL renderer draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
+    // Canvas renderer draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
     // cell-sized rects instead of font glyphs, eliminating the vertical gaps
     // that the default DOM renderer leaves between rows of ASCII art (e.g.
-    // the Claude Code splash robot). Wrapped in try/catch — WebGL may be
-    // unavailable in some browsers/headless contexts, in which case xterm
-    // silently keeps using the DOM renderer.
-    let webglAddon: WebglAddon | null = null;
+    // the Claude Code splash robot). Canvas2D is reliable inside portals and
+    // across many simultaneous Terminal instances (unlike WebGL's per-context
+    // browser limit). Wrapped in try/catch — falls back to the DOM renderer
+    // if Canvas is unavailable for any reason.
+    let canvasAddon: CanvasAddon | null = null;
     try {
-      webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon?.dispose();
-        webglAddon = null;
-      });
-      term.loadAddon(webglAddon);
+      canvasAddon = new CanvasAddon();
+      term.loadAddon(canvasAddon);
     } catch {
-      webglAddon = null;
+      canvasAddon = null;
     }
 
     // Ctrl/Cmd + wheel → font zoom. React onWheel is passive by default so we
@@ -461,7 +458,7 @@ export default function SessionTerminal({
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
-      webglAddon?.dispose();
+      canvasAddon?.dispose();
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
