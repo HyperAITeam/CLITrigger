@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   ChevronDown, ChevronRight, FileText, FileImage, FileCode, FileVideo, FileAudio,
   Folder, FolderOpen, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink,
-  Code2, Sparkles, Pencil, Save, X,
+  Code2, Sparkles, Pencil, Save, X, GitBranch,
 } from 'lucide-react';
 import CodeMirror, { type Extension } from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
@@ -21,6 +21,9 @@ import { useTheme } from '../hooks/useTheme';
 import { useToast } from '../hooks/useToast';
 import MarkdownContent from './MarkdownContent';
 import ToastContainer from './Toast';
+import VaultGraph from './VaultGraph';
+import { getVaultGraph } from '../api/vault';
+import type { VaultFile, VaultEdge as VaultEdgeType } from '../api/vault';
 
 class RenderErrorBoundary extends Component<
   { fallback: ReactNode; children: ReactNode },
@@ -771,6 +774,10 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [showGraph, setShowGraph] = useState(false);
+  const [graphFiles, setGraphFiles] = useState<VaultFile[]>([]);
+  const [graphEdges, setGraphEdges] = useState<VaultEdgeType[]>([]);
+  const [graphLoading, setGraphLoading] = useState(false);
 
   const lsKey = `fileExplorer:${projectId}`;
   const [paneWidth, setPaneWidth] = useState<number>(() => {
@@ -813,6 +820,32 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
     loadRoot();
   }, [loadRoot]);
 
+  useEffect(() => {
+    if (!showGraph) return;
+    let cancelled = false;
+    setGraphLoading(true);
+    getVaultGraph(projectId)
+      .then((res) => {
+        if (cancelled) return;
+        setGraphFiles(res.files);
+        setGraphEdges(res.edges);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGraphFiles([]);
+        setGraphEdges([]);
+      })
+      .finally(() => { if (!cancelled) setGraphLoading(false); });
+    return () => { cancelled = true; };
+  }, [showGraph, projectId]);
+
+  const handleGraphSelectFile = useCallback((path: string | null) => {
+    if (!path) { setSelectedPath(null); setSelectedEntry(null); return; }
+    setSelectedPath(path);
+    setSelectedEntry({ name: path.split('/').pop() || path, type: 'file', size: null, mtime: null, hidden: false });
+    setShowGraph(false);
+  }, []);
+
   const onResize = useCallback((clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -843,6 +876,13 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-warm-200 text-xs">
           <span className="font-medium text-warm-700 truncate flex-1">{t('files.root')}</span>
           <span className="text-warm-400 shrink-0">{totalEntries}</span>
+          <button
+            onClick={() => setShowGraph((v) => !v)}
+            className={`p-1 rounded hover:bg-warm-100 ${showGraph ? 'text-accent' : 'text-warm-500 hover:text-warm-700'}`}
+            title={t('files.graph')}
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => setShowHidden((v) => !v)}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
@@ -892,13 +932,30 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
 
       <Resizer onResize={onResize} />
 
-      {/* Right: preview */}
-      <PreviewPanel
-        projectId={projectId}
-        path={selectedPath}
-        entry={selectedEntry}
-        onDirtyChange={handleDirtyChange}
-      />
+      {/* Right: preview or graph */}
+      {showGraph ? (
+        <div className="flex-1 min-h-0 min-w-0">
+          {graphLoading ? (
+            <div className="flex items-center justify-center h-full text-xs text-warm-400">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('files.loading')}
+            </div>
+          ) : (
+            <VaultGraph
+              files={graphFiles}
+              edges={graphEdges}
+              selectedPath={selectedPath}
+              onSelectFile={handleGraphSelectFile}
+            />
+          )}
+        </div>
+      ) : (
+        <PreviewPanel
+          projectId={projectId}
+          path={selectedPath}
+          entry={selectedEntry}
+          onDirtyChange={handleDirtyChange}
+        />
+      )}
 
       {contextMenu && (
         <ContextMenu

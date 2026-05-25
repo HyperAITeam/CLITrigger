@@ -572,6 +572,7 @@ Complete the task in the current directory.`;
         mode: memMode,
         nodeIds: parseMemoryNodeIds(todo.memory_node_ids),
         rawFilePaths,
+        vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${todo.title}\n${todo.description ?? ''}`.trim(),
         log: (type, message) => queries.createTaskLog(todoId, type, message, roundNumber),
