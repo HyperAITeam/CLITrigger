@@ -10,6 +10,8 @@ interface MarkdownContentProps {
   memoryNodes?: MemoryNode[];
   onSelectMemoryNode?: (nodeId: string) => void;
   onCreateMemoryNode?: (title: string) => void;
+  /** Intercept relative file links (e.g. `[label](./foo.md)`). Receives the raw href. */
+  onLinkClick?: (href: string) => void;
 }
 
 const WIKILINK_PATTERN = /\[\[([^\]\n|#]+)(?:#[^\]\n|]+)?(?:\|([^\]\n]+))?\]\]/g;
@@ -109,12 +111,20 @@ function processChildren(
   return children;
 }
 
+function isRelativeLink(href: string | undefined): href is string {
+  if (!href) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return false;
+  if (href.startsWith('#')) return false;
+  return true;
+}
+
 export default function MarkdownContent({
   content,
   className,
   memoryNodes,
   onSelectMemoryNode,
   onCreateMemoryNode,
+  onLinkClick,
 }: MarkdownContentProps) {
   const titleIndex = new Map<string, string>();
   if (memoryNodes) {
@@ -127,9 +137,18 @@ export default function MarkdownContent({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-          ),
+          a: ({ href, children }) => {
+            if (onLinkClick && isRelativeLink(href)) {
+              return (
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkClick(href); }}
+                >{children}</button>
+              );
+            }
+            return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
+          },
           ...(wikilinksEnabled ? {
             p: ({ children }) => <p>{processChildren(children, titleIndex, onSelectMemoryNode, onCreateMemoryNode)}</p>,
             li: ({ children }) => <li>{processChildren(children, titleIndex, onSelectMemoryNode, onCreateMemoryNode)}</li>,

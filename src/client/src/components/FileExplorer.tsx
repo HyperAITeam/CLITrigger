@@ -306,11 +306,13 @@ function PreviewPanel({
   path,
   entry,
   onDirtyChange,
+  onNavigateFile,
 }: {
   projectId: string;
   path: string | null;
   entry: FileEntry | null;
   onDirtyChange?: (dirty: boolean) => void;
+  onNavigateFile?: (filePath: string) => void;
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -574,7 +576,22 @@ function PreviewPanel({
             fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
           >
             <div className="p-4">
-              <MarkdownContent content={textContent} />
+              <MarkdownContent
+                content={textContent}
+                onLinkClick={onNavigateFile ? (href) => {
+                  const clean = decodeURIComponent(href.split('#')[0].split('?')[0]);
+                  if (!clean) return;
+                  const dir = path!.includes('/') ? path!.slice(0, path!.lastIndexOf('/')) : '';
+                  const parts = (dir ? `${dir}/${clean}` : clean).replace(/\\/g, '/').split('/');
+                  const resolved: string[] = [];
+                  for (const p of parts) {
+                    if (p === '.' || p === '') continue;
+                    if (p === '..') { resolved.pop(); continue; }
+                    resolved.push(p);
+                  }
+                  onNavigateFile(resolved.join('/'));
+                } : undefined}
+              />
             </div>
           </RenderErrorBoundary>
         )}
@@ -770,8 +787,22 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const [rootError, setRootError] = useState<string | null>(null);
   const [rootLoading, setRootLoading] = useState(false);
   const [nodeStates, setNodeStates] = useState<Map<string, TreeNodeState>>(new Map());
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
+  const restoredPath = useMemo(() => {
+    try { return localStorage.getItem(`${lsKey}:selectedPath`) || null; } catch { return null; }
+  }, [lsKey]);
+  const [selectedPath, setSelectedPathRaw] = useState<string | null>(restoredPath);
+  const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(() => {
+    if (!restoredPath) return null;
+    const name = restoredPath.split('/').pop() || restoredPath;
+    return { name, type: 'file', size: null, mtime: null, hidden: false };
+  });
+  const setSelectedPath = useCallback((p: string | null) => {
+    setSelectedPathRaw(p);
+    try {
+      if (p) localStorage.setItem(`${lsKey}:selectedPath`, p);
+      else localStorage.removeItem(`${lsKey}:selectedPath`);
+    } catch { /* ignore */ }
+  }, [lsKey]);
   const [showHidden, setShowHidden] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showGraph, setShowGraph] = useState(false);
@@ -857,6 +888,13 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
     if (previewDirtyRef.current && !window.confirm(t('files.editor.discardConfirm'))) return;
     setSelectedPath(path);
     setSelectedEntry(entry);
+  }, [t]);
+
+  const handleNavigateFile = useCallback((filePath: string) => {
+    if (previewDirtyRef.current && !window.confirm(t('files.editor.discardConfirm'))) return;
+    const name = filePath.split('/').pop() || filePath;
+    setSelectedPath(filePath);
+    setSelectedEntry({ name, type: 'file', size: null, mtime: null, hidden: false });
   }, [t]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, fullPath: string, entry: FileEntry) => {
@@ -954,6 +992,7 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
           path={selectedPath}
           entry={selectedEntry}
           onDirtyChange={handleDirtyChange}
+          onNavigateFile={handleNavigateFile}
         />
       )}
 
