@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown, ChevronRight, FileText, FileImage, FileCode, FileVideo, FileAudio,
@@ -21,6 +21,21 @@ import { useTheme } from '../hooks/useTheme';
 import { useToast } from '../hooks/useToast';
 import MarkdownContent from './MarkdownContent';
 import ToastContainer from './Toast';
+
+class RenderErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: Error, info: ErrorInfo) { console.error('[FileExplorer] Render error:', err, info); }
+  componentDidUpdate(prev: { fallback: ReactNode; children: ReactNode }) {
+    if (prev.children !== this.props.children && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children; }
+}
 
 interface FileExplorerProps {
   projectId: string;
@@ -527,7 +542,7 @@ function PreviewPanel({
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto bg-[var(--color-bg-page)]">
+      <div className="flex-1 min-h-0 overflow-auto">
         {loading && (
           <div className="flex items-center justify-center gap-2 text-xs text-warm-500 py-8">
             <Loader2 className="w-4 h-4 animate-spin" /> {t('files.loading')}
@@ -552,9 +567,13 @@ function PreviewPanel({
           </div>
         )}
         {!loading && !error && !editMode && textContent !== null && isMarkdown && viewMode === 'rendered' && (
-          <div className="p-4">
-            <MarkdownContent content={textContent} />
-          </div>
+          <RenderErrorBoundary
+            fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
+          >
+            <div className="p-4">
+              <MarkdownContent content={textContent} />
+            </div>
+          </RenderErrorBoundary>
         )}
         {!loading && !error && !editMode && textContent !== null && isHtml && viewMode === 'rendered' && (
           <div className="flex flex-col h-full">
