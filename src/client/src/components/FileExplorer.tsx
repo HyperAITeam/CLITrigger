@@ -788,6 +788,7 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const [rootError, setRootError] = useState<string | null>(null);
   const [rootLoading, setRootLoading] = useState(false);
   const [nodeStates, setNodeStates] = useState<Map<string, TreeNodeState>>(new Map());
+  const loadedRef = useRef(false);
   const restoredPath = useMemo(() => {
     try { return localStorage.getItem(`${lsKey}:selectedPath`) || null; } catch { return null; }
   }, [lsKey]);
@@ -804,7 +805,10 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
       else localStorage.removeItem(`${lsKey}:selectedPath`);
     } catch { /* ignore */ }
   }, [lsKey]);
-  const [showHidden, setShowHidden] = useState(false);
+  const [showHidden, setShowHidden] = useState(() => {
+    try { return localStorage.getItem(`${lsKey}:showHidden`) === '1'; } catch { /* ignore */ }
+    return false;
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showGraph, setShowGraph] = useState(false);
   const [graphFiles, setGraphFiles] = useState<VaultFile[]>([]);
@@ -825,6 +829,20 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
     try { localStorage.setItem(`${lsKey}:paneWidth`, String(paneWidth)); } catch { /* ignore */ }
   }, [paneWidth, lsKey]);
 
+  useEffect(() => {
+    try { localStorage.setItem(`${lsKey}:showHidden`, showHidden ? '1' : '0'); } catch { /* ignore */ }
+  }, [showHidden, lsKey]);
+
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    try {
+      const expanded = [...nodeStates.entries()]
+        .filter(([, s]) => s.expanded)
+        .map(([p]) => p);
+      localStorage.setItem(`${lsKey}:expanded`, JSON.stringify(expanded));
+    } catch { /* ignore */ }
+  }, [nodeStates, lsKey]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const previewDirtyRef = useRef(false);
   const handleDirtyChange = useCallback((dirty: boolean) => {
@@ -837,14 +855,47 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
     try {
       const res = await listFiles(projectId, '', showHidden);
       setRootEntries(res.entries);
-      setNodeStates(new Map()); // reset expanded state on root reload
+
+      let savedExpanded: string[] = [];
+      try {
+        const raw = localStorage.getItem(`${lsKey}:expanded`);
+        if (raw) savedExpanded = JSON.parse(raw);
+      } catch { /* ignore */ }
+
+      if (savedExpanded.length === 0) {
+        setNodeStates(new Map());
+      } else {
+        const byDepth = new Map<number, string[]>();
+        for (const p of savedExpanded) {
+          const d = p.split('/').filter(Boolean).length;
+          const arr = byDepth.get(d);
+          if (arr) arr.push(p); else byDepth.set(d, [p]);
+        }
+        const newStates = new Map<string, TreeNodeState>();
+        for (const d of [...byDepth.keys()].sort((a, b) => a - b)) {
+          const results = await Promise.all(
+            byDepth.get(d)!.map(async (p) => {
+              try {
+                const r = await listFiles(projectId, p, showHidden);
+                return { path: p, entries: r.entries };
+              } catch { return null; }
+            })
+          );
+          for (const r of results) {
+            if (r) newStates.set(r.path, { expanded: true, loading: false, children: r.entries });
+          }
+        }
+        setNodeStates(newStates);
+      }
+      loadedRef.current = true;
     } catch (err) {
       setRootError(err instanceof Error ? err.message : 'failed');
       setRootEntries(null);
+      setNodeStates(new Map());
     } finally {
       setRootLoading(false);
     }
-  }, [projectId, showHidden]);
+  }, [projectId, showHidden, lsKey]);
 
   useEffect(() => {
     loadRoot();
