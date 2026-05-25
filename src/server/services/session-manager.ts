@@ -162,6 +162,7 @@ export class SessionManager {
         mode: memMode,
         nodeIds: parseMemoryNodeIds(session.memory_node_ids),
         rawFilePaths,
+        vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${session.title}\n${session.description ?? ''}`.trim(),
         log: (type, message) => queries.createSessionLog(sessionId, type, message),

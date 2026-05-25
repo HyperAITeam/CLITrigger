@@ -275,6 +275,7 @@ export class DiscussionOrchestrator {
         mode: memMode,
         nodeIds: parseMemoryNodeIds(discussion.memory_node_ids),
         rawFilePaths,
+        vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${discussion.title}\n${discussion.description ?? ''}`.trim(),
         log: (type, msg) => queries.createDiscussionLog(discussionId, messageId, type, msg),

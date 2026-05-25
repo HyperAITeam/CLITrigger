@@ -822,7 +822,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
               help: help === helpKey ? '' : help,
             };
           }),
-          { key: 'wiki', label: t('tabs.wiki'), help: t('tabs.wiki.help') },
           { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
           { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
           { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
@@ -949,9 +948,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onMergeRun={handleMergeTodo}
           onCleanupRun={handleCleanupTodo}
         />
-      )}
-      {activeTab === 'wiki' && id && (
-        <MemoryList projectId={id} />
       )}
       {activeTab === 'planner' && (
         <PlannerList

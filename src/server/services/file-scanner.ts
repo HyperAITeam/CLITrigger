@@ -1,0 +1,268 @@
+import fs from 'fs';
+import path from 'path';
+import { parseWikilinks } from './memory-wikilinks.js';
+
+export interface VaultFile {
+  relativePath: string;
+  stem: string;
+  title: string;
+  tags: string[];
+  wikilinks: string[];
+  size: number;
+  mtime: string;
+  bodyPreview: string;
+}
+
+export interface VaultEdge {
+  from: string;
+  to: string;
+}
+
+export interface VaultGraph {
+  files: VaultFile[];
+  edges: VaultEdge[];
+}
+
+const DEFAULT_EXCLUDES = [
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.worktrees',
+  '.clitrigger',
+  'out',
+  '.next',
+  '.nuxt',
+  'vendor',
+  '.venv',
+  '__pycache__',
+  '.tox',
+  'coverage',
+];
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
+const BODY_PREVIEW_LEN = 200;
+
+function parseFrontmatter(content: string): { frontmatter: Record<string, unknown> | null; body: string } {
+  const match = content.match(FRONTMATTER_RE);
+  if (!match) return { frontmatter: null, body: content };
+
+  const raw = match[1];
+  const body = content.slice(match[0].length).trimStart();
+  const fm: Record<string, unknown> = {};
+
+  for (const line of raw.split(/\r?\n/)) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx < 1) continue;
+    const key = line.slice(0, colonIdx).trim();
+    let value: unknown = line.slice(colonIdx + 1).trim();
+
+    if (typeof value === 'string' && value.startsWith('[') && value.endsWith(']')) {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        const inner = (value as string).slice(1, -1);
+        value = inner.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+      }
+    }
+    fm[key] = value;
+  }
+  return { frontmatter: fm, body };
+}
+
+function shouldExclude(relativePath: string, excludes: string[]): boolean {
+  const parts = relativePath.split(/[\\/]/);
+  return parts.some(p => excludes.includes(p));
+}
+
+function walkDir(dir: string, root: string, excludes: string[], results: string[]): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const rel = path.relative(root, fullPath).replace(/\\/g, '/');
+
+    if (shouldExclude(rel, excludes)) continue;
+
+    if (entry.isDirectory()) {
+      walkDir(fullPath, root, excludes, results);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      results.push(rel);
+    }
+  }
+}
+
+export function scanVault(projectRoot: string, excludePatterns?: string[]): VaultFile[] {
+  const resolved = path.resolve(projectRoot);
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) return [];
+
+  const excludes = excludePatterns ?? DEFAULT_EXCLUDES;
+  const relativePaths: string[] = [];
+  walkDir(resolved, resolved, excludes, relativePaths);
+
+  const files: VaultFile[] = [];
+  for (const rel of relativePaths) {
+    const abs = path.join(resolved, rel);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(abs);
+    } catch { continue; }
+
+    let content: string;
+    try {
+      content = fs.readFileSync(abs, 'utf-8');
+    } catch { continue; }
+
+    const { frontmatter, body } = parseFrontmatter(content);
+    const stem = path.basename(rel, '.md');
+    const tags: string[] = [];
+    if (frontmatter?.tags) {
+      const raw = frontmatter.tags;
+      if (Array.isArray(raw)) {
+        tags.push(...raw.map(String).filter(Boolean));
+      } else if (typeof raw === 'string') {
+        tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
+      }
+    }
+
+    const refs = parseWikilinks(body);
+    const wikilinks = [...new Set(refs.map(r => r.title))];
+
+    const bodyFlat = body.replace(/\s+/g, ' ').trim();
+    const bodyPreview = bodyFlat.length > BODY_PREVIEW_LEN
+      ? bodyFlat.slice(0, BODY_PREVIEW_LEN) + '…'
+      : bodyFlat;
+
+    const title = (frontmatter?.title as string) || stem;
+
+    files.push({
+      relativePath: rel,
+      stem,
+      title,
+      tags,
+      wikilinks,
+      size: stat.size,
+      mtime: stat.mtime.toISOString(),
+      bodyPreview,
+    });
+  }
+
+  return files;
+}
+
+export function buildVaultGraph(projectRoot: string, excludePatterns?: string[]): VaultGraph {
+  const files = scanVault(projectRoot, excludePatterns);
+
+  const stemIndex = new Map<string, string[]>();
+  for (const f of files) {
+    const key = f.stem.toLowerCase();
+    const existing = stemIndex.get(key) ?? [];
+    existing.push(f.relativePath);
+    stemIndex.set(key, existing);
+  }
+
+  const titleIndex = new Map<string, string[]>();
+  for (const f of files) {
+    const key = f.title.toLowerCase();
+    const existing = titleIndex.get(key) ?? [];
+    existing.push(f.relativePath);
+    titleIndex.set(key, existing);
+  }
+
+  const edges: VaultEdge[] = [];
+  const seen = new Set<string>();
+  for (const f of files) {
+    const fromDir = path.dirname(f.relativePath);
+    for (const link of f.wikilinks) {
+      const key = link.toLowerCase();
+      const candidates = stemIndex.get(key) ?? titleIndex.get(key) ?? [];
+      let target: string | undefined;
+      if (candidates.length === 1) {
+        target = candidates[0];
+      } else if (candidates.length > 1) {
+        target = candidates.find(c => path.dirname(c) === fromDir) ?? candidates[0];
+      }
+      if (target && target !== f.relativePath) {
+        const edgeKey = `${f.relativePath}→${target}`;
+        if (!seen.has(edgeKey)) {
+          seen.add(edgeKey);
+          edges.push({ from: f.relativePath, to: target });
+        }
+      }
+    }
+  }
+
+  return { files, edges };
+}
+
+export function readVaultFile(projectRoot: string, relativePath: string): string | null {
+  const resolved = path.resolve(projectRoot);
+  const abs = path.resolve(resolved, relativePath);
+  if (!abs.startsWith(resolved + path.sep) && abs !== resolved) return null;
+  if (!abs.endsWith('.md')) return null;
+  try {
+    return fs.readFileSync(abs, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+export function writeVaultFile(projectRoot: string, relativePath: string, content: string): boolean {
+  const resolved = path.resolve(projectRoot);
+  const abs = path.resolve(resolved, relativePath);
+  if (!abs.startsWith(resolved + path.sep)) return false;
+  if (!abs.endsWith('.md')) return false;
+  try {
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content, 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function deleteVaultFile(projectRoot: string, relativePath: string): boolean {
+  const resolved = path.resolve(projectRoot);
+  const abs = path.resolve(resolved, relativePath);
+  if (!abs.startsWith(resolved + path.sep)) return false;
+  if (!abs.endsWith('.md')) return false;
+  try {
+    fs.unlinkSync(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function renameVaultFile(projectRoot: string, oldPath: string, newPath: string): boolean {
+  const resolved = path.resolve(projectRoot);
+  const absOld = path.resolve(resolved, oldPath);
+  const absNew = path.resolve(resolved, newPath);
+  if (!absOld.startsWith(resolved + path.sep)) return false;
+  if (!absNew.startsWith(resolved + path.sep)) return false;
+  if (!absOld.endsWith('.md') || !absNew.endsWith('.md')) return false;
+  try {
+    fs.mkdirSync(path.dirname(absNew), { recursive: true });
+    fs.renameSync(absOld, absNew);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function searchVault(projectRoot: string, query: string, excludePatterns?: string[]): VaultFile[] {
+  if (!query.trim()) return [];
+  const files = scanVault(projectRoot, excludePatterns);
+  const q = query.toLowerCase();
+  return files.filter(f =>
+    f.stem.toLowerCase().includes(q) ||
+    f.title.toLowerCase().includes(q) ||
+    f.tags.some(t => t.toLowerCase().includes(q)) ||
+    f.bodyPreview.toLowerCase().includes(q)
+  );
+}

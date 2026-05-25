@@ -1,5 +1,7 @@
 import { buildMemoryBlock, buildRawFileBlock, type MemoryInjectMode } from './memory-injector.js';
 import { selectRelevantNodes } from './memory-retriever.js';
+import { buildVaultBlock, type VaultInjectMode } from './vault-injector.js';
+import { selectRelevantFiles } from './vault-retriever.js';
 
 export interface MemoryInjectionContext {
   projectId: string;
@@ -7,7 +9,9 @@ export interface MemoryInjectionContext {
   nodeIds: string[];
   /** Raw markdown source files (relative paths under .clitrigger/raw) to inject verbatim. */
   rawFilePaths?: string[];
-  /** Project root absolute path — required when rawFilePaths is non-empty. */
+  /** Vault file paths (project-relative .md files) for file-based injection. */
+  vaultFilePaths?: string[];
+  /** Project root absolute path — required when rawFilePaths or vaultFilePaths is non-empty. */
   projectRoot?: string;
   /** Required for mode='auto' — task title + description, agent prompt, etc. */
   query?: string;
@@ -15,6 +19,60 @@ export interface MemoryInjectionContext {
 }
 
 export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise<string | null> {
+  const vaultPaths = (ctx.vaultFilePaths ?? []).filter(Boolean);
+  const hasVault = vaultPaths.length > 0 || ctx.mode !== 'none';
+  const hasProjectRoot = !!ctx.projectRoot;
+
+  // Vault-based injection (new path): if vaultFilePaths is set or no nodeIds exist, use file-based
+  if (hasProjectRoot && (vaultPaths.length > 0 || (ctx.nodeIds.length === 0 && ctx.mode !== 'none'))) {
+    return applyVaultInjection(ctx, vaultPaths);
+  }
+
+  // Legacy node-based injection (old path): falls through when nodeIds are present
+  return applyLegacyInjection(ctx);
+}
+
+async function applyVaultInjection(ctx: MemoryInjectionContext, vaultPaths: string[]): Promise<string | null> {
+  if (ctx.mode === 'none') return null;
+  if (!ctx.projectRoot) return null;
+
+  let effectiveMode: VaultInjectMode = ctx.mode;
+  let effectivePaths: string[] = vaultPaths;
+
+  if (ctx.mode === 'auto') {
+    const query = (ctx.query || '').trim();
+    if (!query) {
+      ctx.log('output', `[vault] inject mode='auto' but no query provided — skipped`);
+      return null;
+    }
+    ctx.log('output', `[vault] inject mode='auto' — running retrieval...`);
+    const res = await selectRelevantFiles(ctx.projectId, ctx.projectRoot, query);
+    if (res.selectedPaths.length === 0) {
+      const reason = res.reason ?? 'unknown';
+      ctx.log('output', `[vault] auto retrieval picked 0 files (${reason}, ${res.candidateCount} candidate(s)) — skipped`);
+      return null;
+    }
+    ctx.log('output', `[vault] auto retrieval picked ${res.selectedPaths.length}/${res.candidateCount} candidate file(s)`);
+    effectiveMode = 'selected';
+    effectivePaths = res.selectedPaths;
+  }
+
+  const result = buildVaultBlock({
+    projectRoot: ctx.projectRoot,
+    mode: effectiveMode,
+    filePaths: effectivePaths,
+  });
+
+  if (!result) {
+    ctx.log('output', `[vault] inject mode '${ctx.mode}' produced no files — skipped`);
+    return null;
+  }
+
+  ctx.log('output', `[vault] injected ${result.fileCount} file(s), mode=${ctx.mode}`);
+  return result.block;
+}
+
+async function applyLegacyInjection(ctx: MemoryInjectionContext): Promise<string | null> {
   const rawPaths = (ctx.rawFilePaths ?? []).filter(Boolean);
   const hasRaw = rawPaths.length > 0 && !!ctx.projectRoot;
 
