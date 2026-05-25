@@ -377,30 +377,7 @@ function PreviewPanel({
     return () => { cancelled = true; };
   }, [path, entry, projectId, t]);
 
-  const copyPath = () => {
-    if (!path) return;
-    navigator.clipboard.writeText(path).catch(() => { /* swallow */ });
-  };
-
-  const openInOS = () => {
-    if (!path) return;
-    openFile(projectId, path, 'open').catch(() => { /* swallow */ });
-  };
-
-  const revealInOS = () => {
-    if (!path) return;
-    openFile(projectId, path, 'reveal').catch(() => { /* swallow */ });
-  };
-
-  if (!path || !entry) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-xs text-warm-400">
-        {t('files.preview.empty')}
-      </div>
-    );
-  }
-
-  const ext = extOf(entry.name);
+  const ext = entry ? extOf(entry.name) : '';
   const isImage = binaryMime?.startsWith('image/') || IMAGE_EXT.has(ext);
   const isPdf = binaryMime === 'application/pdf' || PDF_EXT.has(ext);
   const isVideo = binaryMime?.startsWith('video/') || VIDEO_EXT.has(ext);
@@ -451,6 +428,29 @@ function PreviewPanel({
       void handleSave();
     }
   }, [handleSave]);
+
+  const copyPath = () => {
+    if (!path) return;
+    navigator.clipboard.writeText(path).catch(() => { /* swallow */ });
+  };
+
+  const openInOS = () => {
+    if (!path) return;
+    openFile(projectId, path, 'open').catch(() => { /* swallow */ });
+  };
+
+  const revealInOS = () => {
+    if (!path) return;
+    openFile(projectId, path, 'reveal').catch(() => { /* swallow */ });
+  };
+
+  if (!path || !entry) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-xs text-warm-400">
+        {t('files.preview.empty')}
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col">
