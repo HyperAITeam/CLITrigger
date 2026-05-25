@@ -783,6 +783,7 @@ function ContextMenu({
 
 export default function FileExplorer({ projectId }: FileExplorerProps) {
   const { t } = useI18n();
+  const lsKey = `fileExplorer:${projectId}`;
   const [rootEntries, setRootEntries] = useState<FileEntry[] | null>(null);
   const [rootError, setRootError] = useState<string | null>(null);
   const [rootLoading, setRootLoading] = useState(false);
@@ -809,8 +810,6 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
   const [graphFiles, setGraphFiles] = useState<VaultFile[]>([]);
   const [graphEdges, setGraphEdges] = useState<VaultEdgeType[]>([]);
   const [graphLoading, setGraphLoading] = useState(false);
-
-  const lsKey = `fileExplorer:${projectId}`;
   const [paneWidth, setPaneWidth] = useState<number>(() => {
     try {
       const raw = localStorage.getItem(`${lsKey}:paneWidth`);
@@ -875,7 +874,7 @@ export default function FileExplorer({ projectId }: FileExplorerProps) {
     setSelectedPath(path);
     setSelectedEntry({ name: path.split('/').pop() || path, type: 'file', size: null, mtime: null, hidden: false });
     setShowGraph(false);
-  }, []);
+  }, [setSelectedPath]);
 
   const onResize = useCallback((clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
