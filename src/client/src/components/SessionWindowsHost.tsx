@@ -304,9 +304,15 @@ export default function SessionWindowsHost({
 
   // Auto-prune groups when a session disappears server-side. Skip while
   // sessions is empty (likely a loading blip) so we don't nuke restored state.
+  // Also skip if the sessions belong to another project — during project-to-
+  // project navigation ProjectDetail reuses the same instance so `sessions`
+  // briefly holds the *previous* project's data until the API fetch completes.
+  // Without this guard the stale cross-project IDs would prune every group.
   useEffect(() => {
     if (sessions.length === 0) return;
-    const validIds = new Set(sessions.map(s => s.id));
+    const ownSessions = sessions.filter(s => s.project_id === projectId);
+    if (ownSessions.length === 0) return;
+    const validIds = new Set(ownSessions.map(s => s.id));
     setGroups((prev) => {
       let changed = false;
       const next: OpenGroup[] = [];
@@ -326,7 +332,7 @@ export default function SessionWindowsHost({
       }
       return changed ? next : prev;
     });
-  }, [sessions]);
+  }, [sessions, projectId]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
