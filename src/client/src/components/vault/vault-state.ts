@@ -30,10 +30,8 @@ const DEFAULT_PANELS: PanelsState = {
   rightPanelId: 'graph',
 };
 
-const LEFT_W_MIN = 200;
-const LEFT_W_MAX = 600;
-const RIGHT_W_MIN = 220;
-const RIGHT_W_MAX = 600;
+const SIDEBAR_W_MIN = 32;
+const SIDEBAR_W_MAX = 100000;
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -46,8 +44,8 @@ function readLayout(key: string): LayoutState {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed = JSON.parse(raw) as Partial<LayoutState>;
     return {
-      leftWidth: clamp(Number(parsed.leftWidth) || DEFAULT_LAYOUT.leftWidth, LEFT_W_MIN, LEFT_W_MAX),
-      rightWidth: clamp(Number(parsed.rightWidth) || DEFAULT_LAYOUT.rightWidth, RIGHT_W_MIN, RIGHT_W_MAX),
+      leftWidth: clamp(Number(parsed.leftWidth) || DEFAULT_LAYOUT.leftWidth, SIDEBAR_W_MIN, SIDEBAR_W_MAX),
+      rightWidth: clamp(Number(parsed.rightWidth) || DEFAULT_LAYOUT.rightWidth, SIDEBAR_W_MIN, SIDEBAR_W_MAX),
       leftCollapsed: Boolean(parsed.leftCollapsed),
       rightCollapsed: Boolean(parsed.rightCollapsed),
     };
@@ -122,10 +120,10 @@ export function useVaultState(projectId: string): VaultState {
   }, [activeFile, activeKey]);
 
   const setLeftWidth = useCallback((w: number) => {
-    setLayoutState((l) => ({ ...l, leftWidth: clamp(w, LEFT_W_MIN, LEFT_W_MAX) }));
+    setLayoutState((l) => ({ ...l, leftWidth: clamp(w, SIDEBAR_W_MIN, SIDEBAR_W_MAX) }));
   }, []);
   const setRightWidth = useCallback((w: number) => {
-    setLayoutState((l) => ({ ...l, rightWidth: clamp(w, RIGHT_W_MIN, RIGHT_W_MAX) }));
+    setLayoutState((l) => ({ ...l, rightWidth: clamp(w, SIDEBAR_W_MIN, SIDEBAR_W_MAX) }));
   }, []);
   const toggleLeftCollapsed = useCallback(() => {
     setLayoutState((l) => ({ ...l, leftCollapsed: !l.leftCollapsed }));
