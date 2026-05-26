@@ -72,7 +72,7 @@ export function SidebarRail<TId extends string>({
   const content = collapsed ? null : (
     <div
       className="flex flex-col min-w-0 min-h-0 overflow-hidden bg-warm-0"
-      style={{ width: Math.max(width - 32, 100) }}
+      style={{ width: Math.max(width - 32, 0) }}
     >
       <div className="px-3 py-2 border-b border-warm-200 text-[10px] uppercase tracking-wide text-warm-500 font-semibold shrink-0">
         {active?.label ?? ''}
