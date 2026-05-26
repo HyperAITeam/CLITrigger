@@ -24,7 +24,7 @@ import SessionWindowsHost from './SessionWindowsHost';
 import AnalyticsPanel from './AnalyticsPanel';
 import PlannerList from './PlannerList';
 import MemoryList from './MemoryList';
-import FileExplorer from './FileExplorer';
+import VaultLayout from './vault/VaultLayout';
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -933,7 +933,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'files' && id && (
-        <FileExplorer projectId={id} />
+        <VaultLayout projectId={id} />
       )}
       {activeTab === 'schedules' && (
         <ScheduleList
