@@ -21,7 +21,7 @@ export function Resizer({ onResize }: Props) {
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
       }}
-      className="w-1 shrink-0 cursor-col-resize bg-warm-200/60 hover:bg-accent transition-colors"
+      className="w-1.5 shrink-0 cursor-col-resize bg-warm-300 hover:bg-accent active:bg-accent transition-colors"
     />
   );
 }
