@@ -57,6 +57,10 @@ export function deleteProject(id: string): Promise<void> {
   return del(`/api/projects/${id}`);
 }
 
+export function reorderProjects(ids: string[]): Promise<{ ok: boolean }> {
+  return post('/api/projects/reorder', { ids });
+}
+
 export function startProject(id: string): Promise<void> {
   return post(`/api/projects/${id}/start`);
 }
