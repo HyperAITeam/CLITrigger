@@ -38,6 +38,7 @@ export interface Project {
   npm_auto_install: number;
   memory_auto_ingest: number;
   color: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -61,7 +62,17 @@ export function createProject(
 
 export function getAllProjects(): Project[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as Project[];
+  return db.prepare('SELECT * FROM projects ORDER BY sort_order ASC, created_at DESC').all() as Project[];
+}
+
+export function reorderProjects(orderedIds: string[]): void {
+  const db = getDatabase();
+  const update = db.prepare('UPDATE projects SET sort_order = ?, updated_at = ? WHERE id = ?');
+  const now = new Date().toISOString();
+  const tx = db.transaction(() => {
+    orderedIds.forEach((id, idx) => update.run(idx, now, id));
+  });
+  tx();
 }
 
 export function getProjectById(id: string): Project | undefined {

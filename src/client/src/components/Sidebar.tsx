@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
@@ -54,6 +54,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const [showSettings, setShowSettings] = useState(false);
   const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus | null>(null);
   const [tunnelBusy, setTunnelBusy] = useState(false);
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+  const [dragOverGapIndex, setDragOverGapIndex] = useState<number | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { t, toggleLang } = useI18n();
@@ -239,6 +241,50 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     }
   };
 
+  const handleProjectDragStart = useCallback((id: string, e: React.DragEvent) => {
+    setDragSourceId(id);
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    } catch { /* ignore — some browsers throw on setData during certain events */ }
+  }, []);
+
+  const handleProjectDragEnd = useCallback(() => {
+    setDragSourceId(null);
+    setDragOverGapIndex(null);
+  }, []);
+
+  const handleGapDrop = useCallback(async (gapIndex: number) => {
+    if (!dragSourceId) return;
+    const currentIds = projects.map((p) => p.id);
+    const sourceIdx = currentIds.indexOf(dragSourceId);
+    if (sourceIdx < 0) {
+      setDragSourceId(null);
+      setDragOverGapIndex(null);
+      return;
+    }
+    const without = currentIds.filter((id) => id !== dragSourceId);
+    const insertAt = gapIndex > sourceIdx ? gapIndex - 1 : gapIndex;
+    if (insertAt === sourceIdx) {
+      setDragSourceId(null);
+      setDragOverGapIndex(null);
+      return;
+    }
+    const nextIds = [...without.slice(0, insertAt), dragSourceId, ...without.slice(insertAt)];
+    const previous = projects;
+    const idToProject = new Map(projects.map((p) => [p.id, p]));
+    const optimistic = nextIds.map((id) => idToProject.get(id)!).filter(Boolean);
+    setProjects(optimistic);
+    setDragSourceId(null);
+    setDragOverGapIndex(null);
+    try {
+      await projectsApi.reorderProjects(nextIds);
+    } catch (err) {
+      setProjects(previous);
+      toastError(err instanceof Error ? err.message : 'Failed to reorder projects');
+    }
+  }, [dragSourceId, projects, toastError]);
+
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -253,6 +299,25 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     } catch {
       // TODO: show error
     }
+  };
+
+  const renderProjectGap = (gapIndex: number) => {
+    if (!dragSourceId) return null;
+    const isActive = dragOverGapIndex === gapIndex;
+    return (
+      <div
+        onDragEnter={(e) => { e.preventDefault(); setDragOverGapIndex(gapIndex); }}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOverGapIndex(gapIndex); }}
+        onDragLeave={() => setDragOverGapIndex((prev) => (prev === gapIndex ? null : prev))}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleGapDrop(gapIndex); }}
+        className="relative"
+        style={{ height: 8, marginTop: -4, marginBottom: -4 }}
+      >
+        {isActive && (
+          <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-0.5 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -332,7 +397,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           </button>
         </div>
         <div className="space-y-0.5">
-          {projects.map((project) => {
+          {projects.length > 0 && renderProjectGap(0)}
+          {projects.map((project, index) => {
             const status = statusMap[project.id];
             const isActive = activeProjectId === String(project.id);
             const activeWork = status
@@ -340,44 +406,50 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               : 0;
             const hasActivity = activeWork > 0;
             const tagColor = resolveProjectColor(project);
+            const isDragSource = dragSourceId === project.id;
             return (
-              <Link
-                key={project.id}
-                to={`/projects/${project.id}`}
-                onClick={handleNav}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setColorPicker({ project, x: e.clientX, y: e.clientY });
-                }}
-                className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''}`}
-                style={isActive
-                  ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
-                  : { color: 'var(--color-text-tertiary)' }
-                }
-              >
-                {isActive && (
-                  <span
-                    className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full"
-                    style={{ backgroundColor: tagColor }}
-                  />
-                )}
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${hasActivity ? 'workspace-dot-pulse' : ''}`}
-                  style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
-                  title={hasActivity
-                    ? `${t('sidebar.workspaces')} · ${activeWork} ${t('detail.live')}`
-                    : project.name}
-                />
-                <span className="truncate flex-1">{project.name}</span>
-                <button
-                  onClick={(e) => handleDeleteProject(project.id, e)}
-                  className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10"
-                  style={{ color: 'var(--color-text-muted)' }}
-                  title={t('projects.delete')}
+              <div key={project.id}>
+                <Link
+                  to={`/projects/${project.id}`}
+                  onClick={handleNav}
+                  draggable
+                  onDragStart={(e) => handleProjectDragStart(project.id, e)}
+                  onDragEnd={handleProjectDragEnd}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setColorPicker({ project, x: e.clientX, y: e.clientY });
+                  }}
+                  className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''} ${isDragSource ? 'opacity-50' : ''}`}
+                  style={isActive
+                    ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
+                    : { color: 'var(--color-text-tertiary)' }
+                  }
                 >
-                  <X size={12} strokeWidth={2} />
-                </button>
-              </Link>
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full"
+                      style={{ backgroundColor: tagColor }}
+                    />
+                  )}
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${hasActivity ? 'workspace-dot-pulse' : ''}`}
+                    style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
+                    title={hasActivity
+                      ? `${t('sidebar.workspaces')} · ${activeWork} ${t('detail.live')}`
+                      : project.name}
+                  />
+                  <span className="truncate flex-1">{project.name}</span>
+                  <button
+                    onClick={(e) => handleDeleteProject(project.id, e)}
+                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    title={t('projects.delete')}
+                  >
+                    <X size={12} strokeWidth={2} />
+                  </button>
+                </Link>
+                {renderProjectGap(index + 1)}
+              </div>
             );
           })}
         </div>

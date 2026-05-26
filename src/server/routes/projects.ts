@@ -3,7 +3,7 @@ import nodePath from 'path';
 import fs from 'fs';
 import { execFileSync, exec } from 'child_process';
 import os from 'os';
-import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults } from '../db/queries.js';
+import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults, reorderProjects } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { isSvnRepository } from '../lib/svn.js';
 import { cleanupProjectImages } from './images.js';
@@ -272,6 +272,22 @@ router.get('/', (_req: Request, res: Response) => {
       return { ...p, path_exists: pathExists };
     });
     res.json(enriched);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/projects/reorder - replace sort_order for the supplied id list
+router.post('/reorder', (req: Request, res: Response) => {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+      res.status(400).json({ error: 'ids must be a string array' });
+      return;
+    }
+    reorderProjects(ids);
+    res.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

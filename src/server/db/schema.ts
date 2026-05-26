@@ -369,6 +369,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'is_svn_wc', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'color', definition: 'TEXT' },
+    { table: 'projects', column: 'sort_order', definition: 'INTEGER NOT NULL DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of migrations) {
@@ -384,6 +385,25 @@ export function initDatabase(db: Database.Database): void {
     db.prepare(`UPDATE projects SET vcs_type = 'git' WHERE vcs_type IS NULL AND is_git_repo = 1`).run();
   } catch {
     // ignore — column may not exist yet on extremely old DBs that fail the ALTER above
+  }
+
+  // Backfill sort_order for existing rows so projects keep their current
+  // created_at DESC order when first migrated. Only runs when every row is
+  // still at the default 0 (i.e. the column was just added).
+  try {
+    const allZero = db.prepare(
+      `SELECT COUNT(*) AS n FROM projects WHERE sort_order != 0`
+    ).get() as { n: number };
+    if (allZero.n === 0) {
+      const rows = db.prepare(`SELECT id FROM projects ORDER BY created_at DESC`).all() as { id: string }[];
+      const update = db.prepare(`UPDATE projects SET sort_order = ? WHERE id = ?`);
+      const backfill = db.transaction(() => {
+        rows.forEach((row, idx) => update.run(idx, row.id));
+      });
+      backfill();
+    }
+  } catch {
+    // ignore — sort_order column may not exist on very old DBs that failed the ALTER above
   }
 
   // Migrate legacy integration columns to plugin_configs table

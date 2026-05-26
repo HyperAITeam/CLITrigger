@@ -33,6 +33,7 @@ export interface Project {
   npm_auto_install: number;
   memory_auto_ingest: number;
   color: string | null;
+  sort_order: number;
   path_exists?: boolean;
   created_at: string;
   updated_at: string;
