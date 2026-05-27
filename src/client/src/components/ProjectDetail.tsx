@@ -293,11 +293,20 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       }
       if (event.type === 'session:status-changed' && event.sessionId) {
         setSessions((prev) =>
-          prev.map((s) =>
-            s.id === event.sessionId
-              ? { ...s, status: event.status as Session['status'], updated_at: new Date().toISOString() }
-              : s
-          )
+          prev.map((s) => {
+            if (s.id !== event.sessionId) return s;
+            const patch: Partial<Session> = {
+              status: event.status as Session['status'],
+              updated_at: new Date().toISOString(),
+            };
+            // Server attaches worktree_path/branch_name when transitioning to
+            // 'running' so the freshly-created worktree handles propagate to
+            // the session list — without this, cleanup button stays hidden
+            // because the optimistic add-row had both fields null.
+            if (event.worktree_path !== undefined) patch.worktree_path = event.worktree_path;
+            if (event.branch_name !== undefined) patch.branch_name = event.branch_name;
+            return { ...s, ...patch };
+          })
         );
       }
     });

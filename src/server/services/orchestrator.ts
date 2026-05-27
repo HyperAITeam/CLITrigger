@@ -359,9 +359,11 @@ export class Orchestrator {
         return;
       } else {
         // Create this task's own branch/worktree
-        branchName = worktreeManager.sanitizeBranchName(todo.title);
+        const requestedBranch = worktreeManager.sanitizeBranchName(todo.title);
         try {
-          worktreePath = await worktreeManager.createWorktree(projectPath, branchName, !!project.npm_auto_install);
+          const created = await worktreeManager.createWorktree(projectPath, requestedBranch, !!project.npm_auto_install);
+          worktreePath = created.worktreePath;
+          branchName = created.branchName;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           queries.updateTodoStatus(todoId, 'failed');
