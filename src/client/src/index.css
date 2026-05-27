@@ -397,6 +397,18 @@
     @apply mr-1.5;
   }
 
+  /* Vault preview zoom scope — overrides .markdown-content's absolute (rem)
+     sizes with em values so children inherit the wrapper's runtime font-size
+     set by useVaultZoom. Discussion messages and other .markdown-content
+     consumers without a .vault-md-zoom ancestor keep their original sizes. */
+  .vault-md-zoom .markdown-content { font-size: 1em; }
+  .vault-md-zoom .markdown-content h1 { font-size: 1.4em; }
+  .vault-md-zoom .markdown-content h2 { font-size: 1.2em; }
+  .vault-md-zoom .markdown-content h3 { font-size: 1.05em; }
+  .vault-md-zoom .markdown-content h4 { font-size: 1em; }
+  .vault-md-zoom .markdown-content code { font-size: 0.95em; }
+  .vault-md-zoom .markdown-content table { font-size: 1em; }
+
   /* Dark-theme markdown for LogViewer (terminal background) */
   .markdown-content-dark {
     @apply text-xs leading-relaxed;
