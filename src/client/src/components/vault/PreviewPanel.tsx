@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
-  Pencil, Save, X, Check,
+  Pencil, Save, Check,
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -226,10 +226,10 @@ export function PreviewPanel({
                 onClick={handleCancelEdit}
                 disabled={saving}
                 className="px-1.5 py-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 inline-flex items-center gap-1"
-                title={t('files.editor.cancel')}
+                title={t('files.editor.done')}
               >
-                <X className="w-3.5 h-3.5" />
-                <span>{t('files.editor.cancel')}</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>{t('files.editor.done')}</span>
               </button>
             </>
           ) : (
