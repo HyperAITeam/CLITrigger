@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
-  Code2, Sparkles, Pencil, Save, X, Check,
+  Pencil, Save, X, Check,
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -53,7 +53,6 @@ export function PreviewPanel({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [binaryMime, setBinaryMime] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ size: number; mtime: number } | null>(null);
-  const [viewMode, setViewMode] = useState<'rendered' | 'source'>('rendered');
   const [editMode, setEditMode] = useState(false);
   const [editorValue, setEditorValue] = useState('');
   const [savedValue, setSavedValue] = useState('');
@@ -89,7 +88,6 @@ export function PreviewPanel({
     setTextContent(null);
     setBinaryMime(null);
     setMeta(null);
-    setViewMode('rendered');
     setEditMode(false);
     setEditorValue('');
     setSavedValue('');
@@ -126,7 +124,6 @@ export function PreviewPanel({
   const isAudio = binaryMime?.startsWith('audio/') || AUDIO_EXT.has(ext);
   const isMarkdown = MARKDOWN_EXT.has(ext);
   const isHtml = HTML_EXT.has(ext);
-  const canToggleView = (isMarkdown || isHtml) && textContent !== null;
   const editable = !loading && !error && textContent !== null && !binaryMime;
 
   const handleSave = useCallback(async () => {
@@ -157,9 +154,8 @@ export function PreviewPanel({
 
   const handleEnterEdit = useCallback(() => {
     if (!editable) return;
-    if (isMarkdown || isHtml) setViewMode('source');
     setEditMode(true);
-  }, [editable, isMarkdown, isHtml]);
+  }, [editable]);
 
   const handleCancelEdit = useCallback(() => {
     if (dirty && !window.confirm(t('files.editor.discardConfirm'))) return;
@@ -248,25 +244,6 @@ export function PreviewPanel({
               </button>
             )
           )}
-          {!editMode && canToggleView && (
-            <button
-              onClick={() => setViewMode((m) => (m === 'rendered' ? 'source' : 'rendered'))}
-              className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
-              title={t('files.viewMode.toggleHint')}
-            >
-              {viewMode === 'rendered' ? (
-                <>
-                  <Code2 className="w-3.5 h-3.5" />
-                  <span>{t('files.viewMode.source')}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t('files.viewMode.rendered')}</span>
-                </>
-              )}
-            </button>
-          )}
           <button
             onClick={openInOS}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
@@ -315,7 +292,7 @@ export function PreviewPanel({
             />
           </div>
         )}
-        {!loading && !error && !editMode && textContent !== null && isMarkdown && viewMode === 'rendered' && (
+        {!loading && !error && !editMode && textContent !== null && isMarkdown && (
           <RenderErrorBoundary
             fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
           >
@@ -339,7 +316,7 @@ export function PreviewPanel({
             </div>
           </RenderErrorBoundary>
         )}
-        {!loading && !error && !editMode && textContent !== null && isHtml && viewMode === 'rendered' && (
+        {!loading && !error && !editMode && textContent !== null && isHtml && (
           <div className="flex flex-col h-full">
             <div className="px-3 py-1.5 text-xs text-warm-500 bg-warm-50 border-b border-warm-200 shrink-0">
               {t('files.html.sandboxNotice')}
@@ -352,7 +329,7 @@ export function PreviewPanel({
             />
           </div>
         )}
-        {!loading && !error && !editMode && textContent !== null && !(isMarkdown && viewMode === 'rendered') && !(isHtml && viewMode === 'rendered') && (
+        {!loading && !error && !editMode && textContent !== null && !isMarkdown && !isHtml && (
           <pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>
         )}
         {!loading && !error && binaryMime && isImage && (
