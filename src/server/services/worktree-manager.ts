@@ -87,7 +87,7 @@ export class WorktreeManager {
     }
   }
 
-  async createWorktree(projectPath: string, branchName: string, autoInstall = false): Promise<string> {
+  async createWorktree(projectPath: string, branchName: string, autoInstall = false): Promise<{ worktreePath: string; branchName: string }> {
     const git = createGit(projectPath);
 
     // Compute worktree directory
@@ -133,7 +133,7 @@ export class WorktreeManager {
       });
     }
 
-    return worktreePath;
+    return { worktreePath, branchName: actualBranch };
   }
 
   /**

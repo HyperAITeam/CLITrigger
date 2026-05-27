@@ -89,9 +89,11 @@ export class DiscussionOrchestrator {
     if (!worktreePath) {
       const useWorktree = !!project.is_git_repo && !!project.use_worktree;
       if (useWorktree) {
-        branchName = worktreeManager.sanitizeBranchName(`discuss-${discussion.title}`);
+        const requestedBranch = worktreeManager.sanitizeBranchName(`discuss-${discussion.title}`);
         try {
-          worktreePath = await worktreeManager.createWorktree(project.path, branchName, !!project.npm_auto_install);
+          const created = await worktreeManager.createWorktree(project.path, requestedBranch, !!project.npm_auto_install);
+          worktreePath = created.worktreePath;
+          branchName = created.branchName;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.error(`[discussion] Failed to create worktree for discussion ${discussionId}:`, message);

@@ -95,11 +95,16 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   useEffect(() => {
     const unsub = onEvent((event) => {
       if (event.type === 'session:status-changed' && event.sessionId) {
-        setSessions((prev) => prev.map((s) =>
-          s.id === event.sessionId
-            ? { ...s, status: event.status as Session['status'], updated_at: new Date().toISOString() }
-            : s,
-        ));
+        setSessions((prev) => prev.map((s) => {
+          if (s.id !== event.sessionId) return s;
+          const patch: Partial<Session> = {
+            status: event.status as Session['status'],
+            updated_at: new Date().toISOString(),
+          };
+          if (event.worktree_path !== undefined) patch.worktree_path = event.worktree_path;
+          if (event.branch_name !== undefined) patch.branch_name = event.branch_name;
+          return { ...s, ...patch };
+        }));
       }
     });
     return unsub;

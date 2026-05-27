@@ -207,9 +207,11 @@ export class SessionManager {
         workDir = worktreePath;
         queries.createSessionLog(sessionId, 'output', `Reusing existing worktree on branch ${branchName}`);
       } else {
-        branchName = worktreeManager.sanitizeBranchName(`session-${session.title}`);
+        const requestedBranch = worktreeManager.sanitizeBranchName(`session-${session.title}`);
         try {
-          worktreePath = await worktreeManager.createWorktree(project.path, branchName, !!project.npm_auto_install);
+          const created = await worktreeManager.createWorktree(project.path, requestedBranch, !!project.npm_auto_install);
+          worktreePath = created.worktreePath;
+          branchName = created.branchName;
           workDir = worktreePath;
           queries.createSessionLog(sessionId, 'output', `Created worktree on branch ${branchName}`);
         } catch (err) {
@@ -282,7 +284,7 @@ export class SessionManager {
         `Resumed Claude session via --continue (cwd: ${workDir}) — picks latest conversation in this directory`,
       );
     }
-    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running' });
+    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running', worktree_path: worktreePath, branch_name: branchName });
     broadcastProjectStatus(session.project_id);
 
     // Handle process exit
