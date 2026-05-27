@@ -13,6 +13,7 @@ import { OutlinePanel } from './panels/OutlinePanel';
 import { BacklinksPanel } from './panels/BacklinksPanel';
 import { OutgoingLinksPanel } from './panels/OutgoingLinksPanel';
 import { CenterEditor } from './CenterEditor';
+import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 
 interface Props {
   projectId: string;
@@ -35,6 +36,23 @@ export default function VaultLayout({ projectId }: Props) {
   }, [projectId]);
 
   useEffect(() => { reloadVault(); }, [reloadVault]);
+
+  // Ctrl/Cmd + wheel → Vault font zoom. React onWheel is passive by default
+  // so we attach natively with passive:false to preventDefault the browser's
+  // page zoom. Non-zoom wheel events pass through unchanged for normal scroll.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.deltaY === 0) return;
+      bumpVaultZoom(projectId, e.deltaY < 0 ? +1 : -1);
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [projectId]);
 
   const onLeftResize = useCallback((clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();

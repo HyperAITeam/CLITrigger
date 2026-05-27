@@ -11,6 +11,7 @@ import type { FileEntry } from '../../api/files';
 import { ApiError } from '../../api/client';
 import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
+import { useVaultZoom } from '../../hooks/useVaultZoom';
 import MarkdownContent from '../MarkdownContent';
 import ToastContainer from '../Toast';
 import {
@@ -48,6 +49,7 @@ export function PreviewPanel({
   const { t } = useI18n();
   const { theme } = useTheme();
   const { toasts, error: toastError, dismiss: dismissToast } = useToast();
+  const [zoom] = useVaultZoom(projectId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -280,14 +282,14 @@ export function PreviewPanel({
           </div>
         )}
         {!loading && !error && editMode && (
-          <div className="h-full" onKeyDown={onEditorKeyDown}>
+          <div className="h-full" style={{ fontSize: `${zoom}px` }} onKeyDown={onEditorKeyDown}>
             <CodeMirror
               value={editorValue}
               onChange={setEditorValue}
               extensions={languageExtensionFor(ext)}
               theme={theme === 'dark' ? oneDark : 'light'}
               height="100%"
-              className="h-full text-xs"
+              className="h-full"
               basicSetup={{ lineNumbers: true, foldGutter: false, highlightActiveLine: true }}
             />
           </div>
@@ -296,7 +298,7 @@ export function PreviewPanel({
           <RenderErrorBoundary
             fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
           >
-            <div className="p-4">
+            <div className="p-4 vault-md-zoom" style={{ fontSize: `${zoom}px` }}>
               <MarkdownContent
                 content={textContent}
                 onLinkClick={onNavigateFile ? (href) => {
