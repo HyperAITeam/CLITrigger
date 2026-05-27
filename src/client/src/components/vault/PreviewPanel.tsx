@@ -1,7 +1,7 @@
-import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
-  Code2, Sparkles, Pencil, Save, X,
+  Code2, Sparkles, Pencil, Save, X, Check,
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -47,7 +47,7 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
-  const { toasts, success: toastSuccess, error: toastError, dismiss: dismissToast } = useToast();
+  const { toasts, error: toastError, dismiss: dismissToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -59,7 +59,13 @@ export function PreviewPanel({
   const [savedValue, setSavedValue] = useState('');
   const [savedMtime, setSavedMtime] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = editMode && editorValue !== savedValue;
+
+  useEffect(() => () => {
+    if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current);
+  }, []);
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -132,7 +138,9 @@ export function PreviewPanel({
       setSavedMtime(res.mtime);
       setTextContent(editorValue);
       setMeta({ size: res.size, mtime: res.mtime });
-      toastSuccess(t('files.editor.saved'));
+      setSavedFlash(true);
+      if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current);
+      savedFlashTimer.current = setTimeout(() => setSavedFlash(false), 800);
       onSaved?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -145,7 +153,7 @@ export function PreviewPanel({
     } finally {
       setSaving(false);
     }
-  }, [path, savedMtime, editorValue, saving, projectId, toastSuccess, toastError, t, onSaved]);
+  }, [path, savedMtime, editorValue, saving, projectId, toastError, t, onSaved]);
 
   const handleEnterEdit = useCallback(() => {
     if (!editable) return;
@@ -212,6 +220,12 @@ export function PreviewPanel({
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{t('files.editor.save')}</span>
               </button>
+              {savedFlash && (
+                <span className="inline-flex items-center gap-1 text-status-success text-xs transition-opacity duration-200">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{t('files.editor.saved')}</span>
+                </span>
+              )}
               <button
                 onClick={handleCancelEdit}
                 disabled={saving}
