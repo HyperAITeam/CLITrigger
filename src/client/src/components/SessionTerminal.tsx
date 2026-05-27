@@ -504,6 +504,15 @@ export default function SessionTerminal({
   // Coalescing rapid Ctrl+=/Ctrl+- presses into a single resize keeps the
   // duplication count bounded. The fontSize timer uses a dedicated ref so
   // ResizeObserver callbacks can't shorten the window.
+  //
+  // Alternate buffer has no scrollback, and xterm.js truncates from the top
+  // when rows shrink there — so a fit() that lowers rows permanently drops
+  // the oldest TUI lines (Claude/Codex/Gemini conversation history above the
+  // input box). We only mutate the glyph size in that mode and leave cols/
+  // rows pinned to whatever the CLI last drew at; the layout becomes a bit
+  // smaller/larger than the viewport but no data is lost. Normal buffer
+  // (plain shells) keeps the old fit + refresh + SIGWINCH path because its
+  // reflow preserves scrollback.
   useEffect(() => {
     const term = termRef.current;
     const fitAddon = fitAddonRef.current;
@@ -523,26 +532,33 @@ export default function SessionTerminal({
         canvasAddonRef.current = addon;
       } catch { /* DOM renderer fallback */ }
     }
+    const bufferType = term.buffer.active.type;
+    if (bufferType === 'alternate') {
+      if (import.meta.env.DEV) {
+        console.debug(
+          `[session-fontsize] sessionId=${sessionId} type=alternate cols=${term.cols} rows=${term.rows} length=${term.buffer.active.length} cursorY=${term.buffer.active.cursorY} action=skip-alternate`,
+        );
+      }
+      return;
+    }
     try {
       fitAddon.fit();
       term.refresh(0, term.rows - 1);
     } catch { /* container may be hidden */ }
+    if (import.meta.env.DEV) {
+      console.debug(
+        `[session-fontsize] sessionId=${sessionId} type=${term.buffer.active.type} cols=${term.cols} rows=${term.rows} length=${term.buffer.active.length} cursorY=${term.buffer.active.cursorY} action=fit`,
+      );
+    }
     // Skip the resize broadcast entirely if the cell grid didn't actually
     // change — avoids a needless SIGWINCH (and CLI redraw) for sub-pixel
     // font tweaks that fit the same cols/rows.
     if (term.cols === lastResizeRef.current.cols && term.rows === lastResizeRef.current.rows) return;
     if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
     fontSizeResizeTimerRef.current = setTimeout(() => {
-      // Claude/Codex/Gemini re-emit their welcome banner on SIGWINCH, which
-      // stacks duplicates in scrollback. Wiping the xterm display buffer
-      // *before* the resize broadcast lets the CLI's redraw land on a clean
-      // screen — the trade-off is that any prior on-screen output (welcome,
-      // earlier conversation) disappears from the visible scrollback on every
-      // grid-changing font zoom. The PTY-side conversation is unaffected.
-      try { termRef.current?.clear(); } catch { /* ignore */ }
       sendResizeRef.current?.();
     }, 300);
-  }, [fontSize]);
+  }, [fontSize, sessionId]);
 
   // Apply theme changes without re-creating the terminal. xterm.js repaints
   // on options.theme assignment; refresh() is needed because already-rendered
