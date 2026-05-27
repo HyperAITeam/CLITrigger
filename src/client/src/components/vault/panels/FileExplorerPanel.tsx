@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile } from '../../../api/files';
@@ -177,7 +177,59 @@ interface ContextMenuState {
   entry: FileEntry;
 }
 
-function ContextMenu({ state, projectId, onClose }: { state: ContextMenuState; projectId: string; onClose: () => void }) {
+interface PinnedItem {
+  path: string;
+  type: FileEntry['type'];
+  name: string;
+}
+
+function PinnedSection({
+  items, selectedPath, onSelect, onContextMenu,
+}: {
+  items: PinnedItem[];
+  selectedPath: string | null;
+  onSelect: (path: string, entry: FileEntry) => void;
+  onContextMenu: (e: React.MouseEvent, path: string, entry: FileEntry) => void;
+}) {
+  const { t } = useI18n();
+  if (items.length === 0) return null;
+  return (
+    <div className="border-b border-warm-200 py-1">
+      <div className="px-2 py-0.5 text-[10px] uppercase tracking-wider text-warm-400 font-medium">
+        {t('files.pinned')}
+      </div>
+      {items.map((item) => {
+        const entry: FileEntry = { name: item.name, type: item.type, size: null, mtime: null, hidden: false };
+        const isSelected = selectedPath === item.path;
+        return (
+          <button
+            key={item.path}
+            type="button"
+            onClick={() => onSelect(item.path, entry)}
+            onContextMenu={(e) => onContextMenu(e, item.path, entry)}
+            className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded transition-colors ${
+              isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
+            }`}
+            style={{ paddingLeft: 4 }}
+            title={item.path}
+          >
+            <Pin className="w-3 h-3 shrink-0 text-amber-500" />
+            {iconFor(entry, false)}
+            <span className="truncate">{item.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ContextMenu({ state, projectId, isPinned, onTogglePin, onClose }: {
+  state: ContextMenuState;
+  projectId: string;
+  isPinned: boolean;
+  onTogglePin: () => void;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: state.y, left: state.x, visible: false });
@@ -271,6 +323,16 @@ function ContextMenu({ state, projectId, onClose }: { state: ContextMenuState; p
       <div className="my-1 border-t border-warm-200" />
       <button
         type="button"
+        onClick={() => { onTogglePin(); onClose(); }}
+        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+      >
+        {isPinned
+          ? <PinOff className="w-3.5 h-3.5" />
+          : <Pin className="w-3.5 h-3.5" />}
+        <span>{isPinned ? t('files.unpin') : t('files.pin')}</span>
+      </button>
+      <button
+        type="button"
         onClick={copyPath}
         className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
       >
@@ -294,7 +356,32 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile }: Props
     try { return localStorage.getItem(`${lsKey}:showHidden`) === '1'; } catch { /* ignore */ }
     return false;
   });
+  const [pinned, setPinned] = useState<PinnedItem[]>(() => {
+    try {
+      const raw = localStorage.getItem(`${lsKey}:pinned`);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((x): x is PinnedItem =>
+        x && typeof x.path === 'string' && typeof x.name === 'string' &&
+        (x.type === 'file' || x.type === 'directory' || x.type === 'symlink' || x.type === 'other'),
+      );
+    } catch { return []; }
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem(`${lsKey}:pinned`, JSON.stringify(pinned)); } catch { /* ignore */ }
+  }, [pinned, lsKey]);
+
+  const pinnedPaths = useMemo(() => new Set(pinned.map(p => p.path)), [pinned]);
+
+  const togglePin = useCallback((path: string, entry: FileEntry) => {
+    setPinned((prev) => {
+      if (prev.some(p => p.path === path)) return prev.filter(p => p.path !== path);
+      return [...prev, { path, type: entry.type, name: entry.name }];
+    });
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(`${lsKey}:showHidden`, showHidden ? '1' : '0'); } catch { /* ignore */ }
@@ -393,6 +480,12 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile }: Props
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-auto py-1">
+        <PinnedSection
+          items={pinned}
+          selectedPath={activeFile}
+          onSelect={handleSelect}
+          onContextMenu={handleContextMenu}
+        />
         {rootLoading && !rootEntries && (
           <div className="flex items-center gap-1 text-xs text-warm-400 px-2 py-1">
             <Loader2 className="w-3 h-3 animate-spin" /> {t('files.loading')}
@@ -425,6 +518,8 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile }: Props
         <ContextMenu
           state={contextMenu}
           projectId={projectId}
+          isPinned={pinnedPaths.has(contextMenu.path)}
+          onTogglePin={() => togglePin(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
         />
       )}
