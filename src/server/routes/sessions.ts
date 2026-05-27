@@ -365,7 +365,10 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
     }
 
     const deleteBranch = req.body.delete_branch !== false;
-    const result = { worktreeRemoved: false, branchDeleted: false };
+    const result: { worktreeRemoved: boolean; branchDeleted: boolean; worktreeError?: string; branchError?: string } = {
+      worktreeRemoved: false,
+      branchDeleted: false,
+    };
 
     if (session.worktree_path || session.branch_name) {
       const cleanup = await worktreeManager.cleanupWorktree(
@@ -376,10 +379,18 @@ router.post('/sessions/:id/cleanup', async (req: Request<{ id: string }>, res: R
       );
       result.worktreeRemoved = cleanup.worktreeRemoved;
       result.branchDeleted = cleanup.branchDeleted;
+      if (cleanup.worktreeError) result.worktreeError = cleanup.worktreeError;
+      if (cleanup.branchError) result.branchError = cleanup.branchError;
 
-      const updates: Record<string, null> = { worktree_path: null };
-      if (deleteBranch) updates.branch_name = null;
-      queries.updateSession(req.params.id, updates as any);
+      // Only clear DB fields that were actually cleaned up — otherwise the UI
+      // would lose the handle to a still-existing worktree/branch and the user
+      // couldn't retry from the UI.
+      const updates: Record<string, null> = {};
+      if (cleanup.worktreeRemoved) updates.worktree_path = null;
+      if (deleteBranch && cleanup.branchDeleted) updates.branch_name = null;
+      if (Object.keys(updates).length > 0) {
+        queries.updateSession(req.params.id, updates as any);
+      }
     }
 
     res.json({ success: true, ...result });

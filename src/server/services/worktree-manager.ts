@@ -103,32 +103,26 @@ export class WorktreeManager {
     // Ensure .worktrees is in .gitignore
     this.ensureGitignore(projectPath, '.worktrees');
 
-    // Find a unique directory name (append -2, -3, etc. if already exists)
+    // Find a unique directory name AND branch name. Bump the suffix until
+    // neither the worktree dir nor the branch exists. This prevents a new
+    // session from silently reusing a leftover branch when a prior cleanup
+    // removed the directory but failed to delete the branch.
+    const branchSummary = await git.branchLocal();
+    const branchExists = (name: string) => branchSummary.all.includes(name);
+
     let dirName = baseDirName;
     let worktreePath = path.resolve(worktreeBase, dirName);
+    let actualBranch = branchName;
     let suffix = 1;
-    while (fs.existsSync(worktreePath)) {
+    while (fs.existsSync(worktreePath) || branchExists(actualBranch)) {
       suffix++;
       dirName = `${baseDirName}-${suffix}`;
       worktreePath = path.resolve(worktreeBase, dirName);
-    }
-
-    // Also deduplicate branch name if directory needed a suffix
-    let actualBranch = branchName;
-    if (suffix > 1) {
       actualBranch = `${branchName}-${suffix}`;
     }
 
-    // Create a new branch and worktree
-    // First, check if the branch already exists
-    const branchSummary = await git.branchLocal();
-    if (branchSummary.all.includes(actualBranch)) {
-      // Branch exists, create worktree using existing branch
-      await git.raw(['worktree', 'add', worktreePath, actualBranch]);
-    } else {
-      // Create new branch with worktree
-      await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
-    }
+    // actualBranch is guaranteed unique now — always create a fresh branch.
+    await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
 
     // Auto-install dependencies in the background (non-blocking).
     // Opt-in per project (npm_auto_install) — the worktree flow itself is language-agnostic,
@@ -183,39 +177,79 @@ export class WorktreeManager {
 
   /**
    * Remove a worktree, delete its branch, and clean up the DB record.
-   * Returns info about what was cleaned up.
+   * Reports per-step success/failure so callers can avoid optimistic UI
+   * clears when git refused (e.g. branch still checked out in a stale
+   * worktree dir locked by a process on Windows).
    */
-  async cleanupWorktree(projectPath: string, worktreePath: string, branchName: string, deleteBranch = true): Promise<{ worktreeRemoved: boolean; branchDeleted: boolean }> {
-    const result = { worktreeRemoved: false, branchDeleted: false };
+  async cleanupWorktree(projectPath: string, worktreePath: string, branchName: string, deleteBranch = true): Promise<{
+    worktreeRemoved: boolean;
+    branchDeleted: boolean;
+    worktreeError?: string;
+    branchError?: string;
+  }> {
+    const result: { worktreeRemoved: boolean; branchDeleted: boolean; worktreeError?: string; branchError?: string } = {
+      worktreeRemoved: false,
+      branchDeleted: false,
+    };
     const git = createGit(projectPath);
 
-    // 1. Remove worktree
-    try {
-      if (fs.existsSync(worktreePath)) {
+    // 1. Remove worktree. `worktree remove --force` does both the admin entry
+    // and the directory; if that fails (locked file on Windows is common),
+    // try harder: rmSync the directory ourselves, then prune the admin entry.
+    const dirExisted = !!worktreePath && fs.existsSync(worktreePath);
+    if (worktreePath && dirExisted) {
+      try {
         await git.raw(['worktree', 'remove', worktreePath, '--force']);
-        result.worktreeRemoved = true;
-      } else {
-        // Directory already gone, just prune
-        await git.raw(['worktree', 'prune']);
-        result.worktreeRemoved = true;
+      } catch (err) {
+        result.worktreeError = err instanceof Error ? err.message : String(err);
+        // Fallback: nuke the directory + prune admin entry.
+        try {
+          fs.rmSync(worktreePath, { recursive: true, force: true });
+        } catch (rmErr) {
+          result.worktreeError = `${result.worktreeError}; rm fallback failed: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`;
+        }
+        try {
+          await git.raw(['worktree', 'prune']);
+        } catch {
+          // prune is best-effort; the rmSync above is the load-bearing step
+        }
       }
-    } catch {
-      // Fallback: prune stale worktrees
+    } else {
+      // Directory wasn't there to begin with — just prune any stale admin entry
       try {
         await git.raw(['worktree', 'prune']);
-        result.worktreeRemoved = true;
       } catch {
-        // Ignore
+        // ignore — nothing to prune
       }
     }
+    // Final check: directory gone == worktree gone from git's perspective too
+    result.worktreeRemoved = !worktreePath || !fs.existsSync(worktreePath);
+    if (result.worktreeRemoved) {
+      // success — clear any earlier transient error
+      result.worktreeError = undefined;
+    }
 
-    // 2. Delete the branch (only if requested)
+    // 2. Delete the branch (only if requested). If the worktree admin entry
+    // is still pinning the branch, `branch -D` errors with "checked out at" —
+    // try one more prune then retry, then surface the error.
     if (deleteBranch && branchName) {
+      const tryDelete = async () => git.raw(['branch', '-D', branchName]);
       try {
-        await git.raw(['branch', '-D', branchName]);
+        await tryDelete();
         result.branchDeleted = true;
-      } catch {
-        // Branch may already be deleted or not exist
+      } catch (err) {
+        try {
+          await git.raw(['worktree', 'prune']);
+          await tryDelete();
+          result.branchDeleted = true;
+        } catch (err2) {
+          result.branchError = err2 instanceof Error ? err2.message : String(err2);
+          // Original error often more useful — keep both
+          const firstMsg = err instanceof Error ? err.message : String(err);
+          if (firstMsg && firstMsg !== result.branchError) {
+            result.branchError = `${firstMsg} (retry: ${result.branchError})`;
+          }
+        }
       }
     }
 
