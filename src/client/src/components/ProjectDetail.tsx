@@ -687,13 +687,23 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   }, []);
 
   const handleCleanupSession = useCallback(async (sessionId: string, deleteBranch: boolean) => {
-    await sessionsApi.cleanupSession(sessionId, deleteBranch);
+    const res = await sessionsApi.cleanupSession(sessionId, deleteBranch);
     setSessions((prev) =>
-      prev.map((s) => s.id === sessionId
-        ? { ...s, worktree_path: null, ...(deleteBranch ? { branch_name: null } : {}) }
-        : s
-      )
+      prev.map((s) => {
+        if (s.id !== sessionId) return s;
+        const patch: Partial<typeof s> = {};
+        if (res.worktreeRemoved) patch.worktree_path = null;
+        if (deleteBranch && res.branchDeleted) patch.branch_name = null;
+        return { ...s, ...patch };
+      })
     );
+    // Surface partial failures so the user knows git still has the branch/worktree.
+    const failures: string[] = [];
+    if (!res.worktreeRemoved) failures.push(`worktree: ${res.worktreeError || 'unknown error'}`);
+    if (deleteBranch && !res.branchDeleted) failures.push(`branch: ${res.branchError || 'unknown error'}`);
+    if (failures.length > 0) {
+      alert(`Cleanup partially failed:\n${failures.join('\n')}`);
+    }
   }, []);
 
   const handleStartAll = useCallback(async () => {
