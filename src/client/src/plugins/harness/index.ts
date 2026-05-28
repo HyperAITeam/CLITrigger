@@ -8,7 +8,7 @@ export const harnessClientPlugin: ClientPluginManifest = {
   displayNameKo: '하네스',
   PanelComponent: HarnessPanel,
   SettingsComponent: HarnessSettings,
-  hasTab: true,
+  hasTab: false,
   isEnabled: (project) => !!project.path,
   translations: {
     en: {
@@ -16,7 +16,6 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'tabs.harness.help': 'Edit your global Claude/Gemini/Codex CLI config — settings, memory, and MCP servers — without leaving the project. Note: changes affect your user-level CLI dirs, not the worktree.',
       'harness.settingsTitle': 'Harness Configuration',
       'harness.settingsDesc': 'Edit Claude / Gemini / Codex CLI settings, memory files, and MCP servers.',
-      'harness.openTabHint': 'Open the Harness tab to edit per-CLI configuration.',
       'harness.loading': 'Loading harness configuration…',
       'harness.cli.claude': 'Claude',
       'harness.cli.gemini': 'Gemini',
@@ -67,7 +66,6 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'tabs.harness.help': 'Claude/Gemini/Codex의 사용자 설정·메모리·MCP 서버를 한 곳에서 편집. 변경은 worktree가 아니라 사용자 글로벌 CLI 디렉토리에 적용됩니다.',
       'harness.settingsTitle': '하네스 구성',
       'harness.settingsDesc': 'Claude / Gemini / Codex CLI 설정·메모리 파일·MCP 서버를 편집합니다.',
-      'harness.openTabHint': '하네스 탭에서 CLI별 구성을 편집하세요.',
       'harness.loading': '하네스 구성 불러오는 중…',
       'harness.cli.claude': 'Claude',
       'harness.cli.gemini': 'Gemini',
