@@ -4,8 +4,8 @@ import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
 import type { ImageMeta, MemoryInjectMode, Todo } from '../types';
+import type { VaultInjectMode } from '../api/vault';
 import { getTodoImageUrl } from '../api/todos';
-import { parseMemoryNodeIds } from '../api/memory';
 
 function parseRawFilePaths(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -16,7 +16,7 @@ function parseRawFilePaths(raw: string | null | undefined): string[] {
     return [];
   }
 }
-import MemoryInjectControl from './MemoryInjectControl';
+import VaultInjectControl from './VaultInjectControl';
 
 export interface PendingImage {
   id: string;
@@ -36,7 +36,6 @@ interface TodoFormProps {
   initialMaxTurns?: number;
   initialUseWorktree?: number | null;
   initialMemoryInjectMode?: MemoryInjectMode;
-  initialMemoryNodeIds?: string | null;
   initialMemoryRawFilePaths?: string | null;
   projectId?: string;
   projectCliTool?: string;
@@ -62,7 +61,6 @@ export default function TodoForm({
   initialMaxTurns,
   initialUseWorktree = null,
   initialMemoryInjectMode = 'none',
-  initialMemoryNodeIds = null,
   initialMemoryRawFilePaths = null,
   projectId,
   projectCliTool = 'claude',
@@ -84,8 +82,8 @@ export default function TodoForm({
     initialUseWorktree === 1 ? 'force-on' : initialUseWorktree === 0 ? 'force-off' : 'inherit'
   );
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initialMemoryInjectMode);
-  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(parseMemoryNodeIds(initialMemoryNodeIds));
-  const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(parseRawFilePaths(initialMemoryRawFilePaths));
+  const [vaultPaths, setVaultPaths] = useState<string[]>(parseRawFilePaths(initialMemoryRawFilePaths));
+  const [includeLinked, setIncludeLinked] = useState<boolean>(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImgs, setExistingImgs] = useState<ImageMeta[]>(existingImages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -169,7 +167,7 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
+    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -407,13 +405,16 @@ export default function TodoForm({
 
       {projectId && (
         <div className="mb-4">
-          <MemoryInjectControl
+          <VaultInjectControl
             projectId={projectId}
-            mode={memoryInjectMode}
-            selectedIds={memoryNodeIds}
-            onChange={(mode, ids) => { setMemoryInjectMode(mode); setMemoryNodeIds(ids); }}
-            rawFilePaths={memoryRawFilePaths}
-            onChangeRawFiles={setMemoryRawFilePaths}
+            mode={memoryInjectMode as VaultInjectMode}
+            selectedPaths={vaultPaths}
+            includeLinked={includeLinked}
+            onChange={(m, paths, linked) => {
+              setMemoryInjectMode(m as MemoryInjectMode);
+              setVaultPaths(paths);
+              setIncludeLinked(linked);
+            }}
           />
         </div>
       )}

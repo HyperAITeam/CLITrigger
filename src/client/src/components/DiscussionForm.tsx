@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { DiscussionAgent, MemoryInjectMode } from '../types';
 import type { DiscussionInput } from '../api/discussions';
 import { useI18n } from '../i18n';
-import MemoryInjectControl from './MemoryInjectControl';
+import VaultInjectControl from './VaultInjectControl';
+import type { VaultInjectMode } from '../api/vault';
 
 export interface DiscussionFormValues {
   title: string;
@@ -51,6 +52,7 @@ export default function DiscussionForm({
 }: DiscussionFormProps) {
   const { t, lang } = useI18n();
   const [values, setValues] = useState<DiscussionFormValues>({ ...DEFAULT_VALUES, ...initialValues });
+  const [includeLinked, setIncludeLinked] = useState<boolean>(false);
 
   useEffect(() => {
     setValues({ ...DEFAULT_VALUES, ...initialValues });
@@ -313,13 +315,20 @@ export default function DiscussionForm({
 
           {projectId && (
             <div>
-              <MemoryInjectControl
+              <VaultInjectControl
                 projectId={projectId}
-                mode={values.memory_inject_mode}
-                selectedIds={values.memory_node_ids}
-                onChange={(mode, ids) => setValues(prev => ({ ...prev, memory_inject_mode: mode, memory_node_ids: ids }))}
-                rawFilePaths={values.memory_raw_file_paths}
-                onChangeRawFiles={(paths) => setValues(prev => ({ ...prev, memory_raw_file_paths: paths }))}
+                mode={values.memory_inject_mode as VaultInjectMode}
+                selectedPaths={values.memory_raw_file_paths}
+                includeLinked={includeLinked}
+                onChange={(m, paths, linked) => {
+                  setValues(prev => ({
+                    ...prev,
+                    memory_inject_mode: m as MemoryInjectMode,
+                    memory_node_ids: [],
+                    memory_raw_file_paths: paths,
+                  }));
+                  setIncludeLinked(linked);
+                }}
               />
             </div>
           )}

@@ -28,9 +28,12 @@ function getProjectRoot(req: Request, res: Response): { project: queries.Project
   return { project, root: project.path };
 }
 
-function isPathSafe(projectRoot: string, relativePath: string): boolean {
+function isPathSafe(projectRoot: string, relativePath: string, allowHtml = false): boolean {
   if (!relativePath || typeof relativePath !== 'string') return false;
-  if (!relativePath.endsWith('.md')) return false;
+  const lower = relativePath.toLowerCase();
+  const isMd = lower.endsWith('.md');
+  const isHtml = lower.endsWith('.html') || lower.endsWith('.htm');
+  if (!isMd && !(allowHtml && isHtml)) return false;
   const resolved = pathModule.resolve(projectRoot, relativePath);
   return resolved.startsWith(pathModule.resolve(projectRoot) + pathModule.sep);
 }
@@ -64,7 +67,7 @@ router.get('/projects/:id/vault/file', (req: Request, res: Response) => {
   const ctx = getProjectRoot(req, res);
   if (!ctx) return;
   const filePath = req.query.path as string;
-  if (!isPathSafe(ctx.root, filePath)) {
+  if (!isPathSafe(ctx.root, filePath, true)) {
     res.status(400).json({ error: 'Invalid file path' });
     return;
   }
@@ -167,10 +170,13 @@ router.post('/projects/:id/vault/preview', (req: Request, res: Response) => {
     res.status(400).json({ error: 'mode must be "all" or "selected"' });
     return;
   }
+  const sanitizedPaths = Array.isArray(filePaths)
+    ? filePaths.filter((p: unknown): p is string => typeof p === 'string' && isPathSafe(ctx.root, p, true))
+    : [];
   const result = buildVaultBlock({
     projectRoot: ctx.root,
     mode,
-    filePaths: filePaths ?? [],
+    filePaths: sanitizedPaths,
   });
   res.json({
     block: result?.block ?? '',

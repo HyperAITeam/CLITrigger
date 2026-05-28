@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
-import MemoryInjectControl from './MemoryInjectControl';
+import VaultInjectControl from './VaultInjectControl';
 import type { MemoryInjectMode, SessionTag } from '../types';
+import type { VaultInjectMode } from '../api/vault';
 import * as tagsApi from '../api/sessionTags';
 import * as settingsApi from '../api/sessionSettings';
 
@@ -50,9 +51,9 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [cliTool, setCliTool] = useState(initial?.cliTool ?? (projectCliTool || ''));
   const [cliModel, setCliModel] = useState(initial?.cliModel ?? (projectCliModel || ''));
   const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? !!projectUseWorktree);
-  const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initial?.memoryInjectMode ?? 'none');
-  const [memoryNodeIds, setMemoryNodeIds] = useState<string[]>(initial?.memoryNodeIds ?? []);
-  const [memoryRawFilePaths, setMemoryRawFilePaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
+  const [vaultMode, setVaultMode] = useState<VaultInjectMode>((initial?.memoryInjectMode as VaultInjectMode | undefined) ?? 'none');
+  const [vaultPaths, setVaultPaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
+  const [includeLinked, setIncludeLinked] = useState<boolean>(false);
   const [tagId, setTagId] = useState<string | null>(initial?.tagId ?? null);
   const [tags, setTags] = useState<SessionTag[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -131,9 +132,9 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       cliTool || undefined,
       cliModel || undefined,
       useWorktree,
-      memoryInjectMode,
-      memoryNodeIds,
-      memoryRawFilePaths,
+      vaultMode as MemoryInjectMode,
+      [],
+      vaultPaths,
       tagId,
     );
   };
@@ -219,13 +220,12 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         </label>
       )}
       {!isRawShell && (
-        <MemoryInjectControl
+        <VaultInjectControl
           projectId={projectId}
-          mode={memoryInjectMode}
-          selectedIds={memoryNodeIds}
-          onChange={(m, ids) => { setMemoryInjectMode(m); setMemoryNodeIds(ids); }}
-          rawFilePaths={memoryRawFilePaths}
-          onChangeRawFiles={setMemoryRawFilePaths}
+          mode={vaultMode}
+          selectedPaths={vaultPaths}
+          includeLinked={includeLinked}
+          onChange={(m, paths, linked) => { setVaultMode(m); setVaultPaths(paths); setIncludeLinked(linked); }}
         />
       )}
       <div className="flex justify-end gap-2">
