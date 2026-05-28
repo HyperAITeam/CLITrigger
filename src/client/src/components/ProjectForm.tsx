@@ -5,7 +5,7 @@ import { browseNativeFolder } from '../api/projects';
 import Modal from './Modal';
 
 interface ProjectFormProps {
-  onSubmit: (name: string, path: string) => void;
+  onSubmit: (name: string, path: string) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -13,12 +13,23 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
   const [browsing, setBrowsing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const { t } = useI18n();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !path.trim()) return;
-    onSubmit(name.trim(), path.trim());
+    setError('');
+    setSubmitting(true);
+    try {
+      await onSubmit(name.trim(), path.trim());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || t('form.createError'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleBrowse = async () => {
@@ -78,6 +89,9 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
                 </button>
               </div>
             </div>
+            {error && (
+              <p className="text-sm mb-4" style={{ color: 'var(--color-danger, #ef4444)' }}>{error}</p>
+            )}
             <div className="flex justify-end gap-3">
               <button
                 type="button"
@@ -88,10 +102,10 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || !path.trim()}
+                disabled={!name.trim() || !path.trim() || submitting}
                 className="btn-primary text-sm"
               >
-                {t('form.create')}
+                {submitting ? t('form.creating') : t('form.create')}
               </button>
             </div>
           </form>
