@@ -1,5 +1,7 @@
 import { get, post, put, del } from './client';
 
+export type VaultFileKind = 'md' | 'html';
+
 export interface VaultFile {
   relativePath: string;
   stem: string;
@@ -9,6 +11,7 @@ export interface VaultFile {
   size: number;
   mtime: string;
   bodyPreview: string;
+  kind: VaultFileKind;
 }
 
 export interface VaultEdge {

@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { parseWikilinks } from './memory-wikilinks.js';
 
+export type VaultFileKind = 'md' | 'html';
+
 export interface VaultFile {
   relativePath: string;
   stem: string;
@@ -11,6 +13,7 @@ export interface VaultFile {
   size: number;
   mtime: string;
   bodyPreview: string;
+  kind: VaultFileKind;
 }
 
 export interface VaultEdge {
@@ -91,7 +94,7 @@ function walkDir(dir: string, root: string, excludes: string[], results: string[
 
     if (entry.isDirectory()) {
       walkDir(fullPath, root, excludes, results);
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+    } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm'))) {
       results.push(rel);
     }
   }
@@ -118,27 +121,47 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
       content = fs.readFileSync(abs, 'utf-8');
     } catch { continue; }
 
-    const { frontmatter, body } = parseFrontmatter(content);
-    const stem = path.basename(rel, '.md');
+    const lower = rel.toLowerCase();
+    const kind: VaultFileKind = lower.endsWith('.md') ? 'md' : 'html';
+    const ext = kind === 'md' ? '.md' : (lower.endsWith('.html') ? '.html' : '.htm');
+    const stem = path.basename(rel, ext);
+
+    let title = stem;
     const tags: string[] = [];
-    if (frontmatter?.tags) {
-      const raw = frontmatter.tags;
-      if (Array.isArray(raw)) {
-        tags.push(...raw.map(String).filter(Boolean));
-      } else if (typeof raw === 'string') {
-        tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
+    let wikilinks: string[] = [];
+    let bodyFlat = '';
+
+    if (kind === 'md') {
+      const { frontmatter, body } = parseFrontmatter(content);
+      if (frontmatter?.tags) {
+        const raw = frontmatter.tags;
+        if (Array.isArray(raw)) {
+          tags.push(...raw.map(String).filter(Boolean));
+        } else if (typeof raw === 'string') {
+          tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
+        }
       }
+      const refs = parseWikilinks(body);
+      wikilinks = [...new Set(refs.map(r => r.title))];
+      bodyFlat = body.replace(/\s+/g, ' ').trim();
+      title = (frontmatter?.title as string) || stem;
+    } else {
+      const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
+      if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
+      const stripped = content
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      bodyFlat = stripped.replace(/\s+/g, ' ').trim();
     }
 
-    const refs = parseWikilinks(body);
-    const wikilinks = [...new Set(refs.map(r => r.title))];
-
-    const bodyFlat = body.replace(/\s+/g, ' ').trim();
     const bodyPreview = bodyFlat.length > BODY_PREVIEW_LEN
       ? bodyFlat.slice(0, BODY_PREVIEW_LEN) + '…'
       : bodyFlat;
-
-    const title = (frontmatter?.title as string) || stem;
 
     files.push({
       relativePath: rel,
@@ -149,6 +172,7 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
       size: stat.size,
       mtime: stat.mtime.toISOString(),
       bodyPreview,
+      kind,
     });
   }
 
@@ -200,11 +224,16 @@ export function buildVaultGraph(projectRoot: string, excludePatterns?: string[])
   return { files, edges };
 }
 
+function hasVaultExt(p: string): boolean {
+  const lower = p.toLowerCase();
+  return lower.endsWith('.md') || lower.endsWith('.html') || lower.endsWith('.htm');
+}
+
 export function readVaultFile(projectRoot: string, relativePath: string): string | null {
   const resolved = path.resolve(projectRoot);
   const abs = path.resolve(resolved, relativePath);
   if (!abs.startsWith(resolved + path.sep) && abs !== resolved) return null;
-  if (!abs.endsWith('.md')) return null;
+  if (!hasVaultExt(abs)) return null;
   try {
     return fs.readFileSync(abs, 'utf-8');
   } catch {

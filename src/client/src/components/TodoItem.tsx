@@ -434,7 +434,6 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         initialMaxTurns={todo.max_turns ?? undefined}
         initialUseWorktree={todo.use_worktree ?? null}
         initialMemoryInjectMode={todo.memory_inject_mode ?? 'none'}
-        initialMemoryNodeIds={todo.memory_node_ids ?? null}
         initialMemoryRawFilePaths={todo.memory_raw_file_paths ?? null}
         projectId={todo.project_id}
         projectIsGitRepo={projectIsGitRepo}

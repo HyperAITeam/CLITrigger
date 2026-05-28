@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, FileText, FileCode } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { getVaultFiles, previewVaultInjection, type VaultFile, type VaultInjectMode } from '../api/vault';
 
@@ -7,7 +7,8 @@ interface VaultInjectControlProps {
   projectId: string;
   mode: VaultInjectMode;
   selectedPaths: string[];
-  onChange: (mode: VaultInjectMode, selectedPaths: string[]) => void;
+  includeLinked: boolean;
+  onChange: (mode: VaultInjectMode, selectedPaths: string[], includeLinked: boolean) => void;
 }
 
 function formatBytes(n: number): string {
@@ -16,10 +17,44 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)}MB`;
 }
 
+function buildWikilinkIndex(files: VaultFile[]): Map<string, string[]> {
+  const stemIndex = new Map<string, string[]>();
+  const titleIndex = new Map<string, string[]>();
+  for (const f of files) {
+    const sKey = f.stem.toLowerCase();
+    const tKey = f.title.toLowerCase();
+    const sExisting = stemIndex.get(sKey) ?? [];
+    sExisting.push(f.relativePath);
+    stemIndex.set(sKey, sExisting);
+    const tExisting = titleIndex.get(tKey) ?? [];
+    tExisting.push(f.relativePath);
+    titleIndex.set(tKey, tExisting);
+  }
+  const out = new Map<string, string[]>();
+  for (const f of files) {
+    const dir = f.relativePath.includes('/') ? f.relativePath.slice(0, f.relativePath.lastIndexOf('/') + 1) : '';
+    const neighbors: string[] = [];
+    for (const link of f.wikilinks) {
+      const key = link.toLowerCase();
+      const candidates = stemIndex.get(key) ?? titleIndex.get(key) ?? [];
+      if (candidates.length === 0) continue;
+      const target = candidates.length === 1
+        ? candidates[0]
+        : (candidates.find(c => c.startsWith(dir)) ?? candidates[0]);
+      if (target && target !== f.relativePath && !neighbors.includes(target)) {
+        neighbors.push(target);
+      }
+    }
+    out.set(f.relativePath, neighbors);
+  }
+  return out;
+}
+
 export default function VaultInjectControl({
   projectId,
   mode,
   selectedPaths,
+  includeLinked,
   onChange,
 }: VaultInjectControlProps) {
   const { t } = useI18n();
@@ -57,11 +92,20 @@ export default function VaultInjectControl({
     return groups;
   }, [files, filter]);
 
+  const wikilinkIndex = useMemo(() => buildWikilinkIndex(files), [files]);
+
   const toggleFile = (path: string) => {
-    const next = selectedPaths.includes(path)
-      ? selectedPaths.filter(p => p !== path)
-      : [...selectedPaths, path];
-    onChange('selected', next);
+    const sel = new Set(selectedPaths);
+    if (sel.has(path)) {
+      sel.delete(path);
+    } else {
+      sel.add(path);
+      if (includeLinked) {
+        const neighbors = wikilinkIndex.get(path) ?? [];
+        for (const n of neighbors) sel.add(n);
+      }
+    }
+    onChange('selected', Array.from(sel), includeLinked);
   };
 
   const fetchPreview = async () => {
@@ -105,7 +149,7 @@ export default function VaultInjectControl({
           <button
             key={m}
             type="button"
-            onClick={() => onChange(m, m === 'selected' ? selectedPaths : [])}
+            onClick={() => onChange(m, m === 'selected' ? selectedPaths : [], includeLinked)}
             className={`px-3 py-1.5 rounded-md text-xs ${
               mode === m
                 ? 'bg-warm-700 text-warm-50'
@@ -128,41 +172,63 @@ export default function VaultInjectControl({
           {!loaded ? (
             <div className="text-xs text-warm-500">{t('vaultInject.loading')}</div>
           ) : files.length === 0 ? (
-            <div className="text-xs text-warm-500 italic">{t('vault.empty')}</div>
+            <div className="text-xs text-warm-500 italic">{t('vaultInject.empty')}</div>
           ) : (
             <>
+              <label className="flex items-center gap-2 text-xs text-warm-600 mb-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeLinked}
+                  onChange={(e) => onChange(mode, selectedPaths, e.target.checked)}
+                />
+                {t('vaultInject.includeLinked')}
+              </label>
               <input
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 placeholder={t('vaultInject.searchPlaceholder')}
                 className="w-full px-2 py-1.5 rounded-md border border-warm-200 bg-warm-0 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400 mb-2"
               />
-              <div className="max-h-48 overflow-y-auto border border-warm-200 rounded-md">
+              <div className="max-h-56 overflow-y-auto border border-warm-200 rounded-md">
                 {Object.keys(grouped).length === 0 ? (
-                  <div className="text-xs text-warm-500 italic px-2 py-2">{t('vault.noResults')}</div>
+                  <div className="text-xs text-warm-500 italic px-2 py-2">{t('vaultInject.noResults')}</div>
                 ) : (
                   Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([dir, dirFiles]) => (
                     <div key={dir}>
-                      <div className="text-[10px] uppercase tracking-wide text-warm-500 px-2 py-1 bg-warm-100 sticky top-0">
+                      <div className="text-[10px] uppercase tracking-wide text-warm-500 px-2 py-1 bg-warm-100 sticky top-0 font-mono">
                         {dir}
                       </div>
                       <div className="divide-y divide-warm-100">
-                        {dirFiles.map(f => (
-                          <label
-                            key={f.relativePath}
-                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-warm-100 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedPaths.includes(f.relativePath)}
-                              onChange={() => toggleFile(f.relativePath)}
-                            />
-                            <span className="text-sm text-warm-800 truncate flex-1" title={f.relativePath}>
-                              {f.stem}
-                            </span>
-                            <span className="text-[10px] text-warm-500 font-mono shrink-0">{formatBytes(f.size)}</span>
-                          </label>
-                        ))}
+                        {dirFiles.map(f => {
+                          const linkedCount = (wikilinkIndex.get(f.relativePath) ?? []).length;
+                          return (
+                            <label
+                              key={f.relativePath}
+                              className="flex items-center gap-2 px-2 py-1.5 hover:bg-warm-100 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedPaths.includes(f.relativePath)}
+                                onChange={() => toggleFile(f.relativePath)}
+                              />
+                              {f.kind === 'html'
+                                ? <FileCode size={12} className="text-warm-500 shrink-0" />
+                                : <FileText size={12} className="text-warm-500 shrink-0" />}
+                              <span className="text-sm text-warm-800 truncate flex-1" title={f.relativePath}>
+                                {f.title || f.stem}
+                              </span>
+                              {includeLinked && linkedCount > 0 && (
+                                <span
+                                  className="text-[10px] text-warm-600 bg-warm-200 px-1.5 py-0.5 rounded shrink-0"
+                                  title={f.wikilinks.join(', ')}
+                                >
+                                  {t('vaultInject.linkedAdded').replace('{n}', String(linkedCount))}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-warm-500 font-mono shrink-0">{formatBytes(f.size)}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   ))
