@@ -253,7 +253,9 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message.includes('UNIQUE constraint failed')) {
-      res.status(409).json({ error: 'A project with this path already exists' });
+      const existing = getAllProjects().find((p) => p.path === pathCheck.resolved);
+      const label = existing ? ` ("${existing.name}")` : '';
+      res.status(409).json({ error: `A project with this path already exists${label}` });
       return;
     }
     res.status(500).json({ error: message });
