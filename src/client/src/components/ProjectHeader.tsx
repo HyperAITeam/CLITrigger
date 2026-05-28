@@ -10,6 +10,7 @@ import { CLI_TOOLS, type CliTool, isModelDeprecated } from '../cli-tools';
 import { useModels } from '../hooks/useModels';
 import ModelSettings from './ModelSettings';
 import { getClientPlugins } from '../plugins/registry';
+import HarnessPanel from '../plugins/harness/HarnessPanel';
 import { Pencil, FolderOpen, Settings, Play, Square, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
 
 interface ProjectHeaderProps {
@@ -443,6 +444,7 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
             {[
               { key: 'execution', label: t('header.config') },
               { key: 'security', label: t('header.sandboxTitle') },
+              { key: 'harness', label: t('tabs.harness') },
               { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
             ].map((s) => (
               <button
@@ -808,10 +810,16 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
           </>
           )}
 
+          {settingsSection === 'harness' && (
+            <HarnessPanel project={project} onImportAsTask={() => {}} />
+          )}
+
           {settingsSection === 'plugins' && (
           <>
           {/* Plugin Settings */}
-          {getClientPlugins().map((plugin) => (
+          {getClientPlugins()
+            .filter((plugin) => plugin.id !== 'harness')
+            .map((plugin) => (
             <div key={plugin.id} className="mt-6">
               <plugin.SettingsComponent
                 project={project}
