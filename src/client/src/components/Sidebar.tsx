@@ -232,13 +232,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   };
 
   const handleAddProject = async (name: string, path: string) => {
-    try {
-      await projectsApi.createProject({ name, path });
-      setShowForm(false);
-      window.dispatchEvent(new Event('projects:changed'));
-    } catch {
-      // TODO: show error
-    }
+    await projectsApi.createProject({ name, path });
+    setShowForm(false);
+    window.dispatchEvent(new Event('projects:changed'));
   };
 
   const handleProjectDragStart = useCallback((id: string, e: React.DragEvent) => {

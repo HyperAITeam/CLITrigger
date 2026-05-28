@@ -300,6 +300,8 @@ const translations = {
     'form.folderPath': 'Folder Path',
     'form.cancel': 'Cancel',
     'form.create': 'Create',
+    'form.creating': 'Creating...',
+    'form.createError': 'Failed to create project',
 
     // Folder Browser
     'browse.title': 'Browse Folder',
@@ -1547,6 +1549,8 @@ const translations = {
     'form.folderPath': '\uD3F4\uB354 \uACBD\uB85C',
     'form.cancel': '\uCDE8\uC18C',
     'form.create': '\uC0DD\uC131',
+    'form.creating': '\uC0DD\uC131 \uC911...',
+    'form.createError': '\uD504\uB85C\uC81D\uD2B8 \uC0DD\uC131 \uC2E4\uD328',
 
     // Folder Browser
     'browse.title': '폴더 찾아보기',
