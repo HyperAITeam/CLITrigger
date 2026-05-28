@@ -1345,23 +1345,17 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   );
 }
 
-// --- Relative time ---
+// --- Commit date formatting ---
 
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffSec = Math.floor((now - then) / 1000);
-
-  if (diffSec < 60) return `${diffSec}s`;
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 30) return `${diffDay}d`;
-  const diffMonth = Math.floor(diffDay / 30);
-  if (diffMonth < 12) return `${diffMonth}mo`;
-  return `${Math.floor(diffDay / 365)}y`;
+function formatCommitDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
 // --- Workspace view selector ---
@@ -1931,7 +1925,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                             onPointerUp={handleCommitPointerEnd}
                             onPointerCancel={handleCommitPointerEnd}
                             onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
-                            className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/50 ${
+                            className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/20 ${
                               isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
                             }`}
                             style={{
@@ -1950,15 +1944,15 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                               <span className="text-xs text-warm-700 truncate" title={commit.message}>{commit.message}</span>
                             </div>
 
-                            <div className="w-14 text-right shrink-0">
-                              <span className="text-[11px] text-warm-400" title={commit.date}>
-                                {relativeTime(commit.date)}
+                            <div className="w-28 text-right shrink-0">
+                              <span className="text-[11px] font-mono text-warm-600" title={commit.date}>
+                                {formatCommitDate(commit.date)}
                               </span>
                             </div>
 
                             {!isMobile && (
                               <div className="shrink-0 ml-2">
-                                <span className="text-[11px] text-warm-500">
+                                <span className="text-[11px] text-warm-600">
                                   {commit.author}
                                 </span>
                               </div>
@@ -1966,7 +1960,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
 
                             <div className="w-16 text-right shrink-0">
                               <span
-                                className="text-[11px] font-mono text-warm-400 cursor-pointer hover:text-accent transition-colors"
+                                className="text-[11px] font-mono text-warm-600 cursor-pointer hover:text-accent transition-colors"
                                 title={commit.hash}
                                 onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(commit.hash); }}
                               >
