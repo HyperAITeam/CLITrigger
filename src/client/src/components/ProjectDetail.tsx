@@ -832,6 +832,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
         {[
           { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
+          { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
+          { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
           ...getPluginsWithTabs(project).map((plugin) => {
             const helpKey = `tabs.${plugin.id}.help`;
             const help = t(helpKey);
@@ -841,9 +843,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
               help: help === helpKey ? '' : help,
             };
           }),
-          { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
           { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
-          { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
           { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
           { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),

@@ -117,6 +117,14 @@ export default function SessionTerminal({
   // cols/rows to the PTY without duplicating the debounce logic from RO.
   const sendResizeRef = useRef<(() => void) | null>(null);
   const [replaying, setReplaying] = useState(true);
+  // Mirror of the in-progress IME composition string. xterm.js doesn't paint
+  // composing text into its grid, so on desktop the user previously had to
+  // rely on the OS IME candidate panel — which jumps around or disappears
+  // when the TUI redraws. We mirror compositionupdate into this state and
+  // render it as a fixed overlay in the bottom-left of the session window.
+  const [composingText, setComposingText] = useState('');
+  const setComposingTextRef = useRef(setComposingText);
+  setComposingTextRef.current = setComposingText;
 
   // useToast must be called from the component body, but pasteFromClipboard
   // lives inside the mount-only useEffect. Stash the dispatcher in a ref so
@@ -409,9 +417,10 @@ export default function SessionTerminal({
     // assembles jamo/syllables into precomposed Hangul before sending to PTY.
     const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
     const isImagePasteDisabled = () => disableImagePasteRef.current;
+    const onComposingChange = (text: string) => setComposingTextRef.current(text);
     const inputCleanup = isMobileImeDevice()
       ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled })
-      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled });
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a
@@ -603,6 +612,35 @@ export default function SessionTerminal({
         ref={containerRef}
         style={{ height: '100%', width: '100%' }}
       />
+      {composingText && (
+        // xterm doesn't paint composing text into the grid, so we mirror the
+        // compositionupdate string here. Bottom-left of the session window,
+        // pointer-events: none so selection/click in the terminal still work.
+        <div
+          style={{
+            position: 'absolute',
+            left: 12,
+            bottom: 12,
+            maxWidth: 'calc(100% - 24px)',
+            padding: '3px 8px',
+            background: 'rgba(0,0,0,0.72)',
+            border: `1px solid ${CMD.separator}`,
+            borderRadius: 4,
+            fontFamily: CMD_FONT,
+            fontSize: Math.max(12, fontSize),
+            color: CMD.bright,
+            lineHeight: 1.3,
+            zIndex: 2,
+            pointerEvents: 'none',
+            whiteSpace: 'pre',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          <span style={{ color: CMD.dim, marginRight: 6 }}>IME</span>
+          {composingText}
+        </div>
+      )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
@@ -630,6 +668,10 @@ interface InputSetupArgs {
   // fallback so a clipboard image doesn't get uploaded. Text paste path
   // still runs.
   isImagePasteDisabled?: () => boolean;
+  // Mirrors the current IME composition string to the React layer so the
+  // session window can render it in a bottom-left overlay. Called with the
+  // empty string to clear (compositionend / no in-flight composition).
+  onComposingChange?: (text: string) => void;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -780,8 +822,11 @@ function backspaceComposer(c: HangulComposer): boolean {
   return true;
 }
 
-function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled, isImagePasteDisabled }: InputSetupArgs): () => void {
+function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange }: InputSetupArgs): () => void {
   let composing = false;
+  const reportComposing = (text: string) => {
+    try { onComposingChange?.(text); } catch { /* host setter may have torn down */ }
+  };
   // After compositionend with data, xterm.js's helper textarea fires onData
   // with the same composed string. Drop exactly that one onData by
   // string-equality, then resume — a time-window guard would also drop a
@@ -823,9 +868,18 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   const handleCompStart = () => {
     composing = true;
     positionHelperAtCursor();
+    reportComposing('');
+  };
+  // compositionupdate fires for every keystroke that mutates the in-flight
+  // composition (jamo addition / syllable rebuild), so this is what we
+  // mirror to the bottom-left overlay. compositionstart only fires once
+  // and carries no data.
+  const handleCompUpdate = (e: Event) => {
+    reportComposing((e as CompositionEvent).data ?? '');
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
+    reportComposing('');
     const data = (e as CompositionEvent).data;
     if (data) {
       pendingDedup = data;
@@ -877,6 +931,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     }
   };
   container.addEventListener('compositionstart', handleCompStart, true);
+  container.addEventListener('compositionupdate', handleCompUpdate, true);
   container.addEventListener('compositionend', handleCompEnd, true);
   container.addEventListener('paste', handlePaste, true);
   const onDataDisposable = term.onData((d) => {
@@ -891,8 +946,10 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   return () => {
     onDataDisposable.dispose();
     container.removeEventListener('compositionstart', handleCompStart, true);
+    container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
+    reportComposing('');
   };
 }
 
