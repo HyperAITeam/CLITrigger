@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type ReactNode, type ComponentProps } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { MemoryNode } from '../types';
@@ -12,6 +12,9 @@ interface MarkdownContentProps {
   onCreateMemoryNode?: (title: string) => void;
   /** Intercept relative file links (e.g. `[label](./foo.md)`). Receives the raw href. */
   onLinkClick?: (href: string) => void;
+  /** Enable interactive task list checkboxes. Receives the 0-based index of the
+   *  clicked checkbox (in document order) and the new checked state. */
+  onCheckboxToggle?: (index: number, checked: boolean) => void;
 }
 
 const WIKILINK_PATTERN = /\[\[([^\]\n|#]+)(?:#[^\]\n|]+)?(?:\|([^\]\n]+))?\]\]/g;
@@ -125,6 +128,7 @@ export default function MarkdownContent({
   onSelectMemoryNode,
   onCreateMemoryNode,
   onLinkClick,
+  onCheckboxToggle,
 }: MarkdownContentProps) {
   const titleIndex = new Map<string, string>();
   if (memoryNodes) {
@@ -149,6 +153,27 @@ export default function MarkdownContent({
             }
             return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
           },
+          ...(onCheckboxToggle ? {
+            input: (props: ComponentProps<'input'>) => {
+              if (props.type !== 'checkbox') return <input {...props} />;
+              return (
+                <input
+                  {...props}
+                  disabled={false}
+                  className="cursor-pointer"
+                  onChange={(e) => {
+                    const target = e.currentTarget;
+                    const container = target.closest('.markdown-content');
+                    if (!container) return;
+                    const all = container.querySelectorAll('input[type="checkbox"]');
+                    const idx = Array.from(all).indexOf(target);
+                    if (idx < 0) return;
+                    onCheckboxToggle(idx, target.checked);
+                  }}
+                />
+              );
+            },
+          } : {}),
           ...(wikilinksEnabled ? {
             p: ({ children }) => <p>{processChildren(children, titleIndex, onSelectMemoryNode, onCreateMemoryNode)}</p>,
             li: ({ children }) => <li>{processChildren(children, titleIndex, onSelectMemoryNode, onCreateMemoryNode)}</li>,

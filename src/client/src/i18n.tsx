@@ -700,6 +700,29 @@ const translations = {
     'files.editor.discardConfirm': 'Discard unsaved changes?',
     'files.editor.dirty': 'Modified',
 
+    // Find / Replace
+    'find.openFind': 'Find',
+    'find.placeholder': 'Find',
+    'find.replacePlaceholder': 'Replace',
+    'find.case': 'Match case',
+    'find.word': 'Match whole word',
+    'find.regex': 'Use regular expression',
+    'find.next': 'Next match (Enter)',
+    'find.prev': 'Previous match (Shift+Enter)',
+    'find.replace': 'Replace',
+    'find.replaceAll': 'Replace all',
+    'find.close': 'Close (Esc)',
+    'find.toggleReplace': 'Toggle replace',
+    'find.noMatches': 'No results',
+
+    // Annotate (ephemeral overlay drawing)
+    'annotate.start': 'Start drawing',
+    'annotate.stop': 'Stop drawing',
+    'annotate.pen': 'Pen',
+    'annotate.highlighter': 'Highlighter',
+    'annotate.eraser': 'Eraser',
+    'annotate.clear': 'Clear all',
+
     // Wiki (Karpathy LLM-Wiki pattern)
     'wiki.title': 'Wiki',
     'wiki.add': 'New Entry',
@@ -1923,6 +1946,29 @@ const translations = {
     'files.editor.conflict': '파일이 디스크에서 변경되었습니다 — 다시 열어주세요.',
     'files.editor.discardConfirm': '변경사항을 폐기하시겠습니까?',
     'files.editor.dirty': '변경됨',
+
+    // 찾기/바꾸기
+    'find.openFind': '찾기',
+    'find.placeholder': '찾을 내용',
+    'find.replacePlaceholder': '바꿀 내용',
+    'find.case': '대소문자 구분',
+    'find.word': '전체 단어 일치',
+    'find.regex': '정규식 사용',
+    'find.next': '다음 결과 (Enter)',
+    'find.prev': '이전 결과 (Shift+Enter)',
+    'find.replace': '바꾸기',
+    'find.replaceAll': '모두 바꾸기',
+    'find.close': '닫기 (Esc)',
+    'find.toggleReplace': '바꾸기 토글',
+    'find.noMatches': '결과 없음',
+
+    // 낙서 (휘발성 오버레이)
+    'annotate.start': '낙서 시작',
+    'annotate.stop': '낙서 종료',
+    'annotate.pen': '펜',
+    'annotate.highlighter': '형광펜',
+    'annotate.eraser': '지우개',
+    'annotate.clear': '모두 지우기',
 
     // Wiki (Karpathy LLM-Wiki 패턴)
     'wiki.title': '위키',
