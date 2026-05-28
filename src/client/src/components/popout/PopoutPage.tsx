@@ -70,6 +70,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const [group, setGroup] = useState<PopoutGroup | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Set when main broadcasts `group-reclaimed` for our popoutId — main has
+  // declared this popout dead (missed heartbeats / background throttle) and
+  // moved ownership back to itself. We must stop rendering immediately so
+  // the same session isn't being written to two xterm instances, then close
+  // the OS window after a short user-visible notice.
+  const [reclaimedNotice, setReclaimedNotice] = useState<string | null>(null);
   const groupRef = useRef<PopoutGroup | null>(null);
   groupRef.current = group;
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
@@ -129,6 +135,20 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           minimized: false,
           ownerWindowId: popoutId,
         });
+      } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
+        // Main reclaimed our ownership. Drop the group immediately so the
+        // StackView → SessionPane → SessionTerminal tree unmounts and the
+        // binary subscription is released; otherwise main's freshly-mounted
+        // SessionTerminal for the same session would share the WS callback
+        // set and both xterm instances would receive every frame. Then
+        // surface a short notice and close the OS window so the user sees
+        // what happened instead of an empty popout.
+        setGroup(null);
+        setReclaimedNotice(
+          t('session.popout.reclaimed')
+          || '메인 윈도우가 이 세션을 회수했습니다. 잠시 후 창이 닫힙니다.'
+        );
+        setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 1500);
       }
     });
     bus.post({ t: 'hello', from: popoutId, groupId });
@@ -266,6 +286,15 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     );
   }
   if (!group) {
+    // Reclaim notice trumps the generic "waiting for handoff" message: the
+    // window WILL self-close in ~1.5s, no user action needed.
+    if (reclaimedNotice) {
+      return (
+        <div style={pageErrorStyle}>
+          <p>{reclaimedNotice}</p>
+        </div>
+      );
+    }
     return (
       <div style={pageErrorStyle}>
         <p>{t('session.popout.waiting') || 'Waiting for main window…'}</p>

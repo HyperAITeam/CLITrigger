@@ -302,6 +302,41 @@ export default function SessionWindowsHost({
     window.dispatchEvent(new CustomEvent('session-windows:changed'));
   }, [projectId, groups, sessions]);
 
+  // Auto-minimize on host unmount (project navigation / workspace switch).
+  // The host is keyed by projectId in ProjectDetail, so leaving the project
+  // tears this down. Without this hook, groups that were visible at the
+  // moment of navigation persist as `minimized:false` in localStorage —
+  // GlobalSessionDockTray only renders chips for `minimized:true`, so the
+  // user loses any handle to the session until they navigate back. Flip
+  // every main-owned group to minimized in the persisted snapshot before
+  // unmount so each becomes a chip in the global tray.
+  // Popout-owned groups are left alone: a separate OS window is still
+  // rendering them, and writing them as minimized would make the chip
+  // compete with that live window.
+  useEffect(() => {
+    return () => {
+      const current = groupsRef.current;
+      if (current.length === 0) return;
+      let changed = false;
+      const next = current.map(g => {
+        const owner = g.ownerWindowId || MAIN_WINDOW_ID;
+        if (owner !== MAIN_WINDOW_ID || g.minimized) return g;
+        changed = true;
+        return { ...g, minimized: true };
+      });
+      if (!changed) return;
+      const titles: Record<string, string> = {};
+      for (const g of next) {
+        for (const sid of allSessionIds(g.root)) {
+          const s = sessionsRef.current.find(x => x.id === sid);
+          if (s?.title) titles[sid] = s.title;
+        }
+      }
+      writePersisted(projectId, { groups: next, zCounter: zCounterRef.current, titles });
+      window.dispatchEvent(new CustomEvent('session-windows:changed'));
+    };
+  }, [projectId]);
+
   // Auto-prune groups when a session disappears server-side. Skip while
   // sessions is empty (likely a loading blip) so we don't nuke restored state.
   // Also skip if the sessions belong to another project — during project-to-
@@ -1056,6 +1091,27 @@ export default function SessionWindowsHost({
       for (const g of groupsRef.current) {
         if (g.ownerWindowId && deadSet.has(g.ownerWindowId)) {
           handoffCacheRef.current.delete(g.id);
+        }
+      }
+      // Notify each (potentially) still-running popout that we've reclaimed
+      // its groups so it tears down its xterm subscription and closes
+      // before the reclaim makes those groups visible in main again. Without
+      // this the popout keeps rendering its cached group state and both
+      // windows subscribe to the same session binary stream, which makes
+      // term.write() fire twice per frame and corrupts the cursor.
+      // Heartbeat timeout doesn't mean the popout is necessarily dead — it
+      // may just be background-throttled or briefly unresponsive.
+      for (const pid of dead) {
+        const reclaimedGroupIds = groupsRef.current
+          .filter(g => g.ownerWindowId === pid)
+          .map(g => g.id);
+        if (reclaimedGroupIds.length > 0) {
+          busRef.current?.post({
+            t: 'group-reclaimed',
+            popoutId: pid,
+            groupIds: reclaimedGroupIds,
+            reason: 'heartbeat-timeout',
+          });
         }
       }
       setGroups((prev) => prev.map(g =>
