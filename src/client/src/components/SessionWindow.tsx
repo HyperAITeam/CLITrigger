@@ -26,6 +26,9 @@ interface SessionWindowProps {
   group: OpenGroup;
   sessionsById: Map<string, Session>;
   neighbors: Geometry[];
+  // True for the visible group with the highest z (the one the user just
+  // interacted with). Drives the active-window visual indicator.
+  isTopmost?: boolean;
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -104,6 +107,7 @@ export default function SessionWindow({
   group,
   sessionsById,
   neighbors,
+  isTopmost,
   sendMessage,
   subscribeBinary,
   onEvent,
@@ -505,11 +509,14 @@ export default function SessionWindow({
         left: group.x, top: group.y, width: group.w, height: group.h,
         zIndex: group.z,
         background: CMD.bg,
-        border: `1px solid ${CMD.separator}`,
+        border: `1px solid ${isTopmost ? CMD.info : CMD.separator}`,
         borderRadius: 8,
-        boxShadow: '0 10px 40px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3)',
+        boxShadow: isTopmost
+          ? `0 10px 40px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px ${CMD.info}66, 0 0 18px ${CMD.info}33`
+          : '0 10px 40px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
+        transition: 'box-shadow 120ms ease-out, border-color 120ms ease-out',
       }}
     >
       {isSplitRoot && (
