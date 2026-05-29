@@ -82,6 +82,19 @@ export default function StackView({
     e.stopPropagation();
   };
 
+  // Ctrl+Tab / Ctrl+Shift+Tab handler — only meaningful for multi-tab stacks.
+  // Wraps around at both ends. Undefined for single-tab so SessionTerminal
+  // lets the key fall through to the PTY.
+  const cycleTab = stack.tabs.length > 1
+    ? (dir: 'next' | 'prev') => {
+        const idx = stack.tabs.indexOf(stack.activeTab);
+        if (idx < 0) return;
+        const n = stack.tabs.length;
+        const nextIdx = dir === 'next' ? (idx + 1) % n : (idx - 1 + n) % n;
+        onTabClick(stack.tabs[nextIdx]);
+      }
+    : undefined;
+
   return (
     <div
       style={{
@@ -283,6 +296,7 @@ export default function StackView({
               sendMessage={sendMessage}
               subscribeBinary={subscribeBinary}
               onEvent={onEvent}
+              onCycleTab={cycleTab}
             />
           );
         })}

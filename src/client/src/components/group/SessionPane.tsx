@@ -35,6 +35,9 @@ interface SessionPaneProps {
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  // Forwarded to SessionTerminal so Ctrl+Tab / Ctrl+Shift+Tab can switch
+  // the active tab in the parent stack while the terminal has focus.
+  onCycleTab?: (dir: 'next' | 'prev') => void;
 }
 
 type Phase = 'pendingFit' | 'starting' | 'subscribed' | 'replay-only' | 'stopping' | 'error';
@@ -48,6 +51,7 @@ export default function SessionPane({
   sendMessage,
   subscribeBinary,
   onEvent,
+  onCycleTab,
 }: SessionPaneProps) {
   const { t } = useI18n();
 
@@ -304,6 +308,7 @@ export default function SessionPane({
         inputBlocked={pendingPromptLength !== null}
         autoFocusOnMount={visible}
         disableImagePaste={session.cli_tool === 'raw-shell'}
+        onCycleTab={onCycleTab}
       />
       {overlayContent}
       {pendingPromptLength !== null && (
