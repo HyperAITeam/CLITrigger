@@ -2,7 +2,8 @@
 // All panes (one per tab) stay mounted simultaneously — only `display` is
 // toggled — so PTY live output never drops when the user switches tabs.
 
-import { X, Minus, Plus, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { X, Minus, Plus, ZoomIn, ZoomOut, ExternalLink, RotateCw } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -67,6 +68,15 @@ export default function StackView({
 }: StackViewProps) {
   const { t } = useI18n();
   const [activeFontSize, , bumpActiveFontSize] = useSessionFontSize(stack.activeTab);
+  // Per-tab remount counter. Bumping a tab's value re-keys its SessionTerminal
+  // so xterm.js is disposed and recreated. Server-side PTY is untouched —
+  // the mount-time `session:subscribe` replays from DB chunks.
+  const [remountKeys, setRemountKeys] = useState<Record<string, number>>({});
+  const refreshActiveTab = () => {
+    const sid = stack.activeTab;
+    if (!sid) return;
+    setRemountKeys((prev) => ({ ...prev, [sid]: (prev[sid] || 0) + 1 }));
+  };
   // Optional host context — null when StackView is rendered inside a popout
   // OS window (PopoutPage mounts StackView without a SessionWindowsHost
   // above it). In that case there is nothing to raise.
@@ -237,6 +247,16 @@ export default function StackView({
         <button
           data-no-drag
           onMouseDown={(e) => e.stopPropagation()}
+          onClick={refreshActiveTab}
+          aria-label="refresh-terminal"
+          title={`${t('session.refresh') || 'Refresh rendering'} — ${t('session.refresh.hint') || 'Rebuild the terminal view (PTY stays running)'}`}
+          style={groupBtnStyle}
+        >
+          <RotateCw size={12} />
+        </button>
+        <button
+          data-no-drag
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={() => bumpActiveFontSize(-1)}
           aria-label="decrease-font"
           title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px) · Ctrl+wheel`}
@@ -324,6 +344,7 @@ export default function StackView({
               subscribeBinary={subscribeBinary}
               onEvent={onEvent}
               onCycleTab={cycleTab}
+              remountKey={remountKeys[sid] || 0}
             />
           );
         })}

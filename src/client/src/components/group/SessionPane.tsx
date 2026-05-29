@@ -38,6 +38,11 @@ interface SessionPaneProps {
   // Forwarded to SessionTerminal so Ctrl+Tab / Ctrl+Shift+Tab can switch
   // the active tab in the parent stack while the terminal has focus.
   onCycleTab?: (dir: 'next' | 'prev') => void;
+  // Used as React key on <SessionTerminal>. Bumping it disposes the xterm.js
+  // instance and recreates it; the remount re-fires `session:subscribe` so
+  // the server replays from DB chunks (Raw Binary Streaming guarantee). PTY
+  // and pane state survive.
+  remountKey?: number;
 }
 
 type Phase = 'pendingFit' | 'starting' | 'subscribed' | 'replay-only' | 'stopping' | 'error';
@@ -52,6 +57,7 @@ export default function SessionPane({
   subscribeBinary,
   onEvent,
   onCycleTab,
+  remountKey = 0,
 }: SessionPaneProps) {
   const { t } = useI18n();
 
@@ -296,6 +302,7 @@ export default function SessionPane({
       }}
     >
       <SessionTerminal
+        key={remountKey}
         sessionId={session.id}
         isRunning={isRunning}
         subscribed={subscribed}
