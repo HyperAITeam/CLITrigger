@@ -146,7 +146,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         setGroup(null);
         setReclaimedNotice(
           t('session.popout.reclaimed')
-          || '메인 윈도우가 이 세션을 회수했습니다. 잠시 후 창이 닫힙니다.'
+          || '메인 윈도우가 이 터미널을 회수했습니다. 잠시 후 창이 닫힙니다.'
         );
         setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 1500);
       }
