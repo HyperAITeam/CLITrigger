@@ -4,6 +4,7 @@ import EmptyState from './EmptyState';
 import type { Session, MemoryInjectMode, SessionTag } from '../types';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
+import * as projectsApi from '../api/projects';
 import * as tagsApi from '../api/sessionTags';
 import { parseMemoryNodeIds } from '../api/memory';
 
@@ -64,6 +65,7 @@ export default function SessionList({
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [tags, setTags] = useState<SessionTag[]>([]);
+  const [currentBranch, setCurrentBranch] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +74,15 @@ export default function SessionList({
       .catch(() => { /* tags optional — silent */ });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!isGitRepo) return;
+    let cancelled = false;
+    projectsApi.getGitStatusTree(projectId)
+      .then((result) => { if (!cancelled) setCurrentBranch(result.branch || ''); })
+      .catch(() => { /* non-critical */ });
+    return () => { cancelled = true; };
+  }, [projectId, isGitRepo]);
 
   const tagsById = useMemo(() => {
     const map = new Map<string, SessionTag>();
@@ -287,10 +298,10 @@ export default function SessionList({
                           {session.cli_tool || 'claude'}
                           {session.cli_model ? ` / ${session.cli_model}` : ''}
                         </span>
-                        {(session.branch_name || (isGitRepo && projectDefaultBranch)) && (
+                        {(session.branch_name || (isGitRepo && (currentBranch || projectDefaultBranch))) && (
                           <span className="text-2xs text-accent/70 flex items-center gap-0.5">
                             <GitBranch size={12} />
-                            {session.branch_name || projectDefaultBranch}
+                            {session.branch_name || currentBranch || projectDefaultBranch}
                           </span>
                         )}
                       </div>
