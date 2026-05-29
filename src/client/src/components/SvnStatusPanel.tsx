@@ -224,15 +224,15 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   }, [status]);
 
   return (
-    <div className="flex flex-col h-full" style={{ minHeight: '600px' }}>
+    <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
       {svnInstalled === false && (
-        <div className="px-3 py-2 bg-status-warning/10 border-b border-status-warning/30 text-2xs text-status-warning">
+        <div className="card mb-2 px-3 py-2 bg-status-warning/10 border border-status-warning/30 text-2xs text-status-warning">
           {t('svn.cliMissing')}
         </div>
       )}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 gap-2">
       {/* Sidebar */}
-      <div className="w-44 shrink-0 border-r border-warm-100 bg-warm-50/30 flex flex-col">
+      <div className="card w-44 shrink-0 flex flex-col overflow-hidden">
         <div className="px-3 py-3 border-b border-warm-100">
           <div className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">SVN</div>
           {repoLine && (
@@ -261,7 +261,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="card flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
         {/* Action bar */}
         <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0 flex-wrap">
           {view === 'files' ? (
