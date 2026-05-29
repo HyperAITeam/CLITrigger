@@ -475,6 +475,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                 {showAbove && renderDropIndicator('above')}
                 <Link
                   to={`/projects/${project.id}`}
+                  draggable={false}
+                  onDragStart={(e) => e.preventDefault()}
                   onClick={(e) => {
                     if (dragJustHappenedRef.current) { e.preventDefault(); return; }
                     handleNav();
@@ -486,8 +488,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                   }}
                   className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''} ${isDragSource ? 'opacity-50' : ''}`}
                   style={isActive
-                    ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)', cursor: dragSourceId ? 'grabbing' : 'pointer' }
-                    : { color: 'var(--color-text-tertiary)', cursor: dragSourceId ? 'grabbing' : 'pointer' }
+                    ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)', cursor: dragSourceId ? 'grabbing' : 'pointer', userSelect: 'none' }
+                    : { color: 'var(--color-text-tertiary)', cursor: dragSourceId ? 'grabbing' : 'pointer', userSelect: 'none' }
                   }
                 >
                   {isActive && (
