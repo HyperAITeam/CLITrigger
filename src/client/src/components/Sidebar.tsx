@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
@@ -237,71 +237,119 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     window.dispatchEvent(new Event('projects:changed'));
   };
 
-  const handleProjectDragStart = useCallback((id: string, e: React.DragEvent) => {
-    setDragSourceId(id);
-    try {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', id);
-    } catch { /* ignore — some browsers throw on setData during certain events */ }
-  }, []);
-
-  const handleProjectDragEnd = useCallback(() => {
-    setDragSourceId(null);
-    setDragOverGapIndex(null);
-  }, []);
-
-  const handleGapDrop = useCallback(async (gapIndex: number) => {
-    if (!dragSourceId) return;
+  const commitReorder = useCallback(async (sourceId: string, gapIndex: number) => {
     const currentIds = projects.map((p) => p.id);
-    const sourceIdx = currentIds.indexOf(dragSourceId);
-    if (sourceIdx < 0) {
-      setDragSourceId(null);
-      setDragOverGapIndex(null);
-      return;
-    }
-    const without = currentIds.filter((id) => id !== dragSourceId);
+    const sourceIdx = currentIds.indexOf(sourceId);
+    if (sourceIdx < 0) return;
+    const without = currentIds.filter((id) => id !== sourceId);
     const insertAt = gapIndex > sourceIdx ? gapIndex - 1 : gapIndex;
-    if (insertAt === sourceIdx) {
-      setDragSourceId(null);
-      setDragOverGapIndex(null);
-      return;
-    }
-    const nextIds = [...without.slice(0, insertAt), dragSourceId, ...without.slice(insertAt)];
+    if (insertAt === sourceIdx) return;
+    const nextIds = [...without.slice(0, insertAt), sourceId, ...without.slice(insertAt)];
     const previous = projects;
     const idToProject = new Map(projects.map((p) => [p.id, p]));
     const optimistic = nextIds.map((id) => idToProject.get(id)!).filter(Boolean);
     setProjects(optimistic);
-    setDragSourceId(null);
-    setDragOverGapIndex(null);
     try {
       await projectsApi.reorderProjects(nextIds);
     } catch (err) {
       setProjects(previous);
       toastError(err instanceof Error ? err.message : 'Failed to reorder projects');
     }
-  }, [dragSourceId, projects, toastError]);
+  }, [projects, toastError]);
 
-  // Item-level drag handlers: any vertical position over an item resolves
-  // to a gap index (above the item when cursor is in the top half, below
-  // when in the bottom half). Much more forgiving than the previous 8px
-  // gap-only drop zones which forced pixel-perfect drops between items.
-  const handleItemDragOver = useCallback((index: number, e: React.DragEvent<HTMLAnchorElement>) => {
-    if (!dragSourceId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    const gapIndex = e.clientY < midY ? index : index + 1;
-    setDragOverGapIndex((prev) => (prev === gapIndex ? prev : gapIndex));
-  }, [dragSourceId]);
+  // True for the lifetime of an in-progress reorder gesture; checked by
+  // the project Link's onClick to swallow the synthetic click that follows
+  // mouseup so we don't navigate to the project we just dropped. Reset on
+  // the frame after mouseup so the next genuine click goes through.
+  const dragJustHappenedRef = useRef(false);
 
-  const handleItemDrop = useCallback((e: React.DragEvent<HTMLAnchorElement>) => {
-    if (dragOverGapIndex === null) return;
-    e.preventDefault();
-    e.stopPropagation();
-    handleGapDrop(dragOverGapIndex);
-  }, [dragOverGapIndex, handleGapDrop]);
+  // Pointer-based reorder. We deliberately avoid HTML5 draggable here:
+  // Edge / Chrome render a native "split view" / window-drop indicator
+  // whenever an HTML5 drag is in flight, which the user can't dismiss and
+  // can't actually drop onto. Mouse events keep the gesture entirely
+  // inside the page.
+  const handleItemMouseDown = useCallback((id: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0) return;
+    // Don't start a reorder when the user clicked an inner action button
+    // (delete X, future inline controls). The button's own onClick still
+    // fires; the drag gesture would otherwise eat the click.
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const DRAG_THRESHOLD = 6;
+    let started = false;
+    let lastGapIndex: number | null = null;
+
+    const computeGapIndex = (clientY: number): number | null => {
+      const items = document.querySelectorAll<HTMLElement>('[data-workspace-item]');
+      if (items.length === 0) return null;
+      const firstRect = items[0].getBoundingClientRect();
+      if (clientY < firstRect.top) return 0;
+      const lastRect = items[items.length - 1].getBoundingClientRect();
+      if (clientY > lastRect.bottom) return items.length;
+      for (let i = 0; i < items.length; i++) {
+        const r = items[i].getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
+          const mid = r.top + r.height / 2;
+          return clientY < mid ? i : i + 1;
+        }
+      }
+      return null;
+    };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!started) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        started = true;
+        setDragSourceId(id);
+      }
+      const gapIndex = computeGapIndex(ev.clientY);
+      if (gapIndex !== lastGapIndex) {
+        lastGapIndex = gapIndex;
+        setDragOverGapIndex(gapIndex);
+      }
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('keydown', onKey);
+    };
+
+    const onUp = () => {
+      cleanup();
+      if (!started) {
+        // No movement — let the click through (navigation).
+        return;
+      }
+      dragJustHappenedRef.current = true;
+      // Click fires synchronously after mouseup in the same task; the rAF
+      // resets the guard on the next paint so subsequent genuine clicks
+      // pass through.
+      requestAnimationFrame(() => { dragJustHappenedRef.current = false; });
+      const finalGap = lastGapIndex;
+      setDragSourceId(null);
+      setDragOverGapIndex(null);
+      if (finalGap !== null) commitReorder(id, finalGap);
+    };
+
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      cleanup();
+      setDragSourceId(null);
+      setDragOverGapIndex(null);
+      if (started) {
+        dragJustHappenedRef.current = true;
+        requestAnimationFrame(() => { dragJustHappenedRef.current = false; });
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('keydown', onKey);
+  }, [commitReorder]);
 
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -408,17 +456,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             <Plus size={14} strokeWidth={2} />
           </button>
         </div>
-        <div
-          className="space-y-0.5"
-          onDragLeave={(e) => {
-            // Clear the indicator only when the cursor leaves the entire
-            // list (relatedTarget outside the container) — moving between
-            // items must not flicker the indicator off.
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-              setDragOverGapIndex(null);
-            }
-          }}
-        >
+        <div className="space-y-0.5">
           {projects.map((project, index) => {
             const status = statusMap[project.id];
             const isActive = activeProjectId === String(project.id);
@@ -433,24 +471,23 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               && index === projects.length - 1
               && dragOverGapIndex === projects.length;
             return (
-              <div key={project.id} className="relative">
+              <div key={project.id} className="relative" data-workspace-item>
                 {showAbove && renderDropIndicator('above')}
                 <Link
                   to={`/projects/${project.id}`}
-                  onClick={handleNav}
-                  draggable
-                  onDragStart={(e) => handleProjectDragStart(project.id, e)}
-                  onDragEnd={handleProjectDragEnd}
-                  onDragOver={(e) => handleItemDragOver(index, e)}
-                  onDrop={handleItemDrop}
+                  onClick={(e) => {
+                    if (dragJustHappenedRef.current) { e.preventDefault(); return; }
+                    handleNav();
+                  }}
+                  onMouseDown={(e) => handleItemMouseDown(project.id, e)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setColorPicker({ project, x: e.clientX, y: e.clientY });
                   }}
                   className={`relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 hover:bg-theme-hover active:scale-95 group ${isActive ? 'font-medium' : ''} ${isDragSource ? 'opacity-50' : ''}`}
                   style={isActive
-                    ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
-                    : { color: 'var(--color-text-tertiary)' }
+                    ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)', cursor: dragSourceId ? 'grabbing' : 'pointer' }
+                    : { color: 'var(--color-text-tertiary)', cursor: dragSourceId ? 'grabbing' : 'pointer' }
                   }
                 >
                   {isActive && (
