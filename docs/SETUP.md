@@ -505,6 +505,9 @@ CLI 도구별 사용 가능한 모델 목록을 커스터마이즈할 수 있습
   - 윈도우 간 sticky 스냅 (10px threshold) — 인접 윈도우 엣지에 자석처럼
   - 타이틀바 minimize 버튼 → 좌하단 dock tray에 chip으로 보관, 클릭 시 restore (서버 PTY는 그대로 살아있음)
 - **per-session 폰트 크기**: 탭바의 A−/A+ 버튼, Ctrl/Cmd `+`/`-` 단축키, 또는 **Ctrl/Cmd + 마우스 휠**로 8-28px 조정. 글로벌 기본값(Settings → Sessions)에서 출발하고 줌 즉시 per-session 영속화. PTY는 cell grid가 실제로 바뀔 때만 resize 브로드캐스트(welcome banner 중복 방지)
+- **탭 사이클 (`Ctrl+Tab` / `Ctrl+Shift+Tab`)**: 같은 그룹 안의 다음/이전 탭으로 순환. xterm 터미널 viewport에 focus가 있을 때만 동작하므로 폼 입력에는 영향 없음. 단일 탭 stack에서는 키가 PTY로 fall-through됨 (일부 TUI가 native로 Ctrl+Tab을 쓸 수 있음을 고려)
+- **새 raw-shell 탭 (`"+"` 버튼 / `Ctrl+T` / `Cmd+T`)**: 탭바 우측의 "+" 버튼이나 글로벌 단축키로 즉시 raw-shell 세션을 spawn. main-owned 가시 그룹이 있으면 거기에 탭으로 삽입, 없으면 새 floating window를 띄움. AI CLI 세션은 폼 경로(`Add Session`) 그대로 유지 — "+" 단축 경로는 빠른 OS 셸 spawn 전용. xterm은 같은 조합을 swallow해 PTY로 `^T`가 흘러가지 않음
+- **활성 윈도우 시각 표시 + 바디 클릭으로 raise**: 여러 floating window를 동시에 띄운 상태에서 topmost(z 최상위) 윈도우의 border가 info 톤으로 바뀌고 outer ring + 부드러운 glow가 적용됨. 어디로 키 입력이 갈지 시각으로 즉시 확인 가능. 터미널 viewport 어디든 클릭하면 그 윈도우가 raise됨 (chrome을 따로 잡지 않아도 됨)
 - **per-session 터미널 테마**: 탭바의 팔레트 버튼으로 8개 브랜드 프리셋(Default/Claude/Vercel/Supabase/Stripe/Spotify/Ferrari/NVIDIA) 또는 Custom 5색 native color picker 선택. localStorage 영속화 (DB 마이그레이션 없음)
 - **xterm.js 렌더링**: ANSI 컬러, 커서 제어, TUI 박스 그리기 등이 그대로 표시되어 실제 터미널과 동일한 시각
 - 입력창에 메시지 입력 → Enter로 전송 (PTY로 stdin relay). 화살표/Ctrl+C 등 특수키도 그대로 전달
