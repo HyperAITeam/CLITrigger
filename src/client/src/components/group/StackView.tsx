@@ -9,6 +9,7 @@ import SessionPane, { type PaneIntent } from './SessionPane';
 import SessionThemePicker from '../SessionThemePicker';
 import SessionAliasInserter from '../SessionAliasInserter';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
+import { useSessionWindowsOptional } from '../SessionWindowsHost';
 import type { LayoutStack, Path } from './groupTree';
 import type { Session } from '../../types';
 import type { WsEvent } from '../../hooks/useWebSocket';
@@ -66,10 +67,18 @@ export default function StackView({
 }: StackViewProps) {
   const { t } = useI18n();
   const [activeFontSize, , bumpActiveFontSize] = useSessionFontSize(stack.activeTab);
+  // Optional host context — null when StackView is rendered inside a popout
+  // OS window (PopoutPage mounts StackView without a SessionWindowsHost
+  // above it). In that case there is nothing to raise.
+  const sessionWindows = useSessionWindowsOptional();
 
-  const stopMouseDown = (e: React.MouseEvent) => {
-    // Tab content area: prevent bubbling so the group-chrome drag doesn't
-    // start when the user clicks/drags inside the terminal viewport.
+  const onPaneAreaMouseDown = (e: React.MouseEvent) => {
+    // Bring the window to the front when the user clicks anywhere inside the
+    // terminal viewport, but stop propagation so the group-chrome drag
+    // doesn't start.
+    if (e.button === 0 && stack.activeTab) {
+      sessionWindows?.focus(stack.activeTab);
+    }
     e.stopPropagation();
   };
 
@@ -256,7 +265,7 @@ export default function StackView({
           const r = el.getBoundingClientRect();
           registerRect(path, { x: r.left, y: r.top, w: r.width, h: r.height });
         }}
-        onMouseDown={stopMouseDown}
+        onMouseDown={onPaneAreaMouseDown}
         style={{ flex: 1, position: 'relative', minHeight: 0, minWidth: 0 }}
       >
         {stack.tabs.map((sid) => {

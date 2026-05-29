@@ -119,6 +119,12 @@ export function useSessionWindows(): SessionWindowsAPI {
   return ctx;
 }
 
+// Variant that returns null when there is no host above (e.g. inside a
+// popout OS window, which renders StackView directly without a host).
+export function useSessionWindowsOptional(): SessionWindowsAPI | null {
+  return useContext(SessionWindowsContext);
+}
+
 interface HostProps {
   projectId: string;
   sessions: Session[];
@@ -1146,6 +1152,13 @@ export default function SessionWindowsHost({
   const visibleGroups = groups.filter(g =>
     !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
   );
+  // The topmost (= highest z) visible group is treated as the "active" window.
+  // Used purely as a visual hint so the user can tell which floating terminal
+  // their next keystroke will land in.
+  const topmostGroupId = visibleGroups.reduce<{ id: string | null; z: number }>(
+    (acc, g) => (g.z > acc.z ? { id: g.id, z: g.z } : acc),
+    { id: null, z: -Infinity },
+  ).id;
 
   return (
     <SessionWindowsContext.Provider value={api}>
@@ -1160,6 +1173,7 @@ export default function SessionWindowsHost({
             group={g}
             sessionsById={sessionsById}
             neighbors={neighborGeoms}
+            isTopmost={g.id === topmostGroupId}
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}
