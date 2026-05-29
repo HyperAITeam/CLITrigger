@@ -281,6 +281,28 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     }
   }, [dragSourceId, projects, toastError]);
 
+  // Item-level drag handlers: any vertical position over an item resolves
+  // to a gap index (above the item when cursor is in the top half, below
+  // when in the bottom half). Much more forgiving than the previous 8px
+  // gap-only drop zones which forced pixel-perfect drops between items.
+  const handleItemDragOver = useCallback((index: number, e: React.DragEvent<HTMLAnchorElement>) => {
+    if (!dragSourceId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const gapIndex = e.clientY < midY ? index : index + 1;
+    setDragOverGapIndex((prev) => (prev === gapIndex ? prev : gapIndex));
+  }, [dragSourceId]);
+
+  const handleItemDrop = useCallback((e: React.DragEvent<HTMLAnchorElement>) => {
+    if (dragOverGapIndex === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handleGapDrop(dragOverGapIndex);
+  }, [dragOverGapIndex, handleGapDrop]);
+
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -297,24 +319,18 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     }
   };
 
-  const renderProjectGap = (gapIndex: number) => {
-    if (!dragSourceId) return null;
-    const isActive = dragOverGapIndex === gapIndex;
-    return (
-      <div
-        onDragEnter={(e) => { e.preventDefault(); setDragOverGapIndex(gapIndex); }}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOverGapIndex(gapIndex); }}
-        onDragLeave={() => setDragOverGapIndex((prev) => (prev === gapIndex ? null : prev))}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleGapDrop(gapIndex); }}
-        className="relative"
-        style={{ height: 8, marginTop: -4, marginBottom: -4 }}
-      >
-        {isActive && (
-          <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-0.5 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }} />
-        )}
-      </div>
-    );
-  };
+  // Visual drop indicator. Rendered above the item at `dragOverGapIndex`,
+  // or below the last item when the gap index sits past the end of the list.
+  const renderDropIndicator = (position: 'above' | 'below') => (
+    <div
+      className="pointer-events-none absolute left-2 right-2 h-0.5 rounded-full"
+      style={{
+        backgroundColor: 'var(--color-accent)',
+        zIndex: 10,
+        ...(position === 'above' ? { top: -1 } : { bottom: -1 }),
+      }}
+    />
+  );
 
   return (
     <div className="flex flex-col h-full glass border-none">
@@ -392,8 +408,17 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             <Plus size={14} strokeWidth={2} />
           </button>
         </div>
-        <div className="space-y-0.5">
-          {projects.length > 0 && renderProjectGap(0)}
+        <div
+          className="space-y-0.5"
+          onDragLeave={(e) => {
+            // Clear the indicator only when the cursor leaves the entire
+            // list (relatedTarget outside the container) — moving between
+            // items must not flicker the indicator off.
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setDragOverGapIndex(null);
+            }
+          }}
+        >
           {projects.map((project, index) => {
             const status = statusMap[project.id];
             const isActive = activeProjectId === String(project.id);
@@ -403,14 +428,21 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             const hasActivity = activeWork > 0;
             const tagColor = resolveProjectColor(project);
             const isDragSource = dragSourceId === project.id;
+            const showAbove = dragSourceId !== null && dragOverGapIndex === index;
+            const showBelow = dragSourceId !== null
+              && index === projects.length - 1
+              && dragOverGapIndex === projects.length;
             return (
-              <div key={project.id}>
+              <div key={project.id} className="relative">
+                {showAbove && renderDropIndicator('above')}
                 <Link
                   to={`/projects/${project.id}`}
                   onClick={handleNav}
                   draggable
                   onDragStart={(e) => handleProjectDragStart(project.id, e)}
                   onDragEnd={handleProjectDragEnd}
+                  onDragOver={(e) => handleItemDragOver(index, e)}
+                  onDrop={handleItemDrop}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setColorPicker({ project, x: e.clientX, y: e.clientY });
@@ -444,7 +476,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                     <X size={12} strokeWidth={2} />
                   </button>
                 </Link>
-                {renderProjectGap(index + 1)}
+                {showBelow && renderDropIndicator('below')}
               </div>
             );
           })}
