@@ -398,9 +398,9 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       </section>
 
       <section className="mt-7">
-        <h3 className="text-sm font-semibold text-warm-700 mb-2">Session aliases</h3>
+        <h3 className="text-sm font-semibold text-warm-700 mb-2">Terminal aliases</h3>
         <p className="text-xs text-warm-400 mb-3">
-          Saved command snippets. Click the ⌘ icon in any session window's titlebar to insert one as input — Enter is yours to press.
+          Saved command snippets. Click the ⌘ icon in any terminal window's titlebar to insert one as input — Enter is yours to press.
         </p>
 
         <div className="flex items-center gap-2 mb-3">
