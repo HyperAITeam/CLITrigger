@@ -61,6 +61,12 @@ interface SessionTerminalProps {
    * — there's no CLI subprocess waiting for `[Image #N]` to interpret.
    */
   disableImagePaste?: boolean;
+  /**
+   * Cycle to the next ('next') or previous ('prev') tab in the stack the
+   * pane belongs to. Invoked by Ctrl+Tab / Ctrl+Shift+Tab while the
+   * terminal has focus. Undefined → shortcut falls through to the PTY.
+   */
+  onCycleTab?: (dir: 'next' | 'prev') => void;
 }
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
@@ -90,6 +96,7 @@ export default function SessionTerminal({
   inputBlocked = false,
   autoFocusOnMount = false,
   disableImagePaste = false,
+  onCycleTab,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
   // theme by value) and then reapplied via term.options.theme in a separate
@@ -101,6 +108,11 @@ export default function SessionTerminal({
   inputBlockedRef.current = inputBlocked;
   const disableImagePasteRef = useRef(disableImagePaste);
   disableImagePasteRef.current = disableImagePaste;
+  // Stash the cycle callback in a ref so the mount-only key handler always
+  // sees the latest closure (StackView produces a new one whenever activeTab
+  // changes, but the handler is registered once per session mount).
+  const onCycleTabRef = useRef(onCycleTab);
+  onCycleTabRef.current = onCycleTab;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -263,7 +275,17 @@ export default function SessionTerminal({
       const mod = isMac ? ev.metaKey : ev.ctrlKey;
       const otherMod = isMac ? ev.ctrlKey : ev.metaKey;
       const onlyMod = mod && !otherMod && !ev.altKey && !ev.shiftKey;
+      const modWithShift = mod && !otherMod && !ev.altKey && ev.shiftKey;
       const key = ev.key.toLowerCase();
+
+      // Ctrl+Tab / Ctrl+Shift+Tab → cycle stack tabs. Only intercepted when
+      // a handler is bound (multi-tab stacks); otherwise the key falls
+      // through to the PTY as usual.
+      if (key === 'tab' && (onlyMod || modWithShift) && onCycleTabRef.current) {
+        ev.preventDefault();
+        onCycleTabRef.current(modWithShift ? 'prev' : 'next');
+        return false;
+      }
 
       if (onlyMod && key === 'c') {
         if (term.hasSelection()) {
