@@ -818,6 +818,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       sendMessage={sendMessage}
       subscribeBinary={subscribeBinary}
       onEvent={onEvent}
+      onAddSession={handleAddSession}
     >
     <div className="px-6 py-6 sm:px-8 sm:py-8">
       <ProjectHeader

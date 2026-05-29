@@ -2,7 +2,7 @@
 // All panes (one per tab) stay mounted simultaneously — only `display` is
 // toggled — so PTY live output never drops when the user switches tabs.
 
-import { X, Minus, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
+import { X, Minus, Plus, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -202,6 +202,33 @@ export default function StackView({
             </div>
           );
         })}
+        {/* New-tab "+" button. Spawns a raw-shell session and inserts it as
+            a new tab in this stack. Hidden in popouts (no host context).
+            Ctrl/Cmd+T triggers the same action globally via the host. */}
+        {sessionWindows && (
+          <button
+            data-no-drag
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => { sessionWindows.createRawShellTab(groupId, path).catch(() => { /* swallow */ }); }}
+            aria-label="new-tab"
+            title={`${t('group.newTab') || 'New shell tab'} (Ctrl+T)`}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderRight: `1px solid ${CMD.separator}`,
+              color: CMD.titleText,
+              cursor: 'pointer',
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              height: '100%',
+            }}
+          >
+            <Plus size={13} />
+          </button>
+        )}
         {/* Spacer so group action buttons (when present) sit at the right
             and the empty area between still bubbles mousedown to the parent
             for group dragging. */}

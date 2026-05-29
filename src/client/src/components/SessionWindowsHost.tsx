@@ -109,6 +109,11 @@ export interface SessionWindowsAPI {
   // coordinates (chrome-offset applied) — used by drag-out so the popout
   // appears under the user's cursor. Omitted → near the source window.
   popOutGroup: (groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => void;
+  // Spawn a fresh raw-shell session and either add it as a tab to the
+  // specified group's stack (when `targetGroupId` resolves to a visible
+  // main-owned group) or open it as a new floating window. Used by the "+"
+  // button next to tabs and by the Ctrl/Cmd+T global shortcut.
+  createRawShellTab: (targetGroupId: string | null, targetPath?: Path) => Promise<void>;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -131,6 +136,11 @@ interface HostProps {
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  // Propagate a freshly created session to ProjectDetail's sessions state
+  // (mirrors SessionList's onAddSession). Required for the "+" / Ctrl+T
+  // flow — without it, the new sessionId would appear in a tab but the
+  // sessions array wouldn't know about it and the pane would render empty.
+  onAddSession?: (session: Session) => void;
   children: ReactNode;
 }
 
@@ -231,6 +241,7 @@ export default function SessionWindowsHost({
   sendMessage,
   subscribeBinary,
   onEvent,
+  onAddSession,
   children,
 }: HostProps) {
   const { t } = useI18n();
@@ -987,6 +998,68 @@ export default function SessionWindowsHost({
   // beginTabDrag (defined earlier) can invoke it for tear-out → OS window.
   popOutGroupRef.current = popOutGroup;
 
+  // Resolve the path of the first stack in DFS order. Used by Ctrl/Cmd+T
+  // when adding a raw-shell tab to a group whose root may be a split — we
+  // pick the leftmost/topmost stack as a sensible default target.
+  const firstStackPath = useCallback((node: LayoutNode): Path => {
+    if (node.kind === 'stack') return [];
+    return [0, ...firstStackPath(node.children[0])];
+  }, []);
+
+  const createRawShellTab = useCallback(async (targetGroupId: string | null, targetPath?: Path) => {
+    // Title needs to be unique-ish so the sidebar / session list doesn't
+    // show a wall of identical "Shell" rows. Time-of-day is enough.
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const session = await sessionsApi.createSession(projectId, {
+      title: `Shell ${hh}:${mm}:${ss}`,
+      cli_tool: 'raw-shell',
+      use_worktree: false,
+      memory_inject_mode: 'none',
+    });
+    onAddSession?.(session);
+
+    const target = targetGroupId
+      ? groupsRef.current.find(g => g.id === targetGroupId)
+      : null;
+    const targetIsMainOwned = target && (target.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID;
+
+    if (!target || !targetIsMainOwned) {
+      // No host group to attach to (or popout owns it) — spawn a new
+      // floating window. Intent 'start' triggers auto-start in SessionPane.
+      openOrFocus(session.id, 'start');
+      return;
+    }
+
+    // Insert into the target stack. Falls back to the first stack in DFS
+    // order when no path is supplied (Ctrl/Cmd+T path) or the supplied
+    // path doesn't resolve to a stack (defensive).
+    const resolvedPath = (() => {
+      if (targetPath) {
+        const node = getNode(target.root, targetPath);
+        if (node && node.kind === 'stack') return targetPath;
+      }
+      return firstStackPath(target.root);
+    })();
+
+    zCounterRef.current += 1;
+    const z = zCounterRef.current;
+    setGroups((prev) => prev.map(g => {
+      if (g.id !== target.id) return g;
+      const newRoot = treeSetActiveTab(insertIntoStack(g.root, resolvedPath, session.id), session.id);
+      return {
+        ...g,
+        root: newRoot,
+        z,
+        minimized: false,
+        colors: { ...g.colors, [session.id]: assignColor(Object.values(g.colors)) },
+        intents: { ...g.intents, [session.id]: { intent: 'start' as WindowIntent, nonce: 0 } },
+      };
+    }));
+  }, [projectId, onAddSession, openOrFocus, firstStackPath]);
+
   // Bus subscription: handle messages from popout children. Lives in the
   // host so we can mutate the React `groups` state directly. Survives the
   // host's lifetime and is torn down on unmount.
@@ -1133,10 +1206,37 @@ export default function SessionWindowsHost({
     openOrFocus, close, focus, minimize, restore, isOpen,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
-    beginTabDrag, dockGroup, popOutGroup,
+    beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
   }), [openOrFocus, close, focus, minimize, restore, isOpen,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup]);
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab]);
+
+  // Global Ctrl+T / Cmd+T → new raw-shell tab in the topmost main-owned
+  // visible group, or a new floating window when none exists. preventDefault
+  // so the browser / Electron doesn't open a real new tab. Single-key combo
+  // (no shift / alt / opposite mod) to avoid stomping on other shortcuts.
+  // The matching xterm customKeyEventHandler swallows the same combo so the
+  // PTY doesn't also receive ^T while the terminal has focus.
+  useEffect(() => {
+    const onKeyDown = (ev: KeyboardEvent) => {
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+      const mod = isMac ? ev.metaKey : ev.ctrlKey;
+      const otherMod = isMac ? ev.ctrlKey : ev.metaKey;
+      if (!mod || otherMod || ev.altKey || ev.shiftKey) return;
+      if (ev.key.toLowerCase() !== 't') return;
+      ev.preventDefault();
+      const visible = groupsRef.current.filter(g =>
+        !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
+      );
+      const topmost = visible.reduce<OpenGroup | null>(
+        (acc, g) => (acc && acc.z >= g.z ? acc : g),
+        null,
+      );
+      createRawShellTab(topmost?.id ?? null).catch(() => { /* swallow — user-visible error surfaced via toast layer if any */ });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [createRawShellTab]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();

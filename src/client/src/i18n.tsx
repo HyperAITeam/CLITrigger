@@ -1039,6 +1039,7 @@ const translations = {
     'session.initialPrompt.loading': 'loading…',
     'session.initialPrompt.blocked': 'Press Send or Skip before typing — keystrokes are ignored until then.',
     'group.closeTab': 'Close tab',
+    'group.newTab': 'New shell tab',
 
     // Analytics
     'analytics.title': 'Execution Analytics',
@@ -2288,6 +2289,7 @@ const translations = {
     'session.initialPrompt.blocked': '타이핑하려면 보내기 또는 건너뛰기를 먼저 눌러주세요. 그 전엔 입력이 무시됩니다.',
     'session.fontIncrease': '글자 크게',
     'group.closeTab': '탭 닫기',
+    'group.newTab': '쉘 탭 새로 열기',
 
     // Analytics
     'analytics.title': '실행 통계',

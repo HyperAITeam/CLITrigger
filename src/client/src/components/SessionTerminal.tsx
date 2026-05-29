@@ -287,6 +287,14 @@ export default function SessionTerminal({
         return false;
       }
 
+      // Ctrl+T (Cmd+T on Mac) → new raw-shell tab. The actual creation runs
+      // off a window-level keydown handler in SessionWindowsHost; here we
+      // just swallow the combo so xterm doesn't also send ^T to the PTY.
+      if (key === 't' && onlyMod) {
+        ev.preventDefault();
+        return false;
+      }
+
       if (onlyMod && key === 'c') {
         if (term.hasSelection()) {
           ev.preventDefault();
