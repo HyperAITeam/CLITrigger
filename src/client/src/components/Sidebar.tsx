@@ -275,6 +275,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     // fires; the drag gesture would otherwise eat the click.
     const target = e.target as HTMLElement;
     if (target.closest('button')) return;
+    // Kill the browser's default mousedown behaviour on the anchor:
+    // selection-then-drag, native link drag, focus-with-selection. Without
+    // this, Edge / Chrome still happen to start a native drag from an
+    // <a>-descended text node and overlay their split-view drop target.
+    // The click event still fires (preventDefault on mousedown doesn't
+    // suppress it), so navigation works for plain clicks.
+    e.preventDefault();
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -381,7 +388,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   );
 
   return (
-    <div className="flex flex-col h-full glass border-none">
+    <div
+      className="flex flex-col h-full glass border-none"
+      // Defence in depth: any element inside the sidebar that the browser
+      // tries to start a native drag from (anchor, image, selected text)
+      // is canceled here. Without it, Edge can grab a drag from anywhere
+      // in the sidebar tree and overlay its split-view drop target.
+      onDragStart={(e) => e.preventDefault()}
+    >
       {/* Logo */}
       <div className="px-4 pt-5 pb-3">
         <Link to="/" onClick={handleNav} className="block">
