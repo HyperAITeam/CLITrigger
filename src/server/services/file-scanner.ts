@@ -74,6 +74,28 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
   return { frontmatter: fm, body };
 }
 
+/** Strip fenced + inline code so `#` inside code isn't read as a tag. */
+function stripCode(body: string): string {
+  return body
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/~~~[\s\S]*?~~~/g, ' ')
+    .replace(/`[^`\n]*`/g, ' ');
+}
+
+// 태그: 공백/줄시작 뒤 `#`, 그 뒤 태그문자. 최소 1개의 "글자"(\p{L})를 강제해
+// 순수 숫자(#123)·기호를 배제. /로 중첩 태그(parent/child) 허용. u 플래그로 한글 지원.
+const INLINE_TAG_RE = /(?:^|\s)#([\p{L}\p{N}_/-]*\p{L}[\p{L}\p{N}_/-]*)/gu;
+
+export function parseInlineTags(body: string): string[] {
+  if (!body) return [];
+  const text = stripCode(body);
+  const out = new Set<string>();
+  INLINE_TAG_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = INLINE_TAG_RE.exec(text)) !== null) out.add(m[1]);
+  return [...out];
+}
+
 function shouldExclude(relativePath: string, excludes: string[]): boolean {
   const parts = relativePath.split(/[\\/]/);
   return parts.some(p => excludes.includes(p));
@@ -155,6 +177,7 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
           tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
         }
       }
+      tags.push(...parseInlineTags(body));
       const refs = parseWikilinks(body);
       wikilinks = [...new Set(refs.map(r => r.title))];
       bodyFlat = body.replace(/\s+/g, ' ').trim();
@@ -181,7 +204,7 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
       relativePath: rel,
       stem,
       title,
-      tags,
+      tags: [...new Set(tags)],
       wikilinks,
       size: stat.size,
       mtime: stat.mtime.toISOString(),
