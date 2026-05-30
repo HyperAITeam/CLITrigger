@@ -17,10 +17,11 @@ interface Props<TId extends string> {
   onActivate: (id: TId) => void;
   panels: readonly PanelDef<TId>[];
   width: number;
+  actions?: ReactNode;
 }
 
 export function SidebarRail<TId extends string>({
-  side, collapsed, onToggleCollapsed, activeId, onActivate, panels, width,
+  side, collapsed, onToggleCollapsed, activeId, onActivate, panels, width, actions,
 }: Props<TId>) {
   const { t } = useI18n();
   const active = panels.find((p) => p.id === activeId);
@@ -66,6 +67,13 @@ export function SidebarRail<TId extends string>({
           </button>
         );
       })}
+      {actions && (
+        <>
+          <div className="flex-1" />
+          <div className="w-full border-t border-warm-200 my-0.5" />
+          {actions}
+        </>
+      )}
     </div>
   );
 
