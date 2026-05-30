@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
-export type AnnotationTool = 'pen' | 'highlighter' | 'eraser';
+export type AnnotationTool = 'pen' | 'highlighter' | 'eraser' | 'select';
 
 export interface AnnotationOverlayState {
   canUndo: boolean;
@@ -139,6 +139,7 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
     }, [enabled, tool, current, toLocal, eraseAt]);
 
     const finishStroke = useCallback(() => {
+      if (tool === 'select') { setCurrent(null); return; }
       if (tool === 'eraser') {
         if (eraseStartRef.current !== null) {
           const snapshot = eraseStartRef.current;
@@ -175,9 +176,9 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
           inset: 0,
           width: '100%',
           height: '100%',
-          pointerEvents: enabled ? 'auto' : 'none',
-          cursor: !enabled ? 'default' : tool === 'eraser' ? 'cell' : 'crosshair',
-          touchAction: enabled ? 'none' : 'auto',
+          pointerEvents: enabled && tool !== 'select' ? 'auto' : 'none',
+          cursor: !enabled || tool === 'select' ? 'default' : tool === 'eraser' ? 'cell' : 'crosshair',
+          touchAction: enabled && tool !== 'select' ? 'none' : 'auto',
           zIndex: 1,
         }}
         onPointerDown={onPointerDown}

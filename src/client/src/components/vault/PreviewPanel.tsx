@@ -2,7 +2,7 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import { createPortal } from 'react-dom';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
-  Pencil, Save, Check, Search, Highlighter, Eraser, Trash2, Undo2, Redo2,
+  Pencil, Save, Check, Search, Highlighter, Eraser, Trash2, Undo2, Redo2, MousePointer2,
 } from 'lucide-react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -353,6 +353,7 @@ export function PreviewPanel({
   const toggleAnnotate = useCallback(() => {
     setAnnotateMode(v => {
       if (v) overlayRef.current?.clearAll();
+      else setAnnotateTool('select');
       return !v;
     });
   }, []);
@@ -497,6 +498,17 @@ export function PreviewPanel({
 
       {annotateMode && canAnnotate && (
         <div className="flex items-center gap-1 px-3 py-1 border-b border-warm-200 bg-warm-50 text-xs">
+          <button
+            type="button"
+            onClick={() => setAnnotateTool('select')}
+            title={t('annotate.select')}
+            aria-pressed={annotateTool === 'select'}
+            className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'select' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+          >
+            <MousePointer2 className="w-3 h-3" />
+            <span>{t('annotate.select')}</span>
+          </button>
+          <span className="mx-1 text-warm-300">|</span>
           <button
             type="button"
             onClick={() => setAnnotateTool('pen')}
