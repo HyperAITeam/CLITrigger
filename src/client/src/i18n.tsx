@@ -723,6 +723,8 @@ const translations = {
     'annotate.pen': 'Pen',
     'annotate.highlighter': 'Highlighter',
     'annotate.eraser': 'Eraser',
+    'annotate.undo': 'Undo',
+    'annotate.redo': 'Redo',
     'annotate.clear': 'Clear all',
 
     // Wiki (Karpathy LLM-Wiki pattern)
@@ -1975,6 +1977,8 @@ const translations = {
     'annotate.pen': '펜',
     'annotate.highlighter': '형광펜',
     'annotate.eraser': '지우개',
+    'annotate.undo': '되돌리기',
+    'annotate.redo': '다시 실행',
     'annotate.clear': '모두 지우기',
 
     // Wiki (Karpathy LLM-Wiki 패턴)

@@ -1,10 +1,17 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 export type AnnotationTool = 'pen' | 'highlighter' | 'eraser';
+
+export interface AnnotationOverlayState {
+  canUndo: boolean;
+  canRedo: boolean;
+}
 
 export interface AnnotationOverlayHandle {
   clearAll: () => void;
   hasStrokes: () => boolean;
+  undo: () => void;
+  redo: () => void;
 }
 
 interface Point { x: number; y: number }
@@ -13,6 +20,7 @@ interface Stroke { id: string; tool: 'pen' | 'highlighter'; points: Point[] }
 interface Props {
   enabled: boolean;
   tool: AnnotationTool;
+  onStateChange?: (state: AnnotationOverlayState) => void;
 }
 
 const STROKE_COLOR = '#dc2626';
@@ -37,16 +45,54 @@ function strokeHitsPoint(stroke: Stroke, p: Point, radiusSq: number): boolean {
 }
 
 export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
-  function AnnotationOverlay({ enabled, tool }, ref) {
+  function AnnotationOverlay({ enabled, tool, onStateChange }, ref) {
     const [strokes, setStrokes] = useState<Stroke[]>([]);
+    const [past, setPast] = useState<Stroke[][]>([]);
+    const [future, setFuture] = useState<Stroke[][]>([]);
     const [current, setCurrent] = useState<Point[] | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const lastMoveRef = useRef<number>(0);
+    const eraseStartRef = useRef<Stroke[] | null>(null);
+    const strokesRef = useRef<Stroke[]>(strokes);
+    strokesRef.current = strokes;
+
+    useEffect(() => {
+      onStateChange?.({ canUndo: past.length > 0, canRedo: future.length > 0 });
+    }, [past.length, future.length, onStateChange]);
 
     useImperativeHandle(ref, () => ({
-      clearAll: () => { setStrokes([]); setCurrent(null); },
-      hasStrokes: () => strokes.length > 0,
-    }), [strokes.length]);
+      clearAll: () => {
+        setCurrent(null);
+        eraseStartRef.current = null;
+        if (strokesRef.current.length === 0) return;
+        setPast(p => [...p, strokesRef.current]);
+        setStrokes([]);
+        setFuture([]);
+      },
+      hasStrokes: () => strokesRef.current.length > 0,
+      undo: () => {
+        setCurrent(null);
+        eraseStartRef.current = null;
+        setPast(p => {
+          if (p.length === 0) return p;
+          const prev = p[p.length - 1];
+          setFuture(f => [...f, strokesRef.current]);
+          setStrokes(prev);
+          return p.slice(0, -1);
+        });
+      },
+      redo: () => {
+        setCurrent(null);
+        eraseStartRef.current = null;
+        setFuture(f => {
+          if (f.length === 0) return f;
+          const next = f[f.length - 1];
+          setPast(p => [...p, strokesRef.current]);
+          setStrokes(next);
+          return f.slice(0, -1);
+        });
+      },
+    }), []);
 
     const toLocal = useCallback((e: React.PointerEvent): Point => {
       const rect = svgRef.current!.getBoundingClientRect();
@@ -55,7 +101,13 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
 
     const eraseAt = useCallback((p: Point) => {
       const r2 = ERASER_RADIUS * ERASER_RADIUS;
-      setStrokes(prev => prev.filter(s => !strokeHitsPoint(s, p, r2)));
+      setStrokes(prev => {
+        const filtered = prev.filter(s => !strokeHitsPoint(s, p, r2));
+        if (filtered.length !== prev.length && eraseStartRef.current === null) {
+          eraseStartRef.current = prev;
+        }
+        return filtered;
+      });
     }, []);
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -65,6 +117,7 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
       (e.target as Element).setPointerCapture?.(e.pointerId);
       const p = toLocal(e);
       if (tool === 'eraser') {
+        eraseStartRef.current = null;
         eraseAt(p);
       } else {
         setCurrent([p]);
@@ -86,19 +139,33 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
     }, [enabled, tool, current, toLocal, eraseAt]);
 
     const finishStroke = useCallback(() => {
+      if (tool === 'eraser') {
+        if (eraseStartRef.current !== null) {
+          const snapshot = eraseStartRef.current;
+          eraseStartRef.current = null;
+          setPast(p => [...p, snapshot]);
+          setFuture([]);
+        }
+        setCurrent(null);
+        return;
+      }
       if (current === null || current.length === 0) { setCurrent(null); return; }
-      if (tool === 'eraser') { setCurrent(null); return; }
       const stroke: Stroke = {
         id: `s${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         tool,
         points: current,
       };
+      setPast(p => [...p, strokesRef.current]);
       setStrokes(prev => [...prev, stroke]);
+      setFuture([]);
       setCurrent(null);
     }, [current, tool]);
 
     const onPointerUp = useCallback(() => { finishStroke(); }, [finishStroke]);
-    const onPointerCancel = useCallback(() => { setCurrent(null); }, []);
+    const onPointerCancel = useCallback(() => {
+      setCurrent(null);
+      eraseStartRef.current = null;
+    }, []);
 
     return (
       <svg

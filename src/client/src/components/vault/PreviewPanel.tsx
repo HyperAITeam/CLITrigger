@@ -2,7 +2,7 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import { createPortal } from 'react-dom';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
-  Pencil, Save, Check, Search, Highlighter, Eraser, Trash2,
+  Pencil, Save, Check, Search, Highlighter, Eraser, Trash2, Undo2, Redo2,
 } from 'lucide-react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -12,7 +12,7 @@ import {
   SearchCursor, RegExpCursor,
 } from '@codemirror/search';
 import { FindReplaceBar, type FindOptions } from './FindReplaceBar';
-import { AnnotationOverlay, type AnnotationOverlayHandle, type AnnotationTool } from './AnnotationOverlay';
+import { AnnotationOverlay, type AnnotationOverlayHandle, type AnnotationOverlayState, type AnnotationTool } from './AnnotationOverlay';
 import { useI18n } from '../../i18n';
 import { getFileContent, getBinaryFileUrl, openFile, saveFileContent } from '../../api/files';
 import type { FileEntry } from '../../api/files';
@@ -82,7 +82,13 @@ export function PreviewPanel({
   const previewMatchesRef = useRef<HTMLElement[]>([]);
   const [annotateMode, setAnnotateMode] = useState(false);
   const [annotateTool, setAnnotateTool] = useState<AnnotationTool>('pen');
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const overlayRef = useRef<AnnotationOverlayHandle>(null);
+  const handleOverlayState = useCallback((s: AnnotationOverlayState) => {
+    setCanUndo(s.canUndo);
+    setCanRedo(s.canRedo);
+  }, []);
   const dirty = editMode && editorValue !== savedValue;
 
   useEffect(() => () => {
@@ -259,8 +265,15 @@ export function PreviewPanel({
       if (!findOpen) return;
       e.preventDefault();
       if (e.shiftKey) findPrev(); else findNext();
+    } else if (annotateMode && isCtrl && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) overlayRef.current?.redo();
+      else overlayRef.current?.undo();
+    } else if (annotateMode && isCtrl && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      overlayRef.current?.redo();
     }
-  }, [editable, editMode, findOpen, openFind, findNext, findPrev]);
+  }, [editable, editMode, findOpen, openFind, findNext, findPrev, annotateMode]);
 
   useEffect(() => {
     if (!findOpen) return;
@@ -517,6 +530,27 @@ export function PreviewPanel({
           <span className="mx-1 text-warm-300">|</span>
           <button
             type="button"
+            onClick={() => overlayRef.current?.undo()}
+            disabled={!canUndo}
+            title={t('annotate.undo')}
+            className={`p-1 rounded inline-flex items-center gap-1 ${canUndo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
+          >
+            <Undo2 className="w-3 h-3" />
+            <span>{t('annotate.undo')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => overlayRef.current?.redo()}
+            disabled={!canRedo}
+            title={t('annotate.redo')}
+            className={`p-1 rounded inline-flex items-center gap-1 ${canRedo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
+          >
+            <Redo2 className="w-3 h-3" />
+            <span>{t('annotate.redo')}</span>
+          </button>
+          <span className="mx-1 text-warm-300">|</span>
+          <button
+            type="button"
             onClick={() => overlayRef.current?.clearAll()}
             title={t('annotate.clear')}
             className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 inline-flex items-center gap-1"
@@ -583,7 +617,7 @@ export function PreviewPanel({
             fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
           >
             <div className="p-4 vault-md-zoom relative" style={{ fontSize: `${zoom}px` }}>
-              <AnnotationOverlay ref={overlayRef} enabled={annotateMode} tool={annotateTool} />
+              <AnnotationOverlay ref={overlayRef} enabled={annotateMode} tool={annotateTool} onStateChange={handleOverlayState} />
               <MarkdownContent
                 content={textContent}
                 onCheckboxToggle={handleCheckboxToggle}
