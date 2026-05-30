@@ -720,6 +720,7 @@ const translations = {
     // Annotate (ephemeral overlay drawing)
     'annotate.start': 'Start drawing',
     'annotate.stop': 'Stop drawing',
+    'annotate.select': 'Select',
     'annotate.pen': 'Pen',
     'annotate.highlighter': 'Highlighter',
     'annotate.eraser': 'Eraser',
@@ -1974,6 +1975,7 @@ const translations = {
     // 낙서 (휘발성 오버레이)
     'annotate.start': '낙서 시작',
     'annotate.stop': '낙서 종료',
+    'annotate.select': '선택',
     'annotate.pen': '펜',
     'annotate.highlighter': '형광펜',
     'annotate.eraser': '지우개',
