@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ignore, { type Ignore } from 'ignore';
 import { parseWikilinks } from './memory-wikilinks.js';
 
 export type VaultFileKind = 'md' | 'html';
@@ -78,7 +79,16 @@ function shouldExclude(relativePath: string, excludes: string[]): boolean {
   return parts.some(p => excludes.includes(p));
 }
 
-function walkDir(dir: string, root: string, excludes: string[], results: string[]): void {
+function loadVaultIgnore(projectRoot: string): Ignore {
+  const ig = ignore();
+  try {
+    const txt = fs.readFileSync(path.join(projectRoot, '.vaultignore'), 'utf-8');
+    ig.add(txt);
+  } catch { /* absent or unreadable — empty ignore */ }
+  return ig;
+}
+
+function walkDir(dir: string, root: string, excludes: string[], ig: Ignore, results: string[]): void {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -92,8 +102,11 @@ function walkDir(dir: string, root: string, excludes: string[], results: string[
 
     if (shouldExclude(rel, excludes)) continue;
 
+    const matchPath = entry.isDirectory() ? rel + '/' : rel;
+    if (ig.ignores(matchPath)) continue;
+
     if (entry.isDirectory()) {
-      walkDir(fullPath, root, excludes, results);
+      walkDir(fullPath, root, excludes, ig, results);
     } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm'))) {
       results.push(rel);
     }
@@ -105,8 +118,9 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) return [];
 
   const excludes = excludePatterns ?? DEFAULT_EXCLUDES;
+  const ig = loadVaultIgnore(resolved);
   const relativePaths: string[] = [];
-  walkDir(resolved, resolved, excludes, relativePaths);
+  walkDir(resolved, resolved, excludes, ig, relativePaths);
 
   const files: VaultFile[] = [];
   for (const rel of relativePaths) {

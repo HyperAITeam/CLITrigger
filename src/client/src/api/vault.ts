@@ -65,3 +65,11 @@ export function previewVaultInjection(
 export function searchVaultFiles(projectId: string, query: string): Promise<{ files: VaultFile[] }> {
   return get(`/api/projects/${projectId}/vault/search?q=${encodeURIComponent(query)}`);
 }
+
+export function getVaultIgnore(projectId: string): Promise<{ content: string }> {
+  return get(`/api/projects/${projectId}/vault/ignore`);
+}
+
+export function saveVaultIgnore(projectId: string, content: string): Promise<{ success: boolean }> {
+  return put(`/api/projects/${projectId}/vault/ignore`, { content });
+}

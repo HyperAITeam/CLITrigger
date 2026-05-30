@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
 import pathModule from 'path';
 import * as queries from '../db/queries.js';
 import {
@@ -192,6 +193,35 @@ router.get('/projects/:id/vault/search', (req: Request, res: Response) => {
   const q = (req.query.q as string) ?? '';
   const results = searchVault(ctx.root, q);
   res.json({ files: results });
+});
+
+// GET /api/projects/:id/vault/ignore
+router.get('/projects/:id/vault/ignore', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  try {
+    const content = fs.readFileSync(pathModule.join(ctx.root, '.vaultignore'), 'utf-8');
+    res.json({ content });
+  } catch {
+    res.json({ content: '' });
+  }
+});
+
+// PUT /api/projects/:id/vault/ignore
+router.put('/projects/:id/vault/ignore', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  const { content } = req.body;
+  if (typeof content !== 'string') {
+    res.status(400).json({ error: 'content must be a string' });
+    return;
+  }
+  try {
+    fs.writeFileSync(pathModule.join(ctx.root, '.vaultignore'), content, 'utf-8');
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to write .vaultignore' });
+  }
 });
 
 export default router;

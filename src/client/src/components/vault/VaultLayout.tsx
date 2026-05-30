@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight } from 'lucide-react';
+import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight, Settings } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useVaultState, type LeftPanelId, type RightPanelId } from './vault-state';
 import { Resizer } from './Resizer';
@@ -13,6 +13,7 @@ import { OutlinePanel } from './panels/OutlinePanel';
 import { BacklinksPanel } from './panels/BacklinksPanel';
 import { OutgoingLinksPanel } from './panels/OutgoingLinksPanel';
 import { CenterEditor } from './CenterEditor';
+import { VaultIgnoreModal } from './VaultIgnoreModal';
 import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 
 interface Props {
@@ -26,6 +27,7 @@ export default function VaultLayout({ projectId }: Props) {
   const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
   const [vaultEdges, setVaultEdges] = useState<VaultEdge[]>([]);
   const [vaultLoading, setVaultLoading] = useState(false);
+  const [ignoreModalOpen, setIgnoreModalOpen] = useState(false);
 
   const reloadVault = useCallback(() => {
     setVaultLoading(true);
@@ -166,6 +168,16 @@ export default function VaultLayout({ projectId }: Props) {
         onActivate={state.setLeftPanelId}
         panels={leftPanels}
         width={state.layout.leftWidth}
+        actions={
+          <button
+            type="button"
+            onClick={() => setIgnoreModalOpen(true)}
+            className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+            title=".vaultignore"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+        }
       />
       {!state.layout.leftCollapsed && <Resizer onResize={onLeftResize} />}
 
@@ -185,6 +197,12 @@ export default function VaultLayout({ projectId }: Props) {
         onActivate={state.setRightPanelId}
         panels={rightPanels}
         width={state.layout.rightWidth}
+      />
+      <VaultIgnoreModal
+        open={ignoreModalOpen}
+        projectId={projectId}
+        onClose={() => setIgnoreModalOpen(false)}
+        onSaved={reloadVault}
       />
     </div>
   );

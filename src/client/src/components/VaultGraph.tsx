@@ -32,6 +32,14 @@ const EDGE_STYLE = {
   opacity: 0.6,
 };
 
+function hashTagToHsl(tag: string): string {
+  let h = 0;
+  for (let i = 0; i < tag.length; i++) {
+    h = (h * 31 + tag.charCodeAt(i)) >>> 0;
+  }
+  return `hsl(${h % 360}, 62%, 58%)`;
+}
+
 interface SimNode {
   id: string;
   x: number;
@@ -106,9 +114,9 @@ function runForceLayout(
   return out;
 }
 
-function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; onSelect: (p: string) => void } }) {
-  const { file, size, selected, highlight } = data;
-  const fill = selected ? '#3B82F6' : highlight ? '#10B981' : '#E5E7EB';
+function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; tagColor: string | null; onSelect: (p: string) => void } }) {
+  const { file, size, selected, highlight, tagColor } = data;
+  const fill = selected ? '#3B82F6' : highlight ? '#10B981' : tagColor ?? '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
   const centeredHandle: React.CSSProperties = {
     width: 1, height: 1, minWidth: 0, minHeight: 0,
@@ -160,6 +168,23 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
     return m;
   }, [degree]);
 
+  const firstTagByPath = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const f of files) {
+      const t = f.tags.length ? [...f.tags].sort()[0] : null;
+      m.set(f.relativePath, t);
+    }
+    return m;
+  }, [files]);
+
+  const legend = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of firstTagByPath.values()) {
+      if (t && !m.has(t)) m.set(t, hashTagToHsl(t));
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [firstTagByPath]);
+
   const positions = useMemo(() => {
     const ids = files.map(f => f.relativePath);
     const links = edges.map(e => [e.from, e.to] as [string, string]);
@@ -181,14 +206,16 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
     const deg = degree.get(f.relativePath) ?? 0;
     const size = NODE_RADIUS_BASE + (deg / maxDegree) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
     const highlight = matchesSearch(f);
+    const firstTag = firstTagByPath.get(f.relativePath) ?? null;
+    const tagColor = firstTag ? hashTagToHsl(firstTag) : null;
     return {
       id: f.relativePath,
       type: 'vaultDot',
       position: { x: pos.x, y: pos.y },
-      data: { file: f, size, selected: f.relativePath === selectedPath, highlight, onSelect: handleSelect },
+      data: { file: f, size, selected: f.relativePath === selectedPath, highlight, tagColor, onSelect: handleSelect },
       style: search.trim() && !highlight ? { opacity: 0.18 } : undefined,
     };
-  }), [files, positions, degree, maxDegree, selectedPath, handleSelect, matchesSearch, search]);
+  }), [files, positions, degree, maxDegree, firstTagByPath, selectedPath, handleSelect, matchesSearch, search]);
 
   const initialEdges: Edge[] = useMemo(() =>
     edges.map((e, i) => ({
@@ -222,7 +249,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder={t('vault.searchPlaceholder')}
-        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-50 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <ReactFlow
         nodes={flowNodes}
@@ -240,6 +267,19 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#2A2A2A" />
         <Controls className="!bg-[#222] !border-[#333] !text-warm-50" />
       </ReactFlow>
+      {legend.length > 0 && (
+        <div className="absolute bottom-3 left-3 z-10 bg-black/50 border border-warm-700 rounded-lg px-2 py-1.5 text-xs max-h-48 overflow-y-auto text-warm-800">
+          {legend.map(([tag, color]) => (
+            <div key={tag} className="flex items-center gap-1.5 py-0.5">
+              <span
+                className="inline-block rounded-full shrink-0"
+                style={{ width: 8, height: 8, background: color }}
+              />
+              <span className="truncate">{tag}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
