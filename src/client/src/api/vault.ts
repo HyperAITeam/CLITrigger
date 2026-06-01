@@ -87,3 +87,17 @@ export async function addPathToVaultIgnore(
   const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
   await saveVaultIgnore(projectId, content + sep + pattern + '\n');
 }
+
+// Inverse of addPathToVaultIgnore: drop the anchored exact-path line for
+// `relPath` from `.vaultignore`. Reverses a prior "hide" (a broader glob the
+// user wrote by hand won't match and is left untouched). No-op if absent.
+export async function removePathFromVaultIgnore(
+  projectId: string, relPath: string, isDir: boolean,
+): Promise<void> {
+  const { content } = await getVaultIgnore(projectId);
+  const pattern = '/' + relPath.replace(/^\/+/, '') + (isDir ? '/' : '');
+  const kept = content.split(/\r?\n/).filter((l) => l.trim() !== pattern);
+  const next = kept.join('\n');
+  if (next === content) return;
+  await saveVaultIgnore(projectId, next);
+}

@@ -6,6 +6,9 @@ export interface FileEntry {
   size: number | null;
   mtime: number | null;
   hidden: boolean;
+  // True only when hidden by a `.vaultignore` pattern (not dotfiles/defaults),
+  // so the context menu can offer "unhide" instead of "hide".
+  ignored?: boolean;
 }
 
 export interface ListFilesResult {
