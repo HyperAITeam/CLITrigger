@@ -59,6 +59,15 @@ export function openFile(
   return post(`/api/projects/${projectId}/files/open`, { path, mode });
 }
 
+// Move/rename a file or directory. `to` is the full new project-relative path.
+export function moveFile(
+  projectId: string,
+  from: string,
+  to: string,
+): Promise<{ success: boolean; from: string; to: string }> {
+  return post(`/api/projects/${projectId}/files/move`, { from, to });
+}
+
 export interface SaveFileResult {
   path: string;
   size: number;

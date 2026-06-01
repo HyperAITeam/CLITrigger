@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
-import { listFiles, openFile } from '../../../api/files';
+import { listFiles, openFile, moveFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
 import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
 import { iconFor } from '../files-utils';
@@ -23,8 +23,12 @@ interface Props {
   onVaultIgnoreChanged?: () => void;
 }
 
+// Custom drag type carrying the dragged item's project-relative path.
+const DND_PATH_TYPE = 'application/x-vault-path';
+
 function TreeRow({
   entry, depth, state, fullPath, selectedPath, onToggle, onSelect, onContextMenu,
+  onMove, dropTargetPath, setDropTargetPath,
 }: {
   entry: FileEntry;
   depth: number;
@@ -34,14 +38,43 @@ function TreeRow({
   onToggle: (path: string, entry: FileEntry) => void;
   onSelect: (path: string, entry: FileEntry) => void;
   onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
+  onMove: (from: string, destFolder: string) => void;
+  dropTargetPath: string | null;
+  setDropTargetPath: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const isDir = entry.type === 'directory';
   const expanded = state?.expanded ?? false;
   const isSelected = selectedPath === fullPath;
+  const isDropTarget = isDir && dropTargetPath === fullPath;
+
+  // Folders accept drops (move into); every row is draggable (move out).
+  const dropProps = isDir ? {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setDropTargetPath(fullPath);
+    },
+    onDragLeave: () => setDropTargetPath((p) => (p === fullPath ? null : p)),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const from = e.dataTransfer.getData(DND_PATH_TYPE) || e.dataTransfer.getData('text/plain');
+      setDropTargetPath(null);
+      if (from) onMove(from, fullPath);
+    },
+  } : {};
 
   return (
     <button
       type="button"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DND_PATH_TYPE, fullPath);
+        e.dataTransfer.setData('text/plain', fullPath);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => setDropTargetPath(null)}
+      {...dropProps}
       onClick={() => {
         if (isDir) onToggle(fullPath, entry);
         else onSelect(fullPath, entry);
@@ -49,7 +82,9 @@ function TreeRow({
       onDoubleClick={() => { if (isDir) onSelect(fullPath, entry); }}
       onContextMenu={(e) => onContextMenu(e, fullPath, entry)}
       className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded transition-colors ${
-        isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
+        isDropTarget
+          ? 'bg-accent/25 ring-1 ring-accent'
+          : isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
       }`}
       style={{ paddingLeft: 4 + depth * 12 }}
       title={entry.name}
@@ -67,6 +102,7 @@ function TreeRow({
 
 function TreeBranch({
   projectId, parentPath, entries, depth, nodeStates, setNodeStates, showHidden, selectedPath, onSelect, onContextMenu,
+  onMove, dropTargetPath, setDropTargetPath,
 }: {
   projectId: string;
   parentPath: string;
@@ -78,6 +114,9 @@ function TreeBranch({
   selectedPath: string | null;
   onSelect: (path: string, entry: FileEntry) => void;
   onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
+  onMove: (from: string, destFolder: string) => void;
+  dropTargetPath: string | null;
+  setDropTargetPath: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const toggle = useCallback(async (full: string, entry: FileEntry) => {
     const prev = nodeStates.get(full);
@@ -135,6 +174,9 @@ function TreeBranch({
               onToggle={toggle}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
+              onMove={onMove}
+              dropTargetPath={dropTargetPath}
+              setDropTargetPath={setDropTargetPath}
             />
             {entry.type === 'directory' && state?.expanded && (
               <>
@@ -161,6 +203,9 @@ function TreeBranch({
                     selectedPath={selectedPath}
                     onSelect={onSelect}
                     onContextMenu={onContextMenu}
+                    onMove={onMove}
+                    dropTargetPath={dropTargetPath}
+                    setDropTargetPath={setDropTargetPath}
                   />
                 )}
               </>
@@ -395,6 +440,8 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     } catch { return []; }
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // Folder path currently hovered as a drag-and-drop target ('' = root header).
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(`${lsKey}:pinned`, JSON.stringify(pinned)); } catch { /* ignore */ }
@@ -498,11 +545,42 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     } catch { /* swallow */ }
   }, [projectId, loadRoot, onVaultIgnoreChanged]);
 
+  // Drag-and-drop move. `destFolder` is the target folder's path ('' = root).
+  // Simple move only (fs.rename) — name-based wikilinks survive; path-based
+  // references may need manual fixing.
+  const handleMove = useCallback(async (from: string, destFolder: string) => {
+    const name = from.split('/').filter(Boolean).pop() ?? from;
+    const to = destFolder ? `${destFolder}/${name}` : name;
+    const fromParent = from.includes('/') ? from.slice(0, from.lastIndexOf('/')) : '';
+    // No-op when already in that folder; can't move a folder into itself/descendant.
+    if (from === to || fromParent === destFolder) return;
+    if (destFolder === from || destFolder.startsWith(from + '/')) return;
+    try {
+      await moveFile(projectId, from, to);
+      await loadRoot();
+      onVaultIgnoreChanged?.();
+    } catch (err) {
+      console.warn('[vault] move failed:', err);
+    }
+  }, [projectId, loadRoot, onVaultIgnoreChanged]);
+
   const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-warm-200 text-xs">
+      <div
+        className={`flex items-center gap-1 px-2 py-1.5 border-b border-warm-200 text-xs transition-colors ${
+          dropTargetPath === '' ? 'bg-accent/20 ring-1 ring-accent ring-inset' : ''
+        }`}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTargetPath(''); }}
+        onDragLeave={() => setDropTargetPath((p) => (p === '' ? null : p))}
+        onDrop={(e) => {
+          e.preventDefault();
+          const from = e.dataTransfer.getData(DND_PATH_TYPE) || e.dataTransfer.getData('text/plain');
+          setDropTargetPath(null);
+          if (from) handleMove(from, '');
+        }}
+      >
         <span className="font-medium text-warm-700 truncate flex-1">{t('files.root')}</span>
         <span className="text-warm-400 shrink-0">{totalEntries}</span>
         <button
@@ -553,6 +631,9 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
             selectedPath={activeFile}
             onSelect={handleSelect}
             onContextMenu={handleContextMenu}
+            onMove={handleMove}
+            dropTargetPath={dropTargetPath}
+            setDropTargetPath={setDropTargetPath}
           />
         )}
       </div>
