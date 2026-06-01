@@ -898,6 +898,10 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   const handleCompStart = () => {
     composing = true;
     positionHelperAtCursor();
+    // Hide xterm's block cursor while composing: the buffer cursor doesn't
+    // advance until commit, so it would otherwise sit awkwardly to the left
+    // of the in-flight Hangul. See index.css `.clitrigger-composing`.
+    container.classList.add('clitrigger-composing');
     reportComposing('');
   };
   // compositionupdate fires for every keystroke that mutates the in-flight
@@ -909,6 +913,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
+    container.classList.remove('clitrigger-composing');
     reportComposing('');
     const data = (e as CompositionEvent).data;
     if (data) {
@@ -979,6 +984,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
+    container.classList.remove('clitrigger-composing');
     reportComposing('');
   };
 }
