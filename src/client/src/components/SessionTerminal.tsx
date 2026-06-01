@@ -185,6 +185,58 @@ export default function SessionTerminal({
     // container's `paste` event fires for the same Ctrl/Cmd+V, so handlePaste
     // checks this to skip re-running the upload + ESC+v flow.
     let pasteHandledAt = 0;
+
+    // Keyboard text selection (Ctrl+Shift+arrows/Home/End). xterm has no
+    // built-in keyboard selection, so we track an anchor + moving head in
+    // absolute buffer coords (row = baseY + cursorY, stable across scrollback)
+    // and drive term.select(). The anchor is always the PTY cursor at the
+    // moment selection starts — no free-moving caret (that's copy-mode).
+    let kbSelAnchor: { col: number; row: number } | null = null;
+    let kbSelHead: { col: number; row: number } | null = null;
+    let kbSelActive = false;
+    const extendKeyboardSelection = (key: string) => {
+      const buf = term.buffer.active;
+      const cols = term.cols;
+      const maxRow = Math.max(0, buf.length - 1);
+      if (!kbSelActive || !kbSelAnchor || !kbSelHead) {
+        const start = { col: buf.cursorX, row: buf.baseY + buf.cursorY };
+        kbSelAnchor = { ...start };
+        kbSelHead = { ...start };
+      }
+      const head = kbSelHead;
+      switch (key) {
+        case 'arrowleft':
+          if (head.col > 0) head.col -= 1;
+          else if (head.row > 0) { head.row -= 1; head.col = cols - 1; }
+          break;
+        case 'arrowright':
+          if (head.col < cols - 1) head.col += 1;
+          else if (head.row < maxRow) { head.row += 1; head.col = 0; }
+          break;
+        case 'arrowup':
+          head.row = Math.max(0, head.row - 1);
+          break;
+        case 'arrowdown':
+          head.row = Math.min(maxRow, head.row + 1);
+          break;
+        case 'home':
+          head.col = 0;
+          break;
+        case 'end':
+          head.col = cols - 1;
+          break;
+      }
+      // Order anchor/head in reading order (row-major) for term.select().
+      const a = kbSelAnchor;
+      const headFirst = head.row < a.row || (head.row === a.row && head.col < a.col);
+      const startSel = headFirst ? head : a;
+      const endSel = headFirst ? a : head;
+      const length = (endSel.row - startSel.row) * cols + (endSel.col - startSel.col) + 1;
+      term.select(startSel.col, startSel.row, Math.max(1, length));
+      // Keep the moving head in view.
+      if (head.row < buf.viewportY) term.scrollToLine(head.row);
+      else if (head.row >= buf.viewportY + term.rows) term.scrollToLine(head.row - term.rows + 1);
+    };
     const pasteFromClipboard = async () => {
       if (inputBlockedRef.current) {
         console.debug('[paste] inputBlocked → ignored');
@@ -277,6 +329,26 @@ export default function SessionTerminal({
       const onlyMod = mod && !otherMod && !ev.altKey && !ev.shiftKey;
       const modWithShift = mod && !otherMod && !ev.altKey && ev.shiftKey;
       const key = ev.key.toLowerCase();
+
+      // Ctrl+Shift+arrows/Home/End → extend a keyboard text selection from the
+      // cursor. Uses Ctrl+Shift (not bare Shift/arrows) so plain arrows still
+      // reach the running CLI. Existing Ctrl+C/X then copy/cut the selection.
+      const isSelExtend =
+        ev.ctrlKey && ev.shiftKey && !ev.altKey && !ev.metaKey &&
+        ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'home', 'end'].includes(key);
+      if (isSelExtend) {
+        ev.preventDefault();
+        extendKeyboardSelection(key);
+        kbSelActive = true;
+        return false;
+      }
+      // Any other key (except the copy/cut that consume the selection) drops a
+      // live keyboard selection and falls through to normal handling, so the
+      // highlight doesn't linger while typing.
+      if (kbSelActive && !(onlyMod && (key === 'c' || key === 'x'))) {
+        term.clearSelection();
+        kbSelActive = false;
+      }
 
       // Ctrl+Tab / Ctrl+Shift+Tab → cycle stack tabs. Only intercepted when
       // a handler is bound (multi-tab stacks); otherwise the key falls
