@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CanvasAddon } from '@xterm/addon-canvas';
@@ -145,6 +146,29 @@ export default function SessionTerminal({
   const toastWarningRef = useRef(toastWarning);
   toastWarningRef.current = toastWarning;
 
+  // Right-click context menu (Copy / Paste / Select All). Position is the
+  // raw click point; the menu clamps itself into the viewport when rendered.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
+  // pasteFromClipboard lives inside the mount-only effect; expose it so the
+  // menu's Paste item can reuse the exact same image+text+ESC+v flow.
+  const pasteFnRef = useRef<() => void>(() => {});
+
+  // Dismiss the context menu on Escape / window resize / scroll. Outside
+  // clicks + wheel are caught by the menu's own backdrop overlay.
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [ctxMenu]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -185,58 +209,6 @@ export default function SessionTerminal({
     // container's `paste` event fires for the same Ctrl/Cmd+V, so handlePaste
     // checks this to skip re-running the upload + ESC+v flow.
     let pasteHandledAt = 0;
-
-    // Keyboard text selection (Ctrl+Shift+arrows/Home/End). xterm has no
-    // built-in keyboard selection, so we track an anchor + moving head in
-    // absolute buffer coords (row = baseY + cursorY, stable across scrollback)
-    // and drive term.select(). The anchor is always the PTY cursor at the
-    // moment selection starts — no free-moving caret (that's copy-mode).
-    let kbSelAnchor: { col: number; row: number } | null = null;
-    let kbSelHead: { col: number; row: number } | null = null;
-    let kbSelActive = false;
-    const extendKeyboardSelection = (key: string) => {
-      const buf = term.buffer.active;
-      const cols = term.cols;
-      const maxRow = Math.max(0, buf.length - 1);
-      if (!kbSelActive || !kbSelAnchor || !kbSelHead) {
-        const start = { col: buf.cursorX, row: buf.baseY + buf.cursorY };
-        kbSelAnchor = { ...start };
-        kbSelHead = { ...start };
-      }
-      const head = kbSelHead;
-      switch (key) {
-        case 'arrowleft':
-          if (head.col > 0) head.col -= 1;
-          else if (head.row > 0) { head.row -= 1; head.col = cols - 1; }
-          break;
-        case 'arrowright':
-          if (head.col < cols - 1) head.col += 1;
-          else if (head.row < maxRow) { head.row += 1; head.col = 0; }
-          break;
-        case 'arrowup':
-          head.row = Math.max(0, head.row - 1);
-          break;
-        case 'arrowdown':
-          head.row = Math.min(maxRow, head.row + 1);
-          break;
-        case 'home':
-          head.col = 0;
-          break;
-        case 'end':
-          head.col = cols - 1;
-          break;
-      }
-      // Order anchor/head in reading order (row-major) for term.select().
-      const a = kbSelAnchor;
-      const headFirst = head.row < a.row || (head.row === a.row && head.col < a.col);
-      const startSel = headFirst ? head : a;
-      const endSel = headFirst ? a : head;
-      const length = (endSel.row - startSel.row) * cols + (endSel.col - startSel.col) + 1;
-      term.select(startSel.col, startSel.row, Math.max(1, length));
-      // Keep the moving head in view.
-      if (head.row < buf.viewportY) term.scrollToLine(head.row);
-      else if (head.row >= buf.viewportY + term.rows) term.scrollToLine(head.row - term.rows + 1);
-    };
     const pasteFromClipboard = async () => {
       if (inputBlockedRef.current) {
         console.debug('[paste] inputBlocked → ignored');
@@ -330,26 +302,6 @@ export default function SessionTerminal({
       const modWithShift = mod && !otherMod && !ev.altKey && ev.shiftKey;
       const key = ev.key.toLowerCase();
 
-      // Ctrl+Shift+arrows/Home/End → extend a keyboard text selection from the
-      // cursor. Uses Ctrl+Shift (not bare Shift/arrows) so plain arrows still
-      // reach the running CLI. Existing Ctrl+C/X then copy/cut the selection.
-      const isSelExtend =
-        ev.ctrlKey && ev.shiftKey && !ev.altKey && !ev.metaKey &&
-        ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'home', 'end'].includes(key);
-      if (isSelExtend) {
-        ev.preventDefault();
-        extendKeyboardSelection(key);
-        kbSelActive = true;
-        return false;
-      }
-      // Any other key (except the copy/cut that consume the selection) drops a
-      // live keyboard selection and falls through to normal handling, so the
-      // highlight doesn't linger while typing.
-      if (kbSelActive && !(onlyMod && (key === 'c' || key === 'x'))) {
-        term.clearSelection();
-        kbSelActive = false;
-      }
-
       // Ctrl+Tab / Ctrl+Shift+Tab → cycle stack tabs. Only intercepted when
       // a handler is bound (multi-tab stacks); otherwise the key falls
       // through to the PTY as usual.
@@ -367,27 +319,13 @@ export default function SessionTerminal({
         return false;
       }
 
-      if (onlyMod && key === 'c') {
-        if (term.hasSelection()) {
-          ev.preventDefault();
-          navigator.clipboard.writeText(term.getSelection()).catch(() => {});
-          return false;
-        }
-        return true; // no selection → let SIGINT through
-      }
+      // Ctrl+C / Ctrl+X are intentionally NOT hijacked for copy/cut — they
+      // pass straight through to the PTY (^C = SIGINT) so there's no overlap
+      // with the terminal interrupt. Copy/cut is done via the right-click menu.
       if (onlyMod && key === 'v') {
         ev.preventDefault();
         pasteFromClipboard();
         return false;
-      }
-      if (onlyMod && key === 'x') {
-        if (term.hasSelection()) {
-          ev.preventDefault();
-          navigator.clipboard.writeText(term.getSelection()).catch(() => {});
-          term.clearSelection();
-          return false;
-        }
-        return true;
       }
       // Alt+V → paste (Linux terminal convention some users prefer).
       // Resolves before macOptionIsMeta's ESC+v conversion.
@@ -452,6 +390,15 @@ export default function SessionTerminal({
       e.stopPropagation();
     };
     container.addEventListener('wheel', onContainerWheel, { passive: false });
+
+    // Right-click → our own context menu (Copy/Paste/Select All). Suppress the
+    // browser's native menu. Paste reuses the exact image+text+ESC+v flow.
+    pasteFnRef.current = () => { void pasteFromClipboard(); };
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setCtxMenu({ x: e.clientX, y: e.clientY, hasSelection: term.hasSelection() });
+    };
+    container.addEventListener('contextmenu', onContextMenu);
 
     // Best-effort initial fit so xterm has a sensible cols/rows for any
     // synchronous writes that arrive before the first ResizeObserver tick.
@@ -569,6 +516,8 @@ export default function SessionTerminal({
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
       container.removeEventListener('wheel', onContainerWheel);
+      container.removeEventListener('contextmenu', onContextMenu);
+      setCtxMenu(null);
       inputCleanup();
       unsubBinary();
       unsubEvent();
@@ -744,6 +693,66 @@ export default function SessionTerminal({
         </div>
       )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {ctxMenu && createPortal((() => {
+        const MENU_W = 184;
+        const MENU_H = 116;
+        const left = Math.max(8, Math.min(ctxMenu.x, window.innerWidth - MENU_W - 8));
+        const top = Math.max(8, Math.min(ctxMenu.y, window.innerHeight - MENU_H - 8));
+        const close = () => setCtxMenu(null);
+        const doCopy = () => {
+          const sel = termRef.current?.getSelection() ?? '';
+          if (sel) navigator.clipboard?.writeText(sel).catch(() => {});
+          close();
+        };
+        const doPaste = () => { pasteFnRef.current(); close(); };
+        const doSelectAll = () => { termRef.current?.selectAll(); close(); };
+        return (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 2147483646 }}
+              onMouseDown={close}
+              onContextMenu={(e) => { e.preventDefault(); close(); }}
+            />
+            <div
+              role="menu"
+              style={{
+                position: 'fixed',
+                left,
+                top,
+                zIndex: 2147483647,
+                minWidth: 168,
+                background: CMD.bg,
+                border: `1px solid ${CMD.separator}`,
+                borderRadius: 6,
+                padding: 4,
+                fontFamily: CMD_FONT,
+                fontSize: 13,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              }}
+            >
+              <button
+                type="button"
+                disabled={!ctxMenu.hasSelection}
+                onClick={doCopy}
+                className="w-full text-left px-3 py-1.5 rounded hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ color: CMD.bright }}
+              >복사</button>
+              <button
+                type="button"
+                onClick={doPaste}
+                className="w-full text-left px-3 py-1.5 rounded hover:bg-white/10"
+                style={{ color: CMD.bright }}
+              >붙여넣기</button>
+              <button
+                type="button"
+                onClick={doSelectAll}
+                className="w-full text-left px-3 py-1.5 rounded hover:bg-white/10"
+                style={{ color: CMD.bright }}
+              >전체 선택</button>
+            </div>
+          </>
+        );
+      })(), document.body)}
     </div>
   );
 }
