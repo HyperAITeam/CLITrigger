@@ -122,6 +122,9 @@ export interface GitRef {
   name: string;
   current: boolean;
   remote: boolean;
+  upstream?: string | null;
+  ahead?: number;
+  behind?: number;
 }
 
 export interface GitRefsResult {

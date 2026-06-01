@@ -1079,6 +1079,16 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                 </svg>
               )}
               <span className="truncate">{b.name}</span>
+              {(!!b.ahead || !!b.behind) && (
+                <span className="ml-auto shrink-0 flex items-center gap-1 px-1.5 rounded-full border border-warm-300 dark:border-warm-600 text-[10px] font-semibold leading-tight">
+                  {!!b.ahead && (
+                    <span className="text-emerald-500" title={`${b.ahead} ${t('git.ahead')}`}>{b.ahead}↑</span>
+                  )}
+                  {!!b.behind && (
+                    <span className="text-amber-500" title={`${b.behind} ${t('git.behind')}`}>{b.behind}↓</span>
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </div>

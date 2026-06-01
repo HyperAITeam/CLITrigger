@@ -355,18 +355,51 @@ export class WorktreeManager {
    * Get git refs (branches, tags, stash count) for a directory.
    */
   async getGitRefs(dirPath: string): Promise<{
-    branches: Array<{ name: string; current: boolean; remote: boolean }>;
+    branches: Array<{ name: string; current: boolean; remote: boolean; upstream?: string | null; ahead?: number; behind?: number }>;
     tags: string[];
     stashCount: number;
   }> {
     const git = createGit(dirPath);
 
+    // Per-local-branch upstream tracking + ahead/behind in one cheap call.
+    // %(upstream:track) yields e.g. "[ahead 2, behind 1]", "[ahead 2]",
+    // "[behind 1]", "[gone]" or "". refs/heads lists local branches only, so
+    // remote-tracking refs (remotes/*) get no tracking info (correct).
+    const trackByName = new Map<string, { upstream: string | null; ahead: number; behind: number }>();
+    try {
+      const raw = await git.raw([
+        'for-each-ref',
+        '--format=%(refname:short)%09%(upstream:short)%09%(upstream:track)',
+        'refs/heads',
+      ]);
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        const [name, upstream, track = ''] = line.split('\t');
+        const aheadMatch = /ahead (\d+)/.exec(track);
+        const behindMatch = /behind (\d+)/.exec(track);
+        trackByName.set(name, {
+          upstream: upstream || null,
+          ahead: aheadMatch ? Number(aheadMatch[1]) : 0,
+          behind: behindMatch ? Number(behindMatch[1]) : 0,
+        });
+      }
+    } catch {
+      // for-each-ref unsupported or detached HEAD — branches still returned
+      // without tracking info.
+    }
+
     const branchResult = await git.branch(['-a']);
-    const branches = Object.values(branchResult.branches).map((b) => ({
-      name: b.name,
-      current: b.current,
-      remote: b.name.startsWith('remotes/'),
-    }));
+    const branches = Object.values(branchResult.branches).map((b) => {
+      const track = trackByName.get(b.name);
+      return {
+        name: b.name,
+        current: b.current,
+        remote: b.name.startsWith('remotes/'),
+        upstream: track ? track.upstream : null,
+        ahead: track ? track.ahead : 0,
+        behind: track ? track.behind : 0,
+      };
+    });
 
     const tagResult = await git.tags();
     const tags = tagResult.all;
