@@ -361,4 +361,52 @@ router.post('/:id/files/open', (req: Request<{ id: string }>, res: Response) => 
   }
 });
 
+// POST /:id/files/move — move (or rename) a file/directory within the project.
+// `from` and `to` are project-root-relative paths; `to` is the full new path
+// (caller composes destFolder + '/' + name). Both are path-traversal-guarded.
+router.post('/:id/files/move', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { from, to } = (req.body ?? {}) as { from?: unknown; to?: unknown };
+    if (typeof from !== 'string' || typeof to !== 'string' || !from || !to) {
+      res.status(400).json({ error: 'from and to (relative paths) are required' });
+      return;
+    }
+    const src = resolveSafe(req.params.id, from);
+    const dst = resolveSafe(req.params.id, to);
+    if (!src || !dst) {
+      res.status(403).json({ error: 'Path is outside project root or project not found' });
+      return;
+    }
+    const fromNorm = from.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const toNorm = to.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    if (fromNorm === toNorm) {
+      res.status(400).json({ error: 'Source and destination are the same' });
+      return;
+    }
+    // Block moving a directory into itself or one of its descendants.
+    if (toNorm === fromNorm || toNorm.startsWith(fromNorm + '/')) {
+      res.status(400).json({ error: 'Cannot move a folder into itself' });
+      return;
+    }
+    if (!fs.existsSync(src.abs)) {
+      res.status(404).json({ error: 'Source does not exist' });
+      return;
+    }
+    if (fs.existsSync(dst.abs)) {
+      res.status(409).json({ error: 'Destination already exists' });
+      return;
+    }
+    const dstParent = path.dirname(dst.abs);
+    if (!fs.existsSync(dstParent) || !fs.statSync(dstParent).isDirectory()) {
+      res.status(400).json({ error: 'Destination folder does not exist' });
+      return;
+    }
+    fs.renameSync(src.abs, dst.abs);
+    res.json({ success: true, from: fromNorm, to: toNorm });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;
