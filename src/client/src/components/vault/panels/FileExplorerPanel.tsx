@@ -6,7 +6,7 @@ import {
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
-import { addPathToVaultIgnore } from '../../../api/vault';
+import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
 import { iconFor } from '../files-utils';
 
 interface TreeNodeState {
@@ -225,12 +225,13 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onClose }: {
+function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose }: {
   state: ContextMenuState;
   projectId: string;
   isPinned: boolean;
   onTogglePin: () => void;
   onHide: () => void;
+  onUnhide: () => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -342,14 +343,28 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onClose 
         <Copy className="w-3.5 h-3.5" />
         <span>{t('files.copyPath')}</span>
       </button>
-      <button
-        type="button"
-        onClick={() => { onHide(); onClose(); }}
-        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
-      >
-        <EyeOff className="w-3.5 h-3.5" />
-        <span>{t('files.hide')}</span>
-      </button>
+      {/* When the entry is hidden specifically by a .vaultignore pattern,
+          offer to unhide (remove the pattern) instead of hide. Dotfiles /
+          DEFAULT_HIDDEN aren't `ignored`, so they keep the plain "hide". */}
+      {state.entry.ignored ? (
+        <button
+          type="button"
+          onClick={() => { onUnhide(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>{t('files.unhide')}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => { onHide(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+        >
+          <EyeOff className="w-3.5 h-3.5" />
+          <span>{t('files.hide')}</span>
+        </button>
+      )}
     </div>,
     document.body,
   );
@@ -475,6 +490,14 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     } catch { /* swallow */ }
   }, [projectId, loadRoot, onVaultIgnoreChanged]);
 
+  const handleUnhide = useCallback(async (path: string, entry: FileEntry) => {
+    try {
+      await removePathFromVaultIgnore(projectId, path, entry.type === 'directory');
+      await loadRoot();
+      onVaultIgnoreChanged?.();
+    } catch { /* swallow */ }
+  }, [projectId, loadRoot, onVaultIgnoreChanged]);
+
   const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
 
   return (
@@ -540,6 +563,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           isPinned={pinnedPaths.has(contextMenu.path)}
           onTogglePin={() => togglePin(contextMenu.path, contextMenu.entry)}
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
+          onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
         />
       )}

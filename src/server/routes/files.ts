@@ -48,6 +48,10 @@ interface FileEntry {
   size: number | null;
   mtime: number | null;
   hidden: boolean;
+  // True only when hidden specifically by a `.vaultignore` pattern (not for
+  // dotfiles / DEFAULT_HIDDEN), so the UI can offer "unhide" — removing the
+  // pattern would actually re-reveal it.
+  ignored: boolean;
 }
 
 // GET /api/projects/:id/files?path=<rel>&showHidden=1
@@ -104,7 +108,7 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
         mtime = child.mtimeMs;
       } catch { /* skip stat failures (permission denied, broken symlink) */ }
 
-      entries.push({ name: d.name, type, size, mtime, hidden });
+      entries.push({ name: d.name, type, size, mtime, hidden, ignored });
     }
 
     // Directories first, then files; case-insensitive name sort within each group.
