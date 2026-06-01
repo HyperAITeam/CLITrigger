@@ -77,6 +77,7 @@ export default function VaultLayout({ projectId }: Props) {
           projectId={projectId}
           activeFile={state.activeFile}
           onSelectFile={state.setActiveFile}
+          onVaultIgnoreChanged={reloadVault}
         />
       ),
     },
@@ -104,7 +105,7 @@ export default function VaultLayout({ projectId }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, reloadVault]);
 
   const rightPanels = useMemo<readonly PanelDef<RightPanelId>[]>(() => [
     {

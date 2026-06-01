@@ -101,7 +101,7 @@ function shouldExclude(relativePath: string, excludes: string[]): boolean {
   return parts.some(p => excludes.includes(p));
 }
 
-function loadVaultIgnore(projectRoot: string): Ignore {
+export function loadVaultIgnore(projectRoot: string): Ignore {
   const ig = ignore();
   try {
     const txt = fs.readFileSync(path.join(projectRoot, '.vaultignore'), 'utf-8');

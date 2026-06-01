@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { PlannerItem, PlannerTag, Todo, Schedule, ImageMeta } from '../types';
+import type { PlannerItem, PlannerTag, Todo, Schedule, Session, ImageMeta } from '../types';
 
 export function getPlannerItems(projectId: string): Promise<PlannerItem[]> {
   return get(`/api/projects/${projectId}/planner`);
@@ -61,6 +61,13 @@ export function convertToSchedule(
   data: { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string; cli_model?: string }
 ): Promise<{ plannerItem: PlannerItem; schedule: Schedule }> {
   return post(`/api/planner/${id}/convert-to-schedule`, data);
+}
+
+export function convertToSession(
+  id: string,
+  data: { cli_tool?: string; cli_model?: string; use_worktree?: boolean }
+): Promise<{ plannerItem: PlannerItem; session: Session }> {
+  return post(`/api/planner/${id}/convert-to-session`, data);
 }
 
 export async function exportPlanner(projectId: string): Promise<{ blob: Blob; filename: string }> {

@@ -26,10 +26,10 @@
 //     window", not "stop the session". Re-mounting that project shows no
 //     window for it; the PTY can be re-attached from the Sessions list.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { GripVertical, X } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
 import * as projectsApi from '../api/projects';
@@ -45,6 +45,40 @@ interface MinimizedChip {
 
 const STORAGE_PREFIX = 'sessionGroups:';
 const RESTORE_KEY = 'pendingSessionRestore';
+// User-defined chip order (array of "projectId:groupId") and the tray's
+// horizontal offset, both persisted locally. The tray stays bottom-anchored;
+// only `left` is draggable.
+const ORDER_KEY = 'sessionDockOrder';
+const TRAY_LEFT_KEY = 'sessionDockTray:left';
+
+function chipKeyOf(c: MinimizedChip): string {
+  return `${c.projectId}:${c.groupId}`;
+}
+
+function readOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+  } catch { return []; }
+}
+
+function writeOrder(keys: string[]): void {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(keys)); } catch { /* ignore */ }
+}
+
+function readTrayLeft(): number | null {
+  try {
+    const raw = localStorage.getItem(TRAY_LEFT_KEY);
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
+
+function writeTrayLeft(v: number): void {
+  try { localStorage.setItem(TRAY_LEFT_KEY, String(Math.round(v))); } catch { /* ignore */ }
+}
 
 function readAllMinimized(): MinimizedChip[] {
   const chips: MinimizedChip[] = [];
@@ -97,6 +131,77 @@ export default function GlobalSessionDockTray() {
   const currentProjectId = getCurrentProjectId(location.pathname);
 
   const refresh = useCallback(() => setChips(readAllMinimized()), []);
+
+  // ── Chip reorder (HTML5 drag) ──────────────────────────────────────────
+  const [order, setOrder] = useState<string[]>(() => readOrder());
+  const dragKeyRef = useRef<string | null>(null);
+
+  const ordered = useMemo(() => {
+    const idx = (k: string) => {
+      const i = order.indexOf(k);
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    // `chips` is already deterministically sorted; this is a stable re-sort
+    // that honours the user's drag order and appends unknown chips at the end.
+    return [...chips].sort((a, b) => idx(chipKeyOf(a)) - idx(chipKeyOf(b)));
+  }, [chips, order]);
+
+  const handleChipDrop = useCallback((targetKey: string) => {
+    const from = dragKeyRef.current;
+    dragKeyRef.current = null;
+    if (!from || from === targetKey) return;
+    const keys = ordered.map(chipKeyOf);
+    const fi = keys.indexOf(from);
+    const ti = keys.indexOf(targetKey);
+    if (fi < 0 || ti < 0) return;
+    keys.splice(ti, 0, keys.splice(fi, 1)[0]);
+    setOrder(keys);
+    writeOrder(keys);
+  }, [ordered]);
+
+  // ── Tray reposition (pointer drag on grip handle, bottom-anchored) ──────
+  const trayRef = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<number | null>(readTrayLeft());
+  const moveRef = useRef<{ startX: number; startLeft: number } | null>(null);
+  const [trayLeft, setTrayLeft] = useState<number | null>(() => leftRef.current);
+
+  const onHandleDown = useCallback((e: React.PointerEvent) => {
+    const el = trayRef.current;
+    if (!el) return;
+    e.preventDefault();
+    moveRef.current = { startX: e.clientX, startLeft: el.getBoundingClientRect().left };
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  }, []);
+
+  const onHandleMove = useCallback((e: React.PointerEvent) => {
+    const m = moveRef.current;
+    if (!m) return;
+    const w = trayRef.current?.offsetWidth ?? 200;
+    const max = Math.max(8, window.innerWidth - w - 8);
+    const next = Math.max(8, Math.min(m.startLeft + (e.clientX - m.startX), max));
+    leftRef.current = next;
+    setTrayLeft(next);
+  }, []);
+
+  const onHandleUp = useCallback((e: React.PointerEvent) => {
+    if (!moveRef.current) return;
+    moveRef.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (leftRef.current !== null) writeTrayLeft(leftRef.current);
+  }, []);
+
+  // Keep a repositioned tray on-screen when the viewport shrinks.
+  useEffect(() => {
+    const onResize = () => setTrayLeft((prev) => {
+      if (prev === null) return prev;
+      const w = trayRef.current?.offsetWidth ?? 200;
+      const clamped = Math.max(8, Math.min(prev, window.innerWidth - w - 8));
+      if (clamped !== prev) { leftRef.current = clamped; writeTrayLeft(clamped); }
+      return clamped;
+    });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     const load = () => projectsApi.getProjects()
@@ -171,18 +276,40 @@ export default function GlobalSessionDockTray() {
     refresh();
   };
 
+  const positioned = trayLeft !== null;
+
   return createPortal(
     <div
+      ref={trayRef}
+      // Default (no custom position): offset past the fixed 240px sidebar
+      // (w-60) on desktop so chips don't cover its bottom controls; mobile's
+      // sidebar is an off-screen overlay so bottom-left is clear. Once the
+      // user drags the grip handle, an explicit `left` overrides this.
+      className={positioned
+        ? 'fixed bottom-2'
+        : 'fixed bottom-2 left-2 md:left-[248px] max-w-[calc(100vw-16px)] md:max-w-[calc(100vw-256px)]'}
       style={{
-        position: 'fixed',
-        bottom: 8, left: 8,
-        display: 'flex', gap: 6,
+        display: 'flex', alignItems: 'center', gap: 6,
         zIndex: 900,
-        maxWidth: 'calc(100vw - 16px)',
         flexWrap: 'wrap',
+        ...(positioned
+          ? { left: trayLeft, maxWidth: `calc(100vw - ${Math.round(trayLeft) + 8}px)` }
+          : {}),
       }}
     >
-      {chips.map((chip) => {
+      <div
+        onPointerDown={onHandleDown}
+        onPointerMove={onHandleMove}
+        onPointerUp={onHandleUp}
+        aria-label="move dock"
+        style={{
+          display: 'flex', alignItems: 'center', flexShrink: 0,
+          color: CMD.titleText, cursor: 'grab', padding: 2, touchAction: 'none',
+        }}
+      >
+        <GripVertical size={14} />
+      </div>
+      {ordered.map((chip) => {
         const labels = chip.sessionIds.map(id => chip.titles[id] || id);
         const label = labels.length === 1
           ? labels[0]
@@ -191,6 +318,11 @@ export default function GlobalSessionDockTray() {
         return (
           <div
             key={`${chip.projectId}:${chip.groupId}`}
+            draggable
+            onDragStart={(e) => { dragKeyRef.current = chipKeyOf(chip); e.dataTransfer.effectAllowed = 'move'; }}
+            onDragOver={(e) => { if (dragKeyRef.current && dragKeyRef.current !== chipKeyOf(chip)) e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); handleChipDrop(chipKeyOf(chip)); }}
+            onDragEnd={() => { dragKeyRef.current = null; }}
             onClick={() => handleRestore(chip)}
             title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}`}
             style={{
