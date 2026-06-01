@@ -898,13 +898,6 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   const handleCompStart = () => {
     composing = true;
     positionHelperAtCursor();
-    // Hide xterm's block cursor while composing: the buffer cursor doesn't
-    // advance until commit, so it would otherwise sit awkwardly to the left
-    // of the in-flight Hangul (drawn inline by xterm's .composition-view).
-    // DECTCEM (CSI ?25 l/h) toggles xterm's LOCAL render only — it's not sent
-    // to the PTY and isn't part of the raw replay stream, so no desync.
-    // Renderer-independent (works for canvas and DOM-fallback cursors alike).
-    try { term.write('\x1b[?25l'); } catch { /* term may be disposing */ }
     reportComposing('');
   };
   // compositionupdate fires for every keystroke that mutates the in-flight
@@ -916,7 +909,6 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
-    try { term.write('\x1b[?25h'); } catch { /* term may be disposing */ }
     reportComposing('');
     const data = (e as CompositionEvent).data;
     if (data) {
@@ -987,8 +979,6 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
-    // Restore the cursor in case teardown interrupts an active composition.
-    try { term.write('\x1b[?25h'); } catch { /* term may be disposing */ }
     reportComposing('');
   };
 }
