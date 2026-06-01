@@ -516,6 +516,13 @@
   .flex.h-screen > aside {
     border-right: 1px solid var(--color-border);
   }
+
+  /* 한글 IME 조합 중에는 블록 커서를 숨겨, 커밋 전 커서가 조합 글자
+     뒤에 어색하게 남는 것을 방지. 조합 종료 시 클래스가 제거되며 복귀.
+     CanvasAddon 렌더러는 커서를 .xterm-cursor-layer 캔버스에 그린다. */
+  .clitrigger-composing .xterm-cursor-layer {
+    opacity: 0;
+  }
 }
 
 @layer utilities {
