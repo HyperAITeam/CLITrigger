@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { MoreVertical, ArrowRight, Clock, Trash2, ChevronRight, X, Image as ImageIcon, MessagesSquare } from 'lucide-react';
+import { MoreVertical, ArrowRight, Clock, Terminal, Trash2, ChevronRight, X, Image as ImageIcon, MessagesSquare } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
@@ -29,10 +29,11 @@ interface PlannerItemProps {
   onDelete: () => void;
   onConvertToTodo: () => void;
   onConvertToSchedule: () => void;
+  onConvertToSession: () => void;
   onUpdateTag?: (name: string, data: { color?: string }) => Promise<void>;
 }
 
-export default function PlannerItem({ item, tagColors, existingTags, onSave, onDelete, onConvertToTodo, onConvertToSchedule, onUpdateTag }: PlannerItemProps) {
+export default function PlannerItem({ item, tagColors, existingTags, onSave, onDelete, onConvertToTodo, onConvertToSchedule, onConvertToSession, onUpdateTag }: PlannerItemProps) {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -243,7 +244,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
           </span>
           {isMoved && item.converted_type && (
             <span className="text-2xs text-purple-500">
-              → {item.converted_type === 'todo' ? t('planner.movedToTodo') : t('planner.movedToSchedule')}
+              → {item.converted_type === 'todo' ? t('planner.movedToTodo') : item.converted_type === 'session' ? t('planner.movedToSession') : t('planner.movedToSchedule')}
             </span>
           )}
           {item.source_discussion_id && (
@@ -313,6 +314,9 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                   </button>
                   <button onClick={onConvertToSchedule} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
                     <Clock size={12} /> {t('planner.convertToSchedule')}
+                  </button>
+                  <button onClick={onConvertToSession} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-warm-100 rounded-md transition-colors text-left" style={{ color: 'var(--color-text-primary)' }}>
+                    <Terminal size={12} /> {t('planner.convertToTerminal')}
                   </button>
                 </>
               )}

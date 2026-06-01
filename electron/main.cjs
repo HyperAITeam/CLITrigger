@@ -165,6 +165,12 @@ function createWindow(port) {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
+          // Frameless: drop the native title bar + app menu (File/Edit/…) for
+          // popouts. PopoutPage renders its own 28px top bar (label / re-dock /
+          // close) and marks it as a -webkit-app-region drag handle so the
+          // window can still be moved. thickFrame stays default → edge resize
+          // + shadow remain. Main window is unaffected.
+          frame: false,
           width: feat.width || 800,
           height: feat.height || 540,
           // x/y intentionally only forwarded when supplied — Electron treats

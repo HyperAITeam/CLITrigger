@@ -334,7 +334,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           fontSize: 11,
           flexShrink: 0,
           userSelect: 'none',
-        }}
+          // Frameless Electron popout: this bar is the window drag handle.
+          // Ignored in plain web browsers.
+          WebkitAppRegion: 'drag',
+        } as React.CSSProperties}
       >
         <span style={{ color: CMD.info, fontWeight: 600, letterSpacing: 1, marginRight: 8 }} aria-hidden>{'>_'}</span>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -430,4 +433,6 @@ const chromeBtnStyle: React.CSSProperties = {
   borderRadius: 4,
   fontFamily: CMD_FONT,
   fontSize: 11,
-};
+  // Keep buttons clickable inside the drag-region top bar (frameless popout).
+  WebkitAppRegion: 'no-drag',
+} as React.CSSProperties;

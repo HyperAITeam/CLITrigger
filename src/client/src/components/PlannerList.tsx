@@ -22,6 +22,7 @@ interface PlannerListProps {
   onDeleteItem: (id: string) => Promise<void>;
   onConvertToTodo: (id: string, data: Record<string, unknown>) => Promise<void>;
   onConvertToSchedule: (id: string, data: Record<string, unknown>) => Promise<void>;
+  onConvertToSession: (id: string, data: Record<string, unknown>) => Promise<void>;
   onUpdateTag?: (name: string, data: { color?: string; new_name?: string }) => Promise<void>;
   onDeleteTag?: (name: string) => Promise<void>;
   onExport?: () => Promise<void>;
@@ -30,7 +31,7 @@ interface PlannerListProps {
 
 export default function PlannerList({
   plannerItems, existingTags, projectCliTool, projectCliModel,
-  onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule,
+  onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule, onConvertToSession,
   onUpdateTag, onDeleteTag, onExport, onImport,
 }: PlannerListProps) {
   const { t } = useI18n();
@@ -41,7 +42,7 @@ export default function PlannerList({
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [convertItem, setConvertItem] = useState<PlannerItemType | null>(null);
-  const [convertMode, setConvertMode] = useState<'todo' | 'schedule'>('todo');
+  const [convertMode, setConvertMode] = useState<'todo' | 'schedule' | 'session'>('todo');
   const [ioBusy, setIoBusy] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -324,6 +325,7 @@ export default function PlannerList({
                 onDelete={() => onDeleteItem(item.id)}
                 onConvertToTodo={() => { setConvertItem(item); setConvertMode('todo'); }}
                 onConvertToSchedule={() => { setConvertItem(item); setConvertMode('schedule'); }}
+                onConvertToSession={() => { setConvertItem(item); setConvertMode('session'); }}
                 onUpdateTag={onUpdateTag}
               />
             </div>
@@ -341,6 +343,8 @@ export default function PlannerList({
           onConvert={async (data) => {
             if (convertMode === 'todo') {
               await onConvertToTodo(convertItem.id, data);
+            } else if (convertMode === 'session') {
+              await onConvertToSession(convertItem.id, data);
             } else {
               await onConvertToSchedule(convertItem.id, data);
             }

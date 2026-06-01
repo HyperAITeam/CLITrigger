@@ -427,6 +427,37 @@ router.post('/planner/:id/convert-to-schedule', (req: Request<{ id: string }>, r
   }
 });
 
+// POST /api/planner/:id/convert-to-session - convert to interactive terminal session
+router.post('/planner/:id/convert-to-session', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const item = queries.getPlannerItemById(req.params.id);
+    if (!item) {
+      res.status(404).json({ error: 'Planner item not found' });
+      return;
+    }
+    if (item.status === 'moved') {
+      res.status(400).json({ error: 'Item already converted' });
+      return;
+    }
+
+    const { cli_tool, cli_model, use_worktree } = req.body;
+    const session = queries.createSession(
+      item.project_id, item.title, item.description ?? undefined,
+      cli_tool || undefined, cli_model || undefined, !!use_worktree,
+      'none', null, null, null
+    );
+
+    const updatedItem = queries.updatePlannerItem(req.params.id, {
+      status: 'moved', converted_type: 'session', converted_id: session.id,
+    });
+
+    res.status(201).json({ plannerItem: updatedItem, session });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // GET /api/projects/:id/planner/export - download planner as Markdown
 router.get('/projects/:id/planner/export', (req: Request<{ id: string }>, res: Response) => {
   try {

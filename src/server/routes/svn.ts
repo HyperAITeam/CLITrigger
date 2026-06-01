@@ -23,7 +23,7 @@ function resolveSvnPath(
     res.status(404).json({ error: 'Project not found' });
     return { ok: false };
   }
-  if (!project.svn_enabled || project.vcs_type !== 'svn') {
+  if (!project.svn_enabled) {
     res.status(400).json({ error: 'SVN is not enabled for this project' });
     return { ok: false };
   }

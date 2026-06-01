@@ -4,7 +4,7 @@ import { useModels } from '../hooks/useModels';
 import type { PlannerItem } from '../types';
 import Modal from './Modal';
 
-type ConvertMode = 'todo' | 'schedule';
+type ConvertMode = 'todo' | 'schedule' | 'session';
 
 interface PlannerConvertDialogProps {
   item: PlannerItem;
@@ -23,6 +23,7 @@ export default function PlannerConvertDialog({
   const [cliTool, setCliTool] = useState(projectCliTool || 'claude');
   const [cliModel, setCliModel] = useState(projectCliModel || '');
   const [maxTurns, setMaxTurns] = useState('');
+  const [useWorktree, setUseWorktree] = useState(false);
   const [scheduleType, setScheduleType] = useState<'once' | 'recurring'>('once');
   const [cronExpression, setCronExpression] = useState('0 0 * * *');
   const [runAt, setRunAt] = useState('');
@@ -38,6 +39,11 @@ export default function PlannerConvertDialog({
         await onConvert({
           cli_tool: cliTool, cli_model: cliModel || undefined,
           max_turns: maxTurns ? Number(maxTurns) : undefined,
+        });
+      } else if (mode === 'session') {
+        await onConvert({
+          cli_tool: cliTool, cli_model: cliModel || undefined,
+          use_worktree: useWorktree,
         });
       } else {
         await onConvert({
@@ -56,7 +62,7 @@ export default function PlannerConvertDialog({
     <Modal open onClose={onClose} size="md" position="top" animation="slide-up">
       <div className="card p-6">
         <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          {mode === 'todo' ? t('plannerConvert.toTask') : t('plannerConvert.toSchedule')}
+          {mode === 'todo' ? t('plannerConvert.toTask') : mode === 'session' ? t('plannerConvert.toTerminal') : t('plannerConvert.toSchedule')}
         </h3>
 
         <p className="text-xs text-warm-500 mb-4 truncate">"{item.title}"</p>
@@ -91,6 +97,18 @@ export default function PlannerConvertDialog({
               placeholder="—" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)}
             />
           </div>
+        )}
+
+        {/* Session mode: worktree toggle */}
+        {mode === 'session' && (
+          <label className="flex items-center gap-2 mb-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useWorktree}
+              onChange={(e) => setUseWorktree(e.target.checked)}
+            />
+            <span className="text-xs font-medium text-warm-500">{t('plannerConvert.useWorktree')}</span>
+          </label>
         )}
 
         {/* Schedule mode */}

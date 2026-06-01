@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { exec } from 'child_process';
 import { getProjectById } from '../db/queries.js';
+import { loadVaultIgnore } from '../services/file-scanner.js';
 
 const router = Router();
 
@@ -81,10 +82,14 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
+    const ig = loadVaultIgnore(safe.root);
+
     const entries: FileEntry[] = [];
     for (const d of dirents) {
-      const hidden = d.name.startsWith('.') || DEFAULT_HIDDEN.has(d.name);
-      if (hidden && !showHidden && DEFAULT_HIDDEN.has(d.name)) continue;
+      const rel = (relPath ? `${relPath}/${d.name}` : d.name).replace(/\\/g, '/');
+      const ignored = ig.ignores(d.isDirectory() ? rel + '/' : rel);
+      const hidden = d.name.startsWith('.') || DEFAULT_HIDDEN.has(d.name) || ignored;
+      if (!showHidden && (DEFAULT_HIDDEN.has(d.name) || ignored)) continue;
 
       let type: FileEntry['type'] = 'other';
       if (d.isDirectory()) type = 'directory';

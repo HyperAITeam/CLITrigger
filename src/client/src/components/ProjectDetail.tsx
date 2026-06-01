@@ -584,6 +584,12 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
 
+  const handleConvertPlannerToSession = useCallback(async (itemId: string, data: Record<string, unknown>) => {
+    const result = await plannerApi.convertToSession(itemId, data as { cli_tool?: string; cli_model?: string; use_worktree?: boolean });
+    setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
+    setSessions((prev) => [result.session, ...prev]);
+  }, []);
+
   const handleUpdatePlannerTag = useCallback(async (name: string, data: { color?: string; new_name?: string }) => {
     if (!id) return;
     const updatedTags = await plannerApi.updatePlannerTag(id, name, data);
@@ -848,7 +854,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
           { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
-          ...(project.svn_enabled && project.vcs_type === 'svn' ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
+          ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
           { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
@@ -949,7 +955,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'git' && project.is_git_repo ? (
         <GitStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
-      {activeTab === 'svn' && project.svn_enabled && project.vcs_type === 'svn' ? (
+      {activeTab === 'svn' && project.svn_enabled ? (
         <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'files' && id && (
@@ -980,6 +986,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onDeleteItem={handleDeletePlannerItem}
           onConvertToTodo={handleConvertPlannerToTodo}
           onConvertToSchedule={handleConvertPlannerToSchedule}
+          onConvertToSession={handleConvertPlannerToSession}
           onUpdateTag={handleUpdatePlannerTag}
           onDeleteTag={handleDeletePlannerTag}
           onExport={handleExportPlanner}

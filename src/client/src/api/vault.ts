@@ -73,3 +73,17 @@ export function getVaultIgnore(projectId: string): Promise<{ content: string }> 
 export function saveVaultIgnore(projectId: string, content: string): Promise<{ success: boolean }> {
   return put(`/api/projects/${projectId}/vault/ignore`, { content });
 }
+
+// Append an anchored exact-path pattern for `relPath` to `.vaultignore`.
+// Leading '/' anchors to the project root (exact path, no same-name over-match);
+// directories get a trailing '/'. No-op if the pattern is already present.
+export async function addPathToVaultIgnore(
+  projectId: string, relPath: string, isDir: boolean,
+): Promise<void> {
+  const { content } = await getVaultIgnore(projectId);
+  const pattern = '/' + relPath.replace(/^\/+/, '') + (isDir ? '/' : '');
+  const lines = content.split(/\r?\n/).map((l) => l.trim());
+  if (lines.includes(pattern)) return;
+  const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
+  await saveVaultIgnore(projectId, content + sep + pattern + '\n');
+}
