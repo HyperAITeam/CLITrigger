@@ -537,3 +537,12 @@
 .workspace-dot-pulse {
   animation: workspaceDotPulse 1.4s ease-in-out infinite;
 }
+
+/* IME 조합 중 xterm이 커서 셀에 그리는 인라인 미리보기(.composition-view)를
+   숨긴다. 실행 중인 CLI(예: Claude Code)는 자체 블록 커서를 입력창에 직접
+   그리는데(이건 PTY 출력이라 우리가 못 숨김), composition-view가 그 커서
+   오른쪽에 조합 중인 글자를 분리해 그려서 어색해 보였다. 조합 중인 글자는
+   SessionTerminal의 좌하단 IME 오버레이에서만 표시한다. */
+.xterm .composition-view {
+  display: none !important;
+}
