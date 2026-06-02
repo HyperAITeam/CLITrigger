@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, CalendarDays, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
 import * as projectsApi from '../api/projects';
 import * as reviewApi from '../api/review';
@@ -432,6 +432,17 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             />
           )}
         </Link>
+        <Link
+          to="/agenda"
+          onClick={handleNav}
+          className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover mt-0.5"
+          style={location.pathname === '/agenda'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+            : { color: 'var(--color-text-tertiary)' }}
+          title={t('sidebar.agenda')}
+        >
+          <CalendarDays size={18} />
+        </Link>
         {railDivider}
         <div className="flex-1 overflow-y-auto w-full flex flex-col items-center gap-1 py-1">
           {projects.map((project) => {
@@ -558,6 +569,21 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               {reviewCount}
             </span>
           )}
+        </Link>
+        <Link
+          to="/agenda"
+          onClick={handleNav}
+          className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 active:scale-95 ${location.pathname === '/agenda' ? 'font-medium' : ''}`}
+          style={location.pathname === '/agenda'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-soft)' }
+            : { color: 'var(--color-text-tertiary)' }
+          }
+        >
+          {location.pathname === '/agenda' && (
+            <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+          )}
+          <CalendarDays size={16} />
+          {t('sidebar.agenda')}
         </Link>
       </nav>
 

@@ -208,6 +208,21 @@ export function initDatabase(db: Database.Database): void {
       UNIQUE(project_id, name)
     );
 
+    -- Global (project-agnostic) personal organizer items. Pure notes/agenda
+    -- with no CLI execution. due_at NULL = undated backlog memo.
+    CREATE TABLE IF NOT EXISTS personal_items (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      due_at TEXT,
+      all_day INTEGER DEFAULT 1,
+      status TEXT DEFAULT 'pending',
+      priority INTEGER DEFAULT 0,
+      tags TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS memory_nodes (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

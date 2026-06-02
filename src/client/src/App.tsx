@@ -11,6 +11,7 @@ import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import DiscussionDetail from './components/DiscussionDetail';
 import ReviewQueue from './components/ReviewQueue';
+import PersonalAgenda from './components/PersonalAgenda';
 import GlobalSessionDockTray from './components/GlobalSessionDockTray';
 import PopoutPage from './components/popout/PopoutPage';
 import { getSessionSettings } from './api/sessionSettings';
@@ -126,6 +127,12 @@ function App() {
                     path="/review"
                     element={
                       <ReviewQueue onEvent={onEvent} />
+                    }
+                  />
+                  <Route
+                    path="/agenda"
+                    element={
+                      <PersonalAgenda />
                     }
                   />
                   <Route

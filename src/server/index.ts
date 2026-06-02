@@ -39,6 +39,7 @@ import plannerRouter from './routes/planner.js';
 import memoryRouter from './routes/memory.js';
 import vaultRouter from './routes/vault.js';
 import reviewRouter from './routes/review.js';
+import personalRouter from './routes/personal.js';
 import favoritesRouter from './routes/favorites.js';
 import { scheduler } from './services/scheduler.js';
 import { debugLogger } from './services/debug-logger.js';
@@ -234,6 +235,7 @@ app.use('/api', plannerRouter);
 app.use('/api', memoryRouter);
 app.use('/api', vaultRouter);
 app.use('/api/review', reviewRouter);
+app.use('/api', personalRouter);
 app.use('/api', favoritesRouter);
 mountPluginRoutes(app);
 
