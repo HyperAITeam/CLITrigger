@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Terminal, FileCode, Link as LinkIcon, FolderOpen } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { Favorite, FavoriteType } from '../types';
+import * as favoritesApi from '../api/favorites';
 import type { FavoriteInput } from '../api/favorites';
 import Modal from './Modal';
 
@@ -58,21 +59,24 @@ export default function FavoriteForm({ initial, onSubmit, onCancel }: FavoriteFo
     setCwd(initial?.cwd ?? '');
   }, [initial]);
 
-  // Native file picker is only available inside the Electron app. In a plain
-  // browser the user types the path manually (button hidden).
-  const electronAPI = (window as unknown as {
-    electronAPI?: { openExecutableDialog?: () => Promise<string | null> };
-  }).electronAPI;
-  const canBrowse = type === 'executable' && !!electronAPI?.openExecutableDialog;
+  const [browsing, setBrowsing] = useState(false);
+  const canBrowse = type === 'executable';
 
+  // Opens a native file dialog on the server host (same mechanism as the
+  // project folder picker), so this works in the browser too.
   const handleBrowse = async () => {
-    const path = await electronAPI?.openExecutableDialog?.();
-    if (!path) return;
-    setTarget(path);
-    // Convenience: prefill the name from the file's basename if still empty.
-    if (!name.trim()) {
-      const base = path.replace(/\\/g, '/').split('/').pop() || '';
-      setName(base.replace(/\.[^.]+$/, ''));
+    setBrowsing(true);
+    try {
+      const { path } = await favoritesApi.browseFavoriteFile(target || undefined);
+      if (!path) return;
+      setTarget(path);
+      // Convenience: prefill the name from the file's basename if still empty.
+      if (!name.trim()) {
+        const base = path.replace(/\\/g, '/').split('/').pop() || '';
+        setName(base.replace(/\.[^.]+$/, ''));
+      }
+    } catch { /* user cancelled / dialog unavailable */ } finally {
+      setBrowsing(false);
     }
   };
 
@@ -168,7 +172,8 @@ export default function FavoriteForm({ initial, onSubmit, onCancel }: FavoriteFo
                 <button
                   type="button"
                   onClick={handleBrowse}
-                  className="btn-ghost text-sm whitespace-nowrap flex items-center gap-1.5"
+                  disabled={browsing}
+                  className="btn-ghost text-sm whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <FolderOpen size={14} />
                   {t('favorites.form.browse')}

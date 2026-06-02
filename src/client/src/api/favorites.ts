@@ -29,3 +29,10 @@ export function deleteFavorite(id: string): Promise<void> {
 export function launchFavorite(id: string): Promise<{ ok: true }> {
   return post(`/api/favorites/${id}/launch`);
 }
+
+// Opens a native "open file" dialog on the server host and resolves to the
+// chosen path (or null if cancelled). Works in the browser, like the project
+// folder picker.
+export function browseFavoriteFile(initialPath?: string): Promise<{ path: string | null }> {
+  return post('/api/favorites/browse-file', { initialPath });
+}

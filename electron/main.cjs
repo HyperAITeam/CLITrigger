@@ -245,29 +245,6 @@ ipcMain.on('ime:reset', (event) => {
   }
 });
 
-// Native file picker for registering a favorite executable/script. Returns
-// the chosen absolute path, or null if the user cancels. Filters bias toward
-// runnable files per platform but always allow "All files".
-ipcMain.handle('dialog:openExecutable', async (event) => {
-  const sender = BrowserWindow.fromWebContents(event.sender) || mainWindow;
-  const filters = process.platform === 'win32'
-    ? [
-        { name: 'Executables & scripts', extensions: ['exe', 'bat', 'cmd', 'com', 'ps1', 'sh'] },
-        { name: 'All files', extensions: ['*'] },
-      ]
-    : [
-        { name: 'Executables & scripts', extensions: ['sh', 'command', 'bash', 'run', 'bin', 'app'] },
-        { name: 'All files', extensions: ['*'] },
-      ];
-  const result = await dialog.showOpenDialog(sender, {
-    title: 'Select an executable or script',
-    properties: ['openFile'],
-    filters,
-  });
-  if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
-});
-
 function checkForUpdates({ silent } = { silent: true }) {
   if (!app.isPackaged) {
     if (!silent) {

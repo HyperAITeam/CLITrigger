@@ -7,7 +7,4 @@ const { contextBridge, ipcRenderer } = require('electron');
 // SessionForm inputs.
 contextBridge.exposeInMainWorld('electronAPI', {
   imeReset: () => ipcRenderer.send('ime:reset'),
-  // Opens a native file picker and resolves to the chosen executable/script
-  // path (or null if cancelled). Used by the favorites form's "Browse" button.
-  openExecutableDialog: () => ipcRenderer.invoke('dialog:openExecutable'),
 });
