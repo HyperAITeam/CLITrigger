@@ -39,7 +39,13 @@ export interface JiraSearchResult {
 
 export async function jiraSearch(conn: JiraConn, jql: string, fields: string, maxResults = 100): Promise<JiraSearchResult> {
   const params = new URLSearchParams({ jql, fields, maxResults: String(maxResults) });
-  const resp = await jiraFetch(conn, `/rest/api/3/search?${params}`);
+  // Jira Cloud removed the legacy GET /rest/api/3/search; the enhanced
+  // /search/jql endpoint replaces it. Fall back to the old path only if the
+  // new one isn't present (older/self-hosted instances).
+  let resp = await jiraFetch(conn, `/rest/api/3/search/jql?${params}`);
+  if (resp.status === 404 || resp.status === 410) {
+    resp = await jiraFetch(conn, `/rest/api/3/search?${params}`);
+  }
   if (!resp.ok) throw new Error(`Jira ${resp.status}: ${await resp.text()}`);
   return resp.json() as Promise<JiraSearchResult>;
 }
