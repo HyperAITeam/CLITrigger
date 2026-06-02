@@ -144,16 +144,18 @@ router.get('/agenda/jira-test', async (_req: Request, res: Response) => {
   }
 });
 
-// Assigned-to-me issues with a due date in [from, to].
+// Assigned-to-me open issues: due-dated ones in [from, to] plus ones with no
+// due date (so they can be listed even when the calendar can't place them).
 router.get('/agenda/jira', async (req: Request, res: Response) => {
   const conn = jiraConn(readJira());
   if (!conn) return res.json({ issues: [] });
   const from = (req.query.from as string | undefined)?.trim();
   const to = (req.query.to as string | undefined)?.trim();
-  const clauses = ['assignee = currentUser()', 'duedate IS NOT NULL'];
-  if (from) clauses.push(`duedate >= "${from}"`);
-  if (to) clauses.push(`duedate <= "${to}"`);
-  const jql = `${clauses.join(' AND ')} ORDER BY duedate ASC`;
+  const range: string[] = [];
+  if (from) range.push(`duedate >= "${from}"`);
+  if (to) range.push(`duedate <= "${to}"`);
+  const inRange = range.length ? `(${range.join(' AND ')})` : 'duedate IS NOT NULL';
+  const jql = `assignee = currentUser() AND statusCategory != Done AND (duedate IS EMPTY OR ${inRange}) ORDER BY duedate ASC`;
   try {
     const data = await jiraSearch(conn, jql, 'summary,status,duedate', 100);
     const base = conn.baseUrl.replace(/\/+$/, '');

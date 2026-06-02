@@ -64,6 +64,7 @@ export default function PersonalAgenda() {
   const [items, setItems] = useState<PersonalItem[]>([]);
   const [agenda, setAgenda] = useState<Agenda>({ personal: [], schedules: [], planner: [] });
   const [jiraEntries, setJiraEntries] = useState<JiraAgendaEntry[]>([]);
+  const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraConfig, setJiraConfig] = useState<AgendaJiraConfig | null>(null);
   const [showJiraSettings, setShowJiraSettings] = useState(false);
   const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
@@ -153,8 +154,10 @@ export default function PersonalAgenda() {
     try {
       const { issues } = await personalApi.getAgendaJira(rangeStart, rangeEnd);
       setJiraEntries(issues);
-    } catch {
+      setJiraError(null);
+    } catch (e) {
       setJiraEntries([]);
+      setJiraError(e instanceof Error ? e.message : 'Jira fetch failed');
     }
   }, [rangeStart, rangeEnd]);
 
@@ -432,6 +435,11 @@ export default function PersonalAgenda() {
               </button>
             );
           })}
+          {jiraOn && jiraError && (
+            <span className="text-2xs px-2 py-0.5 rounded-full cursor-help" style={{ backgroundColor: 'var(--color-status-error, #f87171)', color: '#fff' }} title={jiraError}>
+              {t('agenda.jira.error')}
+            </span>
+          )}
         </div>
 
         {/* Tag filter row */}
@@ -737,6 +745,27 @@ export default function PersonalAgenda() {
               ))}
             </div>
           </div>
+
+          {/* Jira issues without a due date (assigned, open) */}
+          {jiraOn && sources.jira && !activeTag && jiraEntries.some((j) => !j.duedate) && (
+            <div>
+              <h3 className="text-2xs uppercase tracking-wider mb-1.5" style={{ color: JIRA_BLUE.fg }}>{t('agenda.jira.noDue')}</h3>
+              <div className="flex flex-col gap-1.5">
+                {jiraEntries.filter((j) => !j.duedate).map((j) => (
+                  <div key={`jira-nd-${j.key}`} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: JIRA_BLUE.bg }}>
+                    <ExternalLink size={13} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
+                    <a href={j.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                      <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={`${j.key} · ${j.summary}`}>{j.key} · {j.summary}</div>
+                      <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>{j.status || 'Jira'}</div>
+                    </a>
+                    <button onClick={() => personalApi.importJiraIssue(j).then(load)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.import')}>
+                      <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
