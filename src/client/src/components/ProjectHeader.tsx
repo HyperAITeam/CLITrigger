@@ -418,8 +418,8 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
           {/* Settings section tabs */}
           <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {[
-              { key: 'execution', label: t('header.config') },
-              { key: 'security', label: t('header.sandboxTitle') },
+              { key: 'execution', label: t('header.execConfig') },
+              { key: 'workspace', label: t('header.workspaceConfig') },
               { key: 'harness', label: t('tabs.harness') },
               { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
             ].map((s) => (
@@ -440,6 +440,7 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
 
           {settingsSection === 'execution' && (
           <>
+          <p className="text-2xs text-warm-400 mb-4">{t('header.execConfigHint')}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div>
               <label className="block text-xs font-medium text-warm-500 mb-2">
@@ -599,13 +600,9 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               </p>
             )}
           </div>
-          </>
-          )}
 
-          {settingsSection === 'security' && (
-          <>
           {/* Sandbox Mode */}
-          <div className="p-4 border border-warm-200 rounded-xl">
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">
               {t('header.sandboxTitle')}
             </h4>
@@ -750,6 +747,12 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               <span className="text-xs text-warm-600">{t('header.debugLoggingEnable')}</span>
             </label>
           </div>
+          </>
+          )}
+
+          {settingsSection === 'workspace' && (
+          <>
+          <p className="text-2xs text-warm-400 mb-4">{t('header.workspaceConfigHint')}</p>
 
           {/* Memory Auto-Ingest */}
           <div className="mt-6 p-4 border border-warm-200 rounded-xl">
