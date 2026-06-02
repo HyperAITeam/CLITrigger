@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import type { PersonalItem, Agenda } from '../types';
 import * as personalApi from '../api/personal';
 import { useI18n } from '../i18n';
@@ -46,11 +46,13 @@ export default function PersonalAgenda() {
 
   // form state (add / edit personal item)
   const [showForm, setShowForm] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<PersonalItem | null>(null);
   const [fTitle, setFTitle] = useState('');
   const [fDesc, setFDesc] = useState('');
   const [fDate, setFDate] = useState('');     // YYYY-MM-DD ('' = backlog memo)
   const [fTime, setFTime] = useState('');     // HH:mm ('' = all-day)
+  const [fDone, setFDone] = useState(false);
 
   // Visible days + fetch range, driven by the active view. Month shows a
   // 6-week grid (incl. adjacent-month days); week shows 7 days; day shows 1.
@@ -208,6 +210,7 @@ export default function PersonalAgenda() {
     setFDesc('');
     setFDate(dateKey ?? selectedDate);
     setFTime('');
+    setFDone(false);
     setShowForm(true);
   };
   const openEdit = (p: PersonalItem) => {
@@ -216,9 +219,10 @@ export default function PersonalAgenda() {
     setFDesc(p.description ?? '');
     setFDate(p.due_at ? p.due_at.slice(0, 10) : '');
     setFTime(p.due_at && !p.all_day ? p.due_at.slice(11, 16) : '');
+    setFDone(p.status === 'done');
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); };
+  const closeForm = () => { setShowForm(false); setEditing(null); setExpanded(false); };
 
   const submitForm = async () => {
     const title = fTitle.trim();
@@ -227,7 +231,7 @@ export default function PersonalAgenda() {
     const dueAt = fDate ? (fTime ? `${fDate}T${fTime}` : fDate) : null;
     const payload = { title, description: fDesc.trim() || undefined, due_at: dueAt, all_day: allDay };
     if (editing) {
-      await personalApi.updatePersonalItem(editing.id, payload);
+      await personalApi.updatePersonalItem(editing.id, { ...payload, status: fDone ? 'done' : 'pending' });
     } else {
       await personalApi.createPersonalItem(payload);
     }
@@ -520,39 +524,69 @@ export default function PersonalAgenda() {
         </div>
       </div>
 
-      {/* Add / edit form modal */}
+      {/* Add / edit form modal — expandable to a full-page view */}
       {showForm && (
         <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={closeForm}>
           <div
-            className="w-full max-w-3xl rounded-2xl p-7 shadow-xl flex flex-col"
-            style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '88vh' }}
+            className={`rounded-2xl shadow-xl flex flex-col ${expanded ? 'w-[94vw] h-[92vh] max-w-[1200px]' : 'w-full max-w-3xl'}`}
+            style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: expanded ? '92vh' : '88vh' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              {editing ? t('agenda.editTitle') : t('agenda.addTitle')}
-            </h3>
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-              <input
-                autoFocus
-                value={fTitle}
-                onChange={(e) => setFTitle(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitForm(); } }}
-                placeholder={t('agenda.titlePlaceholder')}
-                className="input-field text-base"
-              />
-              <textarea
-                value={fDesc}
-                onChange={(e) => setFDesc(e.target.value)}
-                placeholder={t('agenda.descPlaceholder')}
-                className="input-field flex-1 min-h-[280px] resize-y leading-relaxed"
-              />
-              <div className="flex items-center gap-2">
-                <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="input-field flex-1" />
-                <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="input-field flex-1 disabled:opacity-40" />
-              </div>
-              <p className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dateHint')}</p>
+            {/* Top bar: expand/collapse (top-left, Notion-style) */}
+            <div className="flex items-center justify-between px-5 pt-4">
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="btn-ghost p-1.5"
+                title={expanded ? t('agenda.collapse') : t('agenda.expand')}
+              >
+                {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+              <span className="text-2xs uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                {editing ? t('agenda.editTitle') : t('agenda.addTitle')}
+              </span>
             </div>
-            <div className="flex justify-end gap-2 mt-4">
+
+            {/* Body */}
+            <div className="flex-1 min-h-0 overflow-auto px-5 pb-3">
+              <div className={`flex flex-col gap-3 h-full ${expanded ? 'max-w-[820px] mx-auto w-full pt-2' : ''}`}>
+                <input
+                  autoFocus
+                  value={fTitle}
+                  onChange={(e) => setFTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitForm(); } }}
+                  placeholder={t('agenda.titlePlaceholder')}
+                  className={`bg-transparent border-none outline-none font-semibold ${expanded ? 'text-3xl' : 'text-xl'}`}
+                  style={{ color: 'var(--color-text-primary)' }}
+                />
+                {/* Properties: date/time + status */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="input-field w-auto" />
+                  <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="input-field w-auto disabled:opacity-40" />
+                  {editing && (
+                    <button
+                      onClick={() => setFDone((v) => !v)}
+                      className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+                      style={fDone ? { color: 'var(--color-accent)' } : undefined}
+                    >
+                      <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)' }}>
+                        {fDone && <Check size={11} />}
+                      </span>
+                      {t(fDone ? 'agenda.status.done' : 'agenda.status.pending')}
+                    </button>
+                  )}
+                </div>
+                <p className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dateHint')}</p>
+                <textarea
+                  value={fDesc}
+                  onChange={(e) => setFDesc(e.target.value)}
+                  placeholder={t('agenda.descPlaceholder')}
+                  className="input-field flex-1 min-h-[280px] resize-y leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <button onClick={closeForm} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
               <button onClick={submitForm} disabled={!fTitle.trim()} className="btn-primary text-sm disabled:opacity-40">{t('agenda.save')}</button>
             </div>
