@@ -162,15 +162,24 @@ function createWindow(port) {
     try { popoutPath = new URL(url).pathname; } catch { popoutPath = ''; }
     if (popoutPath.startsWith('/popout/')) {
       const feat = parseFeatures(features);
+      // Hide the native title bar + app menu (File/Edit/…) for popouts.
+      // PopoutPage renders its own 28px top bar (label / re-dock / close) and
+      // marks it as a -webkit-app-region drag handle so the window can still
+      // be moved. thickFrame stays default → edge resize + shadow remain.
+      //
+      // Platform split: a fully frameless window (`frame: false`) on Windows
+      // never establishes an IME context, so OS Hangul/CJK composition events
+      // don't fire and the terminal silently drops composed input (ASCII still
+      // works). `titleBarStyle: 'hidden'` keeps the window OS-managed (IME
+      // works) while hiding the title bar. macOS/Linux keep `frame: false`
+      // (IME unaffected there). Main window is unaffected either way.
+      const framelessOpts = process.platform === 'win32'
+        ? { titleBarStyle: 'hidden' }
+        : { frame: false };
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
-          // Frameless: drop the native title bar + app menu (File/Edit/…) for
-          // popouts. PopoutPage renders its own 28px top bar (label / re-dock /
-          // close) and marks it as a -webkit-app-region drag handle so the
-          // window can still be moved. thickFrame stays default → edge resize
-          // + shadow remain. Main window is unaffected.
-          frame: false,
+          ...framelessOpts,
           width: feat.width || 800,
           height: feat.height || 540,
           // x/y intentionally only forwarded when supplied — Electron treats
