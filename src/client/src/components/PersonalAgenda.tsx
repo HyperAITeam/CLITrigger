@@ -293,9 +293,14 @@ export default function PersonalAgenda() {
   const removeTag = (tg: string) => setFTags((prev) => prev.filter((x) => x !== tg));
   const closeForm = () => { setShowForm(false); setEditing(null); setExpanded(false); };
 
+  // Saveable when there's a title OR a body (title is optional, like Notion).
+  const canSave = !!(fTitle.trim() || fDesc.trim());
   const submitForm = async () => {
-    const title = fTitle.trim();
-    if (!title) return;
+    if (!canSave) return;
+    // Empty title → use the first line of the body, else "(untitled)".
+    const title = fTitle.trim()
+      || fDesc.trim().split('\n')[0].slice(0, 80)
+      || t('agenda.untitled');
     const allDay = fDate ? (fTime ? 0 : 1) : 1;
     const dueAt = fDate ? (fTime ? `${fDate}T${fTime}` : fDate) : null;
     const tags = fTags.length ? fTags : null;
@@ -741,7 +746,7 @@ export default function PersonalAgenda() {
             {/* Footer */}
             <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <button onClick={closeForm} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
-              <button onClick={submitForm} disabled={!fTitle.trim()} className="btn-primary text-sm disabled:opacity-40">{t('agenda.save')}</button>
+              <button onClick={submitForm} disabled={!canSave} className="btn-primary text-sm disabled:opacity-40">{t('agenda.save')}</button>
             </div>
           </div>
         </div>
