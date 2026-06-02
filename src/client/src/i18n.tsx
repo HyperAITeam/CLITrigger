@@ -625,6 +625,8 @@ const translations = {
     'header.githubTokenHint': 'Create a token at github.com/settings/tokens with repo scope',
 
     // Tabs
+    'tabs.automation': 'Automation',
+    'tabs.automation.help': 'Tasks, Discussions, and Schedules in one place.',
     'tabs.tasks': 'Auto Tasks',
     'tabs.sessions': 'Terminals',
     'tabs.discussions': 'Discussions',
@@ -1890,6 +1892,8 @@ const translations = {
     'header.githubTokenHint': 'github.com/settings/tokens에서 repo 권한으로 토큰을 생성하세요',
 
     // Tabs
+    'tabs.automation': '자동화',
+    'tabs.automation.help': '자동 작업·토론·스케줄을 한곳에서 관리합니다.',
     'tabs.tasks': '자동 작업',
     'tabs.sessions': '터미널',
     'tabs.discussions': '토론',
