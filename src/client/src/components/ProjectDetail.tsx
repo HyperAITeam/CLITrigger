@@ -830,8 +830,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       <ProjectHeader
         project={project}
         todos={todos}
-        onStartAll={handleStartAll}
-        onStopAll={handleStopAll}
         onProjectUpdate={(updated) => setProject(updated)}
       />
 
@@ -887,6 +885,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           projectIsGitRepo={!!project.is_git_repo}
           projectUseWorktree={project.use_worktree !== 0}
           onAddTodo={handleAddTodo}
+          onStartAll={handleStartAll}
+          onStopAll={handleStopAll}
           onStartTodo={handleStartTodo}
           onStopTodo={handleStopTodo}
           onDeleteTodo={handleDeleteTodo}

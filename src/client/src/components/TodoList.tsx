@@ -7,7 +7,7 @@ import TodoForm from './TodoForm';
 import TaskGraph from './TaskGraph';
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
-import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp } from 'lucide-react';
+import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp, Play, Square } from 'lucide-react';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -26,6 +26,8 @@ interface TodoListProps {
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
   onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  onStartAll: () => void;
+  onStopAll: () => void;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
@@ -70,6 +72,8 @@ export default function TodoList({
   projectIsGitRepo,
   projectUseWorktree,
   onAddTodo,
+  onStartAll,
+  onStopAll,
   onStartTodo,
   onStopTodo,
   onDeleteTodo,
@@ -339,6 +343,23 @@ export default function TodoList({
     setDragOverTargetId(null);
   }, [dragSourceId, onReorderTodos]);
 
+  const hasStartable = todos.some(
+    (t) => t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
+  );
+  const hasRunning = todos.some((t) => t.status === 'running');
+  const runStopButtons = (
+    <>
+      <button onClick={onStartAll} disabled={!hasStartable} className="btn-ghost text-sm">
+        <Play size={14} />
+        {t('header.runAll')}
+      </button>
+      <button onClick={onStopAll} disabled={!hasRunning} className="btn-ghost text-sm">
+        <Square size={14} />
+        {t('header.stopAll')}
+      </button>
+    </>
+  );
+
   if (viewMode === 'graph') {
     return (
       <div>
@@ -364,6 +385,7 @@ export default function TodoList({
                 <LayoutGrid size={14} />
               </button>
             </div>
+            {runStopButtons}
           </div>
         </div>
         <TaskGraph
@@ -439,6 +461,7 @@ export default function TodoList({
               <ChevronsUp size={14} />
             </button>
           )}
+          {runStopButtons}
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
