@@ -32,6 +32,8 @@ const translations = {
     'sidebar.review': 'Review Queue',
     'sidebar.workspaces': 'Workspaces',
     'sidebar.favorites': 'Favorites',
+    'sidebar.collapse': 'Collapse sidebar',
+    'sidebar.expand': 'Expand sidebar',
 
     // Favorites
     'favorites.add': 'Add favorite',
@@ -1299,6 +1301,8 @@ const translations = {
     'sidebar.review': '리뷰 큐',
     'sidebar.workspaces': '워크스페이스',
     'sidebar.favorites': '즐겨찾기',
+    'sidebar.collapse': '사이드바 접기',
+    'sidebar.expand': '사이드바 펼치기',
 
     // Favorites
     'favorites.add': '즐겨찾기 추가',

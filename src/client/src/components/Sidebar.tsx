@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
 import * as projectsApi from '../api/projects';
 import * as reviewApi from '../api/review';
@@ -26,6 +26,8 @@ interface SidebarProps {
   connected: boolean;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   onClose?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 interface ProjectStatus {
@@ -42,7 +44,7 @@ function iconForType(type: FavoriteType) {
   return LinkIcon;
 }
 
-export default function Sidebar({ onLogout, authRequired, connected, onEvent, onClose }: SidebarProps) {
+export default function Sidebar({ onLogout, authRequired, connected, onEvent, onClose, collapsed = false, onToggleCollapsed }: SidebarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
   const [reviewCount, setReviewCount] = useState<number | null>(null);
@@ -387,6 +389,105 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     />
   );
 
+  // Collapsed icon rail (desktop): logo mark, nav icons, project color dots,
+  // theme/settings — labels and drag-reorder are dropped for the 56px width.
+  if (collapsed) {
+    const railDivider = <div className="w-7 border-t my-1.5" style={{ borderColor: 'var(--color-border)' }} />;
+    return (
+      <div className="flex flex-col items-center h-full glass border-none py-3">
+        <button
+          onClick={onToggleCollapsed}
+          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title={t('sidebar.expand')}
+        >
+          <PanelLeftOpen size={18} />
+        </button>
+        {railDivider}
+        <Link
+          to="/"
+          onClick={handleNav}
+          className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
+          style={location.pathname === '/'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+            : { color: 'var(--color-text-tertiary)' }}
+          title={t('sidebar.home')}
+        >
+          <LayoutDashboard size={18} />
+        </Link>
+        <Link
+          to="/review"
+          onClick={handleNav}
+          className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover mt-0.5"
+          style={location.pathname === '/review'
+            ? { backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-primary)' }
+            : { color: 'var(--color-text-tertiary)' }}
+          title={t('sidebar.review')}
+        >
+          <Inbox size={18} />
+          {reviewCount !== null && reviewCount > 0 && (
+            <span
+              className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+            />
+          )}
+        </Link>
+        {railDivider}
+        <div className="flex-1 overflow-y-auto w-full flex flex-col items-center gap-1 py-1">
+          {projects.map((project) => {
+            const status = statusMap[project.id];
+            const isActive = activeProjectId === String(project.id);
+            const activeWork = status
+              ? status.running + status.running_sessions + status.running_discussions
+              : 0;
+            const hasActivity = activeWork > 0;
+            const tagColor = resolveProjectColor(project);
+            return (
+              <Link
+                key={project.id}
+                to={`/projects/${project.id}`}
+                onClick={handleNav}
+                className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
+                style={isActive ? { backgroundColor: 'var(--color-bg-hover)' } : undefined}
+                title={hasActivity
+                  ? `${project.name} · ${activeWork} ${t('detail.live')}`
+                  : project.name}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: tagColor }} />
+                )}
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${hasActivity ? 'workspace-dot-pulse' : ''}`}
+                  style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
+                />
+              </Link>
+            );
+          })}
+        </div>
+        {railDivider}
+        <span className={`w-1.5 h-1.5 rounded-full my-1 ${connected ? 'bg-status-success' : 'bg-status-error'}`} title={connected ? t('detail.live') : 'Disconnected'} />
+        <button
+          onClick={toggleTheme}
+          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title={theme === 'light' ? t('theme.dark') : t('theme.light')}
+        >
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title={t('settings.title')}
+        >
+          <Settings size={16} />
+        </button>
+        <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+        <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col h-full glass border-none"
@@ -397,7 +498,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       onDragStart={(e) => e.preventDefault()}
     >
       {/* Logo */}
-      <div className="px-4 pt-5 pb-3">
+      <div className="px-4 pt-5 pb-3 flex items-center justify-between">
         <Link to="/" onClick={handleNav} className="block">
           <svg viewBox="0 0 200 32" fill="none" className="h-6 w-auto">
             {/* >_ prompt */}
@@ -408,6 +509,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             <text x="96" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-text-primary)">Trigger</text>
           </svg>
         </Link>
+        <button
+          onClick={onToggleCollapsed}
+          className="hidden md:flex items-center justify-center w-7 h-7 rounded-md transition-colors hover:bg-theme-hover flex-shrink-0"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title={t('sidebar.collapse')}
+        >
+          <PanelLeftClose size={16} />
+        </button>
       </div>
 
       {/* Navigation */}
