@@ -150,10 +150,30 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   const [plannerItems, setPlannerItems] = useState<PlannerItem[]>([]);
   const [plannerTags, setPlannerTags] = useState<PlannerTag[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, _setActiveTab] = useState<string>(searchParams.get('tab') || 'tasks');
+  // Tasks/Discussions/Schedules are unified under one "automation" hub tab
+  // with inner sub-tabs. The URL `tab` param still stores the sub value
+  // (tasks → no param) so existing deep links keep working.
+  const AUTOMATION_SUBS = ['tasks', 'discussions', 'schedules'];
+  const rawTab = searchParams.get('tab') || 'tasks';
+  const [activeTab, _setActiveTab] = useState<string>(
+    AUTOMATION_SUBS.includes(rawTab) ? 'automation' : rawTab
+  );
+  const [automationSub, setAutomationSubState] = useState<string>(
+    AUTOMATION_SUBS.includes(rawTab) ? rawTab : 'tasks'
+  );
   const setActiveTab = useCallback((tab: string) => {
+    if (tab === 'automation') {
+      _setActiveTab('automation');
+      setSearchParams(automationSub === 'tasks' ? {} : { tab: automationSub }, { replace: true });
+      return;
+    }
     _setActiveTab(tab);
     setSearchParams(tab === 'tasks' ? {} : { tab }, { replace: true });
+  }, [setSearchParams, automationSub]);
+  const setAutomationSub = useCallback((sub: string) => {
+    _setActiveTab('automation');
+    setAutomationSubState(sub);
+    setSearchParams(sub === 'tasks' ? {} : { tab: sub }, { replace: true });
   }, [setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -848,9 +868,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
               help: help === helpKey ? '' : help,
             };
           }),
-          { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
-          { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
-          { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
+          { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
           ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
           { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
@@ -876,7 +894,34 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         ))}
       </div>
 
-      {activeTab === 'tasks' && (
+      {/* Automation hub: inner sub-tabs for Tasks / Discussions / Schedules */}
+      {activeTab === 'automation' && (
+        <div className="flex gap-0.5 mb-4 p-1 rounded-xl w-fit overflow-x-auto" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+          {[
+            { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
+            { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
+            { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
+          ].map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setAutomationSub(s.key)}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
+                automationSub === s.key
+                  ? 'text-warm-800 font-semibold shadow-soft'
+                  : 'text-warm-500 font-normal hover:text-warm-600'
+              }`}
+              style={automationSub === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+            >
+              {s.label}
+              <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                {s.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'automation' && automationSub === 'tasks' && (
         <TodoList
           todos={todos}
           projectId={id}
@@ -926,7 +971,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onCleanupSession={handleCleanupSession}
         />
       )}
-      {activeTab === 'discussions' && id && (
+      {activeTab === 'automation' && automationSub === 'discussions' && id && (
         <DiscussionList
           projectId={id}
           discussions={discussions}
@@ -961,7 +1006,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'files' && id && (
         <VaultLayout projectId={id} />
       )}
-      {activeTab === 'schedules' && (
+      {activeTab === 'automation' && automationSub === 'schedules' && (
         <ScheduleList
           schedules={schedules}
           projectCliTool={project.cli_tool}
