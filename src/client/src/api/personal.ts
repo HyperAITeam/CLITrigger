@@ -11,7 +11,7 @@ export function createPersonalItem(data: {
   due_at?: string | null;
   all_day?: number;
   priority?: number;
-  tags?: string | null;
+  tags?: string[] | string | null;
 }): Promise<PersonalItem> {
   return post('/api/personal-items', data);
 }
@@ -25,7 +25,7 @@ export function updatePersonalItem(
     all_day?: number;
     status?: string;
     priority?: number;
-    tags?: string | null;
+    tags?: string[] | string | null;
   }
 ): Promise<PersonalItem> {
   return put(`/api/personal-items/${id}`, data);

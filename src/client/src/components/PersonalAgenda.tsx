@@ -24,6 +24,23 @@ function startOfWeek(d: Date): Date { return addDays(d, -d.getDay()); }
 
 type CalView = 'month' | 'week' | 'day' | 'table';
 
+function parseTags(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
+  } catch { return []; }
+}
+
+// Deterministic chip color from the tag name (no separate tags table needed).
+const TAG_HUES = [210, 145, 35, 320, 265, 0, 175, 95];
+function tagColor(name: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const hue = TAG_HUES[h % TAG_HUES.length];
+  return { bg: `hsla(${hue}, 60%, 50%, 0.18)`, fg: `hsl(${hue}, 65%, 70%)` };
+}
+
 interface DayEntry {
   kind: 'personal' | 'schedule' | 'planner';
   id: string;
@@ -53,6 +70,9 @@ export default function PersonalAgenda() {
   const [fDate, setFDate] = useState('');     // YYYY-MM-DD ('' = backlog memo)
   const [fTime, setFTime] = useState('');     // HH:mm ('' = all-day)
   const [fDone, setFDone] = useState(false);
+  const [fTags, setFTags] = useState<string[]>([]);
+  const [fTagInput, setFTagInput] = useState('');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   // Visible days + fetch range, driven by the active view. Month shows a
   // 6-week grid (incl. adjacent-month days); week shows 7 days; day shows 1.
@@ -100,6 +120,8 @@ export default function PersonalAgenda() {
   // In day view the side panel mirrors the cursor day.
   useEffect(() => { if (view === 'day') setSelectedDate(ymd(cursor)); }, [view, cursor]);
 
+  const matchesTag = useCallback((p: PersonalItem) => !activeTag || parseTags(p.tags).includes(activeTag), [activeTag]);
+
   // Bucket all entries by local day key.
   const byDay = useMemo(() => {
     const map = new Map<string, DayEntry[]>();
@@ -109,25 +131,33 @@ export default function PersonalAgenda() {
       map.set(key, arr);
     };
     for (const p of items) {
-      if (!p.due_at) continue;
+      if (!p.due_at || !matchesTag(p)) continue;
       const key = p.due_at.slice(0, 10);
       const time = p.all_day ? undefined : p.due_at.slice(11, 16) || undefined;
       push(key, { kind: 'personal', id: p.id, title: p.title, time, done: p.status === 'done' });
     }
-    for (const s of agenda.schedules) {
+    // A tag filter is about personal items — hide project roll-ups while active.
+    for (const s of activeTag ? [] : agenda.schedules) {
       if (!s.at) continue;
       const key = dayKeyLocalIso(s.at);
       const time = new Date(s.at).toTimeString().slice(0, 5);
       push(key, { kind: 'schedule', id: s.id, title: `${s.project_name} · ${s.title}`, time, projectId: s.project_id, deepLinkTab: 'schedules' });
     }
-    for (const pl of agenda.planner) {
+    for (const pl of activeTag ? [] : agenda.planner) {
       const key = pl.due_date.slice(0, 10);
       push(key, { kind: 'planner', id: pl.id, title: `${pl.project_name} · ${pl.title}`, done: pl.status === 'done', projectId: pl.project_id, deepLinkTab: 'planner' });
     }
     return map;
-  }, [items, agenda]);
+  }, [items, agenda, activeTag, matchesTag]);
 
-  const backlog = useMemo(() => items.filter((i) => !i.due_at), [items]);
+  const backlog = useMemo(() => items.filter((i) => !i.due_at && matchesTag(i)), [items, matchesTag]);
+
+  // All distinct tags across personal items, for the filter row.
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of items) for (const tg of parseTags(p.tags)) set.add(tg);
+    return Array.from(set).sort();
+  }, [items]);
 
   // Flat list for the table view: all personal items + project entries in
   // range, sorted by date (undated personal items sink to the bottom).
@@ -145,6 +175,7 @@ export default function PersonalAgenda() {
   const tableRows = useMemo<TableRow[]>(() => {
     const rows: TableRow[] = [];
     for (const p of items) {
+      if (!matchesTag(p)) continue;
       rows.push({
         kind: 'personal', id: p.id, title: p.title,
         dateKey: p.due_at ? p.due_at.slice(0, 10) : null,
@@ -152,7 +183,7 @@ export default function PersonalAgenda() {
         status: p.status, item: p,
       });
     }
-    for (const s of agenda.schedules) {
+    for (const s of activeTag ? [] : agenda.schedules) {
       rows.push({
         kind: 'schedule', id: s.id, title: `${s.project_name} · ${s.title}`,
         dateKey: s.at ? dayKeyLocalIso(s.at) : null,
@@ -160,7 +191,7 @@ export default function PersonalAgenda() {
         projectId: s.project_id, deepLinkTab: 'schedules',
       });
     }
-    for (const pl of agenda.planner) {
+    for (const pl of activeTag ? [] : agenda.planner) {
       rows.push({
         kind: 'planner', id: pl.id, title: `${pl.project_name} · ${pl.title}`,
         dateKey: pl.due_date.slice(0, 10), time: null,
@@ -176,7 +207,7 @@ export default function PersonalAgenda() {
       return (a.time || '').localeCompare(b.time || '');
     });
     return rows;
-  }, [items, agenda]);
+  }, [items, agenda, activeTag, matchesTag]);
 
   const weekdayLabels = useMemo(() => {
     const base = new Date(2024, 5, 2); // a Sunday
@@ -211,6 +242,8 @@ export default function PersonalAgenda() {
     setFDate(dateKey ?? selectedDate);
     setFTime('');
     setFDone(false);
+    setFTags(activeTag ? [activeTag] : []);
+    setFTagInput('');
     setShowForm(true);
   };
   const openEdit = (p: PersonalItem) => {
@@ -220,8 +253,17 @@ export default function PersonalAgenda() {
     setFDate(p.due_at ? p.due_at.slice(0, 10) : '');
     setFTime(p.due_at && !p.all_day ? p.due_at.slice(11, 16) : '');
     setFDone(p.status === 'done');
+    setFTags(parseTags(p.tags));
+    setFTagInput('');
     setShowForm(true);
   };
+  const addTag = (raw: string) => {
+    const tg = raw.trim();
+    if (!tg) return;
+    setFTags((prev) => (prev.includes(tg) ? prev : [...prev, tg]));
+    setFTagInput('');
+  };
+  const removeTag = (tg: string) => setFTags((prev) => prev.filter((x) => x !== tg));
   const closeForm = () => { setShowForm(false); setEditing(null); setExpanded(false); };
 
   const submitForm = async () => {
@@ -229,7 +271,8 @@ export default function PersonalAgenda() {
     if (!title) return;
     const allDay = fDate ? (fTime ? 0 : 1) : 1;
     const dueAt = fDate ? (fTime ? `${fDate}T${fTime}` : fDate) : null;
-    const payload = { title, description: fDesc.trim() || undefined, due_at: dueAt, all_day: allDay };
+    const tags = fTags.length ? fTags : null;
+    const payload = { title, description: fDesc.trim() || undefined, due_at: dueAt, all_day: allDay, tags };
     if (editing) {
       await personalApi.updatePersonalItem(editing.id, { ...payload, status: fDone ? 'done' : 'pending' });
     } else {
@@ -298,6 +341,35 @@ export default function PersonalAgenda() {
             </button>
           </div>
         </div>
+
+        {/* Tag filter row */}
+        {allTags.length > 0 && (
+          <div className="px-6 pb-3 flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setActiveTag(null)}
+              className="text-2xs px-2 py-0.5 rounded-full transition-colors"
+              style={!activeTag
+                ? { backgroundColor: 'var(--color-accent)', color: '#fff' }
+                : { backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
+            >
+              {t('agenda.tags.all')}
+            </button>
+            {allTags.map((tg) => {
+              const c = tagColor(tg);
+              const on = activeTag === tg;
+              return (
+                <button
+                  key={tg}
+                  onClick={() => setActiveTag(on ? null : tg)}
+                  className="text-2xs px-2 py-0.5 rounded-full transition-colors"
+                  style={{ backgroundColor: c.bg, color: c.fg, outline: on ? `1px solid ${c.fg}` : 'none' }}
+                >
+                  #{tg}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Calendar grid (month: 6×7, week: 1×7, day: 1×1) */}
         <div className="flex-1 overflow-auto px-6 pb-6">
@@ -408,8 +480,14 @@ export default function PersonalAgenda() {
                     className="grid items-center px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-theme-hover"
                     style={{ gridTemplateColumns: '1fr 150px 96px 72px', borderTop: '1px solid var(--color-border)' }}
                   >
-                    <span className="truncate pr-2" style={{ color: 'var(--color-text-primary)', textDecoration: r.status === 'done' ? 'line-through' : 'none' }} title={r.title}>
-                      {r.title}
+                    <span className="flex items-center gap-1.5 min-w-0 pr-2">
+                      <span className="truncate" style={{ color: 'var(--color-text-primary)', textDecoration: r.status === 'done' ? 'line-through' : 'none' }} title={r.title}>
+                        {r.title}
+                      </span>
+                      {r.item && parseTags(r.item.tags).slice(0, 3).map((tg) => {
+                        const c = tagColor(tg);
+                        return <span key={tg} className="text-2xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.bg, color: c.fg }}>#{tg}</span>;
+                      })}
                     </span>
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{dateLabel}</span>
                     <span className="text-2xs">
@@ -461,6 +539,14 @@ export default function PersonalAgenda() {
                         {item.title}
                       </div>
                       {item.description && <div className="text-2xs truncate" style={{ color: 'var(--color-text-muted)' }}>{item.description}</div>}
+                      {parseTags(item.tags).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {parseTags(item.tags).map((tg) => {
+                            const c = tagColor(tg);
+                            return <span key={tg} className="text-2xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: c.bg, color: c.fg }}>#{tg}</span>;
+                          })}
+                        </div>
+                      )}
                     </button>
                     <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.delete')}>
                       <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
@@ -513,6 +599,14 @@ export default function PersonalAgenda() {
                   <button onClick={() => openEdit(item)} className="flex-1 text-left min-w-0">
                     <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>{item.title}</div>
                     {item.description && <div className="text-2xs truncate" style={{ color: 'var(--color-text-muted)' }}>{item.description}</div>}
+                    {parseTags(item.tags).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {parseTags(item.tags).map((tg) => {
+                          const c = tagColor(tg);
+                          return <span key={tg} className="text-2xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: c.bg, color: c.fg }}>#{tg}</span>;
+                        })}
+                      </div>
+                    )}
                   </button>
                   <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
                     <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
@@ -576,6 +670,30 @@ export default function PersonalAgenda() {
                   )}
                 </div>
                 <p className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dateHint')}</p>
+                {/* Tags */}
+                <div className="flex items-center gap-1.5 flex-wrap rounded-lg px-2 py-1.5" style={{ border: '1px solid var(--color-border)' }}>
+                  {fTags.map((tg) => {
+                    const c = tagColor(tg);
+                    return (
+                      <span key={tg} className="text-2xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: c.bg, color: c.fg }}>
+                        #{tg}
+                        <button onClick={() => removeTag(tg)} className="hover:opacity-70" title={t('agenda.delete')}>×</button>
+                      </span>
+                    );
+                  })}
+                  <input
+                    value={fTagInput}
+                    onChange={(e) => setFTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(fTagInput); }
+                      else if (e.key === 'Backspace' && !fTagInput && fTags.length) { removeTag(fTags[fTags.length - 1]); }
+                    }}
+                    onBlur={() => addTag(fTagInput)}
+                    placeholder={fTags.length ? '' : t('agenda.tags.placeholder')}
+                    className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-sm"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  />
+                </div>
                 <textarea
                   value={fDesc}
                   onChange={(e) => setFDesc(e.target.value)}
