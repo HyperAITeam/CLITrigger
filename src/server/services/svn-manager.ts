@@ -195,7 +195,7 @@ class SvnManager {
     const args = ['diff', '--internal-diff', '-r', `${prev}:${revision}`];
     if (file) args.push(file);
     else args.push(dirPath);
-    const { stdout } = await runSvn(args);
+    const { stdout } = await runSvn(args, dirPath);
     return stdout;
   }
 
@@ -205,7 +205,7 @@ class SvnManager {
     const args = ['diff', '--internal-diff'];
     if (file) args.push(file);
     else args.push(dirPath);
-    const { stdout } = await runSvn(args);
+    const { stdout } = await runSvn(args, dirPath);
     return stdout;
   }
 
@@ -239,7 +239,7 @@ class SvnManager {
     const args = ['commit', '-m', message];
     if (files && files.length > 0) args.push(...files);
     else args.push(dirPath);
-    const { stdout } = await runSvn(args);
+    const { stdout } = await runSvn(args, dirPath);
     // svn prints "Committed revision N." on success
     const revMatch = /Committed revision (\d+)\./.exec(stdout);
     return { revision: revMatch?.[1] ?? null, output: stdout };
