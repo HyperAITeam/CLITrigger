@@ -319,9 +319,22 @@ export default function SessionTerminal({
         return false;
       }
 
-      // Ctrl+C / Ctrl+X are intentionally NOT hijacked for copy/cut — they
-      // pass straight through to the PTY (^C = SIGINT) so there's no overlap
-      // with the terminal interrupt. Copy/cut is done via the right-click menu.
+      // Ctrl+C (Cmd+C on Mac) → copy when there's a selection, mirroring
+      // Windows Terminal / VS Code. With no selection it falls through: on
+      // Windows/Linux the PTY still gets ^C (SIGINT); on Mac Cmd+C is a no-op
+      // (Cmd never reaches the PTY anyway). Cut isn't hijacked — there's no
+      // editable buffer to cut from in a terminal.
+      if (onlyMod && key === 'c') {
+        const sel = term.getSelection();
+        if (sel) {
+          ev.preventDefault();
+          navigator.clipboard?.writeText(sel).catch(() => {});
+          term.clearSelection();
+          return false;
+        }
+        // No selection → let ^C reach the PTY on Win/Linux; swallow on Mac.
+        return !isMac;
+      }
       if (onlyMod && key === 'v') {
         ev.preventDefault();
         pasteFromClipboard();
