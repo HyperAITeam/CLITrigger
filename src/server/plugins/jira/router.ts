@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { PluginHelpers } from '../types.js';
 import { validatePromptContent, MAX_DESCRIPTION_LENGTH } from '../../services/prompt-guard.js';
+import { jiraSearch } from '../../lib/jira-client.js';
 
 interface JiraConfig {
   baseUrl: string;
@@ -102,21 +103,16 @@ export function createRouter(helpers: PluginHelpers): Router {
         jql = 'ORDER BY updated DESC';
       }
 
-      const params = new URLSearchParams({
+      // Jira Cloud removed the legacy /rest/api/3/search; jiraSearch uses the
+      // new /search/jql endpoint (with a legacy fallback) and isn't paginated
+      // by startAt, so total is approximated by the returned count.
+      const data = await jiraSearch(
+        config,
         jql,
-        maxResults: String(maxResults),
-        startAt: String(startAt),
-        fields: 'summary,status,assignee,priority,issuetype,created,updated,labels',
-      });
-
-      const resp = await jiraFetch(config, `/rest/api/3/search?${params}`);
-      if (!resp.ok) {
-        const text = await resp.text();
-        res.status(resp.status).json({ error: text });
-        return;
-      }
-      const data = await resp.json();
-      res.json(data);
+        'summary,status,assignee,priority,issuetype,created,updated,labels',
+        maxResults,
+      );
+      res.json({ ...data, total: data.total ?? data.issues.length, startAt });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
