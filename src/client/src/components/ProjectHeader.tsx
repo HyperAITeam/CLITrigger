@@ -11,13 +11,11 @@ import { useModels } from '../hooks/useModels';
 import ModelSettings from './ModelSettings';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
-import { Pencil, FolderOpen, Settings, Play, Square, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
 
 interface ProjectHeaderProps {
   project: Project;
   todos: Todo[];
-  onStartAll: () => void;
-  onStopAll: () => void;
   onProjectUpdate: (project: Project) => void;
 }
 
@@ -130,11 +128,7 @@ function DeprecatedModelBadge({ model, onOpenSettings }: DeprecatedModelBadgePro
   );
 }
 
-export default function ProjectHeader({ project, todos, onStartAll, onStopAll, onProjectUpdate }: ProjectHeaderProps) {
-  const hasStartable = todos.some(
-    (t) => t.status === 'pending' || t.status === 'failed' || t.status === 'stopped'
-  );
-  const hasRunning = todos.some((t) => t.status === 'running');
+export default function ProjectHeader({ project, todos, onProjectUpdate }: ProjectHeaderProps) {
   const { t } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -366,24 +360,6 @@ export default function ProjectHeader({ project, todos, onStartAll, onStopAll, o
               title={t('header.settings')}
             >
               <Settings size={16} />
-            </button>
-
-            <button
-              onClick={onStartAll}
-              disabled={!hasStartable}
-              className="btn-ghost text-sm"
-            >
-              <Play size={16} />
-              {t('header.runAll')}
-            </button>
-
-            <button
-              onClick={onStopAll}
-              disabled={!hasRunning}
-              className="btn-ghost text-sm"
-            >
-              <Square size={16} />
-              {t('header.stopAll')}
             </button>
           </div>
         </div>
