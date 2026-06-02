@@ -318,7 +318,7 @@ export default function PersonalAgenda() {
                 <div
                   key={key}
                   onClick={() => setSelectedDate(key)}
-                  className={`group/cell relative ${cellMin} text-left p-1.5 flex flex-col gap-1 transition-colors cursor-pointer`}
+                  className={`group relative ${cellMin} text-left p-1.5 flex flex-col gap-1 transition-colors cursor-pointer`}
                   style={{
                     backgroundColor: isSelected ? 'var(--color-bg-hover)' : 'var(--color-bg-card)',
                     opacity: inMonth ? 1 : 0.45,
@@ -338,16 +338,17 @@ export default function PersonalAgenda() {
                     >
                       {d.getDate()}
                     </span>
-                    {/* Quick-add on this day (date pre-filled, still editable) */}
-                    <button
-                      onClick={(ev) => { ev.stopPropagation(); openAdd(key); }}
-                      className="ml-auto opacity-0 group-hover/cell:opacity-100 transition-opacity rounded hover:bg-theme-hover p-0.5"
-                      title={t('agenda.add')}
-                      style={{ color: 'var(--color-text-muted)' }}
-                    >
-                      <Plus size={12} />
-                    </button>
                   </span>
+                  {/* Quick-add on this day (Notion-style): hover the cell to
+                      reveal a "+" that opens the form with this date pre-filled. */}
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); openAdd(key); }}
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-md w-5 h-5 flex items-center justify-center hover:bg-theme-hover"
+                    title={t('agenda.addItem')}
+                    style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+                  >
+                    <Plus size={13} />
+                  </button>
                   <div className="flex flex-col gap-0.5 overflow-hidden">
                     {entries.slice(0, maxChips).map((e) => (
                       <span
