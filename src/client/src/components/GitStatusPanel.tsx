@@ -276,6 +276,10 @@ function ActionToolbar({
   );
 
   const localBranches = branches.filter(b => !b.remote);
+  const currentLocalBranch = branches.find(b => !b.remote && b.current);
+  const commitBadge = statusFiles.length;
+  const pullBadge = currentLocalBranch?.behind ?? 0;
+  const pushBadge = currentLocalBranch?.ahead ?? 0;
 
   return (
     <>
@@ -284,17 +288,17 @@ function ActionToolbar({
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-        } />
+        } badge={commitBadge} />
         <ToolbarBtn label={t('git.pull')} onClick={() => exec(() => projectsApi.gitPull(projectId))} icon={
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
-        } />
+        } badge={pullBadge} />
         <ToolbarBtn label={t('git.push')} onClick={() => setActiveModal('push')} icon={
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
           </svg>
-        } />
+        } badge={pushBadge} />
         <ToolbarBtn label={t('git.fetch')} onClick={() => exec(() => projectsApi.gitFetch(projectId))} icon={
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5h-.75A2.25 2.25 0 004.5 9.75v7.5a2.25 2.25 0 002.25 2.25h7.5a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-.75m-6 3.75l3 3m0 0l3-3m-3 3V1.5" />
