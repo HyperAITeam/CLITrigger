@@ -1827,3 +1827,116 @@ export function getMemoryLogsByProjectId(projectId: string, limit = 200): Memory
     'SELECT * FROM memory_logs WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
   ).all(projectId, limit) as MemoryLog[];
 }
+
+// ── Personal items (global, project-agnostic personal organizer) ───────────
+
+export interface PersonalItem {
+  id: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  all_day: number;
+  status: string;
+  priority: number;
+  tags: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createPersonalItem(
+  title: string,
+  description?: string,
+  dueAt?: string | null,
+  allDay = 1,
+  priority = 0,
+  tags?: string | null,
+): PersonalItem {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO personal_items (id, title, description, due_at, all_day, status, priority, tags, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`
+  ).run(id, title, description ?? null, dueAt ?? null, allDay, priority, tags ?? null, now, now);
+  return getPersonalItemById(id)!;
+}
+
+export function getPersonalItems(): PersonalItem[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM personal_items ORDER BY due_at IS NULL, due_at ASC, priority DESC, created_at ASC').all() as PersonalItem[];
+}
+
+export function getPersonalItemById(id: string): PersonalItem | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM personal_items WHERE id = ?').get(id) as PersonalItem | undefined;
+}
+
+export function updatePersonalItem(
+  id: string,
+  updates: Partial<Pick<PersonalItem, 'title' | 'description' | 'due_at' | 'all_day' | 'status' | 'priority' | 'tags'>>,
+): PersonalItem | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.due_at !== undefined) { fields.push('due_at = ?'); values.push(updates.due_at); }
+  if (updates.all_day !== undefined) { fields.push('all_day = ?'); values.push(updates.all_day); }
+  if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+  if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority); }
+  if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
+  if (fields.length === 0) return getPersonalItemById(id);
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+  db.prepare(`UPDATE personal_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getPersonalItemById(id);
+}
+
+export function deletePersonalItem(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM personal_items WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Cross-project agenda aggregation (read-only) ───────────────────────────
+
+export interface AgendaScheduleEntry {
+  id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  at: string | null;
+  schedule_type: string;
+}
+
+export function getAllUpcomingSchedules(): AgendaScheduleEntry[] {
+  const db = getDatabase();
+  return db.prepare(
+    `SELECT s.id AS id, s.project_id AS project_id, p.name AS project_name, s.title AS title,
+            COALESCE(s.next_run_at, s.run_at) AS at, s.schedule_type AS schedule_type
+     FROM schedules s JOIN projects p ON p.id = s.project_id
+     WHERE s.is_active = 1 AND COALESCE(s.next_run_at, s.run_at) IS NOT NULL
+     ORDER BY at ASC`
+  ).all() as AgendaScheduleEntry[];
+}
+
+export interface AgendaPlannerEntry {
+  id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  due_date: string;
+  status: string;
+}
+
+export function getAllPlannerDueItems(): AgendaPlannerEntry[] {
+  const db = getDatabase();
+  return db.prepare(
+    `SELECT pi.id AS id, pi.project_id AS project_id, p.name AS project_name, pi.title AS title,
+            pi.due_date AS due_date, pi.status AS status
+     FROM planner_items pi JOIN projects p ON p.id = pi.project_id
+     WHERE pi.due_date IS NOT NULL AND pi.status != 'moved'
+     ORDER BY pi.due_date ASC`
+  ).all() as AgendaPlannerEntry[];
+}

@@ -453,3 +453,41 @@ export interface MemoryWikilinkResolution {
   title: string;
   nodeId: string | null;
 }
+
+// Global personal organizer (project-agnostic, no execution).
+export interface PersonalItem {
+  id: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  all_day: number;
+  status: string; // pending | done
+  priority: number;
+  tags: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgendaScheduleEntry {
+  id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  at: string | null;
+  schedule_type: string;
+}
+
+export interface AgendaPlannerEntry {
+  id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  due_date: string;
+  status: string;
+}
+
+export interface Agenda {
+  personal: PersonalItem[];
+  schedules: AgendaScheduleEntry[];
+  planner: AgendaPlannerEntry[];
+}
