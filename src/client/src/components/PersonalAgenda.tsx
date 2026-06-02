@@ -689,8 +689,7 @@ export default function PersonalAgenda() {
                   onChange={(e) => setFTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitForm(); } }}
                   placeholder={t('agenda.titlePlaceholder')}
-                  className={`bg-transparent border-none outline-none font-semibold ${expanded ? 'text-3xl' : 'text-xl'}`}
-                  style={{ color: 'var(--color-text-primary)' }}
+                  className={`input-field font-semibold ${expanded ? 'text-2xl' : 'text-lg'}`}
                 />
                 {/* Properties: date/time + status */}
                 <div className="flex items-center gap-2 flex-wrap">
