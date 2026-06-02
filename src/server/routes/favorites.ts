@@ -3,6 +3,7 @@ import nodePath from 'path';
 import fs from 'fs';
 import { exec, spawn } from 'child_process';
 import * as queries from '../db/queries.js';
+import { pickFile } from '../lib/native-picker.js';
 
 const router = Router();
 
@@ -66,6 +67,15 @@ function parseStoredArgs(args: string | null): string[] {
   } catch { /* ignore */ }
   return [];
 }
+
+// POST /api/favorites/browse-file - open a native "open file" dialog on the
+// server host and return the chosen path. Same mechanism as the project
+// folder picker (POST /api/projects/browse), so it works in the browser too.
+router.post('/favorites/browse-file', (req: Request, res: Response) => {
+  const initialDir = typeof req.body?.initialPath === 'string' ? req.body.initialPath : '';
+  const path = pickFile(initialDir, '실행 파일 선택');
+  res.json({ path });
+});
 
 // GET /api/favorites - list all
 router.get('/favorites', (_req: Request, res: Response) => {
