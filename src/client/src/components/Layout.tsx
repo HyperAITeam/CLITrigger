@@ -14,15 +14,27 @@ interface LayoutProps {
 
 export default function Layout({ children, onLogout, authRequired, connected, onEvent }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Desktop-only collapse to a 56px icon rail. Hydrated synchronously so the
+  // first paint matches the persisted width (no expand→collapse flash).
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('sidebarCollapsed', next ? '1' : '0');
+      return next;
+    });
+  };
 
   return (
     <div className="flex h-screen bg-theme-bg">
       {/* Sidebar - desktop: always visible, mobile: overlay */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 w-60 flex-shrink-0
-          transform transition-transform duration-200 ease-in-out
+          fixed inset-y-0 left-0 z-40 flex-shrink-0
+          transition-[transform,width] duration-200 ease-in-out
           md:translate-x-0 md:static md:z-auto
+          ${collapsed ? 'w-60 md:w-14' : 'w-60'}
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
@@ -32,6 +44,8 @@ export default function Layout({ children, onLogout, authRequired, connected, on
           connected={connected}
           onEvent={onEvent}
           onClose={() => setSidebarOpen(false)}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
         />
       </aside>
 
