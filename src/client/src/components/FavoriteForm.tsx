@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Terminal, FileCode, Link as LinkIcon } from 'lucide-react';
+import { Terminal, FileCode, Link as LinkIcon, FolderOpen } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { Favorite, FavoriteType } from '../types';
 import type { FavoriteInput } from '../api/favorites';
@@ -57,6 +57,24 @@ export default function FavoriteForm({ initial, onSubmit, onCancel }: FavoriteFo
     setArgsText(stringifyArgs(initial?.args ?? null));
     setCwd(initial?.cwd ?? '');
   }, [initial]);
+
+  // Native file picker is only available inside the Electron app. In a plain
+  // browser the user types the path manually (button hidden).
+  const electronAPI = (window as unknown as {
+    electronAPI?: { openExecutableDialog?: () => Promise<string | null> };
+  }).electronAPI;
+  const canBrowse = type === 'executable' && !!electronAPI?.openExecutableDialog;
+
+  const handleBrowse = async () => {
+    const path = await electronAPI?.openExecutableDialog?.();
+    if (!path) return;
+    setTarget(path);
+    // Convenience: prefill the name from the file's basename if still empty.
+    if (!name.trim()) {
+      const base = path.replace(/\\/g, '/').split('/').pop() || '';
+      setName(base.replace(/\.[^.]+$/, ''));
+    }
+  };
 
   const isEditing = !!initial;
   const trimmedName = name.trim();
@@ -138,13 +156,25 @@ export default function FavoriteForm({ initial, onSubmit, onCancel }: FavoriteFo
             <label className="block text-sm font-medium text-warm-600 mb-2">
               {t('favorites.form.target')}
             </label>
-            <input
-              type="text"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              className="input-field text-sm font-mono"
-              placeholder={targetHint}
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className="input-field text-sm font-mono flex-1"
+                placeholder={targetHint}
+              />
+              {canBrowse && (
+                <button
+                  type="button"
+                  onClick={handleBrowse}
+                  className="btn-ghost text-sm whitespace-nowrap flex items-center gap-1.5"
+                >
+                  <FolderOpen size={14} />
+                  {t('favorites.form.browse')}
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-2xs" style={{ color: 'var(--color-text-muted)' }}>
               {targetHint}
             </p>
