@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download } from 'lucide-react';
 import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig } from '../types';
 import * as personalApi from '../api/personal';
+import HoverHelp from './HoverHelp';
 import { useI18n } from '../i18n';
 
 // ── date helpers ───────────────────────────────────────────────────────────
@@ -399,9 +400,11 @@ export default function PersonalAgenda() {
             <button onClick={goToday} className="btn-ghost text-xs px-2.5 py-1.5">
               {t('agenda.today')}
             </button>
-            <button onClick={load} className="btn-ghost p-1.5" aria-label="refresh">
-              <RotateCcw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
+            <HoverHelp title={t('agenda.refresh')} body={t('agenda.refreshHelp')}>
+              <button onClick={load} className="btn-ghost p-1.5" aria-label="refresh">
+                <RotateCcw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </HoverHelp>
             <button onClick={() => setShowJiraSettings(true)} className="btn-ghost p-1.5" title={t('agenda.jira.settings')} aria-label="jira-settings">
               <Settings size={14} />
             </button>
