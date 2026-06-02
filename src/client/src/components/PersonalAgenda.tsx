@@ -904,26 +904,63 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
     catch { setBusy(false); }
   };
 
+  const TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+  const labelCls = 'block text-xs font-medium mb-1';
+  const hintCls = 'mt-1 text-2xs leading-relaxed';
+
   return (
     <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl p-6 shadow-xl flex flex-col gap-3" style={{ backgroundColor: 'var(--color-bg-card)' }} onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{t('agenda.jira.settings')}</h3>
-        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded" />
-          {t('agenda.jira.enable')}
-        </label>
-        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://xxx.atlassian.net" className="input-field text-sm font-mono" />
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className="input-field text-sm" />
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder={initial?.hasToken ? t('agenda.jira.tokenSaved') : 'API token'}
-          className="input-field text-sm font-mono"
-        />
-        <p className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.hint')}</p>
-        {result && <p className="text-xs" style={{ color: result.startsWith('✓') ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result}</p>}
-        <div className="flex justify-between items-center mt-1">
+      <div className="w-full max-w-md rounded-2xl shadow-xl flex flex-col" style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 pt-6 pb-2">
+          <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{t('agenda.jira.settings')}</h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.subtitle')}</p>
+        </div>
+
+        <div className="px-6 overflow-auto flex flex-col gap-4 py-2">
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded" />
+            {t('agenda.jira.enable')}
+          </label>
+
+          {/* 1. Site URL */}
+          <div>
+            <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.baseUrlLabel')}</label>
+            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://회사이름.atlassian.net" className="input-field text-sm font-mono" />
+            <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.baseUrlHint')}</p>
+          </div>
+
+          {/* 2. Email */}
+          <div>
+            <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.emailLabel')}</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className="input-field text-sm" />
+            <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.emailHint')}</p>
+          </div>
+
+          {/* 3. API token */}
+          <div>
+            <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.tokenLabel')}</label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={initial?.hasToken ? t('agenda.jira.tokenSaved') : t('agenda.jira.tokenPlaceholder')}
+              className="input-field text-sm font-mono"
+            />
+            <a href={TOKEN_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-xs" style={{ color: 'var(--color-accent)' }}>
+              <ExternalLink size={12} />
+              {t('agenda.jira.tokenLink')}
+            </a>
+            <div className="mt-1.5 text-2xs leading-relaxed rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}>
+              <div>{t('agenda.jira.tokenStep1')}</div>
+              <div>{t('agenda.jira.tokenStep2')}</div>
+              <div>{t('agenda.jira.tokenStep3')}</div>
+            </div>
+          </div>
+
+          {result && <p className="text-xs" style={{ color: result.startsWith('✓') ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result}</p>}
+        </div>
+
+        <div className="flex justify-between items-center px-6 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
           <button onClick={test} disabled={busy} className="btn-ghost text-sm disabled:opacity-40">{t('agenda.jira.test')}</button>
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
