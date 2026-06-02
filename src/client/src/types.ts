@@ -491,3 +491,18 @@ export interface Agenda {
   schedules: AgendaScheduleEntry[];
   planner: AgendaPlannerEntry[];
 }
+
+export interface JiraAgendaEntry {
+  key: string;
+  summary: string;
+  status: string;
+  duedate: string | null;
+  url: string;
+}
+
+export interface AgendaJiraConfig {
+  enabled: boolean;
+  base_url: string;
+  email: string;
+  hasToken: boolean;
+}
