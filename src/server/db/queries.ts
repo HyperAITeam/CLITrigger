@@ -1940,3 +1940,19 @@ export function getAllPlannerDueItems(): AgendaPlannerEntry[] {
      ORDER BY pi.due_date ASC`
   ).all() as AgendaPlannerEntry[];
 }
+
+// ── Global app settings (key/value) ────────────────────────────────────────
+
+export function getAppSetting(key: string): string | null {
+  const db = getDatabase();
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as { value: string | null } | undefined;
+  return row?.value ?? null;
+}
+
+export function setAppSetting(key: string, value: string): void {
+  const db = getDatabase();
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run(key, value, new Date().toISOString());
+}

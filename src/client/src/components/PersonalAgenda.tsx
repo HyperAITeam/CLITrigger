@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2 } from 'lucide-react';
-import type { PersonalItem, Agenda } from '../types';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download } from 'lucide-react';
+import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig } from '../types';
 import * as personalApi from '../api/personal';
 import { useI18n } from '../i18n';
 
@@ -41,15 +41,19 @@ function tagColor(name: string): { bg: string; fg: string } {
   return { bg: `hsla(${hue}, 60%, 50%, 0.18)`, fg: `hsl(${hue}, 65%, 70%)` };
 }
 
+type EntryKind = 'personal' | 'schedule' | 'planner' | 'jira';
 interface DayEntry {
-  kind: 'personal' | 'schedule' | 'planner';
+  kind: EntryKind;
   id: string;
   title: string;
   time?: string;           // HH:mm for timed personal/schedule
   done?: boolean;          // personal/planner status
   projectId?: string;      // schedule/planner deep-link
   deepLinkTab?: string;    // schedules | planner
+  url?: string;            // jira external link
 }
+
+const JIRA_BLUE = { bg: 'rgba(38,132,255,0.18)', fg: 'rgb(101,164,255)' };
 
 export default function PersonalAgenda() {
   const { t } = useI18n();
@@ -58,6 +62,10 @@ export default function PersonalAgenda() {
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [items, setItems] = useState<PersonalItem[]>([]);
   const [agenda, setAgenda] = useState<Agenda>({ personal: [], schedules: [], planner: [] });
+  const [jiraEntries, setJiraEntries] = useState<JiraAgendaEntry[]>([]);
+  const [jiraConfig, setJiraConfig] = useState<AgendaJiraConfig | null>(null);
+  const [showJiraSettings, setShowJiraSettings] = useState(false);
+  const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
 
@@ -140,9 +148,20 @@ export default function PersonalAgenda() {
     } finally {
       setLoading(false);
     }
+    // Jira is fetched separately so a Jira failure never blocks the calendar.
+    try {
+      const { issues } = await personalApi.getAgendaJira(rangeStart, rangeEnd);
+      setJiraEntries(issues);
+    } catch {
+      setJiraEntries([]);
+    }
   }, [rangeStart, rangeEnd]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load the Jira connection status once.
+  useEffect(() => { personalApi.getJiraConfig().then(setJiraConfig).catch(() => setJiraConfig(null)); }, []);
+  const jiraOn = !!(jiraConfig?.enabled && jiraConfig.hasToken);
 
   // In day view the side panel mirrors the cursor day.
   useEffect(() => { if (view === 'day') setSelectedDate(ymd(cursor)); }, [view, cursor]);
@@ -157,25 +176,29 @@ export default function PersonalAgenda() {
       arr.push(e);
       map.set(key, arr);
     };
-    for (const p of items) {
+    for (const p of sources.personal ? items : []) {
       if (!p.due_at || !matchesTag(p)) continue;
       const key = p.due_at.slice(0, 10);
       const time = p.all_day ? undefined : p.due_at.slice(11, 16) || undefined;
       push(key, { kind: 'personal', id: p.id, title: p.title, time, done: p.status === 'done' });
     }
-    // A tag filter is about personal items — hide project roll-ups while active.
-    for (const s of activeTag ? [] : agenda.schedules) {
+    // A tag filter is about personal items — hide project/Jira roll-ups while active.
+    for (const s of (activeTag || !sources.schedule) ? [] : agenda.schedules) {
       if (!s.at) continue;
       const key = dayKeyLocalIso(s.at);
       const time = new Date(s.at).toTimeString().slice(0, 5);
       push(key, { kind: 'schedule', id: s.id, title: `${s.project_name} · ${s.title}`, time, projectId: s.project_id, deepLinkTab: 'schedules' });
     }
-    for (const pl of activeTag ? [] : agenda.planner) {
+    for (const pl of (activeTag || !sources.planner) ? [] : agenda.planner) {
       const key = pl.due_date.slice(0, 10);
       push(key, { kind: 'planner', id: pl.id, title: `${pl.project_name} · ${pl.title}`, done: pl.status === 'done', projectId: pl.project_id, deepLinkTab: 'planner' });
     }
+    for (const j of (activeTag || !sources.jira) ? [] : jiraEntries) {
+      if (!j.duedate) continue;
+      push(j.duedate.slice(0, 10), { kind: 'jira', id: j.key, title: `${j.key} · ${j.summary}`, url: j.url });
+    }
     return map;
-  }, [items, agenda, activeTag, matchesTag]);
+  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources]);
 
   const backlog = useMemo(() => items.filter((i) => !i.due_at && matchesTag(i)), [items, matchesTag]);
 
@@ -189,7 +212,7 @@ export default function PersonalAgenda() {
   // Flat list for the table view: all personal items + project entries in
   // range, sorted by date (undated personal items sink to the bottom).
   interface TableRow {
-    kind: 'personal' | 'schedule' | 'planner';
+    kind: EntryKind;
     id: string;
     title: string;
     dateKey: string | null;
@@ -198,10 +221,11 @@ export default function PersonalAgenda() {
     item?: PersonalItem;
     projectId?: string;
     deepLinkTab?: string;
+    url?: string;
   }
   const tableRows = useMemo<TableRow[]>(() => {
     const rows: TableRow[] = [];
-    for (const p of items) {
+    for (const p of sources.personal ? items : []) {
       if (!matchesTag(p)) continue;
       rows.push({
         kind: 'personal', id: p.id, title: p.title,
@@ -210,7 +234,7 @@ export default function PersonalAgenda() {
         status: p.status, item: p,
       });
     }
-    for (const s of activeTag ? [] : agenda.schedules) {
+    for (const s of (activeTag || !sources.schedule) ? [] : agenda.schedules) {
       rows.push({
         kind: 'schedule', id: s.id, title: `${s.project_name} · ${s.title}`,
         dateKey: s.at ? dayKeyLocalIso(s.at) : null,
@@ -218,11 +242,18 @@ export default function PersonalAgenda() {
         projectId: s.project_id, deepLinkTab: 'schedules',
       });
     }
-    for (const pl of activeTag ? [] : agenda.planner) {
+    for (const pl of (activeTag || !sources.planner) ? [] : agenda.planner) {
       rows.push({
         kind: 'planner', id: pl.id, title: `${pl.project_name} · ${pl.title}`,
         dateKey: pl.due_date.slice(0, 10), time: null,
         status: pl.status, projectId: pl.project_id, deepLinkTab: 'planner',
+      });
+    }
+    for (const j of (activeTag || !sources.jira) ? [] : jiraEntries) {
+      rows.push({
+        kind: 'jira', id: j.key, title: `${j.key} · ${j.summary}`,
+        dateKey: j.duedate ? j.duedate.slice(0, 10) : null, time: null,
+        status: j.status, url: j.url,
       });
     }
     rows.sort((a, b) => {
@@ -234,7 +265,7 @@ export default function PersonalAgenda() {
       return (a.time || '').localeCompare(b.time || '');
     });
     return rows;
-  }, [items, agenda, activeTag, matchesTag]);
+  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources]);
 
   const weekdayLabels = useMemo(() => {
     const base = new Date(2024, 5, 2); // a Sunday
@@ -371,7 +402,33 @@ export default function PersonalAgenda() {
             <button onClick={load} className="btn-ghost p-1.5" aria-label="refresh">
               <RotateCcw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
+            <button onClick={() => setShowJiraSettings(true)} className="btn-ghost p-1.5" title={t('agenda.jira.settings')} aria-label="jira-settings">
+              <Settings size={14} />
+            </button>
           </div>
+        </div>
+
+        {/* Source legend / layer toggles */}
+        <div className="px-6 pb-3 flex items-center gap-1.5 flex-wrap">
+          {([
+            { key: 'personal', label: t('agenda.source.personal'), color: 'var(--color-accent)' },
+            { key: 'schedule', label: t('agenda.source.schedule'), color: 'var(--color-text-muted)' },
+            { key: 'planner', label: t('agenda.source.planner'), color: 'var(--color-text-muted)' },
+            ...(jiraOn ? [{ key: 'jira', label: t('agenda.source.jira'), color: JIRA_BLUE.fg }] : []),
+          ] as Array<{ key: keyof typeof sources; label: string; color: string }>).map((s) => {
+            const on = sources[s.key];
+            return (
+              <button
+                key={s.key}
+                onClick={() => setSources((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                className="text-2xs px-2 py-0.5 rounded-full flex items-center gap-1 transition-opacity"
+                style={{ backgroundColor: 'var(--color-bg-secondary)', color: on ? 'var(--color-text-secondary)' : 'var(--color-text-muted)', opacity: on ? 1 : 0.5 }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color, opacity: on ? 1 : 0.4 }} />
+                {s.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Tag filter row */}
@@ -463,8 +520,8 @@ export default function PersonalAgenda() {
                         key={`${e.kind}-${e.id}`}
                         className="text-2xs truncate px-1 py-0.5 rounded"
                         style={{
-                          backgroundColor: e.kind === 'personal' ? 'var(--color-accent-soft, rgba(99,102,241,0.15))' : 'var(--color-bg-secondary)',
-                          color: e.done ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
+                          backgroundColor: e.kind === 'jira' ? JIRA_BLUE.bg : e.kind === 'personal' ? 'var(--color-accent-soft, rgba(99,102,241,0.15))' : 'var(--color-bg-secondary)',
+                          color: e.kind === 'jira' ? JIRA_BLUE.fg : e.done ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
                           textDecoration: e.done ? 'line-through' : 'none',
                         }}
                         title={e.title}
@@ -503,6 +560,7 @@ export default function PersonalAgenda() {
                   : '—';
                 const onRowClick = () => {
                   if (r.kind === 'personal' && r.item) openEdit(r.item);
+                  else if (r.kind === 'jira' && r.url) window.open(r.url, '_blank', 'noopener');
                   else if (r.projectId) navigate(`/projects/${r.projectId}?tab=${r.deepLinkTab}`);
                 };
                 return (
@@ -527,8 +585,8 @@ export default function PersonalAgenda() {
                         {t(`agenda.kind.${r.kind}`)}
                       </span>
                     </span>
-                    <span className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {r.status ? t(r.status === 'done' ? 'agenda.status.done' : 'agenda.status.pending') : '—'}
+                    <span className="text-2xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+                      {r.kind === 'jira' ? (r.status || '—') : r.status ? t(r.status === 'done' ? 'agenda.status.done' : 'agenda.status.pending') : '—'}
                     </span>
                   </div>
                 );
@@ -591,6 +649,27 @@ export default function PersonalAgenda() {
                     <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.delete')}>
                       <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
+                  </div>
+                );
+              }
+              if (e.kind === 'jira') {
+                const issue = jiraEntries.find((j) => j.key === e.id);
+                return (
+                  <div key={`jira-${e.id}`} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: JIRA_BLUE.bg, border: `1px solid ${JIRA_BLUE.bg}` }}>
+                    <ExternalLink size={13} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
+                    <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                      <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={e.title}>{e.title}</div>
+                      <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>Jira</div>
+                    </a>
+                    {issue && (
+                      <button
+                        onClick={() => personalApi.importJiraIssue(issue).then(load)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                        title={t('agenda.jira.import')}
+                      >
+                        <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -750,6 +829,76 @@ export default function PersonalAgenda() {
           </div>
         </div>
       )}
+
+      {showJiraSettings && (
+        <JiraSettingsModal
+          initial={jiraConfig}
+          onClose={() => setShowJiraSettings(false)}
+          onSaved={(c) => { setJiraConfig(c); setShowJiraSettings(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function JiraSettingsModal({ initial, onClose, onSaved }: {
+  initial: AgendaJiraConfig | null;
+  onClose: () => void;
+  onSaved: (c: AgendaJiraConfig) => void;
+}) {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useState(!!initial?.enabled);
+  const [baseUrl, setBaseUrl] = useState(initial?.base_url ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const payload = () => ({ enabled, base_url: baseUrl.trim(), email: email.trim(), api_token: token || undefined });
+
+  const test = async () => {
+    setBusy(true); setResult(null);
+    try {
+      await personalApi.saveJiraConfig(payload());
+      const r = await personalApi.testJiraConfig();
+      setResult(r.ok ? `✓ ${r.user}` : `✗ ${r.error || 'failed'}`);
+    } catch (e) {
+      setResult(`✗ ${e instanceof Error ? e.message : 'failed'}`);
+    } finally { setBusy(false); }
+  };
+  const save = async () => {
+    setBusy(true);
+    try { onSaved(await personalApi.saveJiraConfig(payload())); }
+    catch { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-6 shadow-xl flex flex-col gap-3" style={{ backgroundColor: 'var(--color-bg-card)' }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{t('agenda.jira.settings')}</h3>
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded" />
+          {t('agenda.jira.enable')}
+        </label>
+        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://xxx.atlassian.net" className="input-field text-sm font-mono" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className="input-field text-sm" />
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder={initial?.hasToken ? t('agenda.jira.tokenSaved') : 'API token'}
+          className="input-field text-sm font-mono"
+        />
+        <p className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.hint')}</p>
+        {result && <p className="text-xs" style={{ color: result.startsWith('✓') ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result}</p>}
+        <div className="flex justify-between items-center mt-1">
+          <button onClick={test} disabled={busy} className="btn-ghost text-sm disabled:opacity-40">{t('agenda.jira.test')}</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
+            <button onClick={save} disabled={busy} className="btn-primary text-sm disabled:opacity-40">{t('agenda.save')}</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
