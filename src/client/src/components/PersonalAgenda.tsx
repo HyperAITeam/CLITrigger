@@ -681,7 +681,7 @@ export default function PersonalAgenda() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 min-h-0 overflow-auto px-5 pb-3">
+            <div className="flex-1 min-h-0 overflow-auto px-5 pt-2 pb-3">
               <div className={`flex flex-col gap-3 h-full ${expanded ? 'max-w-[820px] mx-auto w-full pt-2' : ''}`}>
                 <input
                   autoFocus
