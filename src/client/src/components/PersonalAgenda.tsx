@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock } from 'lucide-react';
 import type { PersonalItem, Agenda } from '../types';
 import * as personalApi from '../api/personal';
@@ -22,7 +22,7 @@ function dayOnly(d: Date): Date { return new Date(d.getFullYear(), d.getMonth(),
 function addDays(d: Date, n: number): Date { const x = dayOnly(d); x.setDate(x.getDate() + n); return x; }
 function startOfWeek(d: Date): Date { return addDays(d, -d.getDay()); }
 
-type CalView = 'month' | 'week' | 'day';
+type CalView = 'month' | 'week' | 'day' | 'table';
 
 interface DayEntry {
   kind: 'personal' | 'schedule' | 'planner';
@@ -36,6 +36,7 @@ interface DayEntry {
 
 export default function PersonalAgenda() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [view, setView] = useState<CalView>('month');
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [items, setItems] = useState<PersonalItem[]>([]);
@@ -62,6 +63,13 @@ export default function PersonalAgenda() {
       const s = startOfWeek(cursor);
       const days = Array.from({ length: 7 }, (_, i) => addDays(s, i));
       return { rangeStart: ymd(s), rangeEnd: ymd(addDays(s, 7)), gridDays: days, cols: 7, dimOutOfMonth: false };
+    }
+    if (view === 'table') {
+      // Table lists project entries for the cursor's month (personal items are
+      // shown in full regardless of range).
+      const first = startOfMonth(cursor);
+      const nextMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      return { rangeStart: ymd(first), rangeEnd: ymd(nextMonth), gridDays: [], cols: 7, dimOutOfMonth: false };
     }
     const first = startOfMonth(cursor);
     const gridStart = addDays(first, -first.getDay());
@@ -119,6 +127,55 @@ export default function PersonalAgenda() {
 
   const backlog = useMemo(() => items.filter((i) => !i.due_at), [items]);
 
+  // Flat list for the table view: all personal items + project entries in
+  // range, sorted by date (undated personal items sink to the bottom).
+  interface TableRow {
+    kind: 'personal' | 'schedule' | 'planner';
+    id: string;
+    title: string;
+    dateKey: string | null;
+    time: string | null;
+    status?: string;
+    item?: PersonalItem;
+    projectId?: string;
+    deepLinkTab?: string;
+  }
+  const tableRows = useMemo<TableRow[]>(() => {
+    const rows: TableRow[] = [];
+    for (const p of items) {
+      rows.push({
+        kind: 'personal', id: p.id, title: p.title,
+        dateKey: p.due_at ? p.due_at.slice(0, 10) : null,
+        time: p.due_at && !p.all_day ? p.due_at.slice(11, 16) : null,
+        status: p.status, item: p,
+      });
+    }
+    for (const s of agenda.schedules) {
+      rows.push({
+        kind: 'schedule', id: s.id, title: `${s.project_name} · ${s.title}`,
+        dateKey: s.at ? dayKeyLocalIso(s.at) : null,
+        time: s.at ? new Date(s.at).toTimeString().slice(0, 5) : null,
+        projectId: s.project_id, deepLinkTab: 'schedules',
+      });
+    }
+    for (const pl of agenda.planner) {
+      rows.push({
+        kind: 'planner', id: pl.id, title: `${pl.project_name} · ${pl.title}`,
+        dateKey: pl.due_date.slice(0, 10), time: null,
+        status: pl.status, projectId: pl.project_id, deepLinkTab: 'planner',
+      });
+    }
+    rows.sort((a, b) => {
+      if (!a.dateKey && !b.dateKey) return 0;
+      if (!a.dateKey) return 1;
+      if (!b.dateKey) return -1;
+      const d = a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0;
+      if (d !== 0) return d;
+      return (a.time || '').localeCompare(b.time || '');
+    });
+    return rows;
+  }, [items, agenda]);
+
   const weekdayLabels = useMemo(() => {
     const base = new Date(2024, 5, 2); // a Sunday
     return Array.from({ length: 7 }, (_, i) => addDays(base, i).toLocaleDateString(undefined, { weekday: 'short' }));
@@ -131,14 +188,14 @@ export default function PersonalAgenda() {
   // Prev/next steps by the active view's unit.
   const step = (dir: number) => setCursor((c) => {
     const d = new Date(c);
-    if (view === 'month') d.setMonth(d.getMonth() + dir);
+    if (view === 'month' || view === 'table') d.setMonth(d.getMonth() + dir);
     else if (view === 'week') d.setDate(d.getDate() + 7 * dir);
     else d.setDate(d.getDate() + dir);
     return d;
   });
   const goToday = () => { setCursor(new Date()); setSelectedDate(ymd(new Date())); };
 
-  const rangeTitle = view === 'month'
+  const rangeTitle = (view === 'month' || view === 'table')
     ? cursor.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
     : view === 'week'
       ? `${startOfWeek(cursor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${addDays(startOfWeek(cursor), 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
@@ -207,7 +264,7 @@ export default function PersonalAgenda() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* View toggle: month / week / day */}
             <div className="flex gap-0.5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-              {(['month', 'week', 'day'] as CalView[]).map((v) => (
+              {(['month', 'week', 'day', 'table'] as CalView[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -240,11 +297,12 @@ export default function PersonalAgenda() {
 
         {/* Calendar grid (month: 6×7, week: 1×7, day: 1×1) */}
         <div className="flex-1 overflow-auto px-6 pb-6">
-          {view !== 'day' && (
+          {(view === 'month' || view === 'week') && (
             <div className="grid gap-px text-2xs uppercase tracking-wider mb-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, color: 'var(--color-text-muted)' }}>
               {weekdayLabels.map((w) => (<div key={w} className="px-2 py-1">{w}</div>))}
             </div>
           )}
+          {view !== 'table' && (
           <div
             className="grid gap-px rounded-xl overflow-hidden"
             style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, backgroundColor: 'var(--color-border)' }}
@@ -257,10 +315,10 @@ export default function PersonalAgenda() {
               const isSelected = key === selectedDate;
               const cellMin = view === 'month' ? 'min-h-[92px]' : view === 'week' ? 'min-h-[360px]' : 'min-h-[480px]';
               return (
-                <button
+                <div
                   key={key}
                   onClick={() => setSelectedDate(key)}
-                  className={`${cellMin} text-left p-1.5 flex flex-col gap-1 transition-colors`}
+                  className={`group/cell relative ${cellMin} text-left p-1.5 flex flex-col gap-1 transition-colors cursor-pointer`}
                   style={{
                     backgroundColor: isSelected ? 'var(--color-bg-hover)' : 'var(--color-bg-card)',
                     opacity: inMonth ? 1 : 0.45,
@@ -280,6 +338,15 @@ export default function PersonalAgenda() {
                     >
                       {d.getDate()}
                     </span>
+                    {/* Quick-add on this day (date pre-filled, still editable) */}
+                    <button
+                      onClick={(ev) => { ev.stopPropagation(); openAdd(key); }}
+                      className="ml-auto opacity-0 group-hover/cell:opacity-100 transition-opacity rounded hover:bg-theme-hover p-0.5"
+                      title={t('agenda.add')}
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      <Plus size={12} />
+                    </button>
                   </span>
                   <div className="flex flex-col gap-0.5 overflow-hidden">
                     {entries.slice(0, maxChips).map((e) => (
@@ -300,10 +367,59 @@ export default function PersonalAgenda() {
                       <span className="text-2xs px-1" style={{ color: 'var(--color-text-muted)' }}>+{entries.length - maxChips}</span>
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
+          )}
+
+          {/* Table view */}
+          {view === 'table' && (
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
+              <div
+                className="grid items-center px-3 py-2 text-2xs uppercase tracking-wider"
+                style={{ gridTemplateColumns: '1fr 150px 96px 72px', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
+              >
+                <span>{t('agenda.table.name')}</span>
+                <span>{t('agenda.table.date')}</span>
+                <span>{t('agenda.table.kind')}</span>
+                <span>{t('agenda.table.status')}</span>
+              </div>
+              {tableRows.length === 0 && (
+                <div className="px-3 py-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dayEmpty')}</div>
+              )}
+              {tableRows.map((r) => {
+                const dateLabel = r.dateKey
+                  ? new Date(r.dateKey + 'T00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + (r.time ? ` ${r.time}` : '')
+                  : '—';
+                const onRowClick = () => {
+                  if (r.kind === 'personal' && r.item) openEdit(r.item);
+                  else if (r.projectId) navigate(`/projects/${r.projectId}?tab=${r.deepLinkTab}`);
+                };
+                return (
+                  <div
+                    key={`${r.kind}-${r.id}`}
+                    onClick={onRowClick}
+                    className="grid items-center px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-theme-hover"
+                    style={{ gridTemplateColumns: '1fr 150px 96px 72px', borderTop: '1px solid var(--color-border)' }}
+                  >
+                    <span className="truncate pr-2" style={{ color: 'var(--color-text-primary)', textDecoration: r.status === 'done' ? 'line-through' : 'none' }} title={r.title}>
+                      {r.title}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{dateLabel}</span>
+                    <span className="text-2xs">
+                      <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}>
+                        {t(`agenda.kind.${r.kind}`)}
+                      </span>
+                    </span>
+                    <span className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {r.status ? t(r.status === 'done' ? 'agenda.status.done' : 'agenda.status.pending') : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -405,26 +521,29 @@ export default function PersonalAgenda() {
 
       {/* Add / edit form modal */}
       {showForm && (
-        <div className="fixed inset-0 z-tooltip flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={closeForm}>
-          <div className="w-full max-w-md rounded-2xl p-5 shadow-xl" style={{ backgroundColor: 'var(--color-bg-card)' }} onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
+        <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={closeForm}>
+          <div
+            className="w-full max-w-3xl rounded-2xl p-7 shadow-xl flex flex-col"
+            style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '88vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
               {editing ? t('agenda.editTitle') : t('agenda.addTitle')}
             </h3>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
               <input
                 autoFocus
                 value={fTitle}
                 onChange={(e) => setFTitle(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitForm(); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitForm(); } }}
                 placeholder={t('agenda.titlePlaceholder')}
-                className="input-field"
+                className="input-field text-base"
               />
               <textarea
                 value={fDesc}
                 onChange={(e) => setFDesc(e.target.value)}
                 placeholder={t('agenda.descPlaceholder')}
-                rows={2}
-                className="input-field resize-none"
+                className="input-field flex-1 min-h-[280px] resize-y leading-relaxed"
               />
               <div className="flex items-center gap-2">
                 <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="input-field flex-1" />
