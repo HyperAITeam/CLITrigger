@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import type { PersonalItem, Agenda } from '../types';
@@ -73,6 +73,33 @@ export default function PersonalAgenda() {
   const [fTags, setFTags] = useState<string[]>([]);
   const [fTagInput, setFTagInput] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
+
+  // Resizable side panel (drag the divider). Persisted in localStorage.
+  const PANEL_MIN = 260, PANEL_MAX = 760;
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('agendaPanelWidth') || '', 10);
+    return Number.isFinite(v) && v >= PANEL_MIN && v <= PANEL_MAX ? v : 320;
+  });
+  useEffect(() => { try { localStorage.setItem('agendaPanelWidth', String(panelWidth)); } catch { /* ignore */ } }, [panelWidth]);
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const onMove = (ev: PointerEvent) => {
+      const rect = layoutRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPanelWidth(Math.min(PANEL_MAX, Math.max(PANEL_MIN, rect.right - ev.clientX)));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   // Visible days + fetch range, driven by the active view. Month shows a
   // 6-week grid (incl. adjacent-month days); week shows 7 days; day shows 1.
@@ -295,9 +322,9 @@ export default function PersonalAgenda() {
   const selectedEntries = byDay.get(selectedDate) ?? [];
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div ref={layoutRef} className="flex h-full overflow-hidden">
       {/* Calendar column */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="px-6 pt-6 pb-3 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
@@ -506,8 +533,16 @@ export default function PersonalAgenda() {
         </div>
       </div>
 
+      {/* Drag handle to resize the side panel */}
+      <div
+        onPointerDown={startResize}
+        className="w-1.5 flex-shrink-0 cursor-col-resize hover:bg-accent/40 transition-colors"
+        style={{ backgroundColor: 'var(--color-border)' }}
+        title={t('agenda.resizePanel')}
+      />
+
       {/* Side panel: selected day + backlog */}
-      <div className="w-[320px] flex-shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="flex-shrink-0 flex flex-col overflow-hidden" style={{ width: panelWidth }}>
         <div className="px-4 pt-5 pb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {new Date(selectedDate + 'T00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', weekday: 'short' })}
