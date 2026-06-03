@@ -420,6 +420,19 @@ export default function PersonalAgenda() {
     load();
   };
 
+  // Open a calendar entry the same way the side panel does: personal → edit
+  // form, schedule/planner → project deep-link, jira → external issue.
+  const openEntry = (e: DayEntry) => {
+    if (e.kind === 'personal') {
+      const item = items.find((i) => i.id === e.id);
+      if (item) openEdit(item);
+    } else if (e.kind === 'jira') {
+      if (e.url) window.open(e.url, '_blank', 'noopener,noreferrer');
+    } else if (e.projectId && e.deepLinkTab) {
+      navigate(`/projects/${e.projectId}?tab=${e.deepLinkTab}`);
+    }
+  };
+
   const selectedEntries = byDay.get(selectedDate) ?? [];
 
   return (
@@ -590,7 +603,8 @@ export default function PersonalAgenda() {
                     {entries.slice(0, maxChips).map((e) => (
                       <span
                         key={`${e.kind}-${e.id}`}
-                        className="text-2xs truncate px-1 py-0.5 rounded"
+                        onClick={(ev) => { ev.stopPropagation(); openEntry(e); }}
+                        className="text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity"
                         style={{
                           backgroundColor: e.kind === 'jira' ? JIRA_BLUE.bg : e.kind === 'personal' ? 'var(--color-accent-soft, rgba(99,102,241,0.15))' : 'var(--color-bg-secondary)',
                           color: e.kind === 'jira' ? JIRA_BLUE.fg : e.done ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
