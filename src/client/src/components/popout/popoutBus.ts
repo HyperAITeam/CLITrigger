@@ -10,6 +10,9 @@
 //   group-return    — popout → main, returns group ownership
 //   group-update    — owner → others, partial OpenGroup patch sync
 //   group-close     — either side, group dissolved
+//   group-recall    — main → popout, user-initiated "bring back to main".
+//                     The popout responds exactly like its own Re-dock button:
+//                     posts group-return with its latest payload, then closes.
 //   group-reclaimed — main → popout, ownership forcibly reclaimed
 //                     (popout missed too many heartbeats); popout must stop
 //                     rendering and close to avoid duplicate xterm writes
@@ -27,6 +30,7 @@ export type BusMessage =
   | { t: 'group-return'; from: string; groupId: string; group: unknown }
   | { t: 'group-update'; from: string; groupId: string; patch: unknown }
   | { t: 'group-close'; from: string; groupId: string }
+  | { t: 'group-recall'; popoutId: string; groupId: string }
   | { t: 'group-reclaimed'; popoutId: string; groupIds: string[]; reason: 'heartbeat-timeout' | 'late-return' }
   | { t: 'heartbeat'; from: string; ownedGroupIds: string[] }
   | { t: 'bye'; from: string };

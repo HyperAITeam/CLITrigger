@@ -50,6 +50,14 @@ interface WindowGeom {
 
 export type WindowIntent = 'start' | 'open' | 'resume';
 
+// Per-session window placement, surfaced to the session list so each row can
+// show where its terminal currently lives and offer the matching action.
+//   closed    — no open window for this session
+//   floating  — visible floating window in the main app
+//   minimized — collapsed into the bottom dock tray
+//   popped    — torn out into a separate OS window (window.open)
+export type WindowState = 'closed' | 'floating' | 'minimized' | 'popped';
+
 export interface OpenGroup extends WindowGeom {
   id: string;
   z: number;
@@ -89,6 +97,9 @@ export interface SessionWindowsAPI {
   minimize: (sessionId: string) => void;
   restore: (sessionId: string) => void;
   isOpen: (sessionId: string) => boolean;
+  // Bring a popped-out (separate OS window) session back into the main app as
+  // a floating window. No-op if the session isn't currently popped out.
+  recallPopout: (sessionId: string) => void;
   // Group-level (used by SessionWindow internals)
   closeGroup: (groupId: string) => void;
   minimizeGroup: (groupId: string) => void;
@@ -118,10 +129,20 @@ export interface SessionWindowsAPI {
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
 
+// Separate, frequently-changing context for per-session window placement. Kept
+// apart from the (stable, memoized) API context so consumers that only need to
+// trigger actions don't re-render on every geometry/minimize change.
+const SessionWindowStateContext = createContext<Record<string, WindowState>>({});
+
 export function useSessionWindows(): SessionWindowsAPI {
   const ctx = useContext(SessionWindowsContext);
   if (!ctx) throw new Error('useSessionWindows must be used within SessionWindowsHost');
   return ctx;
+}
+
+// Map of sessionId → current window placement. Empty object outside a host.
+export function useSessionWindowStates(): Record<string, WindowState> {
+  return useContext(SessionWindowStateContext);
 }
 
 // Variant that returns null when there is no host above (e.g. inside a
@@ -536,6 +557,14 @@ export default function SessionWindowsHost({
       if (detail.projectId !== projectId) return;
       const group = groupsRef.current.find(g => g.id === detail.groupId);
       if (group && !confirmRunningStop(allSessionIds(group.root))) return;
+      // If a separate OS window owns this group, tell it to stop and close so
+      // we don't leave an orphaned popout running its terminals.
+      const owner = group?.ownerWindowId || MAIN_WINDOW_ID;
+      if (owner !== MAIN_WINDOW_ID) {
+        alivePopoutsRef.current.delete(owner);
+        handoffCacheRef.current.delete(detail.groupId);
+        busRef.current?.post({ t: 'group-reclaimed', popoutId: owner, groupIds: [detail.groupId], reason: 'late-return' });
+      }
       setGroups((prev) => prev.filter(g => g.id !== detail.groupId));
     };
     window.addEventListener('session-windows:restore', onRestoreEvent);
@@ -998,6 +1027,67 @@ export default function SessionWindowsHost({
   // beginTabDrag (defined earlier) can invoke it for tear-out → OS window.
   popOutGroupRef.current = popOutGroup;
 
+  // Bring a popped-out group back into the main window. Ask its owning popout
+  // to return (it replies with group-return → the bus handler restores it as a
+  // floating window). A fallback timer force-reclaims if the popout is dead or
+  // too slow to answer, so the action always succeeds from the user's view.
+  const recallGroup = useCallback((groupId: string) => {
+    const g = groupsRef.current.find(x => x.id === groupId);
+    if (!g) return;
+    const owner = g.ownerWindowId || MAIN_WINDOW_ID;
+    if (owner === MAIN_WINDOW_ID) {
+      // Already in main — just un-minimize and raise it.
+      restoreGroup(groupId);
+      return;
+    }
+    busRef.current?.post({ t: 'group-recall', popoutId: owner, groupId });
+    setTimeout(() => {
+      const cur = groupsRef.current.find(x => x.id === groupId);
+      if (!cur || (cur.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID) return; // popout already returned it
+      // Popout never answered — reclaim like the heartbeat sweep does so the
+      // (possibly still-alive) popout stops rendering before we re-show here.
+      alivePopoutsRef.current.delete(owner);
+      handoffCacheRef.current.delete(groupId);
+      busRef.current?.post({ t: 'group-reclaimed', popoutId: owner, groupIds: [groupId], reason: 'late-return' });
+      zCounterRef.current += 1;
+      const z = zCounterRef.current;
+      setGroups(prev => prev.map(x => x.id === groupId ? { ...x, ownerWindowId: MAIN_WINDOW_ID, minimized: false, z } : x));
+    }, 1500);
+  }, [restoreGroup]);
+
+  const recallPopout = useCallback((sessionId: string) => {
+    const g = findGroupBySessionId(groupsRef.current, sessionId);
+    if (g) recallGroup(g.id);
+  }, [recallGroup]);
+
+  // Cross-window recall: GlobalSessionDockTray dispatches this for same-project
+  // popped chips; cross-project ones route through pendingSessionRecall below.
+  useEffect(() => {
+    const onRecall = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { projectId?: string; groupId?: string } | undefined;
+      if (!detail?.projectId || !detail.groupId || detail.projectId !== projectId) return;
+      recallGroup(detail.groupId);
+    };
+    window.addEventListener('session-windows:recall', onRecall);
+    return () => window.removeEventListener('session-windows:recall', onRecall);
+  }, [projectId, recallGroup]);
+
+  // Cross-project recall handoff: tray stashes the intent then navigates here;
+  // we pick it up after mount (the bus is open by now) and recall.
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingSessionRecall');
+    if (!raw) return;
+    try {
+      const intent = JSON.parse(raw) as { projectId?: string; groupId?: string };
+      if (intent.projectId !== projectId || !intent.groupId) return;
+      sessionStorage.removeItem('pendingSessionRecall');
+      // Defer past this mount's other effects so the popout bus (opened in a
+      // separate effect) is live before recallGroup posts group-recall.
+      const gid = intent.groupId;
+      setTimeout(() => recallGroup(gid), 0);
+    } catch { /* ignore malformed intent */ }
+  }, [projectId, recallGroup]);
+
   // Resolve the path of the first stack in DFS order. Used by Ctrl/Cmd+T
   // when adding a raw-shell tab to a group whose root may be a split — we
   // pick the leftmost/topmost stack as a sensible default target.
@@ -1203,13 +1293,25 @@ export default function SessionWindowsHost({
   }, []);
 
   const api = useMemo<SessionWindowsAPI>(() => ({
-    openOrFocus, close, focus, minimize, restore, isOpen,
+    openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
     beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
-  }), [openOrFocus, close, focus, minimize, restore, isOpen,
+  }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
        setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab]);
+
+  // Per-session placement, derived from the live groups. Drives the session
+  // list badges + actions; recomputed on every groups change.
+  const windowStates = useMemo<Record<string, WindowState>>(() => {
+    const m: Record<string, WindowState> = {};
+    for (const g of groups) {
+      const owner = g.ownerWindowId || MAIN_WINDOW_ID;
+      const state: WindowState = owner !== MAIN_WINDOW_ID ? 'popped' : g.minimized ? 'minimized' : 'floating';
+      for (const sid of allSessionIds(g.root)) m[sid] = state;
+    }
+    return m;
+  }, [groups]);
 
   // Global Ctrl+T / Cmd+T → new raw-shell tab in the topmost main-owned
   // visible group, or a new floating window when none exists. preventDefault
@@ -1262,6 +1364,7 @@ export default function SessionWindowsHost({
 
   return (
     <SessionWindowsContext.Provider value={api}>
+      <SessionWindowStateContext.Provider value={windowStates}>
       {children}
       {visibleGroups.map((g) => {
         const neighborGeoms = visibleGroups
@@ -1284,6 +1387,7 @@ export default function SessionWindowsHost({
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
       )}
+      </SessionWindowStateContext.Provider>
     </SessionWindowsContext.Provider>
   );
 }

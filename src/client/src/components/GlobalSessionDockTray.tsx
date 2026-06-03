@@ -29,9 +29,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GripVertical, X } from 'lucide-react';
+import { GripVertical, X, ExternalLink } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
+import { MAIN_WINDOW_ID } from './popout/popoutBus';
+import { useI18n } from '../i18n';
 import * as projectsApi from '../api/projects';
 import type { Project } from '../types';
 import { resolveProjectColor } from '../lib/projectColor';
@@ -41,10 +43,14 @@ interface MinimizedChip {
   groupId: string;
   sessionIds: string[];
   titles: Record<string, string>;
+  // 'minimized' = collapsed floating window; 'popped' = torn out into a
+  // separate OS window. Both get a dock chip so the user keeps a handle on it.
+  kind: 'minimized' | 'popped';
 }
 
 const STORAGE_PREFIX = 'sessionGroups:';
 const RESTORE_KEY = 'pendingSessionRestore';
+const RECALL_KEY = 'pendingSessionRecall';
 // User-defined chip order (array of "projectId:groupId") and the tray's
 // horizontal offset, both persisted locally. The tray stays bottom-anchored;
 // only `left` is draggable.
@@ -95,18 +101,25 @@ function readAllMinimized(): MinimizedChip[] {
             id: string;
             minimized?: boolean;
             root?: LayoutNode;
+            ownerWindowId?: string;
           }>;
           titles?: Record<string, string>;
         };
         if (!Array.isArray(parsed.groups)) continue;
         const titles = parsed.titles ?? {};
         for (const g of parsed.groups) {
-          if (!g?.minimized || !g.root) continue;
+          if (!g?.root) continue;
+          // Popped-out windows are owned by a popout id; surface them as a
+          // chip regardless of the (stale) minimized flag. Otherwise only
+          // truly-minimized main-owned groups get a chip.
+          const popped = !!g.ownerWindowId && g.ownerWindowId !== MAIN_WINDOW_ID;
+          if (!popped && !g.minimized) continue;
           chips.push({
             projectId,
             groupId: g.id,
             sessionIds: allSessionIds(g.root),
             titles,
+            kind: popped ? 'popped' : 'minimized',
           });
         }
       } catch { /* skip malformed entry */ }
@@ -124,6 +137,7 @@ function getCurrentProjectId(pathname: string): string | null {
 }
 
 export default function GlobalSessionDockTray() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [chips, setChips] = useState<MinimizedChip[]>(() => readAllMinimized());
@@ -238,14 +252,20 @@ export default function GlobalSessionDockTray() {
   if (chips.length === 0) return null;
 
   const handleRestore = (chip: MinimizedChip) => {
+    // Popped chips recall the separate OS window back into the main app; plain
+    // minimized chips just un-minimize the floating window. Same-project goes
+    // through a custom event the host listens for; cross-project stashes an
+    // intent and navigates so the destination host picks it up on mount.
+    const event = chip.kind === 'popped' ? 'session-windows:recall' : 'session-windows:restore';
+    const stashKey = chip.kind === 'popped' ? RECALL_KEY : RESTORE_KEY;
     if (chip.projectId === currentProjectId) {
-      window.dispatchEvent(new CustomEvent('session-windows:restore', {
+      window.dispatchEvent(new CustomEvent(event, {
         detail: { projectId: chip.projectId, groupId: chip.groupId },
       }));
       return;
     }
     try {
-      sessionStorage.setItem(RESTORE_KEY, JSON.stringify({
+      sessionStorage.setItem(stashKey, JSON.stringify({
         projectId: chip.projectId, groupId: chip.groupId,
       }));
     } catch { /* private mode; navigation will still happen, just no restore */ }
@@ -315,6 +335,7 @@ export default function GlobalSessionDockTray() {
           ? labels[0]
           : `${labels[0]} +${labels.length - 1}`;
         const isOther = chip.projectId !== currentProjectId;
+        const isPopped = chip.kind === 'popped';
         return (
           <div
             key={`${chip.projectId}:${chip.groupId}`}
@@ -324,13 +345,15 @@ export default function GlobalSessionDockTray() {
             onDrop={(e) => { e.preventDefault(); handleChipDrop(chipKeyOf(chip)); }}
             onDragEnd={() => { dragKeyRef.current = null; }}
             onClick={() => handleRestore(chip)}
-            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}`}
+            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}${isPopped ? ` — ${t('session.dock.poppedHint')}` : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               background: CMD.titleBg,
-              border: `1px solid ${CMD.separator}`,
+              // Popped chips get a tinted accent border so a separate-window
+              // handle reads differently from a plain minimized one.
+              border: isPopped ? '1px solid rgba(139,92,246,0.7)' : `1px solid ${CMD.separator}`,
               opacity: isOther ? 0.75 : 1,
               borderRadius: 6,
               padding: '4px 6px 4px 4px',
@@ -351,6 +374,7 @@ export default function GlobalSessionDockTray() {
                   : resolveProjectColor({ id: chip.projectId }),
               }}
             />
+            {isPopped && <ExternalLink size={11} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
             </span>
