@@ -61,7 +61,10 @@ export function getJiraConfig(): Promise<AgendaJiraConfig> {
   return get('/api/agenda/jira-config');
 }
 
-export function saveJiraConfig(data: { enabled: boolean; base_url: string; email: string; api_token?: string }): Promise<AgendaJiraConfig> {
+export function saveJiraConfig(data: {
+  enabled: boolean; base_url: string; email: string; api_token?: string;
+  assignee_me?: boolean; include_done?: boolean; projects?: string; extra_jql?: string;
+}): Promise<AgendaJiraConfig> {
   return put('/api/agenda/jira-config', data);
 }
 

@@ -506,4 +506,8 @@ export interface AgendaJiraConfig {
   base_url: string;
   email: string;
   hasToken: boolean;
+  assignee_me: boolean;
+  include_done: boolean;
+  projects: string;
+  extra_jql: string;
 }

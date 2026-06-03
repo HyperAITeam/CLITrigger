@@ -18,7 +18,14 @@ const router = Router();
 // ── Agenda Jira connection (global, dedicated to "My Schedule") ────────────
 
 const JIRA_KEY = 'agenda.jira';
-interface AgendaJira { enabled?: boolean; base_url?: string; email?: string; api_token?: string; }
+interface AgendaJira {
+  enabled?: boolean; base_url?: string; email?: string; api_token?: string;
+  // Import criteria (applied to both the calendar overlay and what can be imported).
+  assignee_me?: boolean;   // default true: only issues assigned to me
+  include_done?: boolean;  // default false: exclude Done issues
+  projects?: string;       // comma/space-separated project keys, e.g. "ABC DEF"
+  extra_jql?: string;      // advanced: raw JQL fragment, AND-ed in
+}
 
 function readJira(): AgendaJira {
   try { return JSON.parse(getAppSetting(JIRA_KEY) || '{}'); } catch { return {}; }
@@ -112,14 +119,26 @@ router.get('/agenda', (req: Request, res: Response) => {
 });
 
 // Config (never returns the raw token)
+function jiraConfigResponse(j: AgendaJira) {
+  return {
+    enabled: !!j.enabled,
+    base_url: j.base_url || '',
+    email: j.email || '',
+    hasToken: !!j.api_token,
+    assignee_me: j.assignee_me !== false, // default true
+    include_done: !!j.include_done,
+    projects: j.projects || '',
+    extra_jql: j.extra_jql || '',
+  };
+}
+
 router.get('/agenda/jira-config', (_req: Request, res: Response) => {
-  const j = readJira();
-  res.json({ enabled: !!j.enabled, base_url: j.base_url || '', email: j.email || '', hasToken: !!j.api_token });
+  res.json(jiraConfigResponse(readJira()));
 });
 
 router.put('/agenda/jira-config', (req: Request, res: Response) => {
   try {
-    const { enabled, base_url, email, api_token } = req.body ?? {};
+    const { enabled, base_url, email, api_token, assignee_me, include_done, projects, extra_jql } = req.body ?? {};
     const cur = readJira();
     const next: AgendaJira = {
       enabled: !!enabled,
@@ -127,9 +146,13 @@ router.put('/agenda/jira-config', (req: Request, res: Response) => {
       email: typeof email === 'string' ? email.trim() : cur.email,
       // Empty/omitted token keeps the existing one.
       api_token: (typeof api_token === 'string' && api_token.length) ? api_token : cur.api_token,
+      assignee_me: assignee_me === undefined ? cur.assignee_me : !!assignee_me,
+      include_done: include_done === undefined ? cur.include_done : !!include_done,
+      projects: typeof projects === 'string' ? projects.trim() : cur.projects,
+      extra_jql: typeof extra_jql === 'string' ? extra_jql.trim() : cur.extra_jql,
     };
     setAppSetting(JIRA_KEY, JSON.stringify(next));
-    res.json({ enabled: !!next.enabled, base_url: next.base_url || '', email: next.email || '', hasToken: !!next.api_token });
+    res.json(jiraConfigResponse(next));
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
@@ -149,7 +172,8 @@ router.get('/agenda/jira-test', async (_req: Request, res: Response) => {
 // Assigned-to-me open issues: due-dated ones in [from, to] plus ones with no
 // due date (so they can be listed even when the calendar can't place them).
 router.get('/agenda/jira', async (req: Request, res: Response) => {
-  const conn = jiraConn(readJira());
+  const j = readJira();
+  const conn = jiraConn(j);
   if (!conn) return res.json({ issues: [] });
   const from = (req.query.from as string | undefined)?.trim();
   const to = (req.query.to as string | undefined)?.trim();
@@ -157,7 +181,20 @@ router.get('/agenda/jira', async (req: Request, res: Response) => {
   if (from) range.push(`duedate >= "${from}"`);
   if (to) range.push(`duedate <= "${to}"`);
   const inRange = range.length ? `(${range.join(' AND ')})` : 'duedate IS NOT NULL';
-  const jql = `assignee = currentUser() AND statusCategory != Done AND (duedate IS EMPTY OR ${inRange}) ORDER BY duedate ASC`;
+
+  // Build the JQL from the user's criteria (defaults preserve the original
+  // "assigned to me, not done" behavior). Undated issues are always pulled too
+  // so they can be listed even when the calendar can't place them.
+  const parts: string[] = [];
+  if (j.assignee_me !== false) parts.push('assignee = currentUser()');
+  if (!j.include_done) parts.push('statusCategory != Done');
+  if (j.projects && j.projects.trim()) {
+    const keys = j.projects.split(/[,\s]+/).filter(Boolean).map((k) => `"${k}"`).join(', ');
+    if (keys) parts.push(`project in (${keys})`);
+  }
+  if (j.extra_jql && j.extra_jql.trim()) parts.push(`(${j.extra_jql.trim()})`);
+  parts.push(`(duedate IS EMPTY OR ${inRange})`);
+  const jql = `${parts.join(' AND ')} ORDER BY duedate ASC`;
   try {
     const data = await jiraSearch(conn, jql, 'summary,status,duedate', 100);
     const base = conn.baseUrl.replace(/\/+$/, '');
