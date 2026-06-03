@@ -6,6 +6,7 @@ import type { PlannerItem as PlannerItemType, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
 import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
+import ImageLightbox from './ImageLightbox';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-500',
@@ -54,6 +55,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   const [tagInput, setTagInput] = useState('');
   const [showTagDrop, setShowTagDrop] = useState(false);
   const [colorPickTag, setColorPickTag] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const tagRef = useRef<HTMLInputElement>(null);
 
   // Image state
@@ -388,7 +390,8 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                       <img
                         src={getPlannerImageUrl(item.id, img.id)}
                         alt={img.originalName}
-                        className="h-20 w-20 object-cover rounded-lg border border-warm-200"
+                        onClick={() => setLightboxSrc(getPlannerImageUrl(item.id, img.id))}
+                        className="h-20 w-20 object-cover rounded-lg border border-warm-200 cursor-zoom-in"
                       />
                       <button
                         type="button"
@@ -496,6 +499,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
           </div>
         </div>
       )}
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }

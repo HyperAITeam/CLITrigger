@@ -4,6 +4,7 @@ import type { PlannerItem, PlannerTag, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle } from './plannerTagColors';
 import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
+import ImageLightbox from './ImageLightbox';
 
 interface PendingImage {
   id: string;
@@ -35,6 +36,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
   const [showTagDrop, setShowTagDrop] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImages, setExistingImages] = useState<ImageMeta[]>([]);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -205,7 +207,8 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
                 <img
                   src={editItem ? getPlannerImageUrl(editItem.id, img.id) : ''}
                   alt={img.originalName}
-                  className="h-20 w-20 object-cover rounded-lg border border-warm-200"
+                  onClick={() => editItem && setLightboxSrc(getPlannerImageUrl(editItem.id, img.id))}
+                  className="h-20 w-20 object-cover rounded-lg border border-warm-200 cursor-zoom-in"
                 />
                 <button
                   type="button"
@@ -221,7 +224,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
             ))}
             {pendingImages.map(img => (
               <div key={img.id} className="relative group">
-                <img src={img.preview} alt={img.name} className="h-20 w-20 object-cover rounded-lg border border-blue-300/30" />
+                <img src={img.preview} alt={img.name} onClick={() => setLightboxSrc(img.preview)} className="h-20 w-20 object-cover rounded-lg border border-blue-300/30 cursor-zoom-in" />
                 <button
                   type="button"
                   onClick={() => removePendingImage(img.id)}
@@ -313,6 +316,7 @@ export default function PlannerForm({ existingTags, editItem, onSave, onCancel, 
           {t('plannerForm.save')}
         </button>
       </div>
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }
