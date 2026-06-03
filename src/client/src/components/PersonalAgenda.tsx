@@ -114,6 +114,35 @@ export default function PersonalAgenda() {
     return Number.isFinite(v) && v >= PANEL_MIN && v <= PANEL_MAX ? v : 320;
   });
   useEffect(() => { try { localStorage.setItem('agendaPanelWidth', String(panelWidth)); } catch { /* ignore */ } }, [panelWidth]);
+
+  // Resizable month-view rows (drag the handle below the grid). Persisted.
+  const CELL_MIN = 64, CELL_MAX = 280, MONTH_ROWS = 6;
+  const [monthCellH, setMonthCellH] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('agendaCellHeight') || '', 10);
+    return Number.isFinite(v) && v >= CELL_MIN && v <= CELL_MAX ? v : 92;
+  });
+  useEffect(() => { try { localStorage.setItem('agendaCellHeight', String(Math.round(monthCellH))); } catch { /* ignore */ } }, [monthCellH]);
+  const startCellResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = monthCellH;
+    // Dragging the handle below the grid by Δ pixels should grow the whole
+    // grid by Δ — so each of the 6 rows gains Δ/6 and the handle tracks the cursor.
+    const onMove = (ev: PointerEvent) => {
+      setMonthCellH(Math.min(CELL_MAX, Math.max(CELL_MIN, startH + (ev.clientY - startY) / MONTH_ROWS)));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     const onMove = (ev: PointerEvent) => {
@@ -317,7 +346,9 @@ export default function PersonalAgenda() {
 
   const todayKey = ymd(new Date());
   const monthIdx = cursor.getMonth();
-  const maxChips = view === 'month' ? 3 : 99;
+  // Taller month rows fit more chips before collapsing the rest into "+N".
+  // ~18px per chip row under a ~28px day-number header.
+  const maxChips = view === 'month' ? Math.max(1, Math.floor((monthCellH - 28) / 18)) : 99;
 
   const step = (dir: number) => setCursor((c) => stepCursor(c, view, dir));
   const goToday = () => { setCursor(new Date()); setSelectedDate(ymd(new Date())); };
@@ -581,7 +612,21 @@ export default function PersonalAgenda() {
               onSelectDate={setSelectedDate}
               onQuickAdd={openAdd}
               onChipClick={(chip) => openEntry(chip.payload as DayEntry)}
+              monthCellHeight={monthCellH}
             />
+          )}
+          {/* Drag to resize the month grid rows. */}
+          {view === 'month' && (
+            <div
+              onPointerDown={startCellResize}
+              title={t('agenda.resizeCalendar')}
+              className="mt-1 h-3 flex items-center justify-center cursor-ns-resize group/handle"
+            >
+              <div
+                className="w-16 h-1 rounded-full transition-colors group-hover/handle:bg-accent/50"
+                style={{ backgroundColor: 'var(--color-border)' }}
+              />
+            </div>
           )}
 
           {/* Table view */}
