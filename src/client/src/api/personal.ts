@@ -35,6 +35,15 @@ export function deletePersonalItem(id: string): Promise<void> {
   return del(`/api/personal-items/${id}`);
 }
 
+export function bulkDeletePersonalItems(data: {
+  from?: string;
+  to?: string;
+  done_only?: boolean;
+  include_backlog?: boolean;
+}): Promise<{ deleted: number }> {
+  return post('/api/personal-items/bulk-delete', data);
+}
+
 export function uploadPersonalImages(id: string, images: Array<{ name: string; data: string }>): Promise<{ images: ImageMeta[] }> {
   return post(`/api/personal-items/${id}/images`, { images });
 }

@@ -100,6 +100,33 @@ router.delete('/personal-items/:id', (req: Request, res: Response) => {
   }
 });
 
+// Bulk-delete personal memos for cleanup. Dated memos are matched by [from, to]
+// (inclusive, on the date part of due_at); undated backlog memos are only
+// touched when include_backlog is set; done_only restricts to completed memos.
+router.post('/personal-items/bulk-delete', (req: Request, res: Response) => {
+  try {
+    const from = typeof req.body?.from === 'string' ? req.body.from.trim() : '';
+    const to = typeof req.body?.to === 'string' ? req.body.to.trim() : '';
+    const doneOnly = !!req.body?.done_only;
+    const includeBacklog = !!req.body?.include_backlog;
+    const matches = (p: { due_at: string | null; status: string }): boolean => {
+      if (doneOnly && p.status !== 'done') return false;
+      if (!p.due_at) return includeBacklog;
+      if (!from || !to) return false;
+      const d = p.due_at.slice(0, 10);
+      return d >= from && d <= to;
+    };
+    const targets = getPersonalItems().filter(matches);
+    for (const p of targets) {
+      cleanupPersonalImages(p.id);
+      deletePersonalItem(p.id);
+    }
+    res.json({ deleted: targets.length });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // Move a personal item into a project's planner (carries over images, tags,
 // due date and completion state), then remove the source personal item.
 router.post('/personal-items/:id/move-to-planner', (req: Request, res: Response) => {
