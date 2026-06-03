@@ -67,6 +67,10 @@ function kindStyle(kind: EntryKind): { bg: string; fg: string } {
   }
 }
 
+// Soft color chip for the status column.
+const STATUS_DONE = { bg: 'hsla(145, 60%, 45%, 0.18)', fg: 'hsl(145, 60%, 62%)' };
+const STATUS_PENDING = { bg: 'hsla(220, 9%, 50%, 0.18)', fg: 'hsl(220, 12%, 66%)' };
+
 interface PendingImage {
   id: string;
   name: string;
@@ -681,8 +685,17 @@ export default function PersonalAgenda() {
                         {t(`agenda.kind.${r.kind}`)}
                       </span>
                     </span>
-                    <span className="text-2xs truncate" style={{ color: 'var(--color-text-muted)' }}>
-                      {r.kind === 'jira' ? (r.status || '—') : r.status ? t(r.status === 'done' ? 'agenda.status.done' : 'agenda.status.pending') : '—'}
+                    <span className="text-2xs truncate">
+                      {(() => {
+                        if (r.kind === 'jira') {
+                          if (!r.status) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
+                          return <span className="px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: STATUS_PENDING.bg, color: STATUS_PENDING.fg }}>{r.status}</span>;
+                        }
+                        if (!r.status) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
+                        const done = r.status === 'done';
+                        const s = done ? STATUS_DONE : STATUS_PENDING;
+                        return <span className="px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: s.bg, color: s.fg }}>{t(done ? 'agenda.status.done' : 'agenda.status.pending')}</span>;
+                      })()}
                     </span>
                   </div>
                 );
