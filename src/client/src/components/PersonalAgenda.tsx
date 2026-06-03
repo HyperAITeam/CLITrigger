@@ -83,6 +83,7 @@ export default function PersonalAgenda() {
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraConfig, setJiraConfig] = useState<AgendaJiraConfig | null>(null);
   const [showJiraSettings, setShowJiraSettings] = useState(false);
+  const [showCleanup, setShowCleanup] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
   const [loading, setLoading] = useState(true);
@@ -496,6 +497,9 @@ export default function PersonalAgenda() {
                 <RotateCcw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
             </HoverHelp>
+            <button onClick={() => setShowCleanup(true)} className="btn-ghost p-1.5" title={t('agenda.cleanup')} aria-label="cleanup-memos">
+              <Trash2 size={14} />
+            </button>
             <button onClick={() => setShowJiraSettings(true)} className="btn-ghost p-1.5" title={t('agenda.jira.settings')} aria-label="jira-settings">
               <Settings size={14} />
             </button>
@@ -984,6 +988,104 @@ export default function PersonalAgenda() {
           onSaved={(c) => { setJiraConfig(c); setShowJiraSettings(false); load(); }}
         />
       )}
+
+      {showCleanup && (
+        <CleanupModal
+          items={items}
+          defaultFrom={rangeStart}
+          defaultTo={rangeEnd}
+          onClose={() => setShowCleanup(false)}
+          onDone={() => { setShowCleanup(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CleanupModal({ items, defaultFrom, defaultTo, onClose, onDone }: {
+  items: PersonalItem[];
+  defaultFrom: string;
+  defaultTo: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useI18n();
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
+  const [doneOnly, setDoneOnly] = useState(false);
+  const [includeBacklog, setIncludeBacklog] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Mirror the server-side matching so the preview count is exact.
+  const matches = useCallback((p: PersonalItem) => {
+    if (doneOnly && p.status !== 'done') return false;
+    if (!p.due_at) return includeBacklog;
+    if (!from || !to) return false;
+    const d = p.due_at.slice(0, 10);
+    return d >= from && d <= to;
+  }, [from, to, doneOnly, includeBacklog]);
+
+  const count = useMemo(() => items.filter(matches).length, [items, matches]);
+
+  const confirm = async () => {
+    if (count === 0) return;
+    setBusy(true);
+    try {
+      await personalApi.bulkDeletePersonalItems({ from, to, done_only: doneOnly, include_backlog: includeBacklog });
+      onDone();
+    } catch { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl shadow-xl flex flex-col" style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 pt-6 pb-2">
+          <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Trash2 size={16} />{t('agenda.cleanup.title')}
+          </h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.cleanup.subtitle')}</p>
+        </div>
+
+        <div className="px-6 overflow-auto flex flex-col gap-4 py-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.cleanup.from')}</label>
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input-field w-auto" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.cleanup.to')}</label>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input-field w-auto" />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} className="rounded" />
+            {t('agenda.cleanup.doneOnly')}
+          </label>
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={includeBacklog} onChange={(e) => setIncludeBacklog(e.target.checked)} className="rounded" />
+            {t('agenda.cleanup.includeBacklog')}
+          </label>
+
+          <div className="text-sm rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)', color: count > 0 ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+            {count > 0
+              ? `${t('agenda.cleanup.previewLabel')}: ${count}${t('agenda.cleanup.unit')}`
+              : t('agenda.cleanup.none')}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <button onClick={onClose} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
+          <button
+            onClick={confirm}
+            disabled={busy || count === 0}
+            className="btn-primary text-sm disabled:opacity-40"
+            style={{ backgroundColor: 'var(--color-status-error, #ef4444)' }}
+          >
+            {t('agenda.cleanup.confirm')}{count > 0 ? ` (${count})` : ''}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
