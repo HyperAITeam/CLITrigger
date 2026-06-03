@@ -590,7 +590,7 @@ export default function PersonalAgenda() {
                     style={{ gridTemplateColumns: '1fr 150px 96px 72px', borderTop: '1px solid var(--color-border)' }}
                   >
                     <span className="flex items-center gap-1.5 min-w-0 pr-2">
-                      <span className="truncate" style={{ color: 'var(--color-text-primary)', textDecoration: r.status === 'done' ? 'line-through' : 'none' }} title={r.title}>
+                      <span className="truncate px-1.5 py-0.5 rounded" style={{ backgroundColor: kindStyle(r.kind).bg, color: kindStyle(r.kind).fg, textDecoration: r.status === 'done' ? 'line-through' : 'none' }} title={r.title}>
                         {r.title}
                       </span>
                       {r.item && parseTags(r.item.tags).slice(0, 3).map((tg) => {
