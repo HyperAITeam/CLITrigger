@@ -1003,10 +1003,17 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
   const [baseUrl, setBaseUrl] = useState(initial?.base_url ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
   const [token, setToken] = useState('');
+  const [assigneeMe, setAssigneeMe] = useState(initial?.assignee_me ?? true);
+  const [includeDone, setIncludeDone] = useState(initial?.include_done ?? false);
+  const [projects, setProjects] = useState(initial?.projects ?? '');
+  const [extraJql, setExtraJql] = useState(initial?.extra_jql ?? '');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  const payload = () => ({ enabled, base_url: baseUrl.trim(), email: email.trim(), api_token: token || undefined });
+  const payload = () => ({
+    enabled, base_url: baseUrl.trim(), email: email.trim(), api_token: token || undefined,
+    assignee_me: assigneeMe, include_done: includeDone, projects: projects.trim(), extra_jql: extraJql.trim(),
+  });
 
   const test = async () => {
     setBusy(true); setResult(null);
@@ -1075,6 +1082,35 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
               <div>{t('agenda.jira.tokenStep2')}</div>
               <div>{t('agenda.jira.tokenStep3')}</div>
             </div>
+          </div>
+
+          {/* 4. Import criteria */}
+          <div className="pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.criteria')}</label>
+            <p className={hintCls} style={{ color: 'var(--color-text-muted)', marginBottom: 8 }}>{t('agenda.jira.criteriaHint')}</p>
+
+            <label className="flex items-center gap-2 text-sm mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+              <input type="checkbox" checked={assigneeMe} onChange={(e) => setAssigneeMe(e.target.checked)} className="rounded" />
+              {t('agenda.jira.assigneeMe')}
+            </label>
+            <label className="flex items-center gap-2 text-sm mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+              <input type="checkbox" checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)} className="rounded" />
+              {t('agenda.jira.includeDone')}
+            </label>
+
+            <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.projects')}</label>
+            <input value={projects} onChange={(e) => setProjects(e.target.value)} placeholder="ABC, DEF" className="input-field text-sm font-mono" />
+            <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.projectsHint')}</p>
+
+            <label className={labelCls + ' mt-3'} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.extraJql')}</label>
+            <textarea
+              value={extraJql}
+              onChange={(e) => setExtraJql(e.target.value)}
+              placeholder={'labels = urgent AND priority >= High'}
+              rows={2}
+              className="input-field text-sm font-mono resize-y"
+            />
+            <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.extraJqlHint')}</p>
           </div>
 
           {result && <p className="text-xs" style={{ color: result.startsWith('✓') ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result}</p>}
