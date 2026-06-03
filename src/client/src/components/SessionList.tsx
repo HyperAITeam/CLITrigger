@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2 } from 'lucide-react';
+import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2 } from 'lucide-react';
 import EmptyState from './EmptyState';
 import type { Session, MemoryInjectMode, SessionTag } from '../types';
 import { useI18n } from '../i18n';
@@ -18,7 +18,7 @@ function parseRawFilePaths(raw: string | null | undefined): string[] {
   }
 }
 import SessionForm, { type SessionFormInitial } from './SessionForm';
-import { useSessionWindows } from './SessionWindowsHost';
+import { useSessionWindows, useSessionWindowStates, type WindowState } from './SessionWindowsHost';
 
 interface SessionListProps {
   projectId: string;
@@ -43,6 +43,13 @@ const STATUS_COLORS: Record<string, string> = {
   stopped: 'bg-amber-100 text-amber-700',
 };
 
+// Visual treatment for the per-row window-placement badge.
+const WIN_BADGE: Record<Exclude<WindowState, 'closed'>, string> = {
+  floating: 'bg-accent/10 text-accent',
+  minimized: 'bg-warm-200 text-warm-600',
+  popped: 'bg-violet-500/15 text-violet-500',
+};
+
 export default function SessionList({
   projectId,
   sessions,
@@ -58,7 +65,8 @@ export default function SessionList({
   onCleanupSession,
 }: SessionListProps) {
   const { t } = useI18n();
-  const { openOrFocus } = useSessionWindows();
+  const { openOrFocus, recallPopout } = useSessionWindows();
+  const windowStates = useSessionWindowStates();
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -256,6 +264,8 @@ export default function SessionList({
               (session.cli_tool ?? 'claude') === 'claude' &&
               !!session.worktree_path;
             const isEditing = editingId === session.id;
+            const winState = windowStates[session.id] ?? 'closed';
+            const isPopped = winState === 'popped';
 
             return (
               <div
@@ -265,7 +275,7 @@ export default function SessionList({
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
-                  onClick={() => openOrFocus(session.id, 'open')}
+                  onClick={() => isPopped ? recallPopout(session.id) : openOrFocus(session.id, 'open')}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -289,6 +299,15 @@ export default function SessionList({
                         <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
                           {t(`status.${session.status}`) || session.status}
                         </span>
+                        {winState !== 'closed' && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium ${WIN_BADGE[winState]}`}
+                            title={isPopped ? t('session.dock.poppedHint') : undefined}
+                          >
+                            {isPopped && <ExternalLink size={10} />}
+                            {t(`session.windowState.${winState}`)}
+                          </span>
+                        )}
                       </div>
                       {session.description && (
                         <p className="text-xs text-warm-400 mt-1 line-clamp-1">{session.description}</p>
@@ -307,6 +326,15 @@ export default function SessionList({
                       </div>
                     </div>
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      {isPopped && (
+                        <button
+                          onClick={() => recallPopout(session.id)}
+                          className="p-1.5 text-violet-500 hover:bg-violet-500/10 rounded transition-colors"
+                          title={t('session.recallToMain')}
+                        >
+                          <Maximize2 size={16} />
+                        </button>
+                      )}
                       {canStart && (
                         <button
                           onClick={() => openOrFocus(session.id, 'start')}

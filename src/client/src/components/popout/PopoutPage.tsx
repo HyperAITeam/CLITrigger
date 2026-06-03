@@ -135,6 +135,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           minimized: false,
           ownerWindowId: popoutId,
         });
+      } else if (msg.t === 'group-recall' && msg.popoutId === popoutId && msg.groupId === groupId) {
+        // User clicked "bring to main window" from the main app. Behave just
+        // like the Re-dock button: return the latest payload, then close.
+        const g = groupRef.current;
+        if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g });
+        setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 50);
       } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
         // Main reclaimed our ownership. Drop the group immediately so the
         // StackView → SessionPane → SessionTerminal tree unmounts and the

@@ -1112,6 +1112,13 @@ const translations = {
 
     // Sessions
     'session.new': 'New Terminal',
+    'session.windowState.floating': 'Open',
+    'session.windowState.minimized': 'Minimized',
+    'session.windowState.popped': 'Separate window',
+    'session.recallToMain': 'Bring to main window',
+    'session.restoreWindow': 'Restore window',
+    'session.focusWindow': 'Go to window',
+    'session.dock.poppedHint': 'Separate window — click to bring it back to the main window',
     'session.title': 'Terminal Title',
     'session.description': 'Initial Prompt (Optional)',
     'session.start': 'Start',
@@ -2472,6 +2479,13 @@ const translations = {
 
     // Sessions
     'session.new': '새 터미널',
+    'session.windowState.floating': '열림',
+    'session.windowState.minimized': '최소화',
+    'session.windowState.popped': '별도 창',
+    'session.recallToMain': '중앙으로 불러오기',
+    'session.restoreWindow': '창 복원',
+    'session.focusWindow': '창으로 이동',
+    'session.dock.poppedHint': '별도 창 — 클릭하면 중앙 창으로 불러옵니다',
     'session.title': '터미널 제목',
     'session.description': '초기 프롬프트 (선택)',
     'session.start': '시작',
