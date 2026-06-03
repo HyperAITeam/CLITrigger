@@ -56,6 +56,9 @@ function kindStyle(kind: EntryKind): { bg: string; fg: string } {
   }
 }
 
+// Stable ordering for the "kind" sort in the table view.
+const KIND_ORDER: Record<EntryKind, number> = { personal: 0, schedule: 1, planner: 2, jira: 3 };
+
 // Soft color chip for the status column (same translucent tone as kind chips).
 const STATUS_DONE = { bg: 'hsla(145, 60%, 48%, 0.18)', fg: 'hsl(145, 60%, 66%)' };
 const STATUS_PENDING = { bg: 'hsla(218, 32%, 56%, 0.20)', fg: 'hsl(218, 36%, 78%)' };
@@ -72,6 +75,7 @@ export default function PersonalAgenda() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [view, setView] = useState<CalView>('month');
+  const [sort, setSort] = useState<{ key: 'date' | 'kind' | 'status'; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'asc' });
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [items, setItems] = useState<PersonalItem[]>([]);
   const [agenda, setAgenda] = useState<Agenda>({ personal: [], schedules: [], planner: [] });
@@ -279,16 +283,34 @@ export default function PersonalAgenda() {
         status: j.status, url: j.url,
       });
     }
-    rows.sort((a, b) => {
+    const byDate = (a: TableRow, b: TableRow) => {
+      // Undated rows always sink to the bottom, regardless of direction.
       if (!a.dateKey && !b.dateKey) return 0;
       if (!a.dateKey) return 1;
       if (!b.dateKey) return -1;
       const d = a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0;
-      if (d !== 0) return d;
-      return (a.time || '').localeCompare(b.time || '');
+      return d !== 0 ? d : (a.time || '').localeCompare(b.time || '');
+    };
+    const sign = sort.dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (sort.key === 'kind') {
+        c = KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+      } else if (sort.key === 'status') {
+        // Empty status sinks to the bottom regardless of direction.
+        const sa = a.status || '', sb = b.status || '';
+        if (!sa && !sb) c = 0;
+        else if (!sa) return 1;
+        else if (!sb) return -1;
+        else c = sa.localeCompare(sb);
+      } else {
+        return byDate(a, b) * sign;
+      }
+      // Stable tiebreak by date so equal keys stay chronologically grouped.
+      return c !== 0 ? c * sign : byDate(a, b);
     });
     return rows;
-  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources]);
+  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources, sort]);
 
   const weekdayLabels = useWeekdayLabels();
 
@@ -566,9 +588,20 @@ export default function PersonalAgenda() {
                 style={{ gridTemplateColumns: '1fr 150px 96px 72px', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
               >
                 <span>{t('agenda.table.name')}</span>
-                <span>{t('agenda.table.date')}</span>
-                <span>{t('agenda.table.kind')}</span>
-                <span>{t('agenda.table.status')}</span>
+                {([['date', 'agenda.table.date'], ['kind', 'agenda.table.kind'], ['status', 'agenda.table.status']] as const).map(([key, label]) => {
+                  const active = sort.key === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSort((p) => ({ key, dir: p.key === key && p.dir === 'asc' ? 'desc' : 'asc' }))}
+                      className="flex items-center gap-1 uppercase tracking-wider text-left hover:opacity-80 transition-opacity"
+                      style={{ color: active ? 'var(--color-text-secondary)' : 'inherit' }}
+                    >
+                      <span>{t(label)}</span>
+                      <span style={{ opacity: active ? 1 : 0 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>
+                    </button>
+                  );
+                })}
               </div>
               {tableRows.length === 0 && (
                 <div className="px-3 py-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dayEmpty')}</div>
