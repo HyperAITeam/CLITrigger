@@ -4,6 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw
 import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
 import * as personalApi from '../api/personal';
 import HoverHelp from './HoverHelp';
+import ImageLightbox from './ImageLightbox';
 import { useI18n } from '../i18n';
 
 // ── date helpers ───────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ export default function PersonalAgenda() {
   const [fTagInput, setFTagInput] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingImages, setExistingImages] = useState<ImageMeta[]>([]);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
@@ -939,7 +941,8 @@ export default function PersonalAgenda() {
                         <img
                           src={editing ? personalApi.getPersonalImageUrl(editing.id, img.id) : ''}
                           alt={img.originalName}
-                          className="h-20 w-20 object-cover rounded-lg"
+                          onClick={() => editing && setLightboxSrc(personalApi.getPersonalImageUrl(editing.id, img.id))}
+                          className="h-20 w-20 object-cover rounded-lg cursor-zoom-in"
                           style={{ border: '1px solid var(--color-border)' }}
                         />
                         <button
@@ -953,7 +956,7 @@ export default function PersonalAgenda() {
                     ))}
                     {pendingImages.map((img) => (
                       <div key={img.id} className="relative group">
-                        <img src={img.preview} alt={img.name} className="h-20 w-20 object-cover rounded-lg" style={{ border: '1px solid var(--color-border)' }} />
+                        <img src={img.preview} alt={img.name} onClick={() => setLightboxSrc(img.preview)} className="h-20 w-20 object-cover rounded-lg cursor-zoom-in" style={{ border: '1px solid var(--color-border)' }} />
                         <button
                           type="button"
                           onClick={() => removePendingImage(img.id)}
@@ -976,6 +979,8 @@ export default function PersonalAgenda() {
           </div>
         </div>
       )}
+
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
 
       {showJiraSettings && (
         <JiraSettingsModal
