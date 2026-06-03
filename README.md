@@ -60,51 +60,6 @@ CLITrigger solves all three:
 
 ---
 
-## How It Works
-
-```
-[Write TODOs in the browser]
-         ↓
-┌──────────────────────────────────────────────────────────────┐
-│  TODO 1: Implement login      → worktree/feature-login     → Claude CLI → auto-commit  │
-│  TODO 2: Signup page          → worktree/feature-signup    → Gemini CLI → auto-commit  │
-│  TODO 3: Dashboard layout     → worktree/feature-dashboard → Claude CLI → auto-commit  │
-└──────────────────────────────────────────────────────────────┘
-         ↓
-[Live log streaming → Review diffs → Merge to main]
-```
-
-Each TODO runs in its **own isolated git worktree** — no conflicts, separate branches, independent commit history. You review the results and decide what to merge.
-
----
-
-## The Workflow — Capture, Delegate, Review
-
-**CLITrigger is built for "delegate and review" — not for staring at a progress bar.**
-
-### Scenario 1: The AI night shift — hand off at bedtime, pick up in the morning
-Before bed, dump unfinished work and sudden ideas into the Planner or your personal calendar, convert them into TODOs or scheduled runs, then close the laptop. While you sleep, Claude / Gemini / Codex burn through your token quota in parallel worktrees. Next morning, sit down with coffee and review the diffs holistically — accept what makes sense, reject what doesn't, merge what's ready.
-
-**Your tokens never sleep. Neither does your codebase.**
-
-### Scenario 2: The background worker
-Stay focused on your main work while CLITrigger handles side quests in the background. Refactors, test coverage, doc updates, speculative features — the stuff you never have time for — gets done while you ship the critical path. Browser notifications (or phone alerts via Cloudflare Tunnel) surface completed tasks only when they need your attention.
-
-### The Core Loop
-
-```
-    Evening                 Overnight / Sidelined              Morning / Break
-  ───────────              ───────────────────────          ────────────────────
-   Capture         →         AI executes in parallel   →    Review holistically
-   • My Schedule             • Worktree isolation           • Diff by diff
-   • Planner                 • Rate-limit auto-recovery     • Log by log
-   • Wiki / TODOs            • Multi-agent discussion       • Accept / Reject / Merge
-```
-
-Every feature exists to support this loop: **capture → delegate → review**.
-
----
-
 ## Features
 
 CLITrigger spans four layers — **plan & organize** what needs doing, **delegate** it to AI, **review & ship** the results, and **access** it from anywhere.
@@ -114,7 +69,10 @@ CLITrigger spans four layers — **plan & organize** what needs doing, **delegat
 #### My Schedule
 A global, project-independent personal hub. One calendar — month / week / day / table views — overlays four sources on a single grid: your own dated **memos**, **schedules** across every project, **planner due dates**, and **Jira issues** assigned to you. Capture quick notes (optional title, body, pasted images, color tags), filter by tag, **drag-resize** the calendar rows, **hover a crowded day** to expand it into a full popover, and **bulk-clean memos by date range** for housekeeping. Connect Jira once (site URL + email + API token, stored server-side, the token never echoed back) to overlay your assigned issues as blue chips and import them into a memo or straight into a project planner. Read-only project / Jira chips deep-link back to their source.
 
-<!-- screenshot: docs/images/screenshot-agenda.png (add when captured) -->
+<div align="center">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-agenda.png" alt="My Schedule — personal calendar overlaying memos, schedules, planner & Jira" width="800">
+  <p><em>One calendar overlaying personal memos, cross-project schedules, planner due dates, and assigned Jira issues</em></p>
+</div>
 
 #### Planner
 A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, sort by any column. Convert any planner item into a TODO or a schedule in one click. Markdown export/import (status sections + GFM checkboxes + HTML-comment metadata) lets you move plans across machines or share via GitHub / Obsidian / any plain Markdown viewer. Drop a `.md` file onto the planner card to import.
@@ -124,12 +82,12 @@ A lightweight task planner separate from TODOs — capture ideas, attach images,
   <p><em>Inline editing, color-coded tags, image attachments, and one-click conversion to TODOs or schedules</em></p>
 </div>
 
-#### Wiki (Karpathy LLM-Wiki Pattern)
-A per-project knowledge graph (nodes + typed edges) that you curate once and selectively inject into TODO and discussion prompts. Stop pasting the same domain context every run. Toggle between List and Graph views (`@xyflow/react` + dagre auto-layout, drag-to-connect edges, cycle guards on `precedes`/`refines`), pick `None` / `All` / `Selected` / **`Auto`** per task — `Auto` runs a one-shot LLM retrieval right before each call to pick only the relevant entries, saving tokens. Preview the exact `<long_term_memory>` block (with char/token estimates) before sending; **export DB → `.clitrigger/wiki/<entity>/<slug>.md` Markdown** + Disk diff to keep the wiki alive in git or Obsidian. Lint surfaces duplicates / orphans / stale entries with inline fix actions (merge / delete / link); the Activity sub-tab logs ingest / lint / retrieve / merge events with severity. CLI-agnostic — Claude, Gemini, and Codex all see identical context with no adapter changes.
+#### Vault (File-based Knowledge)
+An Obsidian-style, file-based knowledge vault per project. CLITrigger auto-scans the `.md` / `.html` files in your project root, parses `[[wikilinks]]` and YAML frontmatter (`title`, `tags`), and builds a relationship graph — files *are* the nodes, so there's no separate ingest step. Browse them in the **Files** tab with inline preview, then flip the graph toggle for a ReactFlow force-directed view (tag-based node colors, `.vaultignore` to exclude paths). The markdown preview is interactive: Find/Replace, ephemeral pen/highlighter annotations with undo/redo, and task-checkbox toggles that round-trip `- [ ]` / `- [x]` straight to disk. Inject it into any task / session / discussion prompt — `None` / **`Auto`** (server picks files matching the task text) / `All` / `Selected`, with an **Include linked** toggle that pulls in 1-hop `[[wikilink]]` neighbors (each row previews how many will be added). Serialized as a `<long_term_memory>` wrapper with `<vault_file type="md|html">` blocks — CLI-agnostic, so Claude, Gemini, and Codex all see identical context.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-wiki.png" alt="Wiki — Per-project knowledge graph" width="800">
-  <p><em>Graph view of the per-project wiki — entries clustered by tag (Concept · Decision · Feature · Pattern), typed edges visualize how ideas relate, and selective injection feeds only what's relevant into each prompt</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Vault — Obsidian-style file-based knowledge with a link graph" width="800">
+  <p><em>The Vault tab — browse project markdown with inline preview and a force-directed wikilink graph, then selectively inject files into prompts</em></p>
 </div>
 
 #### Favorites Launcher
