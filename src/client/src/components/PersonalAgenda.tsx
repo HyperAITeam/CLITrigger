@@ -68,8 +68,8 @@ function kindStyle(kind: EntryKind): { bg: string; fg: string } {
 }
 
 // Soft color chip for the status column.
-const STATUS_DONE = { bg: 'hsla(145, 60%, 45%, 0.18)', fg: 'hsl(145, 60%, 62%)' };
-const STATUS_PENDING = { bg: 'hsla(220, 9%, 50%, 0.18)', fg: 'hsl(220, 12%, 66%)' };
+const STATUS_DONE = { bg: 'hsla(145, 60%, 45%, 0.20)', fg: 'hsl(145, 60%, 64%)' };
+const STATUS_PENDING = { bg: 'hsla(220, 16%, 56%, 0.30)', fg: 'hsl(220, 20%, 76%)' };
 
 interface PendingImage {
   id: string;
