@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download, Image as ImageIcon, X } from 'lucide-react';
-import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
+import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta, Project } from '../types';
 import * as personalApi from '../api/personal';
+import { getProjects } from '../api/projects';
 import HoverHelp from './HoverHelp';
 import ImageLightbox from './ImageLightbox';
+import MoveToPlannerButton from './MoveToPlannerButton';
 import { useI18n } from '../i18n';
 import CalendarGrid from './calendar/CalendarGrid';
 import {
@@ -77,6 +79,7 @@ export default function PersonalAgenda() {
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraConfig, setJiraConfig] = useState<AgendaJiraConfig | null>(null);
   const [showJiraSettings, setShowJiraSettings] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
@@ -158,6 +161,11 @@ export default function PersonalAgenda() {
   // Load the Jira connection status once.
   useEffect(() => { personalApi.getJiraConfig().then(setJiraConfig).catch(() => setJiraConfig(null)); }, []);
   const jiraOn = !!(jiraConfig?.enabled && jiraConfig.hasToken);
+
+  // Projects for the "move to planner" picker.
+  useEffect(() => { getProjects().then(setProjects).catch(() => setProjects([])); }, []);
+  const moveToPlanner = (item: PersonalItem, projectId: string) => personalApi.movePersonalItemToPlanner(item.id, projectId).then(load);
+  const jiraToPlanner = (entry: JiraAgendaEntry, projectId: string) => personalApi.importJiraIssueToPlanner(entry, projectId).then(load);
 
   // In day view the side panel mirrors the cursor day.
   useEffect(() => { if (view === 'day') setSelectedDate(ymd(cursor)); }, [view, cursor]);
@@ -666,6 +674,7 @@ export default function PersonalAgenda() {
                         </div>
                       )}
                     </button>
+                    <MoveToPlannerButton projects={projects} onMove={(pid) => moveToPlanner(item, pid)} title={t('agenda.moveToPlanner')} />
                     <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.delete')}>
                       <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
@@ -681,6 +690,9 @@ export default function PersonalAgenda() {
                       <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={e.title}>{e.title}</div>
                       <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>Jira</div>
                     </a>
+                    {issue && (
+                      <MoveToPlannerButton projects={projects} onMove={(pid) => jiraToPlanner(issue, pid)} title={t('agenda.importToPlanner')} />
+                    )}
                     {issue && (
                       <button
                         onClick={() => personalApi.importJiraIssue(issue).then(load)}
@@ -747,6 +759,7 @@ export default function PersonalAgenda() {
                       </div>
                     )}
                   </button>
+                  <MoveToPlannerButton projects={projects} onMove={(pid) => moveToPlanner(item, pid)} title={t('agenda.moveToPlanner')} />
                   <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
                     <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
                   </button>
@@ -767,6 +780,7 @@ export default function PersonalAgenda() {
                       <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={`${j.key} · ${j.summary}`}>{j.key} · {j.summary}</div>
                       <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>{j.status || 'Jira'}</div>
                     </a>
+                    <MoveToPlannerButton projects={projects} onMove={(pid) => jiraToPlanner(j, pid)} title={t('agenda.importToPlanner')} />
                     <button onClick={() => personalApi.importJiraIssue(j).then(load)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.import')}>
                       <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
                     </button>

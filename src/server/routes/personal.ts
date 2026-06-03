@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import {
   createPersonalItem,
   getPersonalItems,
@@ -9,6 +11,9 @@ import {
   getAllPlannerDueItems,
   getAppSetting,
   setAppSetting,
+  getProjectById,
+  createPlannerItem,
+  updatePlannerItem,
 } from '../db/queries.js';
 import { jiraMyself, jiraSearch, type JiraConn } from '../lib/jira-client.js';
 import { cleanupPersonalImages } from './images.js';
@@ -90,6 +95,54 @@ router.delete('/personal-items/:id', (req: Request, res: Response) => {
     const ok = deletePersonalItem(String(req.params.id));
     if (!ok) return res.status(404).json({ error: 'not found' });
     res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Move a personal item into a project's planner (carries over images, tags,
+// due date and completion state), then remove the source personal item.
+router.post('/personal-items/:id/move-to-planner', (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const item = getPersonalItemById(id);
+    if (!item) return res.status(404).json({ error: 'not found' });
+
+    const projectId = String(req.body?.project_id ?? '');
+    if (!projectId || !getProjectById(projectId)) return res.status(400).json({ error: 'invalid project_id' });
+
+    const dueDate = item.due_at ? item.due_at.slice(0, 10) : undefined;
+    const created = createPlannerItem(
+      projectId,
+      item.title,
+      item.description ?? undefined,
+      item.tags ?? undefined,
+      dueDate,
+      item.priority,
+    );
+
+    // Carry images over: copy the files and reuse the same images JSON so the
+    // image ids/filenames keep resolving under the new planner item.
+    if (item.images) {
+      try {
+        const metas = JSON.parse(item.images) as Array<{ filename: string }>;
+        const srcDir = path.resolve(process.cwd(), 'data', 'uploads', 'personal', id);
+        const destDir = path.resolve(process.cwd(), 'data', 'uploads', 'planner', created.id);
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        for (const m of metas) {
+          const src = path.join(srcDir, m.filename);
+          if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, m.filename));
+        }
+        updatePlannerItem(created.id, { images: item.images });
+      } catch { /* ignore image copy failure */ }
+    }
+
+    if (item.status === 'done') updatePlannerItem(created.id, { status: 'done' });
+
+    cleanupPersonalImages(id);
+    deletePersonalItem(id);
+
+    res.status(201).json({ plannerItem: created });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
@@ -229,6 +282,24 @@ router.post('/agenda/jira/import', (req: Request, res: Response) => {
       JSON.stringify(['jira', ...(key ? [String(key)] : [])]),
     );
     res.status(201).json(item);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Import a Jira issue directly into a project's planner (Jira issue untouched).
+router.post('/agenda/jira/import-to-planner', (req: Request, res: Response) => {
+  try {
+    const { project_id, key, summary, duedate, url } = req.body ?? {};
+    const projectId = String(project_id ?? '');
+    if (!projectId || !getProjectById(projectId)) return res.status(400).json({ error: 'invalid project_id' });
+    if (typeof summary !== 'string' || !summary.trim()) return res.status(400).json({ error: 'summary is required' });
+
+    const desc = url ? String(url) : (key ? String(key) : undefined);
+    const tags = JSON.stringify(['jira', ...(key ? [String(key)] : [])]);
+    const dueDate = typeof duedate === 'string' && duedate ? duedate.slice(0, 10) : undefined;
+    const created = createPlannerItem(projectId, summary.trim(), desc, tags, dueDate, 0);
+    res.status(201).json({ plannerItem: created });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

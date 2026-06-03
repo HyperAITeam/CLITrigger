@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
+import type { PersonalItem, PlannerItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
 
 export function getPersonalItems(): Promise<PersonalItem[]> {
   return get('/api/personal-items');
@@ -74,4 +74,16 @@ export function testJiraConfig(): Promise<{ ok: boolean; user?: string; error?: 
 
 export function importJiraIssue(entry: JiraAgendaEntry): Promise<PersonalItem> {
   return post('/api/agenda/jira/import', { key: entry.key, summary: entry.summary, duedate: entry.duedate, url: entry.url });
+}
+
+// ── Move to a project's planner ─────────────────────────────────────────────
+
+export function movePersonalItemToPlanner(id: string, projectId: string): Promise<{ plannerItem: PlannerItem }> {
+  return post(`/api/personal-items/${id}/move-to-planner`, { project_id: projectId });
+}
+
+export function importJiraIssueToPlanner(entry: JiraAgendaEntry, projectId: string): Promise<{ plannerItem: PlannerItem }> {
+  return post('/api/agenda/jira/import-to-planner', {
+    project_id: projectId, key: entry.key, summary: entry.summary, duedate: entry.duedate, url: entry.url,
+  });
 }
