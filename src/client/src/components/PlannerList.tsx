@@ -4,8 +4,10 @@ import type { PlannerItem as PlannerItemType, PlannerTag, ImageMeta } from '../t
 import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
+import PlannerCalendar from './PlannerCalendar';
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
+import type { CalView } from './calendar/calendarShared';
 
 type SortField = 'title' | 'tags' | 'priority' | 'due_date' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
@@ -37,6 +39,8 @@ export default function PlannerList({
   const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<PlannerItemType | null>(null);
+  const [view, setView] = useState<CalView>('table');
+  const [addDueDate, setAddDueDate] = useState<string | undefined>(undefined);
   const [filterTag, setFilterTag] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [sortField, setSortField] = useState<SortField>('created_at');
@@ -189,6 +193,22 @@ export default function PlannerList({
         </h2>
 
         <div className="flex items-center gap-2 min-w-0">
+          {/* View toggle: month / week / day / table */}
+          <div className="flex gap-0.5 p-0.5 rounded-lg shrink-0" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+            {(['month', 'week', 'day', 'table'] as CalView[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="px-2.5 py-1 text-xs rounded-md transition-all"
+                style={view === v
+                  ? { backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', fontWeight: 600 }
+                  : { color: 'var(--color-text-tertiary)' }}
+              >
+                {t(`agenda.view.${v}`)}
+              </button>
+            ))}
+          </div>
+
           <select className="input-field text-xs py-1.5 px-2 w-auto max-w-[10rem] shrink" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
             <option value="">{t('planner.filterTag')}</option>
             {tagNames.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}
@@ -249,6 +269,7 @@ export default function PlannerList({
           <PlannerForm
             existingTags={existingTags}
             editItem={editItem}
+            initialDueDate={addDueDate}
             onSave={async (data) => {
               if (editItem) {
                 await onEditItem(editItem.id, data);
@@ -257,16 +278,18 @@ export default function PlannerList({
               } else {
                 const item = await onAddItem(data);
                 setShowForm(false);
+                setAddDueDate(undefined);
                 return item;
               }
             }}
-            onCancel={() => { setShowForm(false); setEditItem(null); }}
+            onCancel={() => { setShowForm(false); setEditItem(null); setAddDueDate(undefined); }}
             onUpdateTag={onUpdateTag}
           />
         </div>
       )}
 
-      {/* Table */}
+      {/* Table view (calendar views render PlannerCalendar instead) */}
+      {view === 'table' ? (
       <div
         className="card relative"
         onDragEnter={onImport ? handleDragEnter : undefined}
@@ -332,6 +355,17 @@ export default function PlannerList({
           ))
         )}
       </div>
+      ) : (
+        <PlannerCalendar
+          view={view}
+          items={filteredItems}
+          tagColors={tagColorMap}
+          onQuickAdd={(dateKey) => { setEditItem(null); setAddDueDate(dateKey); setShowForm(true); }}
+          onEditItem={(item) => { setShowForm(false); setEditItem(item); }}
+          onConvert={(item, mode) => { setConvertItem(item); setConvertMode(mode); }}
+          onDeleteItem={onDeleteItem}
+        />
+      )}
 
       {/* Convert dialog */}
       {convertItem && (
