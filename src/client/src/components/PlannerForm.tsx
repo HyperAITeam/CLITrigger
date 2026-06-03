@@ -18,18 +18,19 @@ let imageCounter = 0;
 interface PlannerFormProps {
   existingTags: PlannerTag[];
   editItem?: PlannerItem | null;
+  initialDueDate?: string;
   onSave: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number; status?: string }) => Promise<PlannerItem | void>;
   onCancel: () => void;
   onUpdateTag?: (name: string, data: { color?: string }) => Promise<void>;
 }
 
-export default function PlannerForm({ existingTags, editItem, onSave, onCancel, onUpdateTag }: PlannerFormProps) {
+export default function PlannerForm({ existingTags, editItem, initialDueDate, onSave, onCancel, onUpdateTag }: PlannerFormProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(initialDueDate ?? '');
   const [priority, setPriority] = useState(0);
   const [status, setStatus] = useState('pending');
   const [saving, setSaving] = useState(false);
