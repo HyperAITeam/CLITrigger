@@ -57,6 +57,16 @@ interface DayEntry {
 
 const JIRA_BLUE = { bg: 'rgba(38,132,255,0.18)', fg: 'rgb(101,164,255)' };
 
+// Soft color chip per entry kind (matches the tag-chip aesthetic).
+function kindStyle(kind: EntryKind): { bg: string; fg: string } {
+  switch (kind) {
+    case 'jira': return JIRA_BLUE;
+    case 'personal': return { bg: 'hsla(238, 70%, 60%, 0.18)', fg: 'hsl(238, 70%, 72%)' };
+    case 'schedule': return { bg: 'hsla(160, 60%, 45%, 0.18)', fg: 'hsl(160, 60%, 62%)' };
+    case 'planner': return { bg: 'hsla(35, 80%, 55%, 0.20)', fg: 'hsl(35, 85%, 66%)' };
+  }
+}
+
 interface PendingImage {
   id: string;
   name: string;
@@ -667,7 +677,7 @@ export default function PersonalAgenda() {
                     </span>
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{dateLabel}</span>
                     <span className="text-2xs">
-                      <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}>
+                      <span className="px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: kindStyle(r.kind).bg, color: kindStyle(r.kind).fg }}>
                         {t(`agenda.kind.${r.kind}`)}
                       </span>
                     </span>
