@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download } from 'lucide-react';
-import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig } from '../types';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download, Image as ImageIcon, X } from 'lucide-react';
+import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
 import * as personalApi from '../api/personal';
 import HoverHelp from './HoverHelp';
 import { useI18n } from '../i18n';
@@ -56,6 +56,14 @@ interface DayEntry {
 
 const JIRA_BLUE = { bg: 'rgba(38,132,255,0.18)', fg: 'rgb(101,164,255)' };
 
+interface PendingImage {
+  id: string;
+  name: string;
+  data: string;
+  preview: string;
+}
+let imageCounter = 0;
+
 export default function PersonalAgenda() {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -82,6 +90,9 @@ export default function PersonalAgenda() {
   const [fDone, setFDone] = useState(false);
   const [fTags, setFTags] = useState<string[]>([]);
   const [fTagInput, setFTagInput] = useState('');
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [existingImages, setExistingImages] = useState<ImageMeta[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
   // Resizable side panel (drag the divider). Persisted in localStorage.
@@ -306,6 +317,8 @@ export default function PersonalAgenda() {
     setFDone(false);
     setFTags(activeTag ? [activeTag] : []);
     setFTagInput('');
+    setPendingImages([]);
+    setExistingImages([]);
     setShowForm(true);
   };
   const openEdit = (p: PersonalItem) => {
@@ -317,6 +330,8 @@ export default function PersonalAgenda() {
     setFDone(p.status === 'done');
     setFTags(parseTags(p.tags));
     setFTagInput('');
+    setPendingImages([]);
+    try { setExistingImages(p.images ? JSON.parse(p.images) : []); } catch { setExistingImages([]); }
     setShowForm(true);
   };
   const addTag = (raw: string) => {
@@ -326,7 +341,45 @@ export default function PersonalAgenda() {
     setFTagInput('');
   };
   const removeTag = (tg: string) => setFTags((prev) => prev.filter((x) => x !== tg));
-  const closeForm = () => { setShowForm(false); setEditing(null); setExpanded(false); };
+  const closeForm = () => { setShowForm(false); setEditing(null); setExpanded(false); setPendingImages([]); setExistingImages([]); };
+
+  const addImagesFromFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    for (const file of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = reader.result as string;
+        const id = `pending-${++imageCounter}`;
+        setPendingImages((prev) => [...prev, { id, name: file.name, data, preview: data }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const clip = e.clipboardData?.items;
+    if (!clip) return;
+    const files: File[] = [];
+    for (let i = 0; i < clip.length; i++) {
+      if (clip[i].type.startsWith('image/')) {
+        const file = clip[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length === 0) return;
+    e.preventDefault();
+    addImagesFromFiles(files);
+  }, [addImagesFromFiles]);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.files) addImagesFromFiles(e.dataTransfer.files);
+  }, [addImagesFromFiles]);
+  const removePendingImage = (id: string) => setPendingImages((prev) => prev.filter((img) => img.id !== id));
+  const removeExistingImage = (imageId: string) => {
+    if (editing) personalApi.deletePersonalImage(editing.id, imageId);
+    setExistingImages((prev) => prev.filter((img) => img.id !== imageId));
+  };
+  const totalImages = existingImages.length + pendingImages.length;
 
   // Saveable when there's a title OR a body (title is optional, like Notion).
   const canSave = !!(fTitle.trim() || fDesc.trim());
@@ -340,10 +393,16 @@ export default function PersonalAgenda() {
     const dueAt = fDate ? (fTime ? `${fDate}T${fTime}` : fDate) : null;
     const tags = fTags.length ? fTags : null;
     const payload = { title, description: fDesc.trim() || undefined, due_at: dueAt, all_day: allDay, tags };
+    let targetId: string;
     if (editing) {
       await personalApi.updatePersonalItem(editing.id, { ...payload, status: fDone ? 'done' : 'pending' });
+      targetId = editing.id;
     } else {
-      await personalApi.createPersonalItem(payload);
+      const created = await personalApi.createPersonalItem(payload);
+      targetId = created.id;
+    }
+    if (pendingImages.length > 0) {
+      await personalApi.uploadPersonalImages(targetId, pendingImages.map((img) => ({ name: img.name, data: img.data })));
     }
     closeForm();
     load();
@@ -847,9 +906,65 @@ export default function PersonalAgenda() {
                 <textarea
                   value={fDesc}
                   onChange={(e) => setFDesc(e.target.value)}
+                  onPaste={handlePaste}
+                  onDrop={handleDrop}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   placeholder={t('agenda.descPlaceholder')}
                   className="input-field flex-1 min-h-[280px] resize-y leading-relaxed"
                 />
+                {/* Images */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs btn-ghost"
+                  >
+                    <ImageIcon size={14} />
+                    {t('plannerForm.addImage')}
+                  </button>
+                  <span className="text-2xs" style={{ color: 'var(--color-text-muted)' }}>{t('plannerForm.pasteHint')}</span>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { if (e.target.files) addImagesFromFiles(e.target.files); e.target.value = ''; }}
+                />
+                {totalImages > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {existingImages.map((img) => (
+                      <div key={img.id} className="relative group">
+                        <img
+                          src={editing ? personalApi.getPersonalImageUrl(editing.id, img.id) : ''}
+                          alt={img.originalName}
+                          className="h-20 w-20 object-cover rounded-lg"
+                          style={{ border: '1px solid var(--color-border)' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeExistingImage(img.id)}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} strokeWidth={3} />
+                        </button>
+                      </div>
+                    ))}
+                    {pendingImages.map((img) => (
+                      <div key={img.id} className="relative group">
+                        <img src={img.preview} alt={img.name} className="h-20 w-20 object-cover rounded-lg" style={{ border: '1px solid var(--color-border)' }} />
+                        <button
+                          type="button"
+                          onClick={() => removePendingImage(img.id)}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} strokeWidth={3} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

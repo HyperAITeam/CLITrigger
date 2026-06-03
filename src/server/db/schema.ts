@@ -392,6 +392,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'is_svn_wc', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'color', definition: 'TEXT' },
     { table: 'projects', column: 'sort_order', definition: 'INTEGER NOT NULL DEFAULT 0' },
+    { table: 'personal_items', column: 'images', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

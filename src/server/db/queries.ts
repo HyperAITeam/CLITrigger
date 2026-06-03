@@ -1839,6 +1839,7 @@ export interface PersonalItem {
   status: string;
   priority: number;
   tags: string | null;
+  images: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1873,7 +1874,7 @@ export function getPersonalItemById(id: string): PersonalItem | undefined {
 
 export function updatePersonalItem(
   id: string,
-  updates: Partial<Pick<PersonalItem, 'title' | 'description' | 'due_at' | 'all_day' | 'status' | 'priority' | 'tags'>>,
+  updates: Partial<Pick<PersonalItem, 'title' | 'description' | 'due_at' | 'all_day' | 'status' | 'priority' | 'tags' | 'images'>>,
 ): PersonalItem | undefined {
   const db = getDatabase();
   const fields: string[] = [];
@@ -1885,6 +1886,7 @@ export function updatePersonalItem(
   if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
   if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority); }
   if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
+  if (updates.images !== undefined) { fields.push('images = ?'); values.push(updates.images); }
   if (fields.length === 0) return getPersonalItemById(id);
   fields.push('updated_at = ?');
   values.push(new Date().toISOString());
