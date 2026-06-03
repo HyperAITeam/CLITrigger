@@ -11,6 +11,7 @@ import {
   setAppSetting,
 } from '../db/queries.js';
 import { jiraMyself, jiraSearch, type JiraConn } from '../lib/jira-client.js';
+import { cleanupPersonalImages } from './images.js';
 
 const router = Router();
 
@@ -78,6 +79,7 @@ router.put('/personal-items/:id', (req: Request, res: Response) => {
 
 router.delete('/personal-items/:id', (req: Request, res: Response) => {
   try {
+    cleanupPersonalImages(String(req.params.id));
     const ok = deletePersonalItem(String(req.params.id));
     if (!ok) return res.status(404).json({ error: 'not found' });
     res.json({ ok: true });

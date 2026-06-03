@@ -464,6 +464,7 @@ export interface PersonalItem {
   status: string; // pending | done
   priority: number;
   tags: string | null;
+  images: string | null;
   created_at: string;
   updated_at: string;
 }

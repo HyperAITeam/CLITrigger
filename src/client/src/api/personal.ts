@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig } from '../types';
+import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta } from '../types';
 
 export function getPersonalItems(): Promise<PersonalItem[]> {
   return get('/api/personal-items');
@@ -33,6 +33,18 @@ export function updatePersonalItem(
 
 export function deletePersonalItem(id: string): Promise<void> {
   return del(`/api/personal-items/${id}`);
+}
+
+export function uploadPersonalImages(id: string, images: Array<{ name: string; data: string }>): Promise<{ images: ImageMeta[] }> {
+  return post(`/api/personal-items/${id}/images`, { images });
+}
+
+export function deletePersonalImage(personalItemId: string, imageId: string): Promise<void> {
+  return del(`/api/personal-items/${personalItemId}/images/${imageId}`);
+}
+
+export function getPersonalImageUrl(personalItemId: string, imageId: string): string {
+  return `/api/personal-items/${personalItemId}/images/${imageId}`;
 }
 
 export function getAgenda(from: string, to: string): Promise<Agenda> {
