@@ -37,7 +37,7 @@
     "README_KR.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
@@ -71,7 +71,7 @@
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "@types/iarna__toml": "^2.0.5",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.10.0",
     "cloudflared": "^0.7.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
