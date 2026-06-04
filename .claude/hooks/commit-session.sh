@@ -35,6 +35,12 @@ Rules:
 - Output ONLY the commit message, nothing else" 2>/dev/null) || true
 fi
 
+# Distrust output that ignored the format (e.g. preamble like "The commit
+# message:") — only accept a first line that starts with the required 'WIP(' prefix.
+if ! printf '%s' "$COMMIT_MSG" | head -1 | grep -q '^WIP('; then
+  COMMIT_MSG=""
+fi
+
 # Fallback if claude -p failed or returned empty
 if [ -z "$COMMIT_MSG" ]; then
   FILE_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
