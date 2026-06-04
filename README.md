@@ -19,7 +19,7 @@
 [![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
 [![npm downloads](https://img.shields.io/npm/dm/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
 [![npm total downloads](https://img.shields.io/npm/dt/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 [![GitHub stars](https://img.shields.io/github/stars/HyperAITeam/CLITrigger.svg?style=social)](https://github.com/HyperAITeam/CLITrigger/stargazers)
@@ -204,10 +204,10 @@ clitrigger config port 8080    # Change port
 clitrigger config tunnel on    # Enable Cloudflare tunnel for external sharing
 ```
 
-> **Prerequisites**: Node.js 20+, Git, at least one AI CLI (Claude / Gemini / Codex)
+> **Prerequisites**: Node.js 22+ (use an **LTS** release), Git, at least one AI CLI (Claude / Gemini / Codex)
 >
 > **Supported Platforms**: Windows · macOS · Linux — all core code is cross-platform compatible.
-> On macOS, you may need `xcode-select --install` for native module compilation.
+> Prefer an LTS (even-numbered) Node.js. A brand-new major (e.g. an odd/just-released version) may not have prebuilt native binaries yet, which forces a source build requiring a C++ toolchain (Visual Studio Build Tools on Windows, `xcode-select --install` on macOS).
 
 ### Run from Source (for development)
 
