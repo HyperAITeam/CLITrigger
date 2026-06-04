@@ -459,8 +459,8 @@ export interface PersonalItem {
   id: string;
   title: string;
   description: string | null;
-  due_at: string | null;
-  all_day: number;
+  start_at: string | null; // date YYYY-MM-DD; NULL = undated backlog memo
+  end_at: string | null;   // date YYYY-MM-DD; defaults to start_at (single day)
   status: string; // pending | done
   priority: number;
   tags: string | null;
