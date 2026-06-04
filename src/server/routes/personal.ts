@@ -41,6 +41,19 @@ function jiraConn(j: AgendaJira): JiraConn | null {
   return { baseUrl: j.base_url, email: j.email, apiToken: j.api_token };
 }
 
+// Issue keys the user has hidden from the agenda. Fetched issues are filtered
+// against this so dismissed ones never reappear on the next refresh.
+const JIRA_DISMISS_KEY = 'agenda.jira.dismissed';
+function readDismissed(): string[] {
+  try {
+    const v = JSON.parse(getAppSetting(JIRA_DISMISS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
+  } catch { return []; }
+}
+function writeDismissed(keys: string[]): void {
+  setAppSetting(JIRA_DISMISS_KEY, JSON.stringify([...new Set(keys)]));
+}
+
 // ── Personal items CRUD (global, no project, no execution) ─────────────────
 
 router.get('/personal-items', (_req: Request, res: Response) => {
@@ -265,6 +278,24 @@ router.get('/agenda/jira/statuses', async (_req: Request, res: Response) => {
   }
 });
 
+// Hidden issue keys — managed purely on our side; never touches Jira.
+router.get('/agenda/jira/dismissed', (_req: Request, res: Response) => {
+  res.json({ keys: readDismissed() });
+});
+router.post('/agenda/jira/dismiss', (req: Request, res: Response) => {
+  const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+  if (!key) return res.status(400).json({ error: 'key required', keys: readDismissed() });
+  const keys = readDismissed();
+  if (!keys.includes(key)) keys.push(key);
+  writeDismissed(keys);
+  res.json({ keys });
+});
+router.post('/agenda/jira/undismiss', (req: Request, res: Response) => {
+  const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+  writeDismissed(readDismissed().filter((k) => k !== key));
+  res.json({ keys: readDismissed() });
+});
+
 // Assigned-to-me open issues: due-dated ones in [from, to] plus ones with no
 // due date (so they can be listed even when the calendar can't place them).
 router.get('/agenda/jira', async (req: Request, res: Response) => {
@@ -301,16 +332,19 @@ router.get('/agenda/jira', async (req: Request, res: Response) => {
   try {
     const data = await jiraSearch(conn, jql, 'summary,status,duedate', 100);
     const base = conn.baseUrl.replace(/\/+$/, '');
-    const issues = data.issues.map((i) => {
-      const f = i.fields as { summary?: string; duedate?: string | null; status?: { name?: string } };
-      return {
-        key: i.key,
-        summary: f.summary || i.key,
-        status: f.status?.name || '',
-        duedate: f.duedate || null,
-        url: `${base}/browse/${i.key}`,
-      };
-    });
+    const dismissed = new Set(readDismissed());
+    const issues = data.issues
+      .filter((i) => !dismissed.has(i.key))
+      .map((i) => {
+        const f = i.fields as { summary?: string; duedate?: string | null; status?: { name?: string } };
+        return {
+          key: i.key,
+          summary: f.summary || i.key,
+          status: f.status?.name || '',
+          duedate: f.duedate || null,
+          url: `${base}/browse/${i.key}`,
+        };
+      });
     res.json({ issues });
   } catch (err: unknown) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Unknown error', issues: [] });

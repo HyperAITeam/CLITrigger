@@ -80,6 +80,8 @@ export default function PersonalAgenda() {
   const [items, setItems] = useState<PersonalItem[]>([]);
   const [agenda, setAgenda] = useState<Agenda>({ personal: [], schedules: [], planner: [] });
   const [jiraEntries, setJiraEntries] = useState<JiraAgendaEntry[]>([]);
+  const [jiraDismissed, setJiraDismissed] = useState<string[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraConfig, setJiraConfig] = useState<AgendaJiraConfig | null>(null);
   const [showJiraSettings, setShowJiraSettings] = useState(false);
@@ -188,6 +190,10 @@ export default function PersonalAgenda() {
       setJiraEntries([]);
       setJiraError(e instanceof Error ? e.message : 'Jira fetch failed');
     }
+    try {
+      const { keys } = await personalApi.getDismissedJira();
+      setJiraDismissed(keys);
+    } catch { /* ignore — dismissed list is non-critical */ }
   }, [rangeStart, rangeEnd]);
 
   useEffect(() => { load(); }, [load]);
@@ -200,6 +206,8 @@ export default function PersonalAgenda() {
   useEffect(() => { getProjects().then(setProjects).catch(() => setProjects([])); }, []);
   const moveToPlanner = (item: PersonalItem, projectId: string) => personalApi.movePersonalItemToPlanner(item.id, projectId).then(load);
   const jiraToPlanner = (entry: JiraAgendaEntry, projectId: string) => personalApi.importJiraIssueToPlanner(entry, projectId).then(load);
+  const dismissJira = (key: string) => personalApi.dismissJira(key).then(load);
+  const undismissJira = (key: string) => personalApi.undismissJira(key).then(load);
 
   // In day view the side panel mirrors the cursor day.
   useEffect(() => { if (view === 'day') setSelectedDate(ymd(cursor)); }, [view, cursor]);
@@ -784,6 +792,13 @@ export default function PersonalAgenda() {
                         <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
                       </button>
                     )}
+                    <button
+                      onClick={() => dismissJira(e.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                      title={t('agenda.jira.dismiss')}
+                    >
+                      <X size={13} style={{ color: 'var(--color-text-muted)' }} />
+                    </button>
                   </div>
                 );
               }
@@ -866,9 +881,38 @@ export default function PersonalAgenda() {
                     <button onClick={() => personalApi.importJiraIssue(j).then(load)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.import')}>
                       <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
+                    <button onClick={() => dismissJira(j.key)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.dismiss')}>
+                      <X size={13} style={{ color: 'var(--color-text-muted)' }} />
+                    </button>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Hidden Jira issues — restore individually */}
+          {jiraOn && sources.jira && !activeTag && jiraDismissed.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowDismissed((v) => !v)}
+                className="text-2xs uppercase tracking-wider mb-1.5 flex items-center gap-1 hover:opacity-80"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                {t('agenda.jira.dismissedTitle')} ({jiraDismissed.length})
+                <ChevronRight size={11} style={{ transform: showDismissed ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+              {showDismissed && (
+                <div className="flex flex-col gap-1">
+                  {jiraDismissed.map((key) => (
+                    <div key={`jira-dismissed-${key}`} className="group flex items-center gap-2 rounded-lg px-2.5 py-1.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                      <span className="flex-1 text-2xs font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>{key}</span>
+                      <button onClick={() => undismissJira(key)} className="opacity-0 group-hover:opacity-100 transition-opacity" title={t('agenda.jira.restore')}>
+                        <RotateCcw size={12} style={{ color: 'var(--color-text-muted)' }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
