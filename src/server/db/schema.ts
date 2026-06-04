@@ -209,12 +209,16 @@ export function initDatabase(db: Database.Database): void {
     );
 
     -- Global (project-agnostic) personal organizer items. Pure notes/agenda
-    -- with no CLI execution. due_at NULL = undated backlog memo.
+    -- with no CLI execution. start_at NULL = undated backlog memo. Memos span a
+    -- date range [start_at, end_at] (day granularity, no time). due_at/all_day
+    -- are legacy columns kept only for migration.
     CREATE TABLE IF NOT EXISTS personal_items (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
       due_at TEXT,
+      start_at TEXT,
+      end_at TEXT,
       all_day INTEGER DEFAULT 1,
       status TEXT DEFAULT 'pending',
       priority INTEGER DEFAULT 0,
@@ -393,6 +397,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'color', definition: 'TEXT' },
     { table: 'projects', column: 'sort_order', definition: 'INTEGER NOT NULL DEFAULT 0' },
     { table: 'personal_items', column: 'images', definition: 'TEXT' },
+    { table: 'personal_items', column: 'start_at', definition: 'TEXT' },
+    { table: 'personal_items', column: 'end_at', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {
@@ -408,6 +414,20 @@ export function initDatabase(db: Database.Database): void {
     db.prepare(`UPDATE projects SET vcs_type = 'git' WHERE vcs_type IS NULL AND is_git_repo = 1`).run();
   } catch {
     // ignore — column may not exist yet on extremely old DBs that fail the ALTER above
+  }
+
+  // Backfill personal_items date range from legacy due_at (date part only —
+  // time is dropped). Undated memos keep start_at NULL (stay in the backlog).
+  // Idempotent — only touches rows not yet migrated.
+  try {
+    db.prepare(
+      `UPDATE personal_items
+         SET start_at = substr(due_at, 1, 10),
+             end_at = substr(due_at, 1, 10)
+       WHERE start_at IS NULL AND due_at IS NOT NULL`,
+    ).run();
+  } catch {
+    // ignore — columns may not exist on DBs where the ALTER above failed
   }
 
   // Backfill sort_order for existing rows so projects keep their current

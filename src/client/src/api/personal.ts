@@ -8,8 +8,8 @@ export function getPersonalItems(): Promise<PersonalItem[]> {
 export function createPersonalItem(data: {
   title: string;
   description?: string;
-  due_at?: string | null;
-  all_day?: number;
+  start_at?: string | null;
+  end_at?: string | null;
   priority?: number;
   tags?: string[] | string | null;
 }): Promise<PersonalItem> {
@@ -21,8 +21,8 @@ export function updatePersonalItem(
   data: {
     title?: string;
     description?: string;
-    due_at?: string | null;
-    all_day?: number;
+    start_at?: string | null;
+    end_at?: string | null;
     status?: string;
     priority?: number;
     tags?: string[] | string | null;

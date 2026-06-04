@@ -12,7 +12,7 @@ import CalendarGrid from './calendar/CalendarGrid';
 import {
   ymd, dayKeyLocalIso,
   useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
-  type CalView, type CalChip,
+  type CalView, type CalChip, type CalBar,
 } from './calendar/calendarShared';
 
 function parseTags(json: string | null): string[] {
@@ -97,8 +97,8 @@ export default function PersonalAgenda() {
   const [editing, setEditing] = useState<PersonalItem | null>(null);
   const [fTitle, setFTitle] = useState('');
   const [fDesc, setFDesc] = useState('');
-  const [fDate, setFDate] = useState('');     // YYYY-MM-DD ('' = backlog memo)
-  const [fTime, setFTime] = useState('');     // HH:mm ('' = all-day)
+  const [fDate, setFDate] = useState('');     // start date YYYY-MM-DD ('' = backlog memo)
+  const [fEnd, setFEnd] = useState('');       // end date YYYY-MM-DD ('' = same as start)
   const [fDone, setFDone] = useState(false);
   const [fTags, setFTags] = useState<string[]>([]);
   const [fTagInput, setFTagInput] = useState('');
@@ -222,11 +222,23 @@ export default function PersonalAgenda() {
       arr.push(e);
       map.set(key, arr);
     };
+    const nextDay = (k: string) => { const d = new Date(k + 'T00:00'); d.setDate(d.getDate() + 1); return ymd(d); };
+    // Single-day personal memos render as cell chips; multi-day ones are drawn
+    // as spanning bars in a separate overlay (see weekBars), so skip them here.
     for (const p of sources.personal ? items : []) {
-      if (!p.due_at || !matchesTag(p)) continue;
-      const key = p.due_at.slice(0, 10);
-      const time = p.all_day ? undefined : p.due_at.slice(11, 16) || undefined;
-      push(key, { kind: 'personal', id: p.id, title: p.title, time, done: p.status === 'done' });
+      if (!p.start_at || !matchesTag(p)) continue;
+      const start = p.start_at.slice(0, 10);
+      const end = (p.end_at || p.start_at).slice(0, 10);
+      // In month view multi-day memos are drawn as spanning bars; elsewhere
+      // (week/day) there's no bar overlay so show them as a chip on each day.
+      if (view === 'month' && end > start) continue;
+      if (view === 'month' || end <= start) {
+        push(start, { kind: 'personal', id: p.id, title: p.title, done: p.status === 'done' });
+      } else {
+        for (let d = start; d <= end; d = nextDay(d)) {
+          push(d, { kind: 'personal', id: p.id, title: p.title, done: p.status === 'done' });
+        }
+      }
     }
     // A tag filter is about personal items — hide project/Jira roll-ups while active.
     for (const s of (activeTag || !sources.schedule) ? [] : agenda.schedules) {
@@ -244,7 +256,7 @@ export default function PersonalAgenda() {
       push(j.duedate.slice(0, 10), { kind: 'jira', id: j.key, title: `${j.key} · ${j.summary}`, url: j.url });
     }
     return map;
-  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources]);
+  }, [items, agenda, jiraEntries, activeTag, matchesTag, sources, view]);
 
   // Map the source-specific day entries to generic calendar chips, preserving
   // the per-kind chip colors.
@@ -265,7 +277,30 @@ export default function PersonalAgenda() {
     return m;
   }, [byDay]);
 
-  const backlog = useMemo(() => items.filter((i) => !i.due_at && matchesTag(i)), [items, matchesTag]);
+  // Multi-day personal memos → spanning bars (month view overlay).
+  const monthBars = useMemo<CalBar[]>(() => {
+    if (!sources.personal) return [];
+    const style = kindStyle('personal');
+    return items
+      .filter((p) => {
+        if (!p.start_at || !matchesTag(p)) return false;
+        const s = p.start_at.slice(0, 10);
+        const e = (p.end_at || p.start_at).slice(0, 10);
+        return e > s;
+      })
+      .map((p) => ({
+        key: `personal-bar-${p.id}`,
+        title: p.title,
+        startKey: p.start_at!.slice(0, 10),
+        endKey: (p.end_at || p.start_at)!.slice(0, 10),
+        bg: style.bg,
+        fg: p.status === 'done' ? 'var(--color-text-muted)' : style.fg,
+        done: p.status === 'done',
+        payload: p,
+      }));
+  }, [items, matchesTag, sources.personal]);
+
+  const backlog = useMemo(() => items.filter((i) => !i.start_at && matchesTag(i)), [items, matchesTag]);
 
   // All distinct tags across personal items, for the filter row.
   const allTags = useMemo(() => {
@@ -281,6 +316,7 @@ export default function PersonalAgenda() {
     id: string;
     title: string;
     dateKey: string | null;
+    endKey?: string | null; // personal multi-day range end (when after dateKey)
     time: string | null;
     status?: string;
     item?: PersonalItem;
@@ -294,8 +330,9 @@ export default function PersonalAgenda() {
       if (!matchesTag(p)) continue;
       rows.push({
         kind: 'personal', id: p.id, title: p.title,
-        dateKey: p.due_at ? p.due_at.slice(0, 10) : null,
-        time: p.due_at && !p.all_day ? p.due_at.slice(11, 16) : null,
+        dateKey: p.start_at ? p.start_at.slice(0, 10) : null,
+        endKey: p.end_at && p.start_at && p.end_at.slice(0, 10) > p.start_at.slice(0, 10) ? p.end_at.slice(0, 10) : null,
+        time: null,
         status: p.status, item: p,
       });
     }
@@ -369,7 +406,7 @@ export default function PersonalAgenda() {
     setFTitle('');
     setFDesc('');
     setFDate(dateKey ?? selectedDate);
-    setFTime('');
+    setFEnd(dateKey ?? selectedDate);
     setFDone(false);
     setFTags(activeTag ? [activeTag] : []);
     setFTagInput('');
@@ -381,8 +418,8 @@ export default function PersonalAgenda() {
     setEditing(p);
     setFTitle(p.title);
     setFDesc(p.description ?? '');
-    setFDate(p.due_at ? p.due_at.slice(0, 10) : '');
-    setFTime(p.due_at && !p.all_day ? p.due_at.slice(11, 16) : '');
+    setFDate(p.start_at ? p.start_at.slice(0, 10) : '');
+    setFEnd((p.end_at || p.start_at) ? (p.end_at || p.start_at)!.slice(0, 10) : '');
     setFDone(p.status === 'done');
     setFTags(parseTags(p.tags));
     setFTagInput('');
@@ -445,10 +482,11 @@ export default function PersonalAgenda() {
     const title = fTitle.trim()
       || fDesc.trim().split('\n')[0].slice(0, 80)
       || t('agenda.untitled');
-    const allDay = fDate ? (fTime ? 0 : 1) : 1;
-    const dueAt = fDate ? (fTime ? `${fDate}T${fTime}` : fDate) : null;
+    // Day-granularity range. No start → backlog memo. End before start → single day.
+    const startAt = fDate || null;
+    const endAt = fDate ? (fEnd && fEnd >= fDate ? fEnd : fDate) : null;
     const tags = fTags.length ? fTags : null;
-    const payload = { title, description: fDesc.trim() || undefined, due_at: dueAt, all_day: allDay, tags };
+    const payload = { title, description: fDesc.trim() || undefined, start_at: startAt, end_at: endAt, tags };
     let targetId: string;
     if (editing) {
       await personalApi.updatePersonalItem(editing.id, { ...payload, status: fDone ? 'done' : 'pending' });
@@ -487,7 +525,22 @@ export default function PersonalAgenda() {
     }
   };
 
-  const selectedEntries = byDay.get(selectedDate) ?? [];
+  // byDay holds single-day chips; multi-day memos are excluded there (drawn as
+  // bars), so fold in any whose range covers the selected day for the panel.
+  const selectedEntries = useMemo(() => {
+    const base = byDay.get(selectedDate) ?? [];
+    // Only month view drops multi-day memos from byDay, so fold them back in there.
+    if (!sources.personal || view !== 'month') return base;
+    const spanning: DayEntry[] = items
+      .filter((p) => {
+        if (!p.start_at || !matchesTag(p)) return false;
+        const s = p.start_at.slice(0, 10);
+        const e = (p.end_at || p.start_at).slice(0, 10);
+        return e > s && s <= selectedDate && e >= selectedDate;
+      })
+      .map((p) => ({ kind: 'personal', id: p.id, title: p.title, done: p.status === 'done' }));
+    return [...spanning, ...base];
+  }, [byDay, selectedDate, items, matchesTag, sources.personal, view]);
 
   return (
     <div ref={layoutRef} className="flex h-full overflow-hidden">
@@ -620,6 +673,8 @@ export default function PersonalAgenda() {
               onSelectDate={setSelectedDate}
               onQuickAdd={openAdd}
               onChipClick={(chip) => openEntry(chip.payload as DayEntry)}
+              bars={monthBars}
+              onBarClick={(bar) => openEdit(bar.payload as PersonalItem)}
               monthCellHeight={monthCellH}
             />
           )}
@@ -664,8 +719,9 @@ export default function PersonalAgenda() {
                 <div className="px-3 py-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dayEmpty')}</div>
               )}
               {tableRows.map((r) => {
+                const fmtDay = (k: string) => new Date(k + 'T00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
                 const dateLabel = r.dateKey
-                  ? new Date(r.dateKey + 'T00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + (r.time ? ` ${r.time}` : '')
+                  ? fmtDay(r.dateKey) + (r.endKey ? ` ~ ${fmtDay(r.endKey)}` : (r.time ? ` ${r.time}` : ''))
                   : '—';
                 const onRowClick = () => {
                   if (r.kind === 'personal' && r.item) openEdit(r.item);
@@ -953,8 +1009,21 @@ export default function PersonalAgenda() {
                 />
                 {/* Properties: date/time + status */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="input-field w-auto" />
-                  <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="input-field w-auto disabled:opacity-40" />
+                  <input
+                    type="date"
+                    value={fDate}
+                    onChange={(e) => { const v = e.target.value; setFDate(v); if (v && (!fEnd || fEnd < v)) setFEnd(v); }}
+                    className="input-field w-auto"
+                  />
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>~</span>
+                  <input
+                    type="date"
+                    value={fEnd}
+                    min={fDate || undefined}
+                    onChange={(e) => setFEnd(e.target.value)}
+                    disabled={!fDate}
+                    className="input-field w-auto disabled:opacity-40"
+                  />
                   {editing && (
                     <button
                       onClick={() => setFDone((v) => !v)}
@@ -1108,10 +1177,11 @@ function CleanupModal({ items, defaultFrom, defaultTo, onClose, onDone }: {
   // Mirror the server-side matching so the preview count is exact.
   const matches = useCallback((p: PersonalItem) => {
     if (doneOnly && p.status !== 'done') return false;
-    if (!p.due_at) return includeBacklog;
+    if (!p.start_at) return includeBacklog;
     if (!from || !to) return false;
-    const d = p.due_at.slice(0, 10);
-    return d >= from && d <= to;
+    const s = p.start_at.slice(0, 10);
+    const e = (p.end_at || p.start_at).slice(0, 10);
+    return s <= to && e >= from; // ranges overlap
   }, [from, to, doneOnly, includeBacklog]);
 
   const count = useMemo(() => items.filter(matches).length, [items, matches]);

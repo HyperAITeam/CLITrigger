@@ -66,15 +66,20 @@ router.get('/personal-items', (_req: Request, res: Response) => {
 
 router.post('/personal-items', (req: Request, res: Response) => {
   try {
-    const { title, description, due_at, all_day, priority, tags } = req.body ?? {};
+    const { title, description, start_at, end_at, priority, tags } = req.body ?? {};
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({ error: 'title is required' });
     }
+    const start = typeof start_at === 'string' && start_at ? start_at.slice(0, 10) : null;
+    // No end (or end before start) → single-day memo on the start date.
+    const end = start
+      ? (typeof end_at === 'string' && end_at && end_at.slice(0, 10) >= start ? end_at.slice(0, 10) : start)
+      : null;
     const item = createPersonalItem(
       title.trim(),
       typeof description === 'string' ? description : undefined,
-      due_at ?? null,
-      all_day === 0 ? 0 : 1,
+      start,
+      end,
       Number.isFinite(priority) ? priority : 0,
       tags != null ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
     );
@@ -88,12 +93,19 @@ router.put('/personal-items/:id', (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     if (!getPersonalItemById(id)) return res.status(404).json({ error: 'not found' });
-    const { title, description, due_at, all_day, status, priority, tags } = req.body ?? {};
+    const { title, description, start_at, end_at, status, priority, tags } = req.body ?? {};
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = String(title);
     if (description !== undefined) updates.description = description;
-    if (due_at !== undefined) updates.due_at = due_at;
-    if (all_day !== undefined) updates.all_day = all_day ? 1 : 0;
+    // start_at/end_at travel together from the form; normalize as a pair.
+    if (start_at !== undefined || end_at !== undefined) {
+      const s = typeof start_at === 'string' && start_at ? start_at.slice(0, 10) : null;
+      const e = s
+        ? (typeof end_at === 'string' && end_at && end_at.slice(0, 10) >= s ? end_at.slice(0, 10) : s)
+        : null;
+      updates.start_at = s;
+      updates.end_at = e;
+    }
     if (status !== undefined) updates.status = status;
     if (priority !== undefined) updates.priority = priority;
     if (tags !== undefined) updates.tags = tags != null ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null;
@@ -114,8 +126,8 @@ router.delete('/personal-items/:id', (req: Request, res: Response) => {
   }
 });
 
-// Bulk-delete personal memos for cleanup. Dated memos are matched by [from, to]
-// (inclusive, on the date part of due_at); undated backlog memos are only
+// Bulk-delete personal memos for cleanup. Dated memos are matched when their
+// [start_at, end_at] range overlaps [from, to]; undated backlog memos are only
 // touched when include_backlog is set; done_only restricts to completed memos.
 router.post('/personal-items/bulk-delete', (req: Request, res: Response) => {
   try {
@@ -123,12 +135,13 @@ router.post('/personal-items/bulk-delete', (req: Request, res: Response) => {
     const to = typeof req.body?.to === 'string' ? req.body.to.trim() : '';
     const doneOnly = !!req.body?.done_only;
     const includeBacklog = !!req.body?.include_backlog;
-    const matches = (p: { due_at: string | null; status: string }): boolean => {
+    const matches = (p: { start_at: string | null; end_at: string | null; status: string }): boolean => {
       if (doneOnly && p.status !== 'done') return false;
-      if (!p.due_at) return includeBacklog;
+      if (!p.start_at) return includeBacklog;
       if (!from || !to) return false;
-      const d = p.due_at.slice(0, 10);
-      return d >= from && d <= to;
+      const s = p.start_at.slice(0, 10);
+      const e = (p.end_at || p.start_at).slice(0, 10);
+      return s <= to && e >= from; // ranges overlap
     };
     const targets = getPersonalItems().filter(matches);
     for (const p of targets) {
@@ -152,7 +165,7 @@ router.post('/personal-items/:id/move-to-planner', (req: Request, res: Response)
     const projectId = String(req.body?.project_id ?? '');
     if (!projectId || !getProjectById(projectId)) return res.status(400).json({ error: 'invalid project_id' });
 
-    const dueDate = item.due_at ? item.due_at.slice(0, 10) : undefined;
+    const dueDate = item.start_at ? item.start_at.slice(0, 10) : undefined;
     const created = createPlannerItem(
       projectId,
       item.title,
@@ -202,7 +215,14 @@ router.get('/agenda', (req: Request, res: Response) => {
       return true;
     };
 
-    const personal = getPersonalItems().filter((p) => p.due_at && inRange(p.due_at));
+    const personal = getPersonalItems().filter((p) => {
+      if (!p.start_at) return false;
+      const s = p.start_at.slice(0, 10);
+      const e = (p.end_at || p.start_at).slice(0, 10);
+      if (from && e < from) return false; // ends before window
+      if (to && s > to) return false;     // starts after window
+      return true;
+    });
     const schedules = getAllUpcomingSchedules().filter((s) => inRange(s.at));
     const planner = getAllPlannerDueItems().filter((p) => inRange(p.due_date));
 
@@ -357,11 +377,12 @@ router.post('/agenda/jira/import', (req: Request, res: Response) => {
     const { key, summary, duedate, url } = req.body ?? {};
     if (typeof summary !== 'string' || !summary.trim()) return res.status(400).json({ error: 'summary is required' });
     const desc = url ? String(url) : (key ? String(key) : undefined);
+    const due = typeof duedate === 'string' && duedate ? duedate.slice(0, 10) : null;
     const item = createPersonalItem(
       summary.trim(),
       desc,
-      typeof duedate === 'string' && duedate ? duedate : null,
-      1,
+      due,
+      due,
       0,
       JSON.stringify(['jira', ...(key ? [String(key)] : [])]),
     );
