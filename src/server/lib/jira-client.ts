@@ -32,6 +32,27 @@ export async function jiraMyself(conn: JiraConn): Promise<{ displayName: string;
   return resp.json() as Promise<{ displayName: string; emailAddress?: string }>;
 }
 
+export interface JiraStatus {
+  name: string;
+  category: string; // statusCategory display name, e.g. "To Do" / "In Progress" / "Done"
+}
+
+// All workflow statuses on the instance, deduped by name. The global endpoint
+// returns one entry per (status × workflow) so the same name repeats heavily on
+// instances with many projects — callers get a flat, name-unique list.
+export async function jiraStatuses(conn: JiraConn): Promise<JiraStatus[]> {
+  const resp = await jiraFetch(conn, '/rest/api/3/status');
+  if (!resp.ok) throw new Error(`Jira ${resp.status}: ${await resp.text()}`);
+  const raw = (await resp.json()) as Array<{ name?: string; statusCategory?: { name?: string } }>;
+  const seen = new Map<string, JiraStatus>();
+  for (const s of raw) {
+    if (s?.name && !seen.has(s.name)) {
+      seen.set(s.name, { name: s.name, category: s.statusCategory?.name || '' });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export interface JiraSearchResult {
   issues: Array<{ key: string; fields: Record<string, unknown> }>;
   total: number;

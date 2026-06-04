@@ -15,7 +15,7 @@ import {
   createPlannerItem,
   updatePlannerItem,
 } from '../db/queries.js';
-import { jiraMyself, jiraSearch, type JiraConn } from '../lib/jira-client.js';
+import { jiraMyself, jiraSearch, jiraStatuses, type JiraConn } from '../lib/jira-client.js';
 import { cleanupPersonalImages } from './images.js';
 
 const router = Router();
@@ -29,6 +29,7 @@ interface AgendaJira {
   assignee_me?: boolean;   // default true: only issues assigned to me
   include_done?: boolean;  // default false: exclude Done issues
   projects?: string;       // comma/space-separated project keys, e.g. "ABC DEF"
+  statuses?: string[];     // exact status names to import; empty = fall back to include_done
   extra_jql?: string;      // advanced: raw JQL fragment, AND-ed in
 }
 
@@ -208,6 +209,7 @@ function jiraConfigResponse(j: AgendaJira) {
     assignee_me: j.assignee_me !== false, // default true
     include_done: !!j.include_done,
     projects: j.projects || '',
+    statuses: Array.isArray(j.statuses) ? j.statuses : [],
     extra_jql: j.extra_jql || '',
   };
 }
@@ -218,7 +220,7 @@ router.get('/agenda/jira-config', (_req: Request, res: Response) => {
 
 router.put('/agenda/jira-config', (req: Request, res: Response) => {
   try {
-    const { enabled, base_url, email, api_token, assignee_me, include_done, projects, extra_jql } = req.body ?? {};
+    const { enabled, base_url, email, api_token, assignee_me, include_done, projects, statuses, extra_jql } = req.body ?? {};
     const cur = readJira();
     const next: AgendaJira = {
       enabled: !!enabled,
@@ -229,6 +231,9 @@ router.put('/agenda/jira-config', (req: Request, res: Response) => {
       assignee_me: assignee_me === undefined ? cur.assignee_me : !!assignee_me,
       include_done: include_done === undefined ? cur.include_done : !!include_done,
       projects: typeof projects === 'string' ? projects.trim() : cur.projects,
+      statuses: Array.isArray(statuses)
+        ? statuses.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        : cur.statuses,
       extra_jql: typeof extra_jql === 'string' ? extra_jql.trim() : cur.extra_jql,
     };
     setAppSetting(JIRA_KEY, JSON.stringify(next));
@@ -246,6 +251,17 @@ router.get('/agenda/jira-test', async (_req: Request, res: Response) => {
     res.json({ ok: true, user: me.displayName });
   } catch (err: unknown) {
     res.status(502).json({ ok: false, error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Available workflow statuses, for the import-criteria status picker.
+router.get('/agenda/jira/statuses', async (_req: Request, res: Response) => {
+  const conn = jiraConn(readJira());
+  if (!conn) return res.status(400).json({ error: 'not configured', statuses: [] });
+  try {
+    res.json({ statuses: await jiraStatuses(conn) });
+  } catch (err: unknown) {
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Unknown error', statuses: [] });
   }
 });
 
@@ -267,7 +283,14 @@ router.get('/agenda/jira', async (req: Request, res: Response) => {
   // so they can be listed even when the calendar can't place them.
   const parts: string[] = [];
   if (j.assignee_me !== false) parts.push('assignee = currentUser()');
-  if (!j.include_done) parts.push('statusCategory != Done');
+  // Explicit status selection wins over the include_done category filter.
+  const selStatuses = Array.isArray(j.statuses) ? j.statuses.filter((s) => s && s.trim()) : [];
+  if (selStatuses.length) {
+    const names = selStatuses.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(', ');
+    parts.push(`status in (${names})`);
+  } else if (!j.include_done) {
+    parts.push('statusCategory != Done');
+  }
   if (j.projects && j.projects.trim()) {
     const keys = j.projects.split(/[,\s]+/).filter(Boolean).map((k) => `"${k}"`).join(', ');
     if (keys) parts.push(`project in (${keys})`);
