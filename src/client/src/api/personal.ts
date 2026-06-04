@@ -85,6 +85,16 @@ export function listJiraStatuses(): Promise<{ statuses: { name: string; category
   return get('/api/agenda/jira/statuses');
 }
 
+export function getDismissedJira(): Promise<{ keys: string[] }> {
+  return get('/api/agenda/jira/dismissed');
+}
+export function dismissJira(key: string): Promise<{ keys: string[] }> {
+  return post('/api/agenda/jira/dismiss', { key });
+}
+export function undismissJira(key: string): Promise<{ keys: string[] }> {
+  return post('/api/agenda/jira/undismiss', { key });
+}
+
 export function importJiraIssue(entry: JiraAgendaEntry): Promise<PersonalItem> {
   return post('/api/agenda/jira/import', { key: entry.key, summary: entry.summary, duedate: entry.duedate, url: entry.url });
 }
