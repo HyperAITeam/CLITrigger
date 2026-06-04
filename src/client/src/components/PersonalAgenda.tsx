@@ -1148,14 +1148,35 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
   const [assigneeMe, setAssigneeMe] = useState(initial?.assignee_me ?? true);
   const [includeDone, setIncludeDone] = useState(initial?.include_done ?? false);
   const [projects, setProjects] = useState(initial?.projects ?? '');
+  const [statuses, setStatuses] = useState<string[]>(initial?.statuses ?? []);
+  const [statusOptions, setStatusOptions] = useState<{ name: string; category: string }[]>([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusErr, setStatusErr] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
   const [extraJql, setExtraJql] = useState(initial?.extra_jql ?? '');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   const payload = () => ({
     enabled, base_url: baseUrl.trim(), email: email.trim(), api_token: token || undefined,
-    assignee_me: assigneeMe, include_done: includeDone, projects: projects.trim(), extra_jql: extraJql.trim(),
+    assignee_me: assigneeMe, include_done: includeDone, projects: projects.trim(), statuses, extra_jql: extraJql.trim(),
   });
+
+  const toggleStatus = (name: string) =>
+    setStatuses((prev) => (prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]));
+
+  // Statuses need a saved token, so persist current config first (mirrors test()).
+  const loadStatuses = async () => {
+    setStatusLoading(true); setStatusErr(null);
+    try {
+      await personalApi.saveJiraConfig(payload());
+      const r = await personalApi.listJiraStatuses();
+      if (r.error) setStatusErr(r.error);
+      else setStatusOptions(r.statuses);
+    } catch (e) {
+      setStatusErr(e instanceof Error ? e.message : t('agenda.jira.statusesNeedConn'));
+    } finally { setStatusLoading(false); }
+  };
 
   const test = async () => {
     setBusy(true); setResult(null);
@@ -1235,14 +1256,61 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
               <input type="checkbox" checked={assigneeMe} onChange={(e) => setAssigneeMe(e.target.checked)} className="rounded" />
               {t('agenda.jira.assigneeMe')}
             </label>
-            <label className="flex items-center gap-2 text-sm mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-              <input type="checkbox" checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm mb-3" style={{ color: 'var(--color-text-secondary)', opacity: statuses.length ? 0.4 : 1 }}>
+              <input type="checkbox" checked={includeDone} disabled={statuses.length > 0} onChange={(e) => setIncludeDone(e.target.checked)} className="rounded" />
               {t('agenda.jira.includeDone')}
             </label>
 
             <label className={labelCls} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.projects')}</label>
             <input value={projects} onChange={(e) => setProjects(e.target.value)} placeholder="ABC, DEF" className="input-field text-sm font-mono" />
             <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.projectsHint')}</p>
+
+            {/* Status picker — only the checked statuses get imported (overrides "include done"). */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <label className={labelCls} style={{ color: 'var(--color-text-secondary)', marginBottom: 0 }}>{t('agenda.jira.statuses')}</label>
+                <button
+                  type="button"
+                  onClick={loadStatuses}
+                  disabled={statusLoading}
+                  className="text-2xs px-2 py-0.5 rounded border disabled:opacity-40"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}
+                >
+                  {statusLoading ? t('agenda.jira.statusesLoading') : t('agenda.jira.statusesLoad')}
+                </button>
+              </div>
+              <p className={hintCls} style={{ color: 'var(--color-text-muted)', marginBottom: 6 }}>{t('agenda.jira.statusesHint')}</p>
+
+              {statusOptions.length > 0 && (
+                <input
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  placeholder={t('agenda.jira.statusesSearch')}
+                  className="input-field text-sm mb-2"
+                />
+              )}
+
+              {statusOptions.length === 0 ? (
+                <p className="text-2xs" style={{ color: statusErr ? 'var(--color-status-error, #f87171)' : 'var(--color-text-muted)' }}>
+                  {statusErr || t('agenda.jira.statusesEmpty')}
+                </p>
+              ) : (
+                <>
+                  <div className="max-h-40 overflow-auto rounded-lg border flex flex-col" style={{ borderColor: 'var(--color-border)' }}>
+                    {statusOptions
+                      .filter((o) => o.name.toLowerCase().includes(statusFilter.trim().toLowerCase()))
+                      .map((o) => (
+                        <label key={o.name} className="flex items-center gap-2 text-sm px-2.5 py-1.5 cursor-pointer" style={{ color: 'var(--color-text-secondary)' }}>
+                          <input type="checkbox" checked={statuses.includes(o.name)} onChange={() => toggleStatus(o.name)} className="rounded" />
+                          <span>{o.name}</span>
+                          {o.category && <span className="text-2xs ml-auto" style={{ color: 'var(--color-text-muted)' }}>{o.category}</span>}
+                        </label>
+                      ))}
+                  </div>
+                  {statusErr && <p className="text-2xs mt-1" style={{ color: 'var(--color-status-error, #f87171)' }}>{statusErr}</p>}
+                </>
+              )}
+            </div>
 
             <label className={labelCls + ' mt-3'} style={{ color: 'var(--color-text-secondary)' }}>{t('agenda.jira.extraJql')}</label>
             <textarea

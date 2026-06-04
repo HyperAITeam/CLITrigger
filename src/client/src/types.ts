@@ -509,5 +509,6 @@ export interface AgendaJiraConfig {
   assignee_me: boolean;
   include_done: boolean;
   projects: string;
+  statuses: string[];
   extra_jql: string;
 }

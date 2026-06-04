@@ -72,13 +72,17 @@ export function getJiraConfig(): Promise<AgendaJiraConfig> {
 
 export function saveJiraConfig(data: {
   enabled: boolean; base_url: string; email: string; api_token?: string;
-  assignee_me?: boolean; include_done?: boolean; projects?: string; extra_jql?: string;
+  assignee_me?: boolean; include_done?: boolean; projects?: string; statuses?: string[]; extra_jql?: string;
 }): Promise<AgendaJiraConfig> {
   return put('/api/agenda/jira-config', data);
 }
 
 export function testJiraConfig(): Promise<{ ok: boolean; user?: string; error?: string }> {
   return get('/api/agenda/jira-test');
+}
+
+export function listJiraStatuses(): Promise<{ statuses: { name: string; category: string }[]; error?: string }> {
+  return get('/api/agenda/jira/statuses');
 }
 
 export function importJiraIssue(entry: JiraAgendaEntry): Promise<PersonalItem> {
