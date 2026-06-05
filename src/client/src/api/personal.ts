@@ -8,8 +8,8 @@ export function getPersonalItems(): Promise<PersonalItem[]> {
 export function createPersonalItem(data: {
   title: string;
   description?: string;
-  due_at?: string | null;
-  all_day?: number;
+  start_at?: string | null;
+  end_at?: string | null;
   priority?: number;
   tags?: string[] | string | null;
 }): Promise<PersonalItem> {
@@ -21,8 +21,8 @@ export function updatePersonalItem(
   data: {
     title?: string;
     description?: string;
-    due_at?: string | null;
-    all_day?: number;
+    start_at?: string | null;
+    end_at?: string | null;
     status?: string;
     priority?: number;
     tags?: string[] | string | null;
@@ -72,13 +72,27 @@ export function getJiraConfig(): Promise<AgendaJiraConfig> {
 
 export function saveJiraConfig(data: {
   enabled: boolean; base_url: string; email: string; api_token?: string;
-  assignee_me?: boolean; include_done?: boolean; projects?: string; extra_jql?: string;
+  assignee_me?: boolean; include_done?: boolean; projects?: string; statuses?: string[]; extra_jql?: string;
 }): Promise<AgendaJiraConfig> {
   return put('/api/agenda/jira-config', data);
 }
 
 export function testJiraConfig(): Promise<{ ok: boolean; user?: string; error?: string }> {
   return get('/api/agenda/jira-test');
+}
+
+export function listJiraStatuses(): Promise<{ statuses: { name: string; category: string }[]; error?: string }> {
+  return get('/api/agenda/jira/statuses');
+}
+
+export function getDismissedJira(): Promise<{ keys: string[] }> {
+  return get('/api/agenda/jira/dismissed');
+}
+export function dismissJira(key: string): Promise<{ keys: string[] }> {
+  return post('/api/agenda/jira/dismiss', { key });
+}
+export function undismissJira(key: string): Promise<{ keys: string[] }> {
+  return post('/api/agenda/jira/undismiss', { key });
 }
 
 export function importJiraIssue(entry: JiraAgendaEntry): Promise<PersonalItem> {

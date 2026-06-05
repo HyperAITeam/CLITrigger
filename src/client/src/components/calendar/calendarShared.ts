@@ -36,6 +36,19 @@ export interface CalChip {
   payload?: unknown;
 }
 
+// A bar spanning a date range, drawn across cells in month view. The grid
+// splits it into per-week segments and stacks overlapping bars into lanes.
+export interface CalBar {
+  key: string;
+  title: string;
+  startKey: string; // YYYY-MM-DD, inclusive
+  endKey: string;   // YYYY-MM-DD, inclusive
+  bg: string;
+  fg: string;
+  done?: boolean;
+  payload?: unknown;
+}
+
 export interface CalendarRange {
   rangeStart: string;
   rangeEnd: string;
