@@ -62,12 +62,12 @@ CLITrigger solves all three:
 
 ## Features
 
-CLITrigger spans four layers — **plan & organize** what needs doing, **delegate** it to AI, **review & ship** the results, and **access** it from anywhere.
+CLITrigger spans four layers — **plan & organize** what needs doing, **delegate** it to AI, **review & ship** the results, and **access** it from anywhere. Each feature below has a full guide in the **[Wiki](https://github.com/HyperAITeam/CLITrigger/wiki)** (↗).
 
 ### 🗂 Plan & Organize
 
 #### My Schedule
-A global, project-independent calendar — month / week / day / table views — overlaying four sources on one grid: your dated **memos**, **schedules** across every project, **planner due dates**, and assigned **Jira issues**. Connect Jira once to import issues into a memo or a project planner; project / Jira chips deep-link back to their source.
+One personal calendar overlaying your memos, every project's schedules, planner due dates, and assigned Jira issues. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#my-schedule)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-agenda.png" alt="My Schedule — personal calendar overlaying memos, schedules, planner & Jira" width="800">
@@ -75,7 +75,7 @@ A global, project-independent calendar — month / week / day / table views — 
 </div>
 
 #### Planner
-A lightweight task planner separate from TODOs — capture ideas, attach images, tag with colors, and convert any item into a TODO or schedule in one click. Markdown export/import lets you move plans across machines or share via GitHub / Obsidian.
+A lightweight task planner — capture ideas, then convert any item into a TODO, schedule, or session; Markdown import/export. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#planner)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
@@ -83,7 +83,7 @@ A lightweight task planner separate from TODOs — capture ideas, attach images,
 </div>
 
 #### Vault (File-based Knowledge)
-An Obsidian-style, file-based knowledge vault per project. CLITrigger auto-scans your `.md` / `.html` files, parses `[[wikilinks]]` and YAML frontmatter, and builds a force-directed link graph — files *are* the nodes, so there's no separate ingest step. Inject any file into a task / session / discussion prompt (`Auto` picks files matching the task text, **Include linked** pulls in `[[wikilink]]` neighbors), serialized CLI-agnostically so Claude, Gemini, and Codex all see identical context.
+A per-project Obsidian-style knowledge base with a `[[wikilink]]` graph — inject any file into a prompt, CLI-agnostically. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Vault — Obsidian-style file-based knowledge with a link graph" width="800">
@@ -91,15 +91,15 @@ An Obsidian-style, file-based knowledge vault per project. CLITrigger auto-scans
 </div>
 
 #### Favorites Launcher
-Register frequently-used external tools (executables, shell commands, URLs / folders) in the sidebar for one-click launch from anywhere — less context-switching to the OS shell for environment setup, IDE launches, or external services.
+One-click launcher for your frequent external tools (executables, commands, URLs) from the sidebar. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#favorites-launcher)
 
 ### 🤖 Delegate to AI
 
 #### Parallel Worktree Execution (Tasks)
-Each TODO automatically gets its own git worktree, with Claude / Gemini / Codex CLIs executing in parallel. Dependency chains auto-trigger follow-up tasks and merges once prerequisites complete; a per-project toggle plus per-TODO override (inherit / force-worktree / force-main) give fine-grained control, and main-branch tasks are serialized to avoid conflicts.
+Every TODO runs in its own git worktree with Claude / Gemini / Codex in parallel, plus dependency chains and merge control. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#parallel-worktree-execution)
 
 #### Interactive Sessions
-Long-lived Claude / Gemini / Codex sessions in floating windows with **VS Code-style docking** — drag-to-split / merge, edge snapping, minimize-to-tray, and pop-out to a **separate OS window** (the session list flags it with a one-click recall). Real terminal rendering via **xterm.js**, per-session wiki injection and font size, and a Send/Skip pre-flight banner to review the initial prompt; window layout persists, and it works on desktop and mobile.
+Long-lived CLI sessions in floating windows with VS Code-style docking, pop-out, and real xterm.js terminals. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#interactive-sessions)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Sessions — Multi-CLI floating windows with VS Code-style docking" width="800">
@@ -107,7 +107,7 @@ Long-lived Claude / Gemini / Codex sessions in floating windows with **VS Code-s
 </div>
 
 #### Multi-Agent Discussion
-AI agents with different roles — architect, developer, reviewer — debate in rounds before implementation, producing a far more robust design than a single AI working alone. Implementer agents can commit code, auto-implement triggers the code-writing round on consensus, and **Send to Planner** distills a finished discussion into curated planner items.
+Architect / developer / reviewer agents debate before implementing, then commit code or send action items to the planner. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-agent-discussion)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
@@ -115,7 +115,7 @@ AI agents with different roles — architect, developer, reviewer — debate in 
 </div>
 
 #### Scheduled Execution
-Schedule tasks for off-peak hours to avoid rate limits — recurring cron schedules, one-time runs, and auto-recovery that reschedules a retry for the exact reset time when a CLI hits its token quota.
+Run tasks on cron or one-off schedules, with auto-retry at the exact rate-limit reset time. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#scheduled-execution)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
@@ -123,15 +123,15 @@ Schedule tasks for off-peak hours to avoid rate limits — recurring cron schedu
 </div>
 
 #### Multi-CLI & Sandbox Mode
-Select Claude / Gemini / Codex per project, per TODO, or per discussion agent. Strict sandbox mode confines CLI file access to the worktree using each CLI's native sandboxing.
+Pick Claude / Gemini / Codex per project, TODO, or agent; strict sandbox confines file access to the worktree. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-cli--sandbox-mode)
 
 ### 🔍 Review & Ship
 
 #### Morning Review Queue
-A single cross-project triage screen for the "delegate overnight, review next morning" loop — every recent TODO as a card stack with summary, token totals, diff stats, and a risk badge. Keyboard-only operation (`j`/`k` navigate, `m` merge, `d` discard) turns N todos into O(N) keypresses, with a time-window selector and filter chips.
+Triage every overnight TODO across projects in one keyboard-driven card stack — navigate, merge, or discard in a keypress. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
 
 #### Built-in Git Client
-A full Fork / SourceTree-style Git client inside the web UI — **File Status** (staged/unstaged diffs, commit + push) and **History** (commit graph, worktree list, branch context menu with checkout / merge / rebase / pull / push). Non-ASCII filenames (Korean, CJK, emoji) render correctly.
+A Fork / SourceTree-style Git client in the browser — stage, commit, push, and manage branches and diffs. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
@@ -139,7 +139,7 @@ A full Fork / SourceTree-style Git client inside the web UI — **File Status** 
 </div>
 
 #### Analytics
-Per-project cost and execution stats via Recharts — stacked bars by CLI tool, a status-distribution donut, and cost / token trend lines.
+Per-project cost and execution stats — by CLI, by status, and over time. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#analytics)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics — Execution stats" width="800">
@@ -147,12 +147,12 @@ Per-project cost and execution stats via Recharts — stacked bars by CLI tool, 
 </div>
 
 #### Live Logs (Chat & Raw)
-WebSocket real-time log streaming in two modes — Chat renders assistant messages as markdown with collapsible tool-use rows, Raw is a flat terminal view. Multi-round continue reuses the same worktree.
+Real-time WebSocket log streaming in Chat (markdown) or Raw (terminal) mode. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#live-logs)
 
 ### 🌐 Access Anywhere
 
 #### Remote Access
-Access and control from anywhere via Cloudflare Tunnel, with browser notifications when tasks or discussions complete. Route a named tunnel through your own domain to sidestep the "dangerous site" warnings on `*.trycloudflare.com` / `*.cfargotunnel.com`.
+Reach CLITrigger from anywhere via Cloudflare Tunnel, with completion notifications and custom-domain routing. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Remote-Access)
 
 ---
 
