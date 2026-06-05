@@ -15,7 +15,7 @@ import {
   createPlannerItem,
   updatePlannerItem,
 } from '../db/queries.js';
-import { jiraMyself, jiraSearch, type JiraConn } from '../lib/jira-client.js';
+import { jiraMyself, jiraSearch, jiraStatuses, type JiraConn } from '../lib/jira-client.js';
 import { cleanupPersonalImages } from './images.js';
 
 const router = Router();
@@ -29,6 +29,7 @@ interface AgendaJira {
   assignee_me?: boolean;   // default true: only issues assigned to me
   include_done?: boolean;  // default false: exclude Done issues
   projects?: string;       // comma/space-separated project keys, e.g. "ABC DEF"
+  statuses?: string[];     // exact status names to import; empty = fall back to include_done
   extra_jql?: string;      // advanced: raw JQL fragment, AND-ed in
 }
 
@@ -38,6 +39,19 @@ function readJira(): AgendaJira {
 function jiraConn(j: AgendaJira): JiraConn | null {
   if (!j.enabled || !j.base_url || !j.email || !j.api_token) return null;
   return { baseUrl: j.base_url, email: j.email, apiToken: j.api_token };
+}
+
+// Issue keys the user has hidden from the agenda. Fetched issues are filtered
+// against this so dismissed ones never reappear on the next refresh.
+const JIRA_DISMISS_KEY = 'agenda.jira.dismissed';
+function readDismissed(): string[] {
+  try {
+    const v = JSON.parse(getAppSetting(JIRA_DISMISS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
+  } catch { return []; }
+}
+function writeDismissed(keys: string[]): void {
+  setAppSetting(JIRA_DISMISS_KEY, JSON.stringify([...new Set(keys)]));
 }
 
 // ── Personal items CRUD (global, no project, no execution) ─────────────────
@@ -52,15 +66,20 @@ router.get('/personal-items', (_req: Request, res: Response) => {
 
 router.post('/personal-items', (req: Request, res: Response) => {
   try {
-    const { title, description, due_at, all_day, priority, tags } = req.body ?? {};
+    const { title, description, start_at, end_at, priority, tags } = req.body ?? {};
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({ error: 'title is required' });
     }
+    const start = typeof start_at === 'string' && start_at ? start_at.slice(0, 10) : null;
+    // No end (or end before start) → single-day memo on the start date.
+    const end = start
+      ? (typeof end_at === 'string' && end_at && end_at.slice(0, 10) >= start ? end_at.slice(0, 10) : start)
+      : null;
     const item = createPersonalItem(
       title.trim(),
       typeof description === 'string' ? description : undefined,
-      due_at ?? null,
-      all_day === 0 ? 0 : 1,
+      start,
+      end,
       Number.isFinite(priority) ? priority : 0,
       tags != null ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
     );
@@ -74,12 +93,19 @@ router.put('/personal-items/:id', (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     if (!getPersonalItemById(id)) return res.status(404).json({ error: 'not found' });
-    const { title, description, due_at, all_day, status, priority, tags } = req.body ?? {};
+    const { title, description, start_at, end_at, status, priority, tags } = req.body ?? {};
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = String(title);
     if (description !== undefined) updates.description = description;
-    if (due_at !== undefined) updates.due_at = due_at;
-    if (all_day !== undefined) updates.all_day = all_day ? 1 : 0;
+    // start_at/end_at travel together from the form; normalize as a pair.
+    if (start_at !== undefined || end_at !== undefined) {
+      const s = typeof start_at === 'string' && start_at ? start_at.slice(0, 10) : null;
+      const e = s
+        ? (typeof end_at === 'string' && end_at && end_at.slice(0, 10) >= s ? end_at.slice(0, 10) : s)
+        : null;
+      updates.start_at = s;
+      updates.end_at = e;
+    }
     if (status !== undefined) updates.status = status;
     if (priority !== undefined) updates.priority = priority;
     if (tags !== undefined) updates.tags = tags != null ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null;
@@ -100,8 +126,8 @@ router.delete('/personal-items/:id', (req: Request, res: Response) => {
   }
 });
 
-// Bulk-delete personal memos for cleanup. Dated memos are matched by [from, to]
-// (inclusive, on the date part of due_at); undated backlog memos are only
+// Bulk-delete personal memos for cleanup. Dated memos are matched when their
+// [start_at, end_at] range overlaps [from, to]; undated backlog memos are only
 // touched when include_backlog is set; done_only restricts to completed memos.
 router.post('/personal-items/bulk-delete', (req: Request, res: Response) => {
   try {
@@ -109,12 +135,13 @@ router.post('/personal-items/bulk-delete', (req: Request, res: Response) => {
     const to = typeof req.body?.to === 'string' ? req.body.to.trim() : '';
     const doneOnly = !!req.body?.done_only;
     const includeBacklog = !!req.body?.include_backlog;
-    const matches = (p: { due_at: string | null; status: string }): boolean => {
+    const matches = (p: { start_at: string | null; end_at: string | null; status: string }): boolean => {
       if (doneOnly && p.status !== 'done') return false;
-      if (!p.due_at) return includeBacklog;
+      if (!p.start_at) return includeBacklog;
       if (!from || !to) return false;
-      const d = p.due_at.slice(0, 10);
-      return d >= from && d <= to;
+      const s = p.start_at.slice(0, 10);
+      const e = (p.end_at || p.start_at).slice(0, 10);
+      return s <= to && e >= from; // ranges overlap
     };
     const targets = getPersonalItems().filter(matches);
     for (const p of targets) {
@@ -138,7 +165,7 @@ router.post('/personal-items/:id/move-to-planner', (req: Request, res: Response)
     const projectId = String(req.body?.project_id ?? '');
     if (!projectId || !getProjectById(projectId)) return res.status(400).json({ error: 'invalid project_id' });
 
-    const dueDate = item.due_at ? item.due_at.slice(0, 10) : undefined;
+    const dueDate = item.start_at ? item.start_at.slice(0, 10) : undefined;
     const created = createPlannerItem(
       projectId,
       item.title,
@@ -188,7 +215,14 @@ router.get('/agenda', (req: Request, res: Response) => {
       return true;
     };
 
-    const personal = getPersonalItems().filter((p) => p.due_at && inRange(p.due_at));
+    const personal = getPersonalItems().filter((p) => {
+      if (!p.start_at) return false;
+      const s = p.start_at.slice(0, 10);
+      const e = (p.end_at || p.start_at).slice(0, 10);
+      if (from && e < from) return false; // ends before window
+      if (to && s > to) return false;     // starts after window
+      return true;
+    });
     const schedules = getAllUpcomingSchedules().filter((s) => inRange(s.at));
     const planner = getAllPlannerDueItems().filter((p) => inRange(p.due_date));
 
@@ -208,6 +242,7 @@ function jiraConfigResponse(j: AgendaJira) {
     assignee_me: j.assignee_me !== false, // default true
     include_done: !!j.include_done,
     projects: j.projects || '',
+    statuses: Array.isArray(j.statuses) ? j.statuses : [],
     extra_jql: j.extra_jql || '',
   };
 }
@@ -218,7 +253,7 @@ router.get('/agenda/jira-config', (_req: Request, res: Response) => {
 
 router.put('/agenda/jira-config', (req: Request, res: Response) => {
   try {
-    const { enabled, base_url, email, api_token, assignee_me, include_done, projects, extra_jql } = req.body ?? {};
+    const { enabled, base_url, email, api_token, assignee_me, include_done, projects, statuses, extra_jql } = req.body ?? {};
     const cur = readJira();
     const next: AgendaJira = {
       enabled: !!enabled,
@@ -229,6 +264,9 @@ router.put('/agenda/jira-config', (req: Request, res: Response) => {
       assignee_me: assignee_me === undefined ? cur.assignee_me : !!assignee_me,
       include_done: include_done === undefined ? cur.include_done : !!include_done,
       projects: typeof projects === 'string' ? projects.trim() : cur.projects,
+      statuses: Array.isArray(statuses)
+        ? statuses.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        : cur.statuses,
       extra_jql: typeof extra_jql === 'string' ? extra_jql.trim() : cur.extra_jql,
     };
     setAppSetting(JIRA_KEY, JSON.stringify(next));
@@ -249,6 +287,35 @@ router.get('/agenda/jira-test', async (_req: Request, res: Response) => {
   }
 });
 
+// Available workflow statuses, for the import-criteria status picker.
+router.get('/agenda/jira/statuses', async (_req: Request, res: Response) => {
+  const conn = jiraConn(readJira());
+  if (!conn) return res.status(400).json({ error: 'not configured', statuses: [] });
+  try {
+    res.json({ statuses: await jiraStatuses(conn) });
+  } catch (err: unknown) {
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Unknown error', statuses: [] });
+  }
+});
+
+// Hidden issue keys — managed purely on our side; never touches Jira.
+router.get('/agenda/jira/dismissed', (_req: Request, res: Response) => {
+  res.json({ keys: readDismissed() });
+});
+router.post('/agenda/jira/dismiss', (req: Request, res: Response) => {
+  const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+  if (!key) return res.status(400).json({ error: 'key required', keys: readDismissed() });
+  const keys = readDismissed();
+  if (!keys.includes(key)) keys.push(key);
+  writeDismissed(keys);
+  res.json({ keys });
+});
+router.post('/agenda/jira/undismiss', (req: Request, res: Response) => {
+  const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+  writeDismissed(readDismissed().filter((k) => k !== key));
+  res.json({ keys: readDismissed() });
+});
+
 // Assigned-to-me open issues: due-dated ones in [from, to] plus ones with no
 // due date (so they can be listed even when the calendar can't place them).
 router.get('/agenda/jira', async (req: Request, res: Response) => {
@@ -267,7 +334,14 @@ router.get('/agenda/jira', async (req: Request, res: Response) => {
   // so they can be listed even when the calendar can't place them.
   const parts: string[] = [];
   if (j.assignee_me !== false) parts.push('assignee = currentUser()');
-  if (!j.include_done) parts.push('statusCategory != Done');
+  // Explicit status selection wins over the include_done category filter.
+  const selStatuses = Array.isArray(j.statuses) ? j.statuses.filter((s) => s && s.trim()) : [];
+  if (selStatuses.length) {
+    const names = selStatuses.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(', ');
+    parts.push(`status in (${names})`);
+  } else if (!j.include_done) {
+    parts.push('statusCategory != Done');
+  }
   if (j.projects && j.projects.trim()) {
     const keys = j.projects.split(/[,\s]+/).filter(Boolean).map((k) => `"${k}"`).join(', ');
     if (keys) parts.push(`project in (${keys})`);
@@ -278,16 +352,19 @@ router.get('/agenda/jira', async (req: Request, res: Response) => {
   try {
     const data = await jiraSearch(conn, jql, 'summary,status,duedate', 100);
     const base = conn.baseUrl.replace(/\/+$/, '');
-    const issues = data.issues.map((i) => {
-      const f = i.fields as { summary?: string; duedate?: string | null; status?: { name?: string } };
-      return {
-        key: i.key,
-        summary: f.summary || i.key,
-        status: f.status?.name || '',
-        duedate: f.duedate || null,
-        url: `${base}/browse/${i.key}`,
-      };
-    });
+    const dismissed = new Set(readDismissed());
+    const issues = data.issues
+      .filter((i) => !dismissed.has(i.key))
+      .map((i) => {
+        const f = i.fields as { summary?: string; duedate?: string | null; status?: { name?: string } };
+        return {
+          key: i.key,
+          summary: f.summary || i.key,
+          status: f.status?.name || '',
+          duedate: f.duedate || null,
+          url: `${base}/browse/${i.key}`,
+        };
+      });
     res.json({ issues });
   } catch (err: unknown) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Unknown error', issues: [] });
@@ -300,11 +377,12 @@ router.post('/agenda/jira/import', (req: Request, res: Response) => {
     const { key, summary, duedate, url } = req.body ?? {};
     if (typeof summary !== 'string' || !summary.trim()) return res.status(400).json({ error: 'summary is required' });
     const desc = url ? String(url) : (key ? String(key) : undefined);
+    const due = typeof duedate === 'string' && duedate ? duedate.slice(0, 10) : null;
     const item = createPersonalItem(
       summary.trim(),
       desc,
-      typeof duedate === 'string' && duedate ? duedate : null,
-      1,
+      due,
+      due,
       0,
       JSON.stringify(['jira', ...(key ? [String(key)] : [])]),
     );

@@ -1834,8 +1834,8 @@ export interface PersonalItem {
   id: string;
   title: string;
   description: string | null;
-  due_at: string | null;
-  all_day: number;
+  start_at: string | null; // date YYYY-MM-DD; NULL = undated backlog memo
+  end_at: string | null;   // date YYYY-MM-DD; defaults to start_at (single day)
   status: string;
   priority: number;
   tags: string | null;
@@ -1847,8 +1847,8 @@ export interface PersonalItem {
 export function createPersonalItem(
   title: string,
   description?: string,
-  dueAt?: string | null,
-  allDay = 1,
+  startAt?: string | null,
+  endAt?: string | null,
   priority = 0,
   tags?: string | null,
 ): PersonalItem {
@@ -1856,15 +1856,15 @@ export function createPersonalItem(
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO personal_items (id, title, description, due_at, all_day, status, priority, tags, created_at, updated_at)
+    `INSERT INTO personal_items (id, title, description, start_at, end_at, status, priority, tags, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`
-  ).run(id, title, description ?? null, dueAt ?? null, allDay, priority, tags ?? null, now, now);
+  ).run(id, title, description ?? null, startAt ?? null, endAt ?? null, priority, tags ?? null, now, now);
   return getPersonalItemById(id)!;
 }
 
 export function getPersonalItems(): PersonalItem[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM personal_items ORDER BY due_at IS NULL, due_at ASC, priority DESC, created_at ASC').all() as PersonalItem[];
+  return db.prepare('SELECT * FROM personal_items ORDER BY start_at IS NULL, start_at ASC, priority DESC, created_at ASC').all() as PersonalItem[];
 }
 
 export function getPersonalItemById(id: string): PersonalItem | undefined {
@@ -1874,15 +1874,15 @@ export function getPersonalItemById(id: string): PersonalItem | undefined {
 
 export function updatePersonalItem(
   id: string,
-  updates: Partial<Pick<PersonalItem, 'title' | 'description' | 'due_at' | 'all_day' | 'status' | 'priority' | 'tags' | 'images'>>,
+  updates: Partial<Pick<PersonalItem, 'title' | 'description' | 'start_at' | 'end_at' | 'status' | 'priority' | 'tags' | 'images'>>,
 ): PersonalItem | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
   if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
   if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
-  if (updates.due_at !== undefined) { fields.push('due_at = ?'); values.push(updates.due_at); }
-  if (updates.all_day !== undefined) { fields.push('all_day = ?'); values.push(updates.all_day); }
+  if (updates.start_at !== undefined) { fields.push('start_at = ?'); values.push(updates.start_at); }
+  if (updates.end_at !== undefined) { fields.push('end_at = ?'); values.push(updates.end_at); }
   if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
   if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority); }
   if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }

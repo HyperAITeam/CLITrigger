@@ -19,7 +19,7 @@
 [![npm](https://img.shields.io/npm/v/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
 [![npm downloads](https://img.shields.io/npm/dm/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
 [![npm total downloads](https://img.shields.io/npm/dt/clitrigger.svg)](https://www.npmjs.com/package/clitrigger)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 [![GitHub stars](https://img.shields.io/github/stars/HyperAITeam/CLITrigger.svg?style=social)](https://github.com/HyperAITeam/CLITrigger/stargazers)
@@ -204,10 +204,10 @@ clitrigger config port 8080    # 포트 변경
 clitrigger config tunnel on    # 외부 공유용 Cloudflare 터널 활성화
 ```
 
-> **사전 요구사항**: Node.js 20+, Git, 사용할 AI CLI (Claude / Gemini / Codex 중 하나 이상)
+> **사전 요구사항**: Node.js 22+ (**LTS** 버전 권장), Git, 사용할 AI CLI (Claude / Gemini / Codex 중 하나 이상)
 >
 > **지원 플랫폼**: Windows · macOS · Linux — 모든 핵심 코드가 크로스 플랫폼 대응되어 있다.
-> macOS에서는 네이티브 모듈 빌드를 위해 `xcode-select --install`이 필요할 수 있다.
+> Node.js는 **LTS(짝수 버전)** 를 권장한다. 갓 출시된 최신 메이저(홀수/방금 나온 버전)는 네이티브 모듈의 prebuilt 바이너리가 아직 없어, 소스 빌드를 강제하며 C++ 빌드 도구(Windows는 Visual Studio Build Tools, macOS는 `xcode-select --install`)가 필요할 수 있다.
 
 ### 소스에서 직접 실행 (개발용)
 
