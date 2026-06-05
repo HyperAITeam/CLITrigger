@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Minus } from 'lucide-react';
+import { X, Minus, ExternalLink } from 'lucide-react';
 import LayoutNodeView from './group/LayoutNodeView';
 import StackView from './group/StackView';
 import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
@@ -186,14 +186,13 @@ export default function SessionWindow({
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
     const onVis = () => { if (document.hidden) onAbort(); };
 
-    // Single-stack groups can pop themselves out as separate OS windows
-    // when dragged outside the main window's bounds. Only the single-stack
-    // chrome (which has `detectDock=true`) is eligible — split-root chrome
-    // skips this because the popout page doesn't render multi-stack layouts
-    // in Phase 1. We guard with a closure flag so the gesture completes
-    // its abort path exactly once.
+    // Any group (single-stack or split) can pop itself out as a separate OS
+    // window when dragged outside the main window's bounds. The split-root
+    // chrome drags with `detectDock=false`, but tear-out only relies on screen
+    // coords (not the dock-detection pointerEvents trick), so it works for both.
+    // We guard with a closure flag so the gesture completes its abort path once.
     let tornOut = false;
-    const canTearOut = detectDock && group.root.kind === 'stack';
+    const canTearOut = true;
     const onMove = (ev: MouseEvent) => {
       if (tornOut) return;
       if (canTearOut) {
@@ -547,6 +546,16 @@ export default function SessionWindow({
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {groupLabel}
             </span>
+            <button
+              data-no-drag
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => api.popOutGroup(group.id)}
+              style={closeBtnStyle}
+              aria-label="pop-out"
+              title={t('session.popOut') || 'Pop out to separate window'}
+            >
+              <ExternalLink size={14} />
+            </button>
             <button
               data-no-drag
               onClick={() => api.minimizeGroup(group.id)}

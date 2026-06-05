@@ -981,13 +981,9 @@ export default function SessionWindowsHost({
   const popOutGroup = useCallback((groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => {
     const group = groupsRef.current.find(g => g.id === groupId);
     if (!group) return;
-    // Phase 1 limitation: only single-stack groups can pop out. Split-root
-    // groups would need PopoutPage to render the full layout tree which is
-    // deferred. Surface a notice and bail rather than silently doing nothing.
-    if (group.root.kind !== 'stack') {
-      window.alert(t('session.popout.splitNotSupported') || 'Only single-stack groups can pop out in this version.');
-      return;
-    }
+    // Both single-stack and split-root groups can pop out: PopoutPage renders
+    // the full layout tree (LayoutNodeView for splits), and the handoff/return
+    // protocol carries the whole OpenGroup so the layout round-trips intact.
     const popoutId = newPopoutId();
     const handoffPayload: OpenGroup = { ...group, ownerWindowId: popoutId };
     handoffCacheRef.current.set(groupId, handoffPayload);
