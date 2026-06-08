@@ -33,7 +33,6 @@ const DEFAULT_EXCLUDES = [
   'dist',
   'build',
   '.worktrees',
-  '.clitrigger',
   'out',
   '.next',
   '.nuxt',

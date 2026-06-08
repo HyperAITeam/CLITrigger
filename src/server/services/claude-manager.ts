@@ -1,11 +1,37 @@
 import { spawn, ChildProcess } from 'child_process';
 import { Readable, Writable } from 'stream';
+import fs from 'fs';
+import path from 'path';
+import { createRequire } from 'module';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
+
+// node-pty ships its macOS/Linux `spawn-helper` as a prebuilt binary. Some npm
+// extractions drop the executable bit, so `pty.fork` fails with
+// "posix_spawnp failed." and every session shows a blank terminal. Restore +x
+// once before the first spawn — self-healing covers --ignore-scripts installs
+// and bits lost on reinstall. No-op on Windows (no spawn-helper).
+let ptyHelperEnsured = false;
+function ensurePtyHelperExecutable(): void {
+  if (ptyHelperEnsured) return;
+  ptyHelperEnsured = true;
+  if (process.platform === 'win32') return;
+  try {
+    const require = createRequire(import.meta.url);
+    const prebuildsDir = path.join(path.dirname(require.resolve('node-pty/package.json')), 'prebuilds');
+    for (const name of fs.readdirSync(prebuildsDir)) {
+      const helper = path.join(prebuildsDir, name, 'spawn-helper');
+      try {
+        const st = fs.statSync(helper);
+        if (!(st.mode & 0o111)) fs.chmodSync(helper, st.mode | 0o111);
+      } catch { /* not present for this arch */ }
+    }
+  } catch { /* best-effort; manual chmod is the fallback */ }
+}
 
 interface ManagedProcess {
   kill(signal?: string): void;
@@ -140,6 +166,7 @@ export class ClaudeManager {
 
       let ptyProcess: pty.IPty;
       try {
+        ensurePtyHelperExecutable();
         // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd)
         const ptyCommand = process.platform === 'win32' ? 'cmd.exe' : command;
         const ptyArgs = process.platform === 'win32' ? ['/c', command, ...args] : args;
