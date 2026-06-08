@@ -87,3 +87,54 @@ export function newPopoutId(): string {
 // any group whose popout owner hasn't beaten in DEAD_MS.
 export const HEARTBEAT_MS = 5000;
 export const HEARTBEAT_TIMEOUT_MS = 15000;
+
+// ── Web Locks liveness ──────────────────────────────────────────────────────
+// BroadcastChannel heartbeats are subject to Chromium's intensive timer
+// throttling: a popout backgrounded for >5min has its setInterval slowed to
+// ~once/min, blowing past HEARTBEAT_TIMEOUT_MS so main wrongly reclaims a
+// perfectly-alive window. The Web Locks API is NOT throttled — a popout holds
+// an exclusive lock for its whole lifetime and the browser releases it ONLY on
+// real close/crash. Main probes navigator.locks.query() before reclaiming a
+// timed-out popout: if the lock is still held, the popout is alive (just
+// throttled) and we skip the reclaim. Same-origin windows share the lock
+// namespace, so main and its popouts see each other's locks.
+const LOCK_PREFIX = 'clitrigger:popout-alive:';
+
+export function popoutLockName(popoutId: string): string {
+  return `${LOCK_PREFIX}${popoutId}`;
+}
+
+export function webLocksAvailable(): boolean {
+  return typeof navigator !== 'undefined'
+    && !!navigator.locks
+    && typeof navigator.locks.query === 'function';
+}
+
+// Acquire the popout's liveness lock and hold it until the returned function is
+// called (or the window/tab is closed/crashed, which auto-releases it). The
+// held promise never resolves on its own; releasing happens via the resolver.
+export function holdPopoutLock(popoutId: string): () => void {
+  if (!webLocksAvailable()) return () => { /* unsupported → heartbeat-only */ };
+  let release = () => { /* set below once the lock is granted */ };
+  // request() resolves when the callback's promise settles, so we keep that
+  // promise pending and expose its resolver as the release handle.
+  navigator.locks.request(popoutLockName(popoutId), () => new Promise<void>((resolve) => {
+    release = resolve;
+  })).catch(() => { /* lock contention/abort → fall back to heartbeat */ });
+  return () => release();
+}
+
+// Names of currently-held popout liveness locks, stripped back to popoutIds.
+export async function heldPopoutIds(): Promise<Set<string>> {
+  if (!webLocksAvailable()) return new Set();
+  try {
+    const state = await navigator.locks.query();
+    const ids = new Set<string>();
+    for (const lock of state.held ?? []) {
+      if (lock.name?.startsWith(LOCK_PREFIX)) ids.add(lock.name.slice(LOCK_PREFIX.length));
+    }
+    return ids;
+  } catch {
+    return new Set();
+  }
+}

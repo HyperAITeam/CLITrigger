@@ -36,6 +36,7 @@ import {
   openBus,
   MAIN_WINDOW_ID,
   newPopoutId,
+  heldPopoutIds,
   HEARTBEAT_MS,
   HEARTBEAT_TIMEOUT_MS,
   type BusMessage,
@@ -1241,12 +1242,25 @@ export default function SessionWindowsHost({
   // Runs every HEARTBEAT_MS. Also a grace period for the very-first popout
   // mount: we seed last-seen=now in popOutGroup before opening the window.
   useEffect(() => {
-    const tick = setInterval(() => {
+    const tick = async () => {
       const now = Date.now();
-      const dead: string[] = [];
+      const candidates: string[] = [];
       for (const [pid, last] of alivePopoutsRef.current.entries()) {
-        if (now - last > HEARTBEAT_TIMEOUT_MS) dead.push(pid);
+        if (now - last > HEARTBEAT_TIMEOUT_MS) candidates.push(pid);
       }
+      if (candidates.length === 0) return;
+      // A missed heartbeat may just be Chromium intensive throttling (a popout
+      // backgrounded >5min beats only ~once/min). Confirm death via Web Locks,
+      // which throttling does not affect: any candidate still holding its lock
+      // is alive — refresh its clock and spare it from reclaim.
+      const held = await heldPopoutIds();
+      const dead = candidates.filter((pid) => {
+        if (held.has(pid)) {
+          alivePopoutsRef.current.set(pid, now);
+          return false;
+        }
+        return true;
+      });
       if (dead.length === 0) return;
       for (const pid of dead) alivePopoutsRef.current.delete(pid);
       // Clear cached handoff payloads for groups whose owner just died.
@@ -1284,8 +1298,9 @@ export default function SessionWindowsHost({
           ? { ...g, ownerWindowId: MAIN_WINDOW_ID }
           : g,
       ));
-    }, HEARTBEAT_MS);
-    return () => clearInterval(tick);
+    };
+    const timer = setInterval(() => { void tick(); }, HEARTBEAT_MS);
+    return () => clearInterval(timer);
   }, []);
 
   const api = useMemo<SessionWindowsAPI>(() => ({
