@@ -25,6 +25,7 @@ import * as sessionsApi from '../../api/sessions';
 import { useI18n } from '../../i18n';
 import {
   openBus,
+  holdPopoutLock,
   HEARTBEAT_MS,
   type BusMessage,
 } from './popoutBus';
@@ -159,6 +160,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     });
     bus.post({ t: 'hello', from: popoutId, groupId });
 
+    // Hold a Web Lock for this window's lifetime. Unlike the heartbeat below,
+    // it is immune to background timer throttling — main checks it before
+    // reclaiming us, so a backgrounded-but-alive popout is never pulled back.
+    // Released automatically on real close/crash, or by releaseLock() on unmount.
+    const releaseLock = holdPopoutLock(popoutId);
+
     const beat = setInterval(() => {
       const g = groupRef.current;
       bus.post({ t: 'heartbeat', from: popoutId, ownedGroupIds: g ? [g.id] : [groupId] });
@@ -183,6 +190,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
 
     return () => {
       clearInterval(beat);
+      releaseLock();
       window.removeEventListener('beforeunload', onBeforeUnload);
       unsub();
       bus.close();
