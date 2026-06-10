@@ -9,20 +9,18 @@ import { useI18n } from '../i18n';
 interface ScheduleListProps {
   schedules: Schedule[];
   projectCliTool?: string;
-  projectCliModel?: string;
   onAddSchedule: (data: {
     title: string;
     description: string;
     cronExpression: string;
     cliTool?: string;
-    cliModel?: string;
     skipIfRunning?: boolean;
     scheduleType: 'recurring' | 'once';
     runAt?: string;
   }) => Promise<void>;
   onToggleSchedule: (id: string, activate: boolean) => Promise<void>;
   onDeleteSchedule: (id: string) => Promise<void>;
-  onEditSchedule: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
+  onEditSchedule: (id: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; skip_if_running?: boolean; schedule_type?: string; run_at?: string }) => Promise<void>;
   onTriggerSchedule: (id: string) => Promise<void>;
   onMergeRun?: (todoId: string) => Promise<void>;
   onCleanupRun?: (todoId: string) => Promise<void>;
@@ -31,7 +29,6 @@ interface ScheduleListProps {
 export default function ScheduleList({
   schedules,
   projectCliTool,
-  projectCliModel,
   onAddSchedule,
   onToggleSchedule,
   onDeleteSchedule,
@@ -64,7 +61,6 @@ export default function ScheduleList({
         <div className="mb-5 animate-slide-up">
           <ScheduleForm
             projectCliTool={projectCliTool}
-            projectCliModel={projectCliModel}
             onSave={async (data) => {
               await onAddSchedule(data);
               setShowForm(false);

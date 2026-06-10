@@ -1,14 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import Modal from './Modal';
 import type { Project, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
 import { getCliStatus, refreshCliStatus, type CliToolStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, type CliTool, isModelDeprecated } from '../cli-tools';
-import { useModels } from '../hooks/useModels';
-import ModelSettings from './ModelSettings';
+import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
@@ -17,115 +14,6 @@ interface ProjectHeaderProps {
   project: Project;
   todos: Todo[];
   onProjectUpdate: (project: Project) => void;
-}
-
-interface DeprecatedModelBadgeProps {
-  model: string;
-  onOpenSettings: () => void;
-}
-
-function DeprecatedModelBadge({ model, onOpenSettings }: DeprecatedModelBadgeProps) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [positioned, setPositioned] = useState(false);
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const popRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  const updatePos = useCallback(() => {
-    if (!anchorRef.current) return;
-    const r = anchorRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const pop = popRef.current;
-    const pw = pop?.offsetWidth ?? 320;
-    const ph = pop?.offsetHeight ?? 200;
-    let top = r.bottom + 6;
-    let left = r.left;
-    if (left + pw > vw - 8) left = vw - 8 - pw;
-    if (left < 8) left = 8;
-    if (top + ph > vh - 8) top = r.top - ph - 6;
-    if (top < 8) top = 8;
-    setPos({ top, left });
-    setPositioned(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open) { setPositioned(false); return; }
-    updatePos();
-    const raf = requestAnimationFrame(updatePos);
-    window.addEventListener('scroll', updatePos, true);
-    window.addEventListener('resize', updatePos);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', updatePos, true);
-      window.removeEventListener('resize', updatePos);
-    };
-  }, [open, updatePos]);
-
-  return (
-    <>
-      <span
-        ref={anchorRef}
-        className="badge bg-status-warning/15 text-status-warning inline-flex items-center gap-1 cursor-help"
-        tabIndex={0}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-      >
-        <AlertTriangle size={10} />
-        {t('header.modelDeprecated') || 'Model deprecated'}
-      </span>
-      {open && createPortal(
-        <div
-          ref={popRef}
-          role="tooltip"
-          className="fixed w-80 p-3 rounded-lg shadow-elevated text-xs leading-relaxed z-tooltip"
-          style={{
-            top: pos.top,
-            left: pos.left,
-            opacity: positioned ? 1 : 0,
-            backgroundColor: 'var(--color-bg-card)',
-            borderColor: 'var(--color-border)',
-            borderWidth: '1px',
-            color: 'var(--color-text-primary)',
-          }}
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-        >
-          <div className="flex items-center gap-1.5 font-semibold text-status-warning mb-1.5 flex-wrap">
-            <AlertTriangle size={12} />
-            {t('header.modelDeprecatedTitle')}
-            <code className="ml-1 px-1 py-0.5 rounded text-[10px] font-mono" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-              {model}
-            </code>
-          </div>
-          <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('header.modelDeprecatedReason')}
-          </p>
-          <div className="font-semibold mb-1">{t('header.modelDeprecatedFixHeading')}</div>
-          <ul className="list-disc pl-4 space-y-0.5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-            <li>{t('header.modelDeprecatedFix1')}</li>
-            <li>{t('header.modelDeprecatedFix2')}</li>
-            <li>{t('header.modelDeprecatedFix3')}</li>
-          </ul>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onOpenSettings();
-              setOpen(false);
-            }}
-            className="btn-primary text-xs px-2.5 py-1"
-          >
-            {t('header.modelDeprecatedOpenSettings')}
-          </button>
-        </div>,
-        document.body
-      )}
-    </>
-  );
 }
 
 export default function ProjectHeader({ project, todos, onProjectUpdate }: ProjectHeaderProps) {
@@ -139,7 +27,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
   const [maxConcurrent, setMaxConcurrent] = useState(project.max_concurrent ?? 3);
   const [defaultMaxTurns, setDefaultMaxTurns] = useState(project.default_max_turns ?? 30);
   const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
-  const [claudeModel, setClaudeModel] = useState(project.claude_model ?? '');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
@@ -185,42 +72,24 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
     });
   }, [project.id]);
 
-  const { getToolConfig, refresh: refreshModelList } = useModels();
-
   // Fetch CLI tool installation status when settings panel opens.
-  // The status call also triggers server-side model reconciliation if the
-  // installed CLI version has changed since last sync, so refresh the cached
-  // model list afterwards to reflect any newly discovered / deprecated models.
   useEffect(() => {
     if (!showSettings) return;
     getCliStatus()
-      .then((statuses) => {
-        setCliStatuses(statuses);
-        refreshModelList();
-      })
+      .then((statuses) => setCliStatuses(statuses))
       .catch(() => {})
       .finally(() => setCliStatusLoaded(true));
-  }, [showSettings, refreshModelList]);
+  }, [showSettings]);
 
   const currentCliStatus = cliStatuses.find((s) => s.tool === cliTool);
 
   const handleRefreshCliStatus = useCallback(() => {
     setCliStatusLoaded(false);
     refreshCliStatus()
-      .then((statuses) => {
-        setCliStatuses(statuses);
-        refreshModelList();
-      })
+      .then((statuses) => setCliStatuses(statuses))
       .catch(() => {})
       .finally(() => setCliStatusLoaded(true));
-  }, [refreshModelList]);
-
-  const handleCliToolChange = (newTool: CliTool) => {
-    setCliTool(newTool);
-    setClaudeModel(''); // Reset model when tool changes
-  };
-
-  const toolConfig = getToolConfig(cliTool);
+  }, []);
 
   const handleCheckGit = useCallback(async () => {
     setCheckingGit(true);
@@ -254,7 +123,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
         memory_auto_ingest: memoryAutoIngest ? 1 : 0,
         svn_enabled: svnEnabled ? 1 : 0,
         show_token_usage: showTokenUsage ? 1 : 0,
-        claude_model: claudeModel || null,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
         // Keep legacy columns in sync for backward compatibility
@@ -386,15 +254,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
             <span className="badge bg-warm-200/60 text-warm-600">
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
-            {project.claude_model && isModelDeprecated((project.cli_tool as CliTool) || 'claude', project.claude_model) && (
-              <DeprecatedModelBadge
-                model={project.claude_model}
-                onOpenSettings={() => {
-                  setSettingsSection('execution');
-                  setShowSettings(true);
-                }}
-              />
-            )}
           </div>
 
           {/* Compact progress */}
@@ -477,7 +336,7 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               </label>
               <select
                 value={cliTool}
-                onChange={(e) => handleCliToolChange(e.target.value as CliTool)}
+                onChange={(e) => setCliTool(e.target.value as CliTool)}
                 className="input-field"
               >
                 {CLI_TOOLS.map((tool) => (
@@ -530,21 +389,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
                   </div>
                 </div>
               )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-warm-500 mb-2">
-                {t('header.aiModel')}
-              </label>
-              <select
-                value={claudeModel}
-                onChange={(e) => setClaudeModel(e.target.value)}
-                className="input-field"
-              >
-                {toolConfig.models.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
             </div>
 
             <div>
@@ -807,9 +651,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               />
             </div>
           ))}
-
-          {/* Model Management */}
-          <ModelSettings />
           </>
           )}
 

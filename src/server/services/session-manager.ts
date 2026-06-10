@@ -143,7 +143,9 @@ export class SessionManager {
     }
 
     const adapter = getAdapter(cliTool);
-    const cliModel = session.cli_model || project.claude_model || undefined;
+    // Model selection was removed — always the CLI's default model; legacy
+    // session.cli_model / project.claude_model values are ignored.
+    const cliModel = undefined;
     let prompt = session.description || '';
 
     // Inject long-term memory if configured for this session. Mirrors the

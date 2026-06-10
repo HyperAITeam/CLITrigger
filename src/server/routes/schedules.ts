@@ -16,7 +16,9 @@ router.post('/projects/:id/schedules', (req: Request<{ id: string }>, res: Respo
       return;
     }
 
-    const { title, description, cron_expression, cli_tool, cli_model, skip_if_running, schedule_type, run_at } = req.body;
+    // cli_model is no longer accepted — model selection was removed and
+    // execution always uses the CLI's default model.
+    const { title, description, cron_expression, cli_tool, skip_if_running, schedule_type, run_at } = req.body;
     const isOnce = schedule_type === 'once';
 
     if (!title) {
@@ -43,7 +45,7 @@ router.post('/projects/:id/schedules', (req: Request<{ id: string }>, res: Respo
     const schedule = queries.createSchedule(
       req.params.id, title, description,
       isOnce ? '* * * * *' : cron_expression,
-      cli_tool, cli_model,
+      cli_tool, undefined,
       skip_if_running !== undefined ? (skip_if_running ? 1 : 0) : 1,
       isOnce ? 'once' : 'recurring',
       isOnce ? run_at : undefined
@@ -104,7 +106,7 @@ router.put('/schedules/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, cron_expression, cli_tool, cli_model, skip_if_running, schedule_type, run_at } = req.body;
+    const { title, description, cron_expression, cli_tool, skip_if_running, schedule_type, run_at } = req.body;
     const effectiveType = schedule_type ?? existing.schedule_type;
     const isOnce = effectiveType === 'once';
 
@@ -124,7 +126,6 @@ router.put('/schedules/:id', (req: Request<{ id: string }>, res: Response) => {
       updates.cron_expression = cron_expression;
     }
     if (cli_tool !== undefined) updates.cli_tool = cli_tool;
-    if (cli_model !== undefined) updates.cli_model = cli_model;
     if (skip_if_running !== undefined) updates.skip_if_running = skip_if_running ? 1 : 0;
 
     const schedule = queries.updateSchedule(req.params.id, updates);
@@ -253,7 +254,7 @@ router.post('/todos/:id/schedule', (req: Request<{ id: string }>, res: Response)
       todo.description ?? undefined,
       '* * * * *',
       todo.cli_tool ?? undefined,
-      todo.cli_model ?? undefined,
+      undefined,
       1,
       'once',
       run_at
@@ -311,7 +312,7 @@ router.post('/todos/:id/schedule-on-reset', (req: Request<{ id: string }>, res: 
       prompt,
       '* * * * *',  // placeholder cron (not used for once type)
       todo.cli_tool ?? undefined,
-      todo.cli_model ?? undefined,
+      undefined,
       1,  // skip_if_running
       'once',
       runAt,

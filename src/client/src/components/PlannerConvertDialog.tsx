@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
-import { useModels } from '../hooks/useModels';
 import type { PlannerItem } from '../types';
 import Modal from './Modal';
 
@@ -10,18 +9,15 @@ interface PlannerConvertDialogProps {
   item: PlannerItem;
   mode: ConvertMode;
   projectCliTool?: string;
-  projectCliModel?: string;
   onConvert: (data: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 }
 
 export default function PlannerConvertDialog({
-  item, mode, projectCliTool, projectCliModel, onConvert, onClose,
+  item, mode, projectCliTool, onConvert, onClose,
 }: PlannerConvertDialogProps) {
   const { t } = useI18n();
-  const { getToolConfig } = useModels();
   const [cliTool, setCliTool] = useState(projectCliTool || 'claude');
-  const [cliModel, setCliModel] = useState(projectCliModel || '');
   const [maxTurns, setMaxTurns] = useState('');
   const [useWorktree, setUseWorktree] = useState(false);
   const [scheduleType, setScheduleType] = useState<'once' | 'recurring'>('once');
@@ -29,25 +25,22 @@ export default function PlannerConvertDialog({
   const [runAt, setRunAt] = useState('');
   const [converting, setConverting] = useState(false);
 
-  const toolConfig = getToolConfig(cliTool as 'claude' | 'gemini' | 'codex');
-  const models = toolConfig?.models ?? [];
-
   const handleConvert = async () => {
     setConverting(true);
     try {
       if (mode === 'todo') {
         await onConvert({
-          cli_tool: cliTool, cli_model: cliModel || undefined,
+          cli_tool: cliTool,
           max_turns: maxTurns ? Number(maxTurns) : undefined,
         });
       } else if (mode === 'session') {
         await onConvert({
-          cli_tool: cliTool, cli_model: cliModel || undefined,
+          cli_tool: cliTool,
           use_worktree: useWorktree,
         });
       } else {
         await onConvert({
-          cli_tool: cliTool, cli_model: cliModel || undefined,
+          cli_tool: cliTool,
           schedule_type: scheduleType,
           cron_expression: scheduleType === 'recurring' ? cronExpression : undefined,
           run_at: scheduleType === 'once' ? runAt : undefined,
@@ -70,21 +63,10 @@ export default function PlannerConvertDialog({
         {/* CLI Tool */}
         <div className="mb-3">
           <label className="text-xs font-medium text-warm-500 mb-1.5 block">{t('plannerConvert.cliTool')}</label>
-          <select className="input-field text-xs w-full" value={cliTool} onChange={(e) => { setCliTool(e.target.value); setCliModel(''); }}>
+          <select className="input-field text-xs w-full" value={cliTool} onChange={(e) => setCliTool(e.target.value)}>
             <option value="claude">Claude</option>
             <option value="gemini">Gemini</option>
             <option value="codex">Codex</option>
-          </select>
-        </div>
-
-        {/* Model */}
-        <div className="mb-3">
-          <label className="text-xs font-medium text-warm-500 mb-1.5 block">{t('plannerConvert.model')}</label>
-          <select className="input-field text-xs w-full" value={cliModel} onChange={(e) => setCliModel(e.target.value)}>
-            <option value="">{t('plannerConvert.projectDefault')}</option>
-            {models.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
           </select>
         </div>
 

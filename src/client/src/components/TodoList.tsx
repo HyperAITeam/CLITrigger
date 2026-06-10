@@ -22,16 +22,15 @@ interface TodoListProps {
   todos: Todo[];
   projectId?: string;
   projectCliTool?: string;
-  projectCliModel?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
-  onAddTodo: (title: string, description: string, cliTool?: string, cliModel?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  onAddTodo: (title: string, description: string, cliTool?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
   onStartAll: () => void;
   onStopAll: () => void;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onMergeChain?: (rootTodoId: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
@@ -68,7 +67,6 @@ export default function TodoList({
   todos,
   projectId,
   projectCliTool,
-  projectCliModel,
   projectIsGitRepo,
   projectUseWorktree,
   onAddTodo,
@@ -392,7 +390,6 @@ export default function TodoList({
           todos={todos}
           projectId={projectId}
           projectCliTool={projectCliTool}
-          projectCliModel={projectCliModel}
           projectIsGitRepo={projectIsGitRepo}
           projectUseWorktree={projectUseWorktree}
           onAddTodo={onAddTodo}
@@ -479,12 +476,11 @@ export default function TodoList({
           <TodoForm
             projectId={projectId}
             projectCliTool={projectCliTool}
-            projectCliModel={projectCliModel}
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
-              await onAddTodo(title, description, cliTool, cliModel, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
+            onSave={async (title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
+              await onAddTodo(title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

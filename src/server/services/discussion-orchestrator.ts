@@ -288,7 +288,9 @@ export class DiscussionOrchestrator {
     }
 
     const cliTool = (agent?.cli_tool || project.cli_tool || 'claude') as CliTool;
-    const cliModel = agent?.cli_model || project.claude_model || undefined;
+    // Model selection was removed — always the CLI's default model; legacy
+    // agent.cli_model / project.claude_model values are ignored.
+    const cliModel = undefined;
     const cliOptions = project.claude_options || undefined;
     const DEFAULT_MAX_TURNS = 30;
     const maxTurns = (isImplementation || canImplement) ? (project.default_max_turns ?? DEFAULT_MAX_TURNS) : 10;

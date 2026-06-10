@@ -39,7 +39,7 @@ export function deletePlannerItem(id: string): Promise<void> {
 
 export function convertToTodo(
   id: string,
-  data: { cli_tool?: string; cli_model?: string; max_turns?: number }
+  data: { cli_tool?: string; max_turns?: number }
 ): Promise<{ plannerItem: PlannerItem; todo: Todo }> {
   return post(`/api/planner/${id}/convert-to-todo`, data);
 }
@@ -58,14 +58,14 @@ export function getPlannerImageUrl(plannerItemId: string, imageId: string): stri
 
 export function convertToSchedule(
   id: string,
-  data: { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string; cli_model?: string }
+  data: { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string }
 ): Promise<{ plannerItem: PlannerItem; schedule: Schedule }> {
   return post(`/api/planner/${id}/convert-to-schedule`, data);
 }
 
 export function convertToSession(
   id: string,
-  data: { cli_tool?: string; cli_model?: string; use_worktree?: boolean }
+  data: { cli_tool?: string; use_worktree?: boolean }
 ): Promise<{ plannerItem: PlannerItem; session: Session }> {
   return post(`/api/planner/${id}/convert-to-session`, data);
 }

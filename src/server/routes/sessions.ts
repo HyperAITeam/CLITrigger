@@ -39,7 +39,9 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const { title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id } = req.body;
+    // cli_model is no longer accepted — model selection was removed and
+    // execution always uses the CLI's default model.
+    const { title, description, cli_tool, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id } = req.body;
     const trimmedTitle = typeof title === 'string' ? title.trim() : '';
     const finalTitle = trimmedTitle || `Session ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
     let normalizedTagId: string | null = null;
@@ -66,7 +68,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       finalTitle,
       description?.trim() || undefined,
       cli_tool || undefined,
-      cli_model || undefined,
+      undefined,
       !!use_worktree,
       normalizedMemMode,
       normalizedMemIds,
@@ -125,7 +127,7 @@ router.put('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const allowed = ['title', 'description', 'cli_tool', 'cli_model', 'use_worktree'] as const;
+    const allowed = ['title', 'description', 'cli_tool', 'use_worktree'] as const;
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
