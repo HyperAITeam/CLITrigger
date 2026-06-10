@@ -34,6 +34,11 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
   const [svnEnabled, setSvnEnabled] = useState(!!project.svn_enabled);
+  // True when the project folder is detected as an SVN working copy. Drives
+  // the SVN settings tab — shown for any SVN working copy regardless of git
+  // presence (a folder can be both), or when SVN is already enabled so the
+  // user can always reach the off switch.
+  const [svnDetected, setSvnDetected] = useState(false);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
@@ -79,6 +84,16 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
       .catch(() => {})
       .finally(() => setCliStatusLoaded(true));
   }, [showSettings]);
+
+  // Detect whether the folder is an SVN working copy when settings open.
+  useEffect(() => {
+    if (!showSettings) return;
+    projectsApi.detectSvn(project.id)
+      .then((r) => setSvnDetected(r.isSvnRepository))
+      .catch(() => { /* tab stays hidden unless already enabled */ });
+  }, [showSettings, project.id]);
+
+  const showSvnTab = svnDetected || !!project.svn_enabled;
 
   const currentCliStatus = cliStatuses.find((s) => s.tool === cliTool);
 
@@ -278,6 +293,7 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               { key: 'execution', label: t('header.execConfig') },
               { key: 'harness', label: t('tabs.harness') },
               { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
+              ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
             ].map((s) => (
               <button
                 key={s.key}
@@ -589,23 +605,26 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
             </label>
           </div>
 
-          {/* SVN (opt-in per project, default off) */}
-          {!project.is_git_repo && (
-            <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-              <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.svnTitle')}</h4>
-              <p className="text-2xs text-warm-500 mb-3">{t('header.svnHint')}</p>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={svnEnabled}
-                  onChange={(e) => setSvnEnabled(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-xs text-warm-600">{t('header.svnEnable')}</span>
-              </label>
-            </div>
-          )}
           </>
+          )}
+
+          {settingsSection === 'svn' && (
+          /* SVN (opt-in per project, default off). Tab is visible whenever
+             the folder is an SVN working copy — git presence is irrelevant,
+             a checkout can be both. */
+          <div className="p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.svnTitle')}</h4>
+            <p className="text-2xs text-warm-500 mb-3">{t('header.svnHint')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={svnEnabled}
+                onChange={(e) => setSvnEnabled(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-xs text-warm-600">{t('header.svnEnable')}</span>
+            </label>
+          </div>
           )}
 
           {settingsSection === 'harness' && (
