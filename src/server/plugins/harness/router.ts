@@ -148,6 +148,99 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
+  // PUT /:projectId/:cli/local-memory — CLAUDE.local.md (Claude only).
+  router.put('/:projectId/:cli/local-memory', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.writeLocalMemory) {
+      res.status(400).json({ error: `${req.params.cli} does not support a local memory file` });
+      return;
+    }
+    const body = req.body as { content?: unknown } | undefined;
+    if (!body || typeof body.content !== 'string') {
+      res.status(400).json({ error: 'Body must include string "content"' });
+      return;
+    }
+    try {
+      await adapter.writeLocalMemory(projectPath, body.content);
+      res.json({ ok: true });
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
+  // PUT /:projectId/:cli/hooks — replace the hooks block in settings.json
+  // (Claude only). Body: { hooks: object } or { hooks: null } to remove.
+  router.put('/:projectId/:cli/hooks', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.writeHooks) {
+      res.status(400).json({ error: `${req.params.cli} does not support hooks` });
+      return;
+    }
+    const body = req.body as { hooks?: unknown } | undefined;
+    const hooks = body?.hooks;
+    const isValid = hooks === null || (typeof hooks === 'object' && hooks !== null && !Array.isArray(hooks));
+    if (!body || !isValid) {
+      res.status(400).json({ error: 'Body must include "hooks" as an object or null' });
+      return;
+    }
+    try {
+      await adapter.writeHooks(projectPath, hooks as Record<string, unknown> | null);
+      const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
+  // PUT /:projectId/:cli/skills/:name — write .claude/skills/<name>/SKILL.md
+  // (Claude only).
+  router.put('/:projectId/:cli/skills/:name', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.writeSkill) {
+      res.status(400).json({ error: `${req.params.cli} does not support skills` });
+      return;
+    }
+    const body = req.body as { content?: unknown } | undefined;
+    if (!body || typeof body.content !== 'string') {
+      res.status(400).json({ error: 'Body must include string "content"' });
+      return;
+    }
+    try {
+      await adapter.writeSkill(projectPath, req.params.name, body.content);
+      const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
   router.get('/:projectId/:cli/mcp', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {

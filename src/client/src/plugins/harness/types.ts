@@ -23,6 +23,16 @@ export interface HarnessFilePaths {
   settings: string;
   memory: string;
   mcp?: string;
+  // Claude only: CLAUDE.local.md alongside CLAUDE.md.
+  localMemory?: string;
+}
+
+// A project-scoped skill: .claude/skills/<name>/SKILL.md (Claude only).
+export interface HarnessSkill {
+  name: string;
+  description?: string;
+  path: string;
+  content: string;
 }
 
 export interface HarnessSnapshot {
@@ -33,4 +43,9 @@ export interface HarnessSnapshot {
   memory: string;
   mcp: McpServer[];
   warnings: string[];
+  // Claude only — undefined for CLIs without these conventions.
+  localMemory?: string;
+  localMemoryExists?: boolean;
+  hooks?: Record<string, unknown>;
+  skills?: HarnessSkill[];
 }

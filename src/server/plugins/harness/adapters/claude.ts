@@ -1,6 +1,7 @@
 import {
   safeJoin,
   exists,
+  listSubdirectories,
   readJsonOrEmpty,
   readTextOrEmpty,
   atomicWriteJson,
@@ -8,11 +9,12 @@ import {
   deepMerge,
   pruneUndefined,
 } from '../io.js';
-import type { HarnessAdapter, HarnessSettings, HarnessSnapshot, McpServer } from '../types.js';
+import type { HarnessAdapter, HarnessSettings, HarnessSkill, HarnessSnapshot, McpServer } from '../types.js';
 
 interface ClaudeSettingsRaw {
   model?: string;
   permissions?: { defaultMode?: string;[k: string]: unknown };
+  hooks?: Record<string, unknown>;
   [k: string]: unknown;
 }
 
@@ -40,6 +42,36 @@ function mcpPath(projectPath: string): string {
 
 function memoryPath(projectPath: string): string {
   return safeJoin(projectPath, 'CLAUDE.md');
+}
+
+function localMemoryPath(projectPath: string): string {
+  return safeJoin(projectPath, 'CLAUDE.local.md');
+}
+
+function skillsDir(projectPath: string): string {
+  return safeJoin(projectPath, '.claude', 'skills');
+}
+
+// Pull `description:` out of the SKILL.md frontmatter for list rendering.
+// Best-effort: a missing/garbled frontmatter just yields no description.
+function parseSkillDescription(content: string): string | undefined {
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return undefined;
+  const desc = fm[1].match(/^description:\s*(.+)$/m);
+  return desc ? desc[1].trim() : undefined;
+}
+
+async function readSkills(projectPath: string): Promise<HarnessSkill[]> {
+  const dir = skillsDir(projectPath);
+  const names = await listSubdirectories(dir);
+  const skills: HarnessSkill[] = [];
+  for (const name of names) {
+    const filePath = safeJoin(projectPath, '.claude', 'skills', name, 'SKILL.md');
+    const content = await readTextOrEmpty(filePath);
+    if (!content) continue;
+    skills.push({ name, description: parseSkillDescription(content), path: filePath, content });
+  }
+  return skills;
 }
 
 function fromMcpEntry(alias: string, entry: ClaudeMcpEntry): McpServer {
@@ -78,10 +110,13 @@ export const claudeHarnessAdapter: HarnessAdapter = {
     const sp = settingsPath(projectPath);
     const mp = mcpPath(projectPath);
     const memp = memoryPath(projectPath);
+    const localMemp = localMemoryPath(projectPath);
 
     const settingsRaw = await readJsonOrEmpty<ClaudeSettingsRaw>(sp);
     const mcpFile = await readJsonOrEmpty<ClaudeMcpFile>(mp);
     const memory = await readTextOrEmpty(memp);
+    const localMemory = await readTextOrEmpty(localMemp);
+    const skills = await readSkills(projectPath);
 
     const settings: HarnessSettings = {
       model: settingsRaw.model,
@@ -95,15 +130,20 @@ export const claudeHarnessAdapter: HarnessAdapter = {
     const settingsExists = await exists(sp);
     const memoryExists = await exists(memp);
     const mcpExists = await exists(mp);
+    const localMemoryExists = await exists(localMemp);
 
     const snapshot: HarnessSnapshot = {
       cli: 'claude',
       exists: settingsExists || memoryExists || mcpExists,
-      filePaths: { settings: sp, memory: memp, mcp: mp },
+      filePaths: { settings: sp, memory: memp, mcp: mp, localMemory: localMemp },
       settings,
       memory,
       mcp,
       warnings: [],
+      localMemory,
+      localMemoryExists,
+      hooks: settingsRaw.hooks,
+      skills,
     };
     return snapshot;
   },
@@ -124,6 +164,30 @@ export const claudeHarnessAdapter: HarnessAdapter = {
 
   async writeMemory(projectPath, content) {
     await atomicWriteText(memoryPath(projectPath), content);
+  },
+
+  async writeLocalMemory(projectPath, content) {
+    await atomicWriteText(localMemoryPath(projectPath), content);
+  },
+
+  async writeHooks(projectPath, hooks) {
+    const sp = settingsPath(projectPath);
+    const existing = await readJsonOrEmpty<ClaudeSettingsRaw>(sp);
+    // Replace the hooks block wholesale (a merge can't express deletions);
+    // null removes the key entirely. The rest of settings.json is preserved.
+    const next: ClaudeSettingsRaw = { ...existing };
+    if (hooks === null) {
+      delete next.hooks;
+    } else {
+      next.hooks = hooks;
+    }
+    await atomicWriteJson(sp, next);
+  },
+
+  async writeSkill(projectPath, name, content) {
+    // safeJoin rejects names that escape the skills directory ("../" etc.).
+    const filePath = safeJoin(projectPath, '.claude', 'skills', name, 'SKILL.md');
+    await atomicWriteText(filePath, content);
   },
 
   async upsertMcp(projectPath, server) {

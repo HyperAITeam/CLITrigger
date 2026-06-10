@@ -28,6 +28,15 @@ export async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+export async function listSubdirectories(dirPath: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  } catch {
+    return [];
+  }
+}
+
 export async function readTextOrEmpty(filePath: string): Promise<string> {
   try {
     return await fs.readFile(filePath, 'utf8');
