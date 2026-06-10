@@ -113,6 +113,9 @@
   "build": {
     "appId": "com.clitrigger.app",
     "productName": "CLITrigger",
+    "extraMetadata": {
+      "description": "CLITrigger"
+    },
     "directories": {
       "output": "release"
     },
