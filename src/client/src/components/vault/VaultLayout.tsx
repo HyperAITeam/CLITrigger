@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n';
 import { useVaultState, type LeftPanelId, type RightPanelId } from './vault-state';
 import { Resizer } from './Resizer';
 import { SidebarRail, type PanelDef } from './SidebarRail';
-import { getVaultGraph, type VaultFile, type VaultEdge } from '../../api/vault';
+import { getVaultGraph, getVaultIgnore, saveVaultIgnore, type VaultFile, type VaultEdge } from '../../api/vault';
 import { FileExplorerPanel } from './panels/FileExplorerPanel';
 import { SearchPanel } from './panels/SearchPanel';
 import { TagsPanel } from './panels/TagsPanel';
@@ -14,11 +14,20 @@ import { BacklinksPanel } from './panels/BacklinksPanel';
 import { OutgoingLinksPanel } from './panels/OutgoingLinksPanel';
 import { CenterEditor } from './CenterEditor';
 import { VaultIgnoreModal } from './VaultIgnoreModal';
+import { VaultOnboardingModal } from './VaultOnboardingModal';
 import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 
 interface Props {
   projectId: string;
 }
+
+// Written by the onboarding "ignore everything" choice. The unhide flow
+// (right-click → "볼트에 다시 보이기") appends gitignore negations on top.
+const IGNORE_ALL_TEMPLATE = `# CLITrigger Vault — 전부 숨김으로 시작
+# 파일 탐색기에서 우클릭 → "볼트에 다시 보이기"로 필요한 문서만 해제하세요.
+# gitignore 문법(*, **, ! 제외 패턴)을 그대로 사용합니다.
+*
+`;
 
 export default function VaultLayout({ projectId }: Props) {
   const { t } = useI18n();
@@ -37,7 +46,58 @@ export default function VaultLayout({ projectId }: Props) {
       .finally(() => setVaultLoading(false));
   }, [projectId]);
 
-  useEffect(() => { reloadVault(); }, [reloadVault]);
+  // ── First-visit onboarding gate ───────────────────────────────────────────
+  // Large projects choke on the initial scan + force-directed graph, so the
+  // vault doesn't render (or scan) until the user has been offered an
+  // "ignore everything" .vaultignore start. Skipped when the project already
+  // has a non-empty .vaultignore or the choice was made before.
+  const onboardKey = `vault:onboarded:${projectId}`;
+  const [ready, setReady] = useState(() => {
+    try { return localStorage.getItem(onboardKey) === '1'; } catch { return true; }
+  });
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardSaving, setOnboardSaving] = useState(false);
+
+  const markOnboarded = useCallback(() => {
+    try { localStorage.setItem(onboardKey, '1'); } catch { /* ignore */ }
+  }, [onboardKey]);
+
+  useEffect(() => {
+    if (ready) { reloadVault(); return; }
+    let cancelled = false;
+    getVaultIgnore(projectId)
+      .then(({ content }) => {
+        if (cancelled) return;
+        if (content.trim()) {
+          // Already configured (by hand or on another machine) — no tutorial.
+          markOnboarded();
+          setReady(true);
+        } else {
+          setShowOnboarding(true);
+        }
+      })
+      .catch(() => { if (!cancelled) { markOnboarded(); setReady(true); } });
+    return () => { cancelled = true; };
+  }, [ready, projectId, reloadVault, markOnboarded]);
+
+  const finishOnboarding = useCallback(() => {
+    markOnboarded();
+    setShowOnboarding(false);
+    setReady(true); // remounts the panels below; the gate effect then loads the graph
+  }, [markOnboarded]);
+
+  const handleOnboardIgnoreAll = useCallback(async () => {
+    setOnboardSaving(true);
+    try {
+      await saveVaultIgnore(projectId, IGNORE_ALL_TEMPLATE);
+      // Pre-enable the explorer's hidden-files toggle so the freshly ignored
+      // (dimmed) files are visible for right-click → unhide. Must happen
+      // before the panels mount — the toggle is read in a useState initializer.
+      try { localStorage.setItem(`vault:fileExplorer:${projectId}:showHidden`, '1'); } catch { /* ignore */ }
+    } catch { /* write failed — proceed unfiltered rather than blocking */ }
+    setOnboardSaving(false);
+    finishOnboarding();
+  }, [projectId, finishOnboarding]);
 
   // Ctrl/Cmd + wheel → Vault font zoom. React onWheel is passive by default
   // so we attach natively with passive:false to preventDefault the browser's
@@ -155,6 +215,25 @@ export default function VaultLayout({ projectId }: Props) {
       ),
     },
   ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading]);
+
+  // Hold off the entire vault (scan + panels + graph) until the onboarding
+  // choice — that's the whole point: nothing heavy runs before the user has
+  // had the chance to start in ignore-everything mode. The panels then mount
+  // fresh and pick up the pre-set explorer showHidden toggle.
+  if (!ready) {
+    return (
+      <div className="flex h-[calc(100vh-220px)] min-h-[500px] items-center justify-center border border-warm-200 rounded-lg bg-[var(--color-bg-card)]">
+        <span className="text-xs text-warm-400">{showOnboarding ? '' : '볼트 준비 중…'}</span>
+        {showOnboarding && (
+          <VaultOnboardingModal
+            saving={onboardSaving}
+            onIgnoreAll={handleOnboardIgnoreAll}
+            onShowAll={finishOnboarding}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
