@@ -33,7 +33,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
   const [showTokenUsage, setShowTokenUsage] = useState(!!project.show_token_usage);
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
-  const [memoryAutoIngest, setMemoryAutoIngest] = useState(!!project.memory_auto_ingest);
   const [svnEnabled, setSvnEnabled] = useState(!!project.svn_enabled);
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -120,7 +119,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
         debug_logging: debugLogging ? 1 : 0,
         use_worktree: useWorktree ? 1 : 0,
         npm_auto_install: npmAutoInstall ? 1 : 0,
-        memory_auto_ingest: memoryAutoIngest ? 1 : 0,
         svn_enabled: svnEnabled ? 1 : 0,
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_options: claudeOptions || null,
@@ -278,7 +276,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
           <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {[
               { key: 'execution', label: t('header.execConfig') },
-              { key: 'workspace', label: t('header.workspaceConfig') },
               { key: 'harness', label: t('tabs.harness') },
               { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
             ].map((s) => (
@@ -591,27 +588,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               <span className="text-xs text-warm-600">{t('header.debugLoggingEnable')}</span>
             </label>
           </div>
-          </>
-          )}
-
-          {settingsSection === 'workspace' && (
-          <>
-          <p className="text-2xs text-warm-400 mb-4">{t('header.workspaceConfigHint')}</p>
-
-          {/* Memory Auto-Ingest */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <h4 className="text-sm font-semibold text-warm-700 mb-2">Memory</h4>
-            <p className="text-2xs text-warm-500 mb-3">{t('wiki.autoIngestHint')}</p>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={memoryAutoIngest}
-                onChange={(e) => setMemoryAutoIngest(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-xs text-warm-600">{t('wiki.autoIngest')}</span>
-            </label>
-          </div>
 
           {/* SVN (opt-in per project, default off) */}
           {!project.is_git_repo && (
@@ -629,7 +605,6 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
               </label>
             </div>
           )}
-
           </>
           )}
 
