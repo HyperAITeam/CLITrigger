@@ -7,14 +7,14 @@ export function getTodos(projectId: string): Promise<Todo[]> {
 
 export function createTodo(
   projectId: string,
-  data: { title: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string; max_turns?: number | null; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
+  data: { title: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string; max_turns?: number | null; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
 ): Promise<Todo> {
   return post(`/api/projects/${projectId}/todos`, data);
 }
 
 export function updateTodo(
   id: string,
-  data: { title?: string; description?: string; priority?: number; cli_tool?: string; cli_model?: string; depends_on?: string | null; max_turns?: number | null; position_x?: number; position_y?: number; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
+  data: { title?: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string | null; max_turns?: number | null; position_x?: number; position_y?: number; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
 ): Promise<Todo> {
   return put(`/api/todos/${id}`, data);
 }

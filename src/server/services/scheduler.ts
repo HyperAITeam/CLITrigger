@@ -130,7 +130,8 @@ export class Scheduler {
       schedule.description ?? undefined,
       0,
       schedule.cli_tool ?? undefined,
-      schedule.cli_model ?? undefined,
+      // Model selection was removed — legacy schedule.cli_model is ignored.
+      undefined,
       scheduleId,
     );
 

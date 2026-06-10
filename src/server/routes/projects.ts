@@ -337,7 +337,9 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, svn_enabled, color } = req.body;
+    // claude_model is no longer accepted — model selection was removed and
+    // execution always uses the CLI's default model.
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, svn_enabled, color } = req.body;
 
     // Handle SVN enable/disable transitions:
     //   off → on  : run detection now and set vcs_type='svn' if .svn/ found
@@ -354,16 +356,17 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     }
 
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, color,
+      name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
     });
 
-    const cliChanged =
-      (cli_tool !== undefined && cli_tool !== existing.cli_tool) ||
-      (claude_model !== undefined && claude_model !== existing.claude_model);
+    const cliChanged = cli_tool !== undefined && cli_tool !== existing.cli_tool;
 
     if (project && cliChanged) {
+      // Model args mirror the (now-immutable) stored value so the WHERE
+      // clause still matches rows carrying the legacy project default —
+      // only cli_tool is synced.
       syncProjectCliDefaults(
         req.params.id,
         existing.cli_tool ?? null,

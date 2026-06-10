@@ -3,7 +3,6 @@ import { Hammer, Pencil, Trash2, Users } from 'lucide-react';
 import type { DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
-import { useModels } from '../hooks/useModels';
 import * as discussionsApi from '../api/discussions';
 import EmptyState from './EmptyState';
 
@@ -61,18 +60,15 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
   const [role, setRole] = useState('developer');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [cliTool, setCliTool] = useState<CliTool | ''>('');
-  const [cliModel, setCliModel] = useState('');
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [canImplement, setCanImplement] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { getToolConfig } = useModels();
 
   const resetForm = () => {
     setName('');
     setRole('developer');
     setSystemPrompt('');
     setCliTool('');
-    setCliModel('');
     setAvatarColor(AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]);
     setCanImplement(false);
     setShowForm(false);
@@ -86,7 +82,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
       if (editingId) {
         const updated = await discussionsApi.updateAgent(editingId, {
           name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
-          cli_tool: cliTool || null, cli_model: cliModel || null,
+          cli_tool: cliTool || null,
           can_implement: canImplement,
         });
         onAgentsChange(agents.map((a) => (a.id === editingId ? updated : a)));
@@ -94,7 +90,6 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
         const created = await discussionsApi.createAgent(projectId, {
           name, role, system_prompt: systemPrompt, avatar_color: avatarColor,
           ...(cliTool ? { cli_tool: cliTool } : {}),
-          ...(cliModel ? { cli_model: cliModel } : {}),
           can_implement: canImplement,
         });
         onAgentsChange([...agents, created]);
@@ -111,7 +106,6 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
     setRole(agent.role);
     setSystemPrompt(agent.system_prompt);
     setCliTool((agent.cli_tool as CliTool) || '');
-    setCliModel(agent.cli_model || '');
     setAvatarColor(agent.avatar_color || AVATAR_COLORS[0]);
     setCanImplement(!!agent.can_implement);
     setShowForm(true);
@@ -174,7 +168,6 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
                 {agent.cli_tool && (
                   <span className="ml-1.5 text-warm-300">
                     · {CLI_TOOLS.find(t => t.value === agent.cli_tool)?.label || agent.cli_tool}
-                    {agent.cli_model ? ` / ${agent.cli_model}` : ''}
                   </span>
                 )}
               </div>
@@ -255,35 +248,19 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
             </p>
           </div>
 
-          {/* CLI Tool & Model */}
+          {/* CLI Tool */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-warm-500 mb-2">{t('agents.cliTool')}</label>
               <select
                 value={cliTool}
-                onChange={(e) => { setCliTool(e.target.value as CliTool | ''); setCliModel(''); }}
+                onChange={(e) => setCliTool(e.target.value as CliTool | '')}
                 className="input-field text-sm"
               >
                 <option value="">{lang === 'ko' ? '프로젝트 기본값 사용' : 'Use project default'}</option>
                 {CLI_TOOLS.map((tool) => (
                   <option key={tool.value} value={tool.value}>{tool.label}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-warm-500 mb-2">{t('agents.cliModel')}</label>
-              <select
-                value={cliModel}
-                onChange={(e) => setCliModel(e.target.value)}
-                className="input-field text-sm"
-                disabled={!cliTool}
-              >
-                {cliTool
-                  ? getToolConfig(cliTool).models.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))
-                  : <option value="">{lang === 'ko' ? '프로젝트 기본값 사용' : 'Use project default'}</option>
-                }
               </select>
             </div>
           </div>

@@ -352,10 +352,12 @@ router.post('/planner/:id/convert-to-todo', (req: Request<{ id: string }>, res: 
       return;
     }
 
-    const { cli_tool, cli_model, max_turns } = req.body;
+    // cli_model is no longer accepted — model selection was removed and
+    // execution always uses the CLI's default model.
+    const { cli_tool, max_turns } = req.body;
     const todo = queries.createTodo(
       item.project_id, item.title, item.description ?? undefined,
-      item.priority, cli_tool, cli_model, undefined, undefined, max_turns
+      item.priority, cli_tool, undefined, undefined, undefined, max_turns
     );
 
     // Copy planner images to todo
@@ -396,7 +398,7 @@ router.post('/planner/:id/convert-to-schedule', (req: Request<{ id: string }>, r
       return;
     }
 
-    const { cron_expression, schedule_type, run_at, cli_tool, cli_model } = req.body;
+    const { cron_expression, schedule_type, run_at, cli_tool } = req.body;
     const isOnce = schedule_type === 'once';
 
     if (isOnce && !run_at) {
@@ -411,7 +413,7 @@ router.post('/planner/:id/convert-to-schedule', (req: Request<{ id: string }>, r
     const schedule = queries.createSchedule(
       item.project_id, item.title, item.description ?? undefined,
       isOnce ? '* * * * *' : cron_expression,
-      cli_tool, cli_model, 1,
+      cli_tool, undefined, 1,
       isOnce ? 'once' : 'recurring',
       isOnce ? run_at : undefined
     );
@@ -440,10 +442,10 @@ router.post('/planner/:id/convert-to-session', (req: Request<{ id: string }>, re
       return;
     }
 
-    const { cli_tool, cli_model, use_worktree } = req.body;
+    const { cli_tool, use_worktree } = req.body;
     const session = queries.createSession(
       item.project_id, item.title, item.description ?? undefined,
-      cli_tool || undefined, cli_model || undefined, !!use_worktree,
+      cli_tool || undefined, undefined, !!use_worktree,
       'none', null, null, null
     );
 
