@@ -83,6 +83,11 @@ function wrapBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 export default function SessionTerminal({
   sessionId,
   isRunning,
@@ -138,6 +143,21 @@ export default function SessionTerminal({
   const [composingText, setComposingText] = useState('');
   const setComposingTextRef = useRef(setComposingText);
   setComposingTextRef.current = setComposingText;
+  // Thumbnail of the most recently pasted image, mirrored into a bottom-left
+  // overlay (same spot as the IME composition mirror). The CLI only renders
+  // an opaque `[Image #N]` token, so without this the user gets no visual
+  // confirmation of WHAT was just pasted. Cleared by a timer below.
+  const [pastedImage, setPastedImage] = useState<{ dataUrl: string; bytes: number } | null>(null);
+  const setPastedImageRef = useRef(setPastedImage);
+  setPastedImageRef.current = setPastedImage;
+
+  // Auto-dismiss the pasted-image preview. Keyed on the object identity so a
+  // second paste while the first preview is visible restarts the window.
+  useEffect(() => {
+    if (!pastedImage) return;
+    const t = setTimeout(() => setPastedImage(null), 3000);
+    return () => clearTimeout(t);
+  }, [pastedImage]);
 
   // useToast must be called from the component body, but pasteFromClipboard
   // lives inside the mount-only useEffect. Stash the dispatcher in a ref so
@@ -245,6 +265,7 @@ export default function SessionTerminal({
                 // ESC+v into the PTY in the same transaction (see paste-image
                 // route) so two concurrent paste-image requests can't race on
                 // the shared OS clipboard. We don't send ESC+v here.
+                setPastedImageRef.current({ dataUrl, bytes: blob.size });
                 pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
               };
               reader.readAsDataURL(blob);
@@ -480,9 +501,10 @@ export default function SessionTerminal({
     const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
     const isImagePasteDisabled = () => disableImagePasteRef.current;
     const onComposingChange = (text: string) => setComposingTextRef.current(text);
+    const onImagePasted = (dataUrl: string, bytes: number) => setPastedImageRef.current({ dataUrl, bytes });
     const inputCleanup = isMobileImeDevice()
       ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled })
-      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange });
+      : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange, onImagePasted });
 
     // Defer the fit to the next animation frame so the ResizeObserver
     // callback doesn't synchronously mutate layout (which can trigger a
@@ -676,9 +698,9 @@ export default function SessionTerminal({
         ref={containerRef}
         style={{ height: '100%', width: '100%' }}
       />
-      {composingText && (
-        // xterm doesn't paint composing text into the grid, so we mirror the
-        // compositionupdate string here. Bottom-left of the session window,
+      {(composingText || pastedImage) && (
+        // Bottom-left overlay stack: pasted-image thumbnail and the IME
+        // composition mirror share the corner without overlapping.
         // pointer-events: none so selection/click in the terminal still work.
         <div
           style={{
@@ -686,23 +708,61 @@ export default function SessionTerminal({
             left: 12,
             bottom: 12,
             maxWidth: 'calc(100% - 24px)',
-            padding: '3px 8px',
-            background: 'rgba(0,0,0,0.72)',
-            border: `1px solid ${CMD.separator}`,
-            borderRadius: 4,
-            fontFamily: CMD_FONT,
-            fontSize: Math.max(12, fontSize),
-            color: CMD.bright,
-            lineHeight: 1.3,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 6,
             zIndex: 2,
             pointerEvents: 'none',
-            whiteSpace: 'pre',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
           }}
         >
-          <span style={{ color: CMD.dim, marginRight: 6 }}>IME</span>
-          {composingText}
+          {pastedImage && (
+            // Thumbnail of the image that was just uploaded via paste — the
+            // CLI itself only shows `[Image #N]`, so this is the user's only
+            // visual confirmation of what got attached. Auto-dismissed by the
+            // 3s timer above.
+            <div
+              style={{
+                padding: 4,
+                background: 'rgba(0,0,0,0.72)',
+                border: `1px solid ${CMD.separator}`,
+                borderRadius: 4,
+                maxWidth: '100%',
+              }}
+            >
+              <img
+                src={pastedImage.dataUrl}
+                alt=""
+                style={{ display: 'block', maxWidth: 220, maxHeight: 140, borderRadius: 2 }}
+              />
+              <div style={{ fontFamily: CMD_FONT, fontSize: 11, color: CMD.dim, marginTop: 3 }}>
+                이미지 붙여넣음 · {formatBytes(pastedImage.bytes)}
+              </div>
+            </div>
+          )}
+          {composingText && (
+            // xterm doesn't paint composing text into the grid, so we mirror
+            // the compositionupdate string here.
+            <div
+              style={{
+                maxWidth: '100%',
+                padding: '3px 8px',
+                background: 'rgba(0,0,0,0.72)',
+                border: `1px solid ${CMD.separator}`,
+                borderRadius: 4,
+                fontFamily: CMD_FONT,
+                fontSize: Math.max(12, fontSize),
+                color: CMD.bright,
+                lineHeight: 1.3,
+                whiteSpace: 'pre',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <span style={{ color: CMD.dim, marginRight: 6 }}>IME</span>
+              {composingText}
+            </div>
+          )}
         </div>
       )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
@@ -796,6 +856,10 @@ interface InputSetupArgs {
   // session window can render it in a bottom-left overlay. Called with the
   // empty string to clear (compositionend / no in-flight composition).
   onComposingChange?: (text: string) => void;
+  // Fires when the paste-event fallback uploads a clipboard image, so the
+  // React layer can show the same bottom-left thumbnail preview as the
+  // clipboard.read() path.
+  onImagePasted?: (dataUrl: string, bytes: number) => void;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -946,7 +1010,7 @@ function backspaceComposer(c: HangulComposer): boolean {
   return true;
 }
 
-function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange }: InputSetupArgs): () => void {
+function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange, onImagePasted }: InputSetupArgs): () => void {
   let composing = false;
   const reportComposing = (text: string) => {
     try { onComposingChange?.(text); } catch { /* host setter may have torn down */ }
@@ -1037,6 +1101,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
             console.debug('[paste-fallback] image via paste event, bytes=', file.size);
             // Server injects ESC+v after writing the clipboard; see the
             // paste-image route. We don't send it from the client.
+            onImagePasted?.(dataUrl, file.size);
             pasteImage(sessionId, dataUrl, file.name).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
           };
           reader.readAsDataURL(file);
