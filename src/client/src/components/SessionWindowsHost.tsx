@@ -27,7 +27,7 @@ import {
   simplify,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
-import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
+import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from './group/DockOverlay';
 import * as sessionsApi from '../api/sessions';
 import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
@@ -38,6 +38,8 @@ import {
   MAIN_WINDOW_ID,
   newPopoutId,
   heldPopoutIds,
+  screenToClient,
+  isClientPointInWindow,
   HEARTBEAT_MS,
   HEARTBEAT_TIMEOUT_MS,
   type BusMessage,
@@ -1033,6 +1035,23 @@ export default function SessionWindowsHost({
   // the popout is gone.
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
   const alivePopoutsRef = useRef<Map<string, number>>(new Map());
+  // Cross-window drag-dock receiver: overlay + insertion target for a tab
+  // dragged over from a popout OS window (see popoutBus dock-* protocol).
+  const [remoteDock, setRemoteDock] = useState<{ rect: DockTargetRect; zone: DockSide | null; path: Path; groupId: string } | null>(null);
+  const remoteDockRef = useRef(remoteDock);
+  remoteDockRef.current = remoteDock;
+  const remoteDockClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Last focus time, reported in probe results so the sender can prefer the
+  // most recently focused (≈ topmost) window when several overlap the cursor.
+  const focusAtRef = useRef(typeof document !== 'undefined' && document.hasFocus() ? Date.now() : 0);
+  useEffect(() => {
+    const onFocus = () => { focusAtRef.current = Date.now(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+    };
+  }, []);
   // Cache of full OpenGroup payloads keyed by groupId, so we can answer a
   // popout's `hello` after we've already removed the group from React state.
   const handoffCacheRef = useRef<Map<string, OpenGroup>>(new Map());
@@ -1278,6 +1297,66 @@ export default function SessionWindowsHost({
         // patch into main's persisted state so a cold reload preserves it.
         const patch = msg.patch as Partial<OpenGroup>;
         setGroups((prev) => prev.map(g => g.id === msg.groupId ? { ...g, ...patch } : g));
+      } else if (msg.t === 'dock-probe') {
+        // A popout is dragging a tab across OS windows — report whether the
+        // cursor sits over one of our floating stacks and preview the zone.
+        if (document.visibilityState !== 'visible') return;
+        const p = screenToClient(msg.x, msg.y);
+        const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        if (hit) {
+          const prev = remoteDockRef.current;
+          if (!prev || prev.zone !== hit.zone || prev.groupId !== hit.groupId || prev.path.join('.') !== hit.path.join('.')) {
+            setRemoteDock({ rect: hit.rect, zone: hit.zone, path: hit.path, groupId: hit.groupId });
+          }
+          if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+          remoteDockClearTimerRef.current = setTimeout(() => setRemoteDock(null), 800);
+          bus.post({ t: 'dock-probe-result', from: MAIN_WINDOW_ID, to: msg.from, hit: true, focusAt: focusAtRef.current });
+        } else {
+          if (remoteDockRef.current) setRemoteDock(null);
+          bus.post({ t: 'dock-probe-result', from: MAIN_WINDOW_ID, to: msg.from, hit: false, focusAt: focusAtRef.current });
+        }
+      } else if (msg.t === 'dock-end') {
+        setRemoteDock(null);
+      } else if (msg.t === 'dock-commit' && msg.to === MAIN_WINDOW_ID) {
+        // Adopt the dragged session into the committed stack. Recompute the
+        // target at the commit coords; fall back to the last probed hover.
+        const p = screenToClient(msg.x, msg.y);
+        const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        const target = (hit && hit.zone) ? hit : (remoteDockRef.current?.zone ? remoteDockRef.current : null);
+        let accepted = false;
+        // Reject when the session is already open in some main group — a
+        // second copy would double-subscribe the same PTY binary stream.
+        if (target && target.zone && !findGroupBySessionId(groupsRef.current, msg.sessionId)) {
+          const dst = groupsRef.current.find(g => g.id === target.groupId);
+          const node = dst ? getNode(dst.root, target.path) : null;
+          if (dst && node && node.kind === 'stack') {
+            accepted = true;
+            const zone = target.zone;
+            const path = target.path;
+            zCounterRef.current += 1;
+            const z = zCounterRef.current;
+            setGroups(prev => prev.map(g => {
+              if (g.id !== dst.id) return g;
+              const inserted = zone === 'center'
+                ? insertIntoStack(g.root, path, msg.sessionId)
+                : insertAtSide(g.root, path, zone, makeStack([msg.sessionId]));
+              const root = treeSetActiveTab(inserted, msg.sessionId);
+              const colors = { ...g.colors };
+              if (!colors[msg.sessionId]) colors[msg.sessionId] = msg.color || assignColor(Object.values(colors));
+              const intents = {
+                ...g.intents,
+                [msg.sessionId]: (msg.intentInfo as { intent: WindowIntent; nonce: number } | undefined)
+                  ?? { intent: 'open' as WindowIntent, nonce: 0 },
+              };
+              return { ...g, root, colors, intents, z, minimized: false };
+            }));
+            // Cross-project sessions resolve through the foreign-session
+            // lookup (groups change retriggers it); same-project ids render
+            // straight from the sessions prop.
+          }
+        }
+        setRemoteDock(null);
+        bus.post({ t: 'dock-commit-ack', from: MAIN_WINDOW_ID, to: msg.from, sessionId: msg.sessionId, accepted });
       }
     };
     const unsub = bus.subscribe(onMsg);
@@ -1472,6 +1551,10 @@ export default function SessionWindowsHost({
       {/* Tab drag visual: dock overlay over hovered stack */}
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
+      )}
+      {/* Cross-window drag: a popout's tab hovering over one of our stacks */}
+      {remoteDock && (
+        <DockOverlay targetRect={remoteDock.rect} activeZone={remoteDock.zone} />
       )}
       </SessionWindowStateContext.Provider>
     </SessionWindowsContext.Provider>
