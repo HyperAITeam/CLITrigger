@@ -42,6 +42,29 @@ export function detectDockZone(
   return null;
 }
 
+// Hit-test the stack pane under a client point via the data-* attributes
+// StackView renders. Shared by the cross-window dock receivers (popout and
+// main); the local tab-drag flows keep their own inline versions — they need
+// self-stack exclusion rules this helper doesn't know about.
+export function hitTestStackAt(clientX: number, clientY: number): {
+  groupId: string;
+  path: number[];
+  rect: DockTargetRect;
+  zone: DockSide | null;
+} | null {
+  const els = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+  for (const node of els) {
+    const cand = node.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+    if (!cand) continue;
+    const pathStr = cand.dataset.stackPath || '';
+    const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
+    const r = cand.getBoundingClientRect();
+    const rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+    return { groupId: cand.dataset.groupId || '', path, rect, zone: detectDockZone(clientX, clientY, rect) };
+  }
+  return null;
+}
+
 export function dropPreviewRect(rect: DockTargetRect, zone: DockSide): DockTargetRect {
   const halfW = rect.w / 2;
   const halfH = rect.h / 2;

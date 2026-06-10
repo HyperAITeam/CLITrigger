@@ -25,6 +25,23 @@
 //   heartbeat       — owner → others, "still alive"
 //   bye             — popout beforeunload, force return
 //
+// Cross-window drag-dock (popout → popout / popout → main). DOM mouse events
+// can't cross OS windows, so once a tab drag leaves the source popout's
+// bounds it switches to a bus-mediated protocol driven by SCREEN coordinates
+// (mousemove keeps firing on the source window while the button is held,
+// even outside its bounds — the same capture behavior main's tear-out
+// already relies on):
+//   dock-probe        — source → all, cursor screen position while outside
+//   dock-probe-result — receiver → source, whether the point hits one of its
+//                       stacks, plus its last-focus time (arbitrates when
+//                       overlapping windows both report a hit)
+//   dock-commit       — source → chosen receiver on mouseup; carries the
+//                       session id + color/intent so the receiver can adopt
+//   dock-commit-ack   — receiver → source; only on accepted:true does the
+//                       source remove the tab from its own tree (the session
+//                       can never silently vanish on a dropped message)
+//   dock-end          — source → all, gesture over; receivers clear overlays
+//
 // OpenGroup is intentionally typed as `unknown` here to avoid pulling the
 // SessionWindowsHost.tsx import cycle into a low-level utility module.
 // Callers cast on receive.
@@ -41,7 +58,12 @@ export type BusMessage =
   | { t: 'group-recall'; popoutId: string; groupId: string }
   | { t: 'group-reclaimed'; popoutId: string; groupIds: string[]; reason: 'heartbeat-timeout' | 'late-return' }
   | { t: 'heartbeat'; from: string; ownedGroupIds: string[] }
-  | { t: 'bye'; from: string };
+  | { t: 'bye'; from: string }
+  | { t: 'dock-probe'; from: string; x: number; y: number }
+  | { t: 'dock-probe-result'; from: string; to: string; hit: boolean; focusAt: number }
+  | { t: 'dock-commit'; from: string; to: string; x: number; y: number; sessionId: string; color?: string; intentInfo?: unknown }
+  | { t: 'dock-commit-ack'; from: string; to: string; sessionId: string; accepted: boolean }
+  | { t: 'dock-end'; from: string };
 
 export interface PopoutBus {
   post: (msg: BusMessage) => void;
@@ -95,6 +117,23 @@ export function newPopoutId(): string {
 // any group whose popout owner hasn't beaten in DEAD_MS.
 export const HEARTBEAT_MS = 5000;
 export const HEARTBEAT_TIMEOUT_MS = 15000;
+
+// ── Cross-window dock geometry ──────────────────────────────────────────────
+// Convert an OS-screen point to this window's client coordinates. The browser
+// chrome offset is approximated from the outer/inner size deltas: left/right
+// borders are assumed symmetric, and the remaining vertical delta is top
+// chrome (title bar, plus the URL bar on `popup` windows). Mixed-DPI
+// multi-monitor setups can skew the math — the same trade-off the tear-out
+// threshold already accepts.
+export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
+  const borderX = Math.max(0, (window.outerWidth - window.innerWidth) / 2);
+  const chromeTop = Math.max(0, window.outerHeight - window.innerHeight - borderX);
+  return { x: screenX - window.screenX - borderX, y: screenY - window.screenY - chromeTop };
+}
+
+export function isClientPointInWindow(p: { x: number; y: number }): boolean {
+  return p.x >= 0 && p.y >= 0 && p.x <= window.innerWidth && p.y <= window.innerHeight;
+}
 
 // ── Web Locks liveness ──────────────────────────────────────────────────────
 // BroadcastChannel heartbeats are subject to Chromium's intensive timer
