@@ -20,6 +20,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink, X } from 'lucide-react';
 import StackView from '../group/StackView';
 import LayoutNodeView from '../group/LayoutNodeView';
+import DockOverlay, { detectDockZone, type DockTargetRect } from '../group/DockOverlay';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import * as sessionsApi from '../../api/sessions';
 import { useI18n } from '../../i18n';
@@ -32,7 +33,10 @@ import {
 import {
   type LayoutNode,
   type Path,
+  type DockSide,
   allSessionIds,
+  dockTab,
+  getNode,
   removeTab,
   setActiveTab as treeSetActiveTab,
   setSplitSizes as treeSetSplitSizes,
@@ -93,6 +97,24 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     return () => { cancelled = true; };
   }, [projectId]);
 
+  // Cross-project groups: the handed-off group may contain sessions docked in
+  // from OTHER projects, which the project-scoped list above can't see. Fetch
+  // each missing id individually and merge, so their panes render instead of
+  // staying blank. Failed lookups (deleted sessions) are simply skipped — the
+  // pane renders null, same as before this feature.
+  const fetchedForeignRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!group || sessions.length === 0) return;
+    const known = new Set(sessions.map(s => s.id));
+    for (const id of allSessionIds(group.root)) {
+      if (known.has(id) || fetchedForeignRef.current.has(id)) continue;
+      fetchedForeignRef.current.add(id);
+      sessionsApi.getSession(id)
+        .then((s) => setSessions((prev) => prev.some(p => p.id === s.id) ? prev : [...prev, s]))
+        .catch(() => { /* deleted or unreachable — pane stays empty */ });
+    }
+  }, [group, sessions]);
+
   // Live-update the local sessions list from WS events so the popout sees
   // status transitions (running → stopped) without polling — SessionPane's
   // auto-close fires when status leaves running. Mirrors the incremental
@@ -120,7 +142,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // Bus: open, hello on mount, handle handoff. Heartbeat. beforeunload bye.
   useEffect(() => {
     if (!projectId || !groupId || !popoutId) return;
-    const bus = openBus(projectId);
+    const bus = openBus();
     busRef.current = bus;
     const unsub = bus.subscribe((msg: BusMessage) => {
       if (msg.t === 'group-handoff' && msg.to === popoutId && msg.groupId === groupId) {
@@ -140,7 +162,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         // User clicked "bring to main window" from the main app. Behave just
         // like the Re-dock button: return the latest payload, then close.
         const g = groupRef.current;
-        if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g });
+        if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g, projectId });
         setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 50);
       } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
         // Main reclaimed our ownership. Drop the group immediately so the
@@ -182,6 +204,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           from: popoutId,
           groupId: g.id,
           group: g,
+          projectId,
         });
       }
       bus.post({ t: 'bye', from: popoutId });
@@ -249,11 +272,98 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     });
   }, [sessions, t, postUpdate, popoutId]);
 
-  // Popout has no in-frame tab-detach drag: dragging a tab inside an OS
-  // window doesn't translate to inter-window operations in Phase 1, and
-  // splitting within the popout is also Phase >1 territory. So pass a
-  // no-op for onTabMouseDown.
-  const handleTabMouseDown = useCallback(() => { /* no detach in popout */ }, []);
+  // ── In-popout tab drag → dock ────────────────────────────────────────────
+  //
+  // Same-tree docking only: drag a tab over any stack (including its own) and
+  // drop on a dock zone to move it / create a split — the same gesture the
+  // main window offers. There is no tear-out: a popout IS already a separate
+  // OS window, and cross-window drag isn't possible with DOM mouse events.
+  // Unlike main, docking onto the tab's OWN stack with a side zone is allowed
+  // (that's how a single-stack popout creates its first split; main does this
+  // via the floating-window detach intermediate, which doesn't exist here).
+  const [drag, setDrag] = useState<{
+    sessionId: string;
+    fromPath: Path;
+    hoveredPath: Path | null;
+    hoveredRect: DockTargetRect | null;
+    zone: DockSide | null;
+  } | null>(null);
+  const dragRef = useRef<typeof drag>(null);
+  dragRef.current = drag;
+
+  const DRAG_THRESHOLD = 6;
+  const handleTabMouseDown = useCallback((sessionId: string, fromPath: Path, e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if (!groupRef.current) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let active = false;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!active) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        active = true;
+      }
+      let hoveredPath: Path | null = null;
+      let hoveredRect: DockTargetRect | null = null;
+      let zone: DockSide | null = null;
+      const els = document.elementsFromPoint(ev.clientX, ev.clientY) as HTMLElement[];
+      for (const node of els) {
+        const cand = node.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+        if (!cand) continue;
+        const pathStr = cand.dataset.stackPath || '';
+        const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
+        const isSelf = pathStr === fromPath.join('.');
+        if (isSelf) {
+          // Splitting the own stack needs a sibling tab to stay behind;
+          // a 1-tab stack has nothing to split against.
+          const cur = groupRef.current;
+          const srcNode = cur ? getNode(cur.root, fromPath) : null;
+          if (!srcNode || srcNode.kind !== 'stack' || srcNode.tabs.length < 2) break;
+        }
+        const r = cand.getBoundingClientRect();
+        hoveredPath = path;
+        hoveredRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+        zone = detectDockZone(ev.clientX, ev.clientY, hoveredRect);
+        // Center on the own stack is a no-op re-insert — don't light it up.
+        if (isSelf && zone === 'center') zone = null;
+        break;
+      }
+      setDrag({ sessionId, fromPath, hoveredPath, hoveredRect, zone });
+    };
+
+    let cleaned = false;
+    const detach = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onAbort);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    const onAbort = () => { detach(); setDrag(null); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
+    const onVis = () => { if (document.hidden) onAbort(); };
+    const onUp = () => {
+      detach();
+      const cur = dragRef.current;
+      setDrag(null);
+      if (!cur || !cur.hoveredPath || !cur.zone) return;
+      const g = groupRef.current;
+      if (!g) return;
+      const newRoot = dockTab(g.root, cur.sessionId, cur.hoveredPath, cur.zone);
+      if (!newRoot) return;
+      setGroup({ ...g, root: newRoot });
+      postUpdate({ root: newRoot });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onAbort);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
+  }, [postUpdate]);
 
   const handlePaneAutoClose = useCallback((sid: string) => {
     handleTabClose(sid);
@@ -278,10 +388,11 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       from: popoutId,
       groupId: g.id,
       group: g,
+      projectId,
     });
     // Tiny delay so the BroadcastChannel message flushes before unload.
     setTimeout(() => window.close(), 50);
-  }, [popoutId]);
+  }, [popoutId, projectId]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
@@ -415,6 +526,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           />
         )}
       </div>
+      {/* Tab drag visual: dock overlay over the hovered stack */}
+      {drag && drag.hoveredRect && (
+        <DockOverlay targetRect={drag.hoveredRect} activeZone={drag.zone} />
+      )}
     </div>
   );
 }

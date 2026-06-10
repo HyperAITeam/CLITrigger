@@ -195,6 +195,36 @@ export function setSplitSizes(root: LayoutNode, path: Path, sizes: number[]): La
   });
 }
 
+// Move a tab elsewhere in the SAME tree: dock `sessionId` at `side` of the
+// stack at `dstPath`. Removing the tab first can collapse a sibling split and
+// invalidate dstPath, so the destination is re-resolved through a surviving
+// sibling tab (anchor) after removal — same algorithm as the host's
+// same-group dock. Docking a tab onto its own stack with a side zone splits
+// that stack in two (the way a popout, which has no floating-window
+// intermediate, creates its first split). Returns the new root, or null when
+// the dock is a no-op or impossible (center onto own stack, single-tab self
+// dock, path not a stack).
+export function dockTab(
+  root: LayoutNode,
+  sessionId: string,
+  dstPath: Path,
+  side: DockSide,
+): LayoutNode | null {
+  const dstNode = getNode(root, dstPath);
+  if (!dstNode || dstNode.kind !== 'stack') return null;
+  if (side === 'center' && dstNode.tabs.includes(sessionId)) return null;
+  const anchor = dstNode.tabs.find(t => t !== sessionId);
+  if (!anchor) return null;
+  const afterRemove = removeTab(root, sessionId);
+  if (!afterRemove) return null;
+  const newDstPath = findStackContaining(afterRemove, anchor);
+  if (!newDstPath) return null;
+  const newRoot = side === 'center'
+    ? insertIntoStack(afterRemove, newDstPath, sessionId)
+    : insertAtSide(afterRemove, newDstPath, side, makeStack([sessionId]));
+  return setActiveTab(newRoot, sessionId);
+}
+
 // Clean up a tree by removing any session ids not in `validIds`. Returns null
 // if the whole tree collapses.
 export function pruneInvalid(root: LayoutNode, validIds: Set<string>): LayoutNode | null {
