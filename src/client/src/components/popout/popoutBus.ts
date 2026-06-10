@@ -2,7 +2,12 @@
 //
 // All windows that share an origin (the main app and any popout child
 // windows opened via window.open) can use the same BroadcastChannel.
-// The channel is scoped per projectId so two open projects never cross-talk.
+// The channel is GLOBAL (one for the whole app, not per-project): the main
+// window only ever mounts one SessionWindowsHost at a time, and a popout's
+// group-return must reach whichever project the user is currently viewing —
+// that's how a popped-out terminal from project A re-docks into project B's
+// workspace (cross-project docking). Hosts filter messages by groupId, so
+// traffic for other projects' groups is ignored.
 //
 // Message types:
 //   hello           — popout mount → main, requests group payload
@@ -27,7 +32,10 @@
 export type BusMessage =
   | { t: 'hello'; from: string; groupId: string }
   | { t: 'group-handoff'; to: string; groupId: string; group: unknown }
-  | { t: 'group-return'; from: string; groupId: string; group: unknown }
+  // projectId = the popout's origin project. When the receiving host belongs
+  // to a different project it adopts the group into its own workspace and
+  // scrubs the origin project's persisted entry (cross-project re-dock).
+  | { t: 'group-return'; from: string; groupId: string; group: unknown; projectId?: string }
   | { t: 'group-update'; from: string; groupId: string; patch: unknown }
   | { t: 'group-close'; from: string; groupId: string }
   | { t: 'group-recall'; popoutId: string; groupId: string }
@@ -41,9 +49,9 @@ export interface PopoutBus {
   close: () => void;
 }
 
-const CHANNEL_PREFIX = 'clitrigger:session-windows:';
+const CHANNEL_NAME = 'clitrigger:session-windows:global';
 
-export function openBus(projectId: string): PopoutBus {
+export function openBus(): PopoutBus {
   // BroadcastChannel is supported in all modern browsers and Electron 5+;
   // we fall back to a no-op shim if it's somehow absent so the rest of
   // the app keeps working without popout sync.
@@ -54,7 +62,7 @@ export function openBus(projectId: string): PopoutBus {
       close: () => { /* noop */ },
     };
   }
-  const ch = new BroadcastChannel(`${CHANNEL_PREFIX}${projectId}`);
+  const ch = new BroadcastChannel(CHANNEL_NAME);
   const listeners = new Set<(msg: BusMessage) => void>();
   ch.onmessage = (ev) => {
     const msg = ev.data as BusMessage;

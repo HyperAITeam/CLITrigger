@@ -5,6 +5,13 @@ export function getSessions(projectId: string): Promise<Session[]> {
   return get(`/api/projects/${projectId}/sessions`);
 }
 
+// Single-session lookup by id, project-agnostic. Used to resolve sessions
+// that live in a window group but belong to another project
+// (cross-project docking).
+export function getSession(id: string): Promise<Session> {
+  return get(`/api/sessions/${id}`);
+}
+
 export function createSession(
   projectId: string,
   data: { title: string; description?: string; cli_tool?: string; cli_model?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; tag_id?: string | null }
