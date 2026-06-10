@@ -1,6 +1,6 @@
 {
   "name": "clitrigger",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Spawn isolated git worktrees and orchestrate Claude/Gemini/Codex CLI tasks in parallel from a web UI.",
   "keywords": [
     "claude",
