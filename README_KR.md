@@ -8,7 +8,7 @@
 
 **AI 개발 커맨드 센터**
 
-*하루를 계획하고, 병렬 AI 에이전트에 위임하고, 모든 diff를 리뷰 — 한곳에서.*
+*AI 에이전트가 밤새 병렬 git worktree에서 코딩하고 — 당신은 아침에 커피 마시며 diff만 리뷰한다.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -23,6 +23,18 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 [![GitHub stars](https://img.shields.io/github/stars/HyperAITeam/CLITrigger.svg?style=social)](https://github.com/HyperAITeam/CLITrigger/stargazers)
+
+<br>
+
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger 데모 — 격리된 worktree에서 병렬로 실행되는 AI 에이전트, 그리고 아침 diff 리뷰" width="800">
+
+<br><br>
+
+```bash
+npm i -g clitrigger && clitrigger
+```
+
+**60초 안에 시작** — `http://localhost:3000` 접속 → 비밀번호 설정 → 프로젝트 추가 → TODO 작성 → Start 클릭.
 
 </div>
 
@@ -44,6 +56,8 @@
 ---
 
 ## 왜 CLITrigger인가?
+
+**터미널에서 Claude Code를 직접 쓰면 에이전트 하나를 옆에 붙어 지켜봐야 한다.** CLITrigger는 그걸 펼친다 — 각자의 격리된 worktree에서 여러 에이전트가 당신이 자리를 비운 동안 동시에 돌고, 일을 계획하고 끝난 뒤 모든 diff를 리뷰하는 곳은 한 군데뿐이다.
 
 Claude Code 제작자 Boris Cherny는 **병렬 실행(Parallelism)** 을 강조한다. 터미널 하나에서 하나씩 기다리는 건 AI 시대의 병목이다.
 
