@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, getToolConfig, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import VaultInjectControl from './VaultInjectControl';
 import type { MemoryInjectMode, SessionTag } from '../types';
 import type { VaultInjectMode } from '../api/vault';
@@ -12,7 +12,6 @@ export interface SessionFormInitial {
   title: string;
   description: string;
   cliTool: string;
-  cliModel: string;
   useWorktree: boolean;
   memoryInjectMode: MemoryInjectMode;
   memoryNodeIds: string[];
@@ -28,7 +27,6 @@ interface SessionFormProps {
     title: string,
     description: string,
     cliTool?: string,
-    cliModel?: string,
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
@@ -37,19 +35,17 @@ interface SessionFormProps {
   ) => void;
   onCancel: () => void;
   projectCliTool?: string;
-  projectCliModel?: string;
   isGitRepo?: boolean;
   /** Default for `useWorktree` in create mode; ignored when `initial` is set. */
   projectUseWorktree?: boolean;
 }
 
-export default function SessionForm({ projectId, initial, onSave, onCancel, projectCliTool, projectCliModel, isGitRepo, projectUseWorktree }: SessionFormProps) {
+export default function SessionForm({ projectId, initial, onSave, onCancel, projectCliTool, isGitRepo, projectUseWorktree }: SessionFormProps) {
   const { t } = useI18n();
   const isEdit = !!initial;
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [cliTool, setCliTool] = useState(initial?.cliTool ?? (projectCliTool || ''));
-  const [cliModel, setCliModel] = useState(initial?.cliModel ?? (projectCliModel || ''));
   const [useWorktree, setUseWorktree] = useState(initial?.useWorktree ?? !!projectUseWorktree);
   const [vaultMode, setVaultMode] = useState<VaultInjectMode>((initial?.memoryInjectMode as VaultInjectMode | undefined) ?? 'none');
   const [vaultPaths, setVaultPaths] = useState<string[]>(initial?.memoryRawFilePaths ?? []);
@@ -117,9 +113,8 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
 
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
-  const toolConfig = getToolConfig(selectedTool);
-  // Raw shell: no model, no auto-submitted prompt, no wiki/memory injection.
-  // Description/model/memory state is left untouched in the form so toggling
+  // Raw shell: no auto-submitted prompt, no wiki/memory injection.
+  // Description/memory state is left untouched in the form so toggling
   // back to an AI CLI doesn't lose what the user already typed; the inputs
   // are just hidden while raw-shell is selected and the server ignores them.
   const isRawShell = selectedTool === 'raw-shell';
@@ -130,7 +125,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       title.trim(),
       description.trim(),
       cliTool || undefined,
-      cliModel || undefined,
       useWorktree,
       vaultMode as MemoryInjectMode,
       [],
@@ -166,7 +160,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
       <div className="flex gap-2">
         <select
           value={cliTool}
-          onChange={(e) => { setCliTool(e.target.value); setCliModel(''); }}
+          onChange={(e) => setCliTool(e.target.value)}
           className="input text-xs flex-1"
         >
           <option value="">{t('session.cliTool')} (Default)</option>
@@ -174,18 +168,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
             <option key={tool.value} value={tool.value}>{tool.label}</option>
           ))}
         </select>
-        {!isRawShell && (
-          <select
-            value={cliModel}
-            onChange={(e) => setCliModel(e.target.value)}
-            className="input text-xs flex-1"
-          >
-            <option value="">{t('session.model')} (Default)</option>
-            {toolConfig.models.filter((m) => m.value).map((model) => (
-              <option key={model.value} value={model.value}>{model.label}</option>
-            ))}
-          </select>
-        )}
       </div>
       {tags.length > 0 && (
         <div className="flex items-center gap-2">

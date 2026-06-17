@@ -2,7 +2,12 @@
 //
 // All windows that share an origin (the main app and any popout child
 // windows opened via window.open) can use the same BroadcastChannel.
-// The channel is scoped per projectId so two open projects never cross-talk.
+// The channel is GLOBAL (one for the whole app, not per-project): the main
+// window only ever mounts one SessionWindowsHost at a time, and a popout's
+// group-return must reach whichever project the user is currently viewing —
+// that's how a popped-out terminal from project A re-docks into project B's
+// workspace (cross-project docking). Hosts filter messages by groupId, so
+// traffic for other projects' groups is ignored.
 //
 // Message types:
 //   hello           — popout mount → main, requests group payload
@@ -20,6 +25,23 @@
 //   heartbeat       — owner → others, "still alive"
 //   bye             — popout beforeunload, force return
 //
+// Cross-window drag-dock (popout → popout / popout → main). DOM mouse events
+// can't cross OS windows, so once a tab drag leaves the source popout's
+// bounds it switches to a bus-mediated protocol driven by SCREEN coordinates
+// (mousemove keeps firing on the source window while the button is held,
+// even outside its bounds — the same capture behavior main's tear-out
+// already relies on):
+//   dock-probe        — source → all, cursor screen position while outside
+//   dock-probe-result — receiver → source, whether the point hits one of its
+//                       stacks, plus its last-focus time (arbitrates when
+//                       overlapping windows both report a hit)
+//   dock-commit       — source → chosen receiver on mouseup; carries the
+//                       session id + color/intent so the receiver can adopt
+//   dock-commit-ack   — receiver → source; only on accepted:true does the
+//                       source remove the tab from its own tree (the session
+//                       can never silently vanish on a dropped message)
+//   dock-end          — source → all, gesture over; receivers clear overlays
+//
 // OpenGroup is intentionally typed as `unknown` here to avoid pulling the
 // SessionWindowsHost.tsx import cycle into a low-level utility module.
 // Callers cast on receive.
@@ -27,13 +49,21 @@
 export type BusMessage =
   | { t: 'hello'; from: string; groupId: string }
   | { t: 'group-handoff'; to: string; groupId: string; group: unknown }
-  | { t: 'group-return'; from: string; groupId: string; group: unknown }
+  // projectId = the popout's origin project. When the receiving host belongs
+  // to a different project it adopts the group into its own workspace and
+  // scrubs the origin project's persisted entry (cross-project re-dock).
+  | { t: 'group-return'; from: string; groupId: string; group: unknown; projectId?: string }
   | { t: 'group-update'; from: string; groupId: string; patch: unknown }
   | { t: 'group-close'; from: string; groupId: string }
   | { t: 'group-recall'; popoutId: string; groupId: string }
   | { t: 'group-reclaimed'; popoutId: string; groupIds: string[]; reason: 'heartbeat-timeout' | 'late-return' }
   | { t: 'heartbeat'; from: string; ownedGroupIds: string[] }
-  | { t: 'bye'; from: string };
+  | { t: 'bye'; from: string }
+  | { t: 'dock-probe'; from: string; x: number; y: number }
+  | { t: 'dock-probe-result'; from: string; to: string; hit: boolean; focusAt: number }
+  | { t: 'dock-commit'; from: string; to: string; x: number; y: number; sessionId: string; color?: string; intentInfo?: unknown }
+  | { t: 'dock-commit-ack'; from: string; to: string; sessionId: string; accepted: boolean }
+  | { t: 'dock-end'; from: string };
 
 export interface PopoutBus {
   post: (msg: BusMessage) => void;
@@ -41,9 +71,9 @@ export interface PopoutBus {
   close: () => void;
 }
 
-const CHANNEL_PREFIX = 'clitrigger:session-windows:';
+const CHANNEL_NAME = 'clitrigger:session-windows:global';
 
-export function openBus(projectId: string): PopoutBus {
+export function openBus(): PopoutBus {
   // BroadcastChannel is supported in all modern browsers and Electron 5+;
   // we fall back to a no-op shim if it's somehow absent so the rest of
   // the app keeps working without popout sync.
@@ -54,7 +84,7 @@ export function openBus(projectId: string): PopoutBus {
       close: () => { /* noop */ },
     };
   }
-  const ch = new BroadcastChannel(`${CHANNEL_PREFIX}${projectId}`);
+  const ch = new BroadcastChannel(CHANNEL_NAME);
   const listeners = new Set<(msg: BusMessage) => void>();
   ch.onmessage = (ev) => {
     const msg = ev.data as BusMessage;
@@ -87,6 +117,23 @@ export function newPopoutId(): string {
 // any group whose popout owner hasn't beaten in DEAD_MS.
 export const HEARTBEAT_MS = 5000;
 export const HEARTBEAT_TIMEOUT_MS = 15000;
+
+// ── Cross-window dock geometry ──────────────────────────────────────────────
+// Convert an OS-screen point to this window's client coordinates. The browser
+// chrome offset is approximated from the outer/inner size deltas: left/right
+// borders are assumed symmetric, and the remaining vertical delta is top
+// chrome (title bar, plus the URL bar on `popup` windows). Mixed-DPI
+// multi-monitor setups can skew the math — the same trade-off the tear-out
+// threshold already accepts.
+export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
+  const borderX = Math.max(0, (window.outerWidth - window.innerWidth) / 2);
+  const chromeTop = Math.max(0, window.outerHeight - window.innerHeight - borderX);
+  return { x: screenX - window.screenX - borderX, y: screenY - window.screenY - chromeTop };
+}
+
+export function isClientPointInWindow(p: { x: number; y: number }): boolean {
+  return p.x >= 0 && p.y >= 0 && p.x <= window.innerWidth && p.y <= window.innerHeight;
+}
 
 // ── Web Locks liveness ──────────────────────────────────────────────────────
 // BroadcastChannel heartbeats are subject to Chromium's intensive timer

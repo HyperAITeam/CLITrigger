@@ -20,19 +20,29 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink, X } from 'lucide-react';
 import StackView from '../group/StackView';
 import LayoutNodeView from '../group/LayoutNodeView';
+import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from '../group/DockOverlay';
+import { assignColor } from '../group/colors';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import * as sessionsApi from '../../api/sessions';
 import { useI18n } from '../../i18n';
 import {
   openBus,
   holdPopoutLock,
+  screenToClient,
+  isClientPointInWindow,
   HEARTBEAT_MS,
   type BusMessage,
 } from './popoutBus';
 import {
   type LayoutNode,
   type Path,
+  type DockSide,
   allSessionIds,
+  dockTab,
+  getNode,
+  insertAtSide,
+  insertIntoStack,
+  makeStack,
   removeTab,
   setActiveTab as treeSetActiveTab,
   setSplitSizes as treeSetSplitSizes,
@@ -93,6 +103,24 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     return () => { cancelled = true; };
   }, [projectId]);
 
+  // Cross-project groups: the handed-off group may contain sessions docked in
+  // from OTHER projects, which the project-scoped list above can't see. Fetch
+  // each missing id individually and merge, so their panes render instead of
+  // staying blank. Failed lookups (deleted sessions) are simply skipped — the
+  // pane renders null, same as before this feature.
+  const fetchedForeignRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!group || sessions.length === 0) return;
+    const known = new Set(sessions.map(s => s.id));
+    for (const id of allSessionIds(group.root)) {
+      if (known.has(id) || fetchedForeignRef.current.has(id)) continue;
+      fetchedForeignRef.current.add(id);
+      sessionsApi.getSession(id)
+        .then((s) => setSessions((prev) => prev.some(p => p.id === s.id) ? prev : [...prev, s]))
+        .catch(() => { /* deleted or unreachable — pane stays empty */ });
+    }
+  }, [group, sessions]);
+
   // Live-update the local sessions list from WS events so the popout sees
   // status transitions (running → stopped) without polling — SessionPane's
   // auto-close fires when status leaves running. Mirrors the incremental
@@ -120,9 +148,16 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // Bus: open, hello on mount, handle handoff. Heartbeat. beforeunload bye.
   useEffect(() => {
     if (!projectId || !groupId || !popoutId) return;
-    const bus = openBus(projectId);
+    const bus = openBus();
     busRef.current = bus;
     const unsub = bus.subscribe((msg: BusMessage) => {
+      if (msg.t === 'dock-probe' || msg.t === 'dock-probe-result' || msg.t === 'dock-end'
+        || msg.t === 'dock-commit' || msg.t === 'dock-commit-ack') {
+        // Cross-window drag-dock traffic — handled by a ref-stored closure so
+        // this mount-once subscription always sees fresh state.
+        handleDockMsgRef.current(msg);
+        return;
+      }
       if (msg.t === 'group-handoff' && msg.to === popoutId && msg.groupId === groupId) {
         const payload = msg.group as PopoutGroup;
         // Reset geometry to fill the popout's own viewport — the OS window
@@ -140,7 +175,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         // User clicked "bring to main window" from the main app. Behave just
         // like the Re-dock button: return the latest payload, then close.
         const g = groupRef.current;
-        if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g });
+        if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g, projectId });
         setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 50);
       } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
         // Main reclaimed our ownership. Drop the group immediately so the
@@ -182,6 +217,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           from: popoutId,
           groupId: g.id,
           group: g,
+          projectId,
         });
       }
       bus.post({ t: 'bye', from: popoutId });
@@ -222,12 +258,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     });
   }, [postUpdate]);
 
-  const handleTabClose = useCallback((sid: string) => {
-    const session = sessions.find(s => s.id === sid);
-    if (session?.status === 'running') {
-      if (!window.confirm(t('session.confirmStop') || 'Stop this running session?')) return;
-      sessionsApi.stopSession(sid).catch(() => { /* swallow */ });
-    }
+  // Remove a tab from the local tree. No running-session confirm/stop here —
+  // close-tab runs that first, and a cross-window dock MOVE must not touch
+  // the PTY at all (the session keeps running in the receiving window).
+  const removeTabFromGroup = useCallback((sid: string) => {
     setGroup((prev) => {
       if (!prev) return prev;
       const newRoot = removeTab(prev.root, sid);
@@ -247,13 +281,267 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       postUpdate({ root: next.root, colors: next.colors, intents: next.intents });
       return next;
     });
-  }, [sessions, t, postUpdate, popoutId]);
+  }, [postUpdate, popoutId]);
 
-  // Popout has no in-frame tab-detach drag: dragging a tab inside an OS
-  // window doesn't translate to inter-window operations in Phase 1, and
-  // splitting within the popout is also Phase >1 territory. So pass a
-  // no-op for onTabMouseDown.
-  const handleTabMouseDown = useCallback(() => { /* no detach in popout */ }, []);
+  const handleTabClose = useCallback((sid: string) => {
+    const session = sessions.find(s => s.id === sid);
+    if (session?.status === 'running') {
+      if (!window.confirm(t('session.confirmStop') || 'Stop this running session?')) return;
+      sessionsApi.stopSession(sid).catch(() => { /* swallow */ });
+    }
+    removeTabFromGroup(sid);
+  }, [sessions, t, removeTabFromGroup]);
+
+  // ── In-popout tab drag → dock ────────────────────────────────────────────
+  //
+  // Same-tree docking only: drag a tab over any stack (including its own) and
+  // drop on a dock zone to move it / create a split — the same gesture the
+  // main window offers. There is no tear-out: a popout IS already a separate
+  // OS window, and cross-window drag isn't possible with DOM mouse events.
+  // Unlike main, docking onto the tab's OWN stack with a side zone is allowed
+  // (that's how a single-stack popout creates its first split; main does this
+  // via the floating-window detach intermediate, which doesn't exist here).
+  const [drag, setDrag] = useState<{
+    sessionId: string;
+    fromPath: Path;
+    hoveredPath: Path | null;
+    hoveredRect: DockTargetRect | null;
+    zone: DockSide | null;
+  } | null>(null);
+  const dragRef = useRef<typeof drag>(null);
+  dragRef.current = drag;
+
+  // Cross-window dock, sender side: latest dock-probe-result per window and
+  // the commit awaiting its ack (the tab is removed locally only on an
+  // accepted ack, so a dead receiver can't make the session vanish).
+  const remoteHitsRef = useRef<Map<string, { hit: boolean; focusAt: number; at: number }>>(new Map());
+  const pendingDockAckRef = useRef<{ to: string; sessionId: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  // Receiver side: overlay for a tab being dragged in FROM another window.
+  const [remoteDock, setRemoteDock] = useState<{ rect: DockTargetRect; zone: DockSide | null; path: Path } | null>(null);
+  const remoteDockRef = useRef(remoteDock);
+  remoteDockRef.current = remoteDock;
+  const remoteDockClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Last time this window was focused — receivers report it in probe results
+  // so the sender can prefer the most recently focused (≈ topmost) window
+  // when overlapping windows both claim the cursor.
+  const focusAtRef = useRef(typeof document !== 'undefined' && document.hasFocus() ? Date.now() : 0);
+  useEffect(() => {
+    const onFocus = () => { focusAtRef.current = Date.now(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+    };
+  }, []);
+
+  const DRAG_THRESHOLD = 6;
+  const handleTabMouseDown = useCallback((sessionId: string, fromPath: Path, e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if (!groupRef.current) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let active = false;
+    let lastProbeAt = 0;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!active) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        active = true;
+      }
+      // Outside our OS window: the local DOM can't be a target anymore —
+      // switch to probing the other windows over the bus (screen coords).
+      // Mousemove keeps firing here while the button is held, so we stay in
+      // control of the gesture even over foreign windows.
+      const inWindow = ev.clientX >= 0 && ev.clientY >= 0
+        && ev.clientX <= window.innerWidth && ev.clientY <= window.innerHeight;
+      if (!inWindow) {
+        setDrag({ sessionId, fromPath, hoveredPath: null, hoveredRect: null, zone: null });
+        if (Date.now() - lastProbeAt > 33) {
+          lastProbeAt = Date.now();
+          busRef.current?.post({ t: 'dock-probe', from: popoutId, x: ev.screenX, y: ev.screenY });
+        }
+        return;
+      }
+      let hoveredPath: Path | null = null;
+      let hoveredRect: DockTargetRect | null = null;
+      let zone: DockSide | null = null;
+      const els = document.elementsFromPoint(ev.clientX, ev.clientY) as HTMLElement[];
+      for (const node of els) {
+        const cand = node.closest('[data-group-id][data-stack-path]') as HTMLElement | null;
+        if (!cand) continue;
+        const pathStr = cand.dataset.stackPath || '';
+        const path = pathStr === '' ? [] : pathStr.split('.').map(Number);
+        const isSelf = pathStr === fromPath.join('.');
+        if (isSelf) {
+          // Splitting the own stack needs a sibling tab to stay behind;
+          // a 1-tab stack has nothing to split against.
+          const cur = groupRef.current;
+          const srcNode = cur ? getNode(cur.root, fromPath) : null;
+          if (!srcNode || srcNode.kind !== 'stack' || srcNode.tabs.length < 2) break;
+        }
+        const r = cand.getBoundingClientRect();
+        hoveredPath = path;
+        hoveredRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+        zone = detectDockZone(ev.clientX, ev.clientY, hoveredRect);
+        // Center on the own stack is a no-op re-insert — don't light it up.
+        if (isSelf && zone === 'center') zone = null;
+        break;
+      }
+      setDrag({ sessionId, fromPath, hoveredPath, hoveredRect, zone });
+    };
+
+    let cleaned = false;
+    const detach = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onAbort);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    const onAbort = () => {
+      detach();
+      setDrag(null);
+      remoteHitsRef.current.clear();
+      busRef.current?.post({ t: 'dock-end', from: popoutId });
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
+    const onVis = () => { if (document.hidden) onAbort(); };
+    const onUp = (ev: MouseEvent) => {
+      detach();
+      const cur = dragRef.current;
+      setDrag(null);
+      busRef.current?.post({ t: 'dock-end', from: popoutId });
+      if (!cur) { remoteHitsRef.current.clear(); return; }
+
+      // Local dock (cursor over a zone inside this window).
+      if (cur.hoveredPath && cur.zone) {
+        remoteHitsRef.current.clear();
+        const g = groupRef.current;
+        if (!g) return;
+        const newRoot = dockTab(g.root, cur.sessionId, cur.hoveredPath, cur.zone);
+        if (!newRoot) return;
+        setGroup({ ...g, root: newRoot });
+        postUpdate({ root: newRoot });
+        return;
+      }
+
+      // Remote dock: pick the freshest-hit window, preferring the most
+      // recently focused one (best proxy for "on top" when windows overlap),
+      // then hand the session over and wait for the ack before removing it
+      // from our own tree.
+      const now = Date.now();
+      let best: { id: string; focusAt: number } | null = null;
+      for (const [id, info] of remoteHitsRef.current) {
+        if (!info.hit || now - info.at > 500) continue;
+        if (!best || info.focusAt > best.focusAt) best = { id, focusAt: info.focusAt };
+      }
+      remoteHitsRef.current.clear();
+      if (!best) return;
+      const g = groupRef.current;
+      if (pendingDockAckRef.current) clearTimeout(pendingDockAckRef.current.timer);
+      pendingDockAckRef.current = {
+        to: best.id,
+        sessionId: cur.sessionId,
+        timer: setTimeout(() => { pendingDockAckRef.current = null; }, 600),
+      };
+      busRef.current?.post({
+        t: 'dock-commit',
+        from: popoutId,
+        to: best.id,
+        x: ev.screenX,
+        y: ev.screenY,
+        sessionId: cur.sessionId,
+        color: g?.colors[cur.sessionId],
+        intentInfo: g?.intents[cur.sessionId],
+      });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onAbort);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
+  }, [postUpdate, popoutId]);
+
+  // ── Cross-window dock message handling ───────────────────────────────────
+  // Stored through a ref so the mount-once bus subscription always calls the
+  // latest closure (fresh state + callbacks) without re-subscribing.
+  const handleDockMsg = (msg: BusMessage) => {
+    const bus = busRef.current;
+    if (!bus) return;
+    if (msg.t === 'dock-probe' && msg.from !== popoutId) {
+      // Receiver: does the dragged cursor sit over one of our stacks?
+      if (document.visibilityState !== 'visible' || !groupRef.current) return;
+      const p = screenToClient(msg.x, msg.y);
+      const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+      if (hit && hit.groupId === groupRef.current.id) {
+        const prev = remoteDockRef.current;
+        if (!prev || prev.zone !== hit.zone || prev.path.join('.') !== hit.path.join('.')) {
+          setRemoteDock({ rect: hit.rect, zone: hit.zone, path: hit.path });
+        }
+        // Safety: clear the overlay if the probes stop arriving (source
+        // crashed / message dropped) so it can't get stuck on screen.
+        if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+        remoteDockClearTimerRef.current = setTimeout(() => setRemoteDock(null), 800);
+        bus.post({ t: 'dock-probe-result', from: popoutId, to: msg.from, hit: true, focusAt: focusAtRef.current });
+      } else {
+        if (remoteDockRef.current) setRemoteDock(null);
+        bus.post({ t: 'dock-probe-result', from: popoutId, to: msg.from, hit: false, focusAt: focusAtRef.current });
+      }
+    } else if (msg.t === 'dock-probe-result' && msg.to === popoutId) {
+      // Sender: remember each window's verdict for the mouseup arbitration.
+      remoteHitsRef.current.set(msg.from, { hit: msg.hit, focusAt: msg.focusAt, at: Date.now() });
+    } else if (msg.t === 'dock-end' && msg.from !== popoutId) {
+      setRemoteDock(null);
+    } else if (msg.t === 'dock-commit' && msg.to === popoutId) {
+      // Receiver: adopt the session into our tree at the committed point
+      // (recomputed for accuracy; falls back to the last probed hover).
+      const g = groupRef.current;
+      let accepted = false;
+      // Reject when we already hold this session — a side-insert would put a
+      // second pane of the same PTY into the tree (double subscribe).
+      if (g && !allSessionIds(g.root).includes(msg.sessionId)) {
+        const p = screenToClient(msg.x, msg.y);
+        const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        const target = (hit && hit.groupId === g.id && hit.zone)
+          ? { path: hit.path, zone: hit.zone }
+          : (remoteDockRef.current?.zone)
+            ? { path: remoteDockRef.current.path, zone: remoteDockRef.current.zone }
+            : null;
+        if (target) {
+          const inserted = target.zone === 'center'
+            ? insertIntoStack(g.root, target.path, msg.sessionId)
+            : insertAtSide(g.root, target.path, target.zone, makeStack([msg.sessionId]));
+          const newRoot = treeSetActiveTab(inserted, msg.sessionId);
+          const colors = { ...g.colors };
+          if (!colors[msg.sessionId]) colors[msg.sessionId] = msg.color || assignColor(Object.values(colors));
+          const intents = {
+            ...g.intents,
+            [msg.sessionId]: (msg.intentInfo as { intent: PaneIntent; nonce: number } | undefined)
+              ?? { intent: 'open' as PaneIntent, nonce: 0 },
+          };
+          setGroup({ ...g, root: newRoot, colors, intents });
+          postUpdate({ root: newRoot, colors, intents });
+          accepted = true;
+        }
+      }
+      setRemoteDock(null);
+      bus.post({ t: 'dock-commit-ack', from: popoutId, to: msg.from, sessionId: msg.sessionId, accepted });
+    } else if (msg.t === 'dock-commit-ack' && msg.to === popoutId) {
+      // Sender: the receiver took the session — drop our copy. On a rejected
+      // or missing ack the tab simply stays where it was.
+      const pending = pendingDockAckRef.current;
+      if (pending && pending.sessionId === msg.sessionId && pending.to === msg.from) {
+        clearTimeout(pending.timer);
+        pendingDockAckRef.current = null;
+        if (msg.accepted) removeTabFromGroup(msg.sessionId);
+      }
+    }
+  };
+  const handleDockMsgRef = useRef(handleDockMsg);
+  handleDockMsgRef.current = handleDockMsg;
 
   const handlePaneAutoClose = useCallback((sid: string) => {
     handleTabClose(sid);
@@ -278,10 +566,11 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       from: popoutId,
       groupId: g.id,
       group: g,
+      projectId,
     });
     // Tiny delay so the BroadcastChannel message flushes before unload.
     setTimeout(() => window.close(), 50);
-  }, [popoutId]);
+  }, [popoutId, projectId]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
@@ -415,6 +704,14 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           />
         )}
       </div>
+      {/* Tab drag visual: dock overlay over the hovered stack */}
+      {drag && drag.hoveredRect && (
+        <DockOverlay targetRect={drag.hoveredRect} activeZone={drag.zone} />
+      )}
+      {/* Receiver-side overlay: a tab dragged in from another OS window */}
+      {remoteDock && (
+        <DockOverlay targetRect={remoteDock.rect} activeZone={remoteDock.zone} />
+      )}
     </div>
   );
 }

@@ -88,16 +88,13 @@ export async function addPathToVaultIgnore(
   await saveVaultIgnore(projectId, content + sep + pattern + '\n');
 }
 
-// Inverse of addPathToVaultIgnore: drop the anchored exact-path line for
-// `relPath` from `.vaultignore`. Reverses a prior "hide" (a broader glob the
-// user wrote by hand won't match and is left untouched). No-op if absent.
+// Inverse of addPathToVaultIgnore. Server-side because just dropping the
+// exact pattern line isn't enough under a broad pattern like `*` (the
+// onboarding "ignore everything" default) — gitignore semantics need a
+// negation chain through every ancestor directory, which the server
+// generates and verifies with the same `ignore` package the scanner uses.
 export async function removePathFromVaultIgnore(
   projectId: string, relPath: string, isDir: boolean,
 ): Promise<void> {
-  const { content } = await getVaultIgnore(projectId);
-  const pattern = '/' + relPath.replace(/^\/+/, '') + (isDir ? '/' : '');
-  const kept = content.split(/\r?\n/).filter((l) => l.trim() !== pattern);
-  const next = kept.join('\n');
-  if (next === content) return;
-  await saveVaultIgnore(projectId, next);
+  await post(`/api/projects/${projectId}/vault/ignore/unhide`, { path: relPath, isDir });
 }

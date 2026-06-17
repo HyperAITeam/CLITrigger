@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
-import { useModels } from '../hooks/useModels';
 import CronBuilder from './CronBuilder';
 
 type ScheduleType = 'recurring' | 'once';
@@ -12,7 +11,6 @@ interface ScheduleFormProps {
     description: string;
     cronExpression: string;
     cliTool?: string;
-    cliModel?: string;
     skipIfRunning?: boolean;
     scheduleType: ScheduleType;
     runAt?: string;
@@ -22,12 +20,10 @@ interface ScheduleFormProps {
   initialDescription?: string;
   initialCronExpression?: string;
   initialCliTool?: string;
-  initialCliModel?: string;
   initialSkipIfRunning?: boolean;
   initialScheduleType?: ScheduleType;
   initialRunAt?: string;
   projectCliTool?: string;
-  projectCliModel?: string;
 }
 
 function getDefaultRunAt(): string {
@@ -60,30 +56,19 @@ export default function ScheduleForm({
   initialDescription = '',
   initialCronExpression = '',
   initialCliTool,
-  initialCliModel,
   initialSkipIfRunning = true,
   initialScheduleType = 'recurring',
   initialRunAt,
   projectCliTool = 'claude',
-  projectCliModel = '',
 }: ScheduleFormProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [cronExpression, setCronExpression] = useState(initialCronExpression);
   const [cliTool, setCliTool] = useState<CliTool>((initialCliTool as CliTool) || (projectCliTool as CliTool) || 'claude');
-  const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
   const [skipIfRunning, setSkipIfRunning] = useState(initialSkipIfRunning);
   const [scheduleType, setScheduleType] = useState<ScheduleType>(initialScheduleType);
   const [runAt, setRunAt] = useState(initialRunAt ? toLocalDatetimeValue(initialRunAt) : getDefaultRunAt());
   const { t } = useI18n();
-  const { getToolConfig } = useModels();
-
-  const toolConfig = getToolConfig(cliTool);
-
-  const handleCliToolChange = (newTool: CliTool) => {
-    setCliTool(newTool);
-    setCliModel('');
-  };
 
   const isOnce = scheduleType === 'once';
   const canSubmit = title.trim() && (isOnce ? !!runAt : !!cronExpression.trim());
@@ -96,7 +81,6 @@ export default function ScheduleForm({
       description: description.trim(),
       cronExpression: isOnce ? '' : cronExpression.trim(),
       cliTool,
-      cliModel: cliModel || undefined,
       skipIfRunning,
       scheduleType,
       runAt: isOnce ? new Date(runAt).toISOString() : undefined,
@@ -179,7 +163,7 @@ export default function ScheduleForm({
         </div>
       )}
 
-      {/* CLI Tool & Model */}
+      {/* CLI Tool */}
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-warm-500 mb-1.5">
@@ -187,25 +171,11 @@ export default function ScheduleForm({
           </label>
           <select
             value={cliTool}
-            onChange={(e) => handleCliToolChange(e.target.value as CliTool)}
+            onChange={(e) => setCliTool(e.target.value as CliTool)}
             className="input-field text-sm !py-2"
           >
             {CLI_TOOLS.map((tool) => (
               <option key={tool.value} value={tool.value}>{tool.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-warm-500 mb-1.5">
-            {t('scheduleForm.aiModel')}
-          </label>
-          <select
-            value={cliModel}
-            onChange={(e) => setCliModel(e.target.value)}
-            className="input-field text-sm !py-2"
-          >
-            {toolConfig.models.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
         </div>

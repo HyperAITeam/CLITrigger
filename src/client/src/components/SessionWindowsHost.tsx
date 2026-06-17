@@ -27,8 +27,9 @@ import {
   simplify,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
-import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
+import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from './group/DockOverlay';
 import * as sessionsApi from '../api/sessions';
+import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -37,6 +38,8 @@ import {
   MAIN_WINDOW_ID,
   newPopoutId,
   heldPopoutIds,
+  screenToClient,
+  isClientPointInWindow,
   HEARTBEAT_MS,
   HEARTBEAT_TIMEOUT_MS,
   type BusMessage,
@@ -232,6 +235,19 @@ function writePersisted(projectId: string, data: PersistShape): void {
   catch { /* quota etc. */ }
 }
 
+// Remove a group from ANOTHER project's persisted snapshot. Used when a
+// popped-out group from project A re-docks while the user is viewing project
+// B: B's host adopts the group, and A's stale entry must go or it would
+// resurrect there as a duplicate (double render + double PTY subscribe) on
+// the next visit. Direct cross-project localStorage writes follow the same
+// pattern GlobalSessionDockTray already uses.
+function removePersistedGroup(projectId: string, groupId: string): void {
+  const p = readPersisted(projectId);
+  if (!p || !p.groups.some(g => g.id === groupId)) return;
+  writePersisted(projectId, { ...p, groups: p.groups.filter(g => g.id !== groupId) });
+  window.dispatchEvent(new CustomEvent('session-windows:changed'));
+}
+
 function cascadeGeom(existingCount: number): WindowGeom {
   const i = existingCount % 8;
   return {
@@ -333,8 +349,8 @@ export default function SessionWindowsHost({
     const titles: Record<string, string> = {};
     for (const g of groups) {
       for (const sid of allSessionIds(g.root)) {
-        const s = sessions.find(x => x.id === sid);
-        if (s?.title) titles[sid] = s.title;
+        const title = sessions.find(x => x.id === sid)?.title || foreignSessionsRef.current[sid]?.title;
+        if (title) titles[sid] = title;
       }
     }
     writePersisted(projectId, { groups, zCounter: zCounterRef.current, titles });
@@ -367,8 +383,8 @@ export default function SessionWindowsHost({
       const titles: Record<string, string> = {};
       for (const g of next) {
         for (const sid of allSessionIds(g.root)) {
-          const s = sessionsRef.current.find(x => x.id === sid);
-          if (s?.title) titles[sid] = s.title;
+          const title = sessionsRef.current.find(x => x.id === sid)?.title || foreignSessionsRef.current[sid]?.title;
+          if (title) titles[sid] = title;
         }
       }
       writePersisted(projectId, { groups: next, zCounter: zCounterRef.current, titles });
@@ -376,26 +392,74 @@ export default function SessionWindowsHost({
     };
   }, [projectId]);
 
-  // Auto-prune groups when a session disappears server-side. Skip while
-  // sessions is empty (likely a loading blip) so we don't nuke restored state.
-  // Also skip if the sessions belong to another project — during project-to-
-  // project navigation ProjectDetail reuses the same instance so `sessions`
-  // briefly holds the *previous* project's data until the API fetch completes.
-  // Without this guard the stale cross-project IDs would prune every group.
+  // ── Foreign / missing session resolution ─────────────────────────────────
+  // A group may hold sessions docked in from OTHER projects (cross-project
+  // re-dock), which this project's `sessions` prop can't see. Any group
+  // member missing from the own-project list is looked up by id: found →
+  // foreignSessions (rendered + kept), 404 → deadIds (pruned below). Other
+  // errors (network blip) resolve nothing — the id stays pending and the
+  // next effect run retries — so a flaky connection can't nuke a group.
+  // Guards: skip while sessions is empty (loading blip) or while it still
+  // holds the previous project's data (ProjectDetail reuses the instance
+  // during navigation).
+  const [foreignSessions, setForeignSessions] = useState<Record<string, Session>>({});
+  const foreignSessionsRef = useRef(foreignSessions);
+  foreignSessionsRef.current = foreignSessions;
+  const [deadIds, setDeadIds] = useState<Set<string>>(() => new Set());
+  const pendingLookupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (sessions.length === 0) return;
     const ownSessions = sessions.filter(s => s.project_id === projectId);
     if (ownSessions.length === 0) return;
-    const validIds = new Set(ownSessions.map(s => s.id));
+    const ownIds = new Set(ownSessions.map(s => s.id));
+    for (const g of groups) {
+      for (const id of allSessionIds(g.root)) {
+        if (ownIds.has(id) || foreignSessions[id] || deadIds.has(id) || pendingLookupsRef.current.has(id)) continue;
+        pendingLookupsRef.current.add(id);
+        sessionsApi.getSession(id)
+          .then((s) => setForeignSessions(prev => ({ ...prev, [id]: s })))
+          .catch((err) => {
+            if (err instanceof ApiError && err.status === 404) {
+              setDeadIds(prev => new Set(prev).add(id));
+            }
+          })
+          .finally(() => pendingLookupsRef.current.delete(id));
+      }
+    }
+  }, [groups, sessions, projectId, foreignSessions, deadIds]);
+
+  // Keep foreign sessions' status fresh. The WS event stream is app-global,
+  // so status transitions for other projects' sessions arrive here too —
+  // SessionPane needs them for its phase / auto-close behavior.
+  useEffect(() => {
+    const unsub = onEvent((event) => {
+      if (event.type !== 'session:status-changed' || !event.sessionId) return;
+      setForeignSessions((prev) => {
+        const s = prev[event.sessionId as string];
+        if (!s) return prev;
+        const patch: Partial<Session> = { status: event.status as Session['status'] };
+        if (event.worktree_path !== undefined) patch.worktree_path = event.worktree_path;
+        if (event.branch_name !== undefined) patch.branch_name = event.branch_name;
+        return { ...prev, [s.id]: { ...s, ...patch } };
+      });
+    });
+    return unsub;
+  }, [onEvent]);
+
+  // Auto-prune groups when a session is confirmed deleted server-side. Ids
+  // merely missing from the own-project list are NOT pruned (they may be
+  // foreign-project members); only ids whose by-id lookup 404'd are removed.
+  useEffect(() => {
+    if (deadIds.size === 0) return;
     setGroups((prev) => {
       let changed = false;
       const next: OpenGroup[] = [];
       for (const g of prev) {
         const ids = allSessionIds(g.root);
-        const hasMissing = ids.some(id => !validIds.has(id));
-        if (!hasMissing) { next.push(g); continue; }
+        if (!ids.some(id => deadIds.has(id))) { next.push(g); continue; }
         changed = true;
-        const pruned = pruneInvalid(g.root, validIds);
+        const keep = new Set(ids.filter(id => !deadIds.has(id)));
+        const pruned = pruneInvalid(g.root, keep);
         if (!pruned) continue;
         const remaining = new Set(allSessionIds(pruned));
         const colors: Record<string, string> = {};
@@ -406,7 +470,7 @@ export default function SessionWindowsHost({
       }
       return changed ? next : prev;
     });
-  }, [sessions, projectId]);
+  }, [deadIds]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -476,7 +540,7 @@ export default function SessionWindowsHost({
   // SessionPane's auto-close only fires when status≠running, so it bypasses this confirm naturally.
   const confirmRunningStop = useCallback((sessionIds: string[]): boolean => {
     const running = sessionIds
-      .map(id => sessionsRef.current.find(s => s.id === id))
+      .map(id => sessionsRef.current.find(s => s.id === id) || foreignSessionsRef.current[id])
       .filter((s): s is Session => !!s && s.status === 'running');
     if (running.length === 0) return true;
     if (!window.confirm(t('session.confirmStop'))) return false;
@@ -971,6 +1035,23 @@ export default function SessionWindowsHost({
   // the popout is gone.
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
   const alivePopoutsRef = useRef<Map<string, number>>(new Map());
+  // Cross-window drag-dock receiver: overlay + insertion target for a tab
+  // dragged over from a popout OS window (see popoutBus dock-* protocol).
+  const [remoteDock, setRemoteDock] = useState<{ rect: DockTargetRect; zone: DockSide | null; path: Path; groupId: string } | null>(null);
+  const remoteDockRef = useRef(remoteDock);
+  remoteDockRef.current = remoteDock;
+  const remoteDockClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Last focus time, reported in probe results so the sender can prefer the
+  // most recently focused (≈ topmost) window when several overlap the cursor.
+  const focusAtRef = useRef(typeof document !== 'undefined' && document.hasFocus() ? Date.now() : 0);
+  useEffect(() => {
+    const onFocus = () => { focusAtRef.current = Date.now(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+    };
+  }, []);
   // Cache of full OpenGroup payloads keyed by groupId, so we can answer a
   // popout's `hello` after we've already removed the group from React state.
   const handoffCacheRef = useRef<Map<string, OpenGroup>>(new Map());
@@ -1151,7 +1232,7 @@ export default function SessionWindowsHost({
   // host so we can mutate the React `groups` state directly. Survives the
   // host's lifetime and is torn down on unmount.
   useEffect(() => {
-    const bus = openBus(projectId);
+    const bus = openBus();
     busRef.current = bus;
     const onMsg = (msg: BusMessage) => {
       if (msg.t === 'hello') {
@@ -1178,6 +1259,15 @@ export default function SessionWindowsHost({
           if (payload && payload.id === msg.groupId) {
             handoffCacheRef.current.delete(msg.groupId);
             alivePopoutsRef.current.delete(msg.from);
+            // Cross-project re-dock: the bus is app-global, so a popout from
+            // another project lands here when its project isn't mounted.
+            // Adopt the group into THIS workspace (the window the user is
+            // actually looking at — also how terminals from different
+            // projects get docked together) and scrub the origin project's
+            // persisted entry so it can't resurrect there as a duplicate.
+            if (msg.projectId && msg.projectId !== projectId) {
+              removePersistedGroup(msg.projectId, msg.groupId);
+            }
             setGroups((prev) => {
               // If main no longer has this group in its array, restore it.
               const exists = prev.find(g => g.id === msg.groupId);
@@ -1207,6 +1297,66 @@ export default function SessionWindowsHost({
         // patch into main's persisted state so a cold reload preserves it.
         const patch = msg.patch as Partial<OpenGroup>;
         setGroups((prev) => prev.map(g => g.id === msg.groupId ? { ...g, ...patch } : g));
+      } else if (msg.t === 'dock-probe') {
+        // A popout is dragging a tab across OS windows — report whether the
+        // cursor sits over one of our floating stacks and preview the zone.
+        if (document.visibilityState !== 'visible') return;
+        const p = screenToClient(msg.x, msg.y);
+        const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        if (hit) {
+          const prev = remoteDockRef.current;
+          if (!prev || prev.zone !== hit.zone || prev.groupId !== hit.groupId || prev.path.join('.') !== hit.path.join('.')) {
+            setRemoteDock({ rect: hit.rect, zone: hit.zone, path: hit.path, groupId: hit.groupId });
+          }
+          if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
+          remoteDockClearTimerRef.current = setTimeout(() => setRemoteDock(null), 800);
+          bus.post({ t: 'dock-probe-result', from: MAIN_WINDOW_ID, to: msg.from, hit: true, focusAt: focusAtRef.current });
+        } else {
+          if (remoteDockRef.current) setRemoteDock(null);
+          bus.post({ t: 'dock-probe-result', from: MAIN_WINDOW_ID, to: msg.from, hit: false, focusAt: focusAtRef.current });
+        }
+      } else if (msg.t === 'dock-end') {
+        setRemoteDock(null);
+      } else if (msg.t === 'dock-commit' && msg.to === MAIN_WINDOW_ID) {
+        // Adopt the dragged session into the committed stack. Recompute the
+        // target at the commit coords; fall back to the last probed hover.
+        const p = screenToClient(msg.x, msg.y);
+        const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        const target = (hit && hit.zone) ? hit : (remoteDockRef.current?.zone ? remoteDockRef.current : null);
+        let accepted = false;
+        // Reject when the session is already open in some main group — a
+        // second copy would double-subscribe the same PTY binary stream.
+        if (target && target.zone && !findGroupBySessionId(groupsRef.current, msg.sessionId)) {
+          const dst = groupsRef.current.find(g => g.id === target.groupId);
+          const node = dst ? getNode(dst.root, target.path) : null;
+          if (dst && node && node.kind === 'stack') {
+            accepted = true;
+            const zone = target.zone;
+            const path = target.path;
+            zCounterRef.current += 1;
+            const z = zCounterRef.current;
+            setGroups(prev => prev.map(g => {
+              if (g.id !== dst.id) return g;
+              const inserted = zone === 'center'
+                ? insertIntoStack(g.root, path, msg.sessionId)
+                : insertAtSide(g.root, path, zone, makeStack([msg.sessionId]));
+              const root = treeSetActiveTab(inserted, msg.sessionId);
+              const colors = { ...g.colors };
+              if (!colors[msg.sessionId]) colors[msg.sessionId] = msg.color || assignColor(Object.values(colors));
+              const intents = {
+                ...g.intents,
+                [msg.sessionId]: (msg.intentInfo as { intent: WindowIntent; nonce: number } | undefined)
+                  ?? { intent: 'open' as WindowIntent, nonce: 0 },
+              };
+              return { ...g, root, colors, intents, z, minimized: false };
+            }));
+            // Cross-project sessions resolve through the foreign-session
+            // lookup (groups change retriggers it); same-project ids render
+            // straight from the sessions prop.
+          }
+        }
+        setRemoteDock(null);
+        bus.post({ t: 'dock-commit-ack', from: MAIN_WINDOW_ID, to: msg.from, sessionId: msg.sessionId, accepted });
       }
     };
     const unsub = bus.subscribe(onMsg);
@@ -1353,9 +1503,13 @@ export default function SessionWindowsHost({
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
+    // Foreign first so an own-project entry wins if an id somehow appears in
+    // both (e.g. a just-created session briefly resolved through the by-id
+    // lookup before the project list refreshed).
+    for (const s of Object.values(foreignSessions)) map.set(s.id, s);
     for (const s of sessions) map.set(s.id, s);
     return map;
-  }, [sessions]);
+  }, [sessions, foreignSessions]);
 
   // Minimized chips are now rendered by GlobalSessionDockTray at the App
   // level so they stay visible across workspace switches. This host only
@@ -1397,6 +1551,10 @@ export default function SessionWindowsHost({
       {/* Tab drag visual: dock overlay over hovered stack */}
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
+      )}
+      {/* Cross-window drag: a popout's tab hovering over one of our stacks */}
+      {remoteDock && (
+        <DockOverlay targetRect={remoteDock.rect} activeZone={remoteDock.zone} />
       )}
       </SessionWindowStateContext.Provider>
     </SessionWindowsContext.Provider>

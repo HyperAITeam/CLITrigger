@@ -10,6 +10,7 @@ import {
   deleteVaultFile,
   renameVaultFile,
   searchVault,
+  unhideInVaultIgnore,
 } from '../services/file-scanner.js';
 import { buildVaultBlock } from '../services/vault-injector.js';
 
@@ -204,6 +205,41 @@ router.get('/projects/:id/vault/ignore', (req: Request, res: Response) => {
     res.json({ content });
   } catch {
     res.json({ content: '' });
+  }
+});
+
+// POST /api/projects/:id/vault/ignore/unhide — re-show a path hidden by
+// .vaultignore. Goes beyond removing the exact pattern line: under a broad
+// pattern (e.g. the onboarding "ignore everything" `*`), gitignore semantics
+// require a negation chain through every ancestor directory, which
+// unhideInVaultIgnore generates and verifies.
+router.post('/projects/:id/vault/ignore/unhide', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  const relRaw = req.body?.path;
+  const isDir = !!req.body?.isDir;
+  if (typeof relRaw !== 'string' || !relRaw.trim()) {
+    res.status(400).json({ error: 'path must be a non-empty string' });
+    return;
+  }
+  const rel = relRaw.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const rootResolved = pathModule.resolve(ctx.root);
+  const resolved = pathModule.resolve(ctx.root, rel);
+  if (!rel || !resolved.startsWith(rootResolved + pathModule.sep)) {
+    res.status(400).json({ error: 'path escapes project root' });
+    return;
+  }
+  const igPath = pathModule.join(ctx.root, '.vaultignore');
+  let content = '';
+  try {
+    content = fs.readFileSync(igPath, 'utf-8');
+  } catch { /* absent — start from empty */ }
+  const next = unhideInVaultIgnore(content, rel, isDir);
+  try {
+    fs.writeFileSync(igPath, next, 'utf-8');
+    res.json({ success: true, content: next });
+  } catch {
+    res.status(500).json({ error: 'Failed to write .vaultignore' });
   }
 });
 
