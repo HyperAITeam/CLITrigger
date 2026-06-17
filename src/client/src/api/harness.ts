@@ -27,6 +27,32 @@ export function updateMemory(
   return put(`/api/harness/${projectId}/${cli}/memory`, { content });
 }
 
+export function updateLocalMemory(
+  projectId: string,
+  cli: CliId,
+  content: string,
+): Promise<{ ok: true }> {
+  return put(`/api/harness/${projectId}/${cli}/local-memory`, { content });
+}
+
+// Replace the hooks block in the CLI's settings file. Pass null to remove it.
+export function updateHooks(
+  projectId: string,
+  cli: CliId,
+  hooks: Record<string, unknown> | null,
+): Promise<HarnessSnapshot> {
+  return put(`/api/harness/${projectId}/${cli}/hooks`, { hooks });
+}
+
+export function updateSkill(
+  projectId: string,
+  cli: CliId,
+  name: string,
+  content: string,
+): Promise<HarnessSnapshot> {
+  return put(`/api/harness/${projectId}/${cli}/skills/${encodeURIComponent(name)}`, { content });
+}
+
 export function upsertMcp(
   projectId: string,
   cli: CliId,

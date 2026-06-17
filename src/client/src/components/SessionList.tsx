@@ -24,7 +24,6 @@ interface SessionListProps {
   projectId: string;
   sessions: Session[];
   projectCliTool?: string;
-  projectCliModel?: string;
   isGitRepo?: boolean;
   projectUseWorktree?: boolean;
   projectDefaultBranch?: string;
@@ -54,7 +53,6 @@ export default function SessionList({
   projectId,
   sessions,
   projectCliTool,
-  projectCliModel,
   isGitRepo,
   projectUseWorktree,
   projectDefaultBranch,
@@ -108,7 +106,6 @@ export default function SessionList({
       title: editingSession.title,
       description: editingSession.description ?? '',
       cliTool: editingSession.cli_tool ?? '',
-      cliModel: editingSession.cli_model ?? '',
       useWorktree: editingSession.use_worktree === 1,
       memoryInjectMode: (editingSession.memory_inject_mode as MemoryInjectMode | null) ?? 'none',
       memoryNodeIds: parseMemoryNodeIds(editingSession.memory_node_ids ?? null),
@@ -139,7 +136,6 @@ export default function SessionList({
     title: string,
     description: string,
     cliTool?: string,
-    cliModel?: string,
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
@@ -152,7 +148,6 @@ export default function SessionList({
         title,
         description: description || undefined,
         cli_tool: cliTool,
-        cli_model: cliModel,
         use_worktree: useWorktree,
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
@@ -170,7 +165,6 @@ export default function SessionList({
     title: string,
     description: string,
     cliTool?: string,
-    cliModel?: string,
     useWorktree?: boolean,
     memoryInjectMode?: MemoryInjectMode,
     memoryNodeIds?: string[],
@@ -185,7 +179,6 @@ export default function SessionList({
         title,
         description: description || undefined,
         cli_tool: cliTool,
-        cli_model: cliModel,
         use_worktree: useWorktree,
         memory_inject_mode: memoryInjectMode,
         memory_node_ids: memoryNodeIds,
@@ -222,7 +215,6 @@ export default function SessionList({
           onSave={handleCreate}
           onCancel={cancelForm}
           projectCliTool={projectCliTool}
-          projectCliModel={projectCliModel}
           isGitRepo={isGitRepo}
           projectUseWorktree={projectUseWorktree}
         />
@@ -237,7 +229,6 @@ export default function SessionList({
             onSave={handleUpdate}
             onCancel={cancelForm}
             projectCliTool={projectCliTool}
-            projectCliModel={projectCliModel}
             isGitRepo={isGitRepo}
           />
           {(saving || editError) && (
@@ -315,7 +306,6 @@ export default function SessionList({
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-2xs text-warm-300">
                           {session.cli_tool || 'claude'}
-                          {session.cli_model ? ` / ${session.cli_model}` : ''}
                         </span>
                         {(session.branch_name || (isGitRepo && (currentBranch || projectDefaultBranch))) && (
                           <span className="text-2xs text-accent/70 flex items-center gap-0.5">

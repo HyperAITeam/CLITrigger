@@ -2,7 +2,6 @@ import { useState, useRef, useCallback } from 'react';
 import { Image as ImageIcon, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
-import { useModels } from '../hooks/useModels';
 import type { ImageMeta, MemoryInjectMode, Todo } from '../types';
 import type { VaultInjectMode } from '../api/vault';
 import { getTodoImageUrl } from '../api/todos';
@@ -26,12 +25,11 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, cliModel?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => void;
+  onSave: (title: string, description: string, cliTool?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
   initialCliTool?: string;
-  initialCliModel?: string;
   initialDependsOn?: string;
   initialMaxTurns?: number;
   initialUseWorktree?: number | null;
@@ -39,7 +37,6 @@ interface TodoFormProps {
   initialMemoryRawFilePaths?: string | null;
   projectId?: string;
   projectCliTool?: string;
-  projectCliModel?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
   existingImages?: ImageMeta[];
@@ -56,7 +53,6 @@ export default function TodoForm({
   initialTitle = '',
   initialDescription = '',
   initialCliTool,
-  initialCliModel,
   initialDependsOn,
   initialMaxTurns,
   initialUseWorktree = null,
@@ -64,7 +60,6 @@ export default function TodoForm({
   initialMemoryRawFilePaths = null,
   projectId,
   projectCliTool = 'claude',
-  projectCliModel = '',
   projectIsGitRepo = false,
   projectUseWorktree = true,
   existingImages = [],
@@ -75,7 +70,6 @@ export default function TodoForm({
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [cliTool, setCliTool] = useState<CliTool>((initialCliTool as CliTool) || (projectCliTool as CliTool) || 'claude');
-  const [cliModel, setCliModel] = useState(initialCliModel ?? projectCliModel ?? '');
   const [dependsOn, setDependsOn] = useState(initialDependsOn ?? '');
   const [maxTurns, setMaxTurns] = useState(initialMaxTurns?.toString() ?? '');
   const [useWorktreeMode, setUseWorktreeMode] = useState<'inherit' | 'force-on' | 'force-off'>(
@@ -89,14 +83,6 @@ export default function TodoForm({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
-  const { getToolConfig } = useModels();
-
-  const toolConfig = getToolConfig(cliTool);
-
-  const handleCliToolChange = (newTool: CliTool) => {
-    setCliTool(newTool);
-    setCliModel('');
-  };
 
   const addImagesFromFiles = useCallback((files: FileList | File[]) => {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
@@ -167,7 +153,7 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    onSave(title.trim(), description.trim(), cliTool, cliModel || undefined, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths);
+    onSave(title.trim(), description.trim(), cliTool, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -276,7 +262,7 @@ export default function TodoForm({
         </div>
       )}
 
-      {/* CLI Tool & Model Selection */}
+      {/* CLI Tool Selection */}
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-warm-500 mb-1.5">
@@ -284,25 +270,11 @@ export default function TodoForm({
           </label>
           <select
             value={cliTool}
-            onChange={(e) => handleCliToolChange(e.target.value as CliTool)}
+            onChange={(e) => setCliTool(e.target.value as CliTool)}
             className="input-field text-sm"
           >
             {CLI_TOOLS.map((tool) => (
               <option key={tool.value} value={tool.value}>{tool.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-warm-500 mb-1.5">
-            {t('todoForm.aiModel')}
-          </label>
-          <select
-            value={cliModel}
-            onChange={(e) => setCliModel(e.target.value)}
-            className="input-field text-sm"
-          >
-            {toolConfig.models.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
         </div>

@@ -8,7 +8,7 @@
 
 **Your AI Development Command Center**
 
-*Plan your day, delegate to parallel AI agents, review every diff — in one place.*
+*AI agents code overnight in parallel git worktrees — you review the diffs over coffee.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -23,6 +23,18 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
 [![GitHub stars](https://img.shields.io/github/stars/HyperAITeam/CLITrigger.svg?style=social)](https://github.com/HyperAITeam/CLITrigger/stargazers)
+
+<br>
+
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger demo — parallel AI agents executing in isolated worktrees, then morning diff review" width="800">
+
+<br><br>
+
+```bash
+npm i -g clitrigger && clitrigger
+```
+
+**Up and running in 60 seconds** — open `http://localhost:3000`, set a password, add a project, write TODOs, hit Start.
 
 </div>
 
@@ -44,6 +56,8 @@
 ---
 
 ## Why CLITrigger?
+
+**Running Claude Code in your terminal, you drive one agent at a time and babysit it.** CLITrigger fans that out: many agents, each in its own isolated worktree, running while you're away — and a single place to plan the work and review every diff when they're done.
 
 Boris Cherny, creator of Claude Code, emphasizes **parallelism** as the key to AI-assisted development. Waiting for one task to finish before starting the next is the new bottleneck.
 

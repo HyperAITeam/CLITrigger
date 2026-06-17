@@ -18,7 +18,6 @@ interface PlannerListProps {
   plannerItems: PlannerItemType[];
   existingTags: PlannerTag[];
   projectCliTool?: string;
-  projectCliModel?: string;
   onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<PlannerItemType>;
   onEditItem: (id: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
@@ -32,7 +31,7 @@ interface PlannerListProps {
 }
 
 export default function PlannerList({
-  plannerItems, existingTags, projectCliTool, projectCliModel,
+  plannerItems, existingTags, projectCliTool,
   onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule, onConvertToSession,
   onUpdateTag, onDeleteTag, onExport, onImport,
 }: PlannerListProps) {
@@ -373,7 +372,6 @@ export default function PlannerList({
           item={convertItem}
           mode={convertMode}
           projectCliTool={projectCliTool}
-          projectCliModel={projectCliModel}
           onConvert={async (data) => {
             if (convertMode === 'todo') {
               await onConvertToTodo(convertItem.id, data);

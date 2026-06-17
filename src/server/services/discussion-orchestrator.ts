@@ -7,7 +7,6 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
-import { buildSourceTextFromDiscussion, runAutoIngestAndBroadcast } from './memory-ingest.js';
 import { broadcastProjectStatus } from './project-status.js';
 
 function broadcastDiscussionProjectStatus(discussionId: string): void {
@@ -27,20 +26,6 @@ function dispatchDiscussionStatus(payload: {
 }): void {
   broadcaster.broadcast({ type: 'discussion:status-changed', ...payload });
   broadcastDiscussionProjectStatus(payload.discussionId);
-}
-
-function maybeAutoIngestDiscussion(discussionId: string): void {
-  try {
-    const d = queries.getDiscussionById(discussionId);
-    if (!d) return;
-    const proj = queries.getProjectById(d.project_id);
-    if (!proj?.memory_auto_ingest) return;
-    const text = buildSourceTextFromDiscussion(discussionId);
-    if (!text) return;
-    runAutoIngestAndBroadcast(proj.id, 'discussion', discussionId, d.title, text);
-  } catch (err) {
-    console.error('[memory-ingest] discussion auto-ingest hook failed:', err);
-  }
 }
 
 export class DiscussionOrchestrator {
@@ -288,7 +273,9 @@ export class DiscussionOrchestrator {
     }
 
     const cliTool = (agent?.cli_tool || project.cli_tool || 'claude') as CliTool;
-    const cliModel = agent?.cli_model || project.claude_model || undefined;
+    // Model selection was removed — always the CLI's default model; legacy
+    // agent.cli_model / project.claude_model values are ignored.
+    const cliModel = undefined;
     const cliOptions = project.claude_options || undefined;
     const DEFAULT_MAX_TURNS = 30;
     const maxTurns = (isImplementation || canImplement) ? (project.default_max_turns ?? DEFAULT_MAX_TURNS) : 10;
@@ -405,7 +392,6 @@ export class DiscussionOrchestrator {
       queries.updateDiscussion(discussionId, { current_agent_id: null });
       queries.createDiscussionLog(discussionId, null, 'info', 'Implementation completed. Discussion finished.');
       dispatchDiscussionStatus({ discussionId, status: 'completed', currentRound: currentMsg.round_number, currentAgentId: null });
-      maybeAutoIngestDiscussion(discussionId);
       return;
     }
 
@@ -461,7 +447,6 @@ export class DiscussionOrchestrator {
     queries.updateDiscussion(discussionId, { current_agent_id: null });
     queries.createDiscussionLog(discussionId, null, 'info', 'All discussion rounds completed.');
     dispatchDiscussionStatus({ discussionId, status: 'completed', currentRound: discussion.max_rounds, currentAgentId: null });
-    maybeAutoIngestDiscussion(discussionId);
   }
 
   /**

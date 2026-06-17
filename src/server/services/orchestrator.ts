@@ -12,7 +12,6 @@ import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
-import { buildSourceTextFromTodo, runAutoIngestAndBroadcast } from './memory-ingest.js';
 import { broadcastProjectStatus as broadcastProjectStatusShared } from './project-status.js';
 import * as queries from '../db/queries.js';
 
@@ -584,8 +583,10 @@ Complete the task in the current directory.`;
       }
     }
 
-    // Determine model: task-level overrides project-level
-    const claudeModel = todo.cli_model || project.claude_model || undefined;
+    // Model selection was removed from the product — always run on the CLI's
+    // default model. Stored todo.cli_model / project.claude_model values are
+    // intentionally ignored (legacy DB rows may still carry them).
+    const claudeModel = undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
     const DEFAULT_MAX_TURNS = 30;
     const maxTurns = todo.max_turns ?? project.default_max_turns ?? DEFAULT_MAX_TURNS;
@@ -749,13 +750,6 @@ Complete the task in the current directory.`;
           }
 
           captureReviewMetadata(todoId).catch(() => { /* ignore */ });
-          if (project.memory_auto_ingest) {
-            const sourceText = buildSourceTextFromTodo(todoId);
-            if (sourceText) {
-              const todo = queries.getTodoById(todoId);
-              runAutoIngestAndBroadcast(projectId, 'todo', todoId, todo?.title ?? null, sourceText);
-            }
-          }
           broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
           this.broadcastProjectStatus(projectId);

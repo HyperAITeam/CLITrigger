@@ -109,6 +109,52 @@ export function loadVaultIgnore(projectRoot: string): Ignore {
   return ig;
 }
 
+// Rewrite .vaultignore content so `relPath` is no longer ignored.
+//
+// Removing the exact anchored pattern line (the inverse of a prior "hide")
+// is tried first, but it's not enough when a broad pattern like `*` covers
+// the path — and gitignore semantics can't re-include a file while any
+// ancestor directory is still excluded. So when the path remains ignored we
+// append a negation chain: `!/a/`, `!/a/b/`, … for every ancestor, then the
+// target itself (`!/a/b/file.md`, or `!/dir/` + `!/dir/**` for directories).
+// The result is verified with the same `ignore` package the scanner uses.
+export function unhideInVaultIgnore(content: string, relPath: string, isDir: boolean): string {
+  const rel = relPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const exact = '/' + rel + (isDir ? '/' : '');
+  let lines = content.split(/\r?\n/).filter((l) => l.trim() !== exact);
+
+  const matchPath = isDir ? rel + '/' : rel;
+  const isIgnored = () => {
+    const ig = ignore();
+    ig.add(lines.join('\n'));
+    return ig.ignores(matchPath);
+  };
+
+  if (isIgnored()) {
+    const additions: string[] = [];
+    const parts = rel.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      additions.push('!/' + parts.slice(0, i).join('/') + '/');
+    }
+    if (isDir) {
+      additions.push('!/' + rel + '/');
+      additions.push('!/' + rel + '/**');
+    } else {
+      additions.push('!/' + rel);
+    }
+    const present = new Set(lines.map((l) => l.trim()));
+    for (const a of additions) {
+      if (!present.has(a)) lines.push(a);
+    }
+  }
+
+  // Tidy: collapse the blank run a removed line can leave behind.
+  let next = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+  if (next.trim() === '') return '';
+  if (!next.endsWith('\n')) next += '\n';
+  return next;
+}
+
 function walkDir(dir: string, root: string, excludes: string[], ig: Ignore, results: string[]): void {
   let entries: fs.Dirent[];
   try {

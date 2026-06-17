@@ -328,6 +328,26 @@ router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
+// GET /api/projects/:id/svn-detect — is the project folder an SVN working
+// copy? Read-only: lets the settings panel decide whether to surface the SVN
+// tab without flipping svn_enabled (which is what triggers the real
+// detection + vcs_type write in the PUT handler below).
+router.get('/:id/svn-detect', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    let isSvn = false;
+    try { isSvn = await isSvnRepository(project.path); } catch { /* treat as not-svn */ }
+    res.json({ isSvnRepository: isSvn });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // PUT /api/projects/:id - update project
 router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -337,16 +357,21 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, svn_enabled, color } = req.body;
+    // claude_model is no longer accepted — model selection was removed and
+    // execution always uses the CLI's default model.
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, svn_enabled, color } = req.body;
 
     // Handle SVN enable/disable transitions:
     //   off → on  : run detection now and set vcs_type='svn' if .svn/ found
     //   on  → off : clear vcs_type if it was 'svn' so the tab and routes go quiet
+    // A git project is never demoted to vcs_type='svn': vcs_type drives the
+    // worktree/concurrency policy and git stays primary in a dual git+svn
+    // checkout. The SVN tab and routes key off svn_enabled, not vcs_type.
     let vcsTypePatch: string | null | undefined = undefined;
     if (svn_enabled !== undefined && Number(svn_enabled) !== existing.svn_enabled) {
       if (Number(svn_enabled) === 1) {
         try {
-          if (await isSvnRepository(existing.path)) vcsTypePatch = 'svn';
+          if (existing.vcs_type !== 'git' && await isSvnRepository(existing.path)) vcsTypePatch = 'svn';
         } catch { /* leave vcs_type unchanged on detection error */ }
       } else if (existing.vcs_type === 'svn') {
         vcsTypePatch = null;
@@ -354,16 +379,17 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     }
 
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_model, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, memory_auto_ingest, color,
+      name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
     });
 
-    const cliChanged =
-      (cli_tool !== undefined && cli_tool !== existing.cli_tool) ||
-      (claude_model !== undefined && claude_model !== existing.claude_model);
+    const cliChanged = cli_tool !== undefined && cli_tool !== existing.cli_tool;
 
     if (project && cliChanged) {
+      // Model args mirror the (now-immutable) stored value so the WHERE
+      // clause still matches rows carrying the legacy project default —
+      // only cli_tool is synced.
       syncProjectCliDefaults(
         req.params.id,
         existing.cli_tool ?? null,

@@ -227,10 +227,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     });
   }, [onEvent, sendNotification, t]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, cliModel?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
     if (!id) return;
     const newTodo = await todosApi.createTodo(id, {
-      title, description, cli_tool: cliTool, cli_model: cliModel,
+      title, description, cli_tool: cliTool,
       depends_on: dependsOn, max_turns: maxTurns ?? null, use_worktree: useWorktree ?? null,
       ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
       ...(memoryNodeIds ? { memory_node_ids: memoryNodeIds } : {}),
@@ -277,9 +277,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, cliModel?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
     const updated = await todosApi.updateTodo(todoId, {
-      title, description, cli_tool: cliTool, cli_model: cliModel,
+      title, description, cli_tool: cliTool,
       depends_on: dependsOn ?? null, max_turns: maxTurns ?? null,
       use_worktree: useWorktree === undefined ? null : useWorktree,
       ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
@@ -407,7 +407,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       title: fixTitle.slice(0, 200),
       description: fixDescription,
       cli_tool: failedTodo.cli_tool ?? undefined,
-      cli_model: failedTodo.cli_model ?? undefined,
     });
     setTodos((prev) => [...prev, newTodo]);
     // Auto-start the fix task
@@ -425,7 +424,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     description: string;
     cronExpression: string;
     cliTool?: string;
-    cliModel?: string;
     skipIfRunning?: boolean;
     scheduleType: 'recurring' | 'once';
     runAt?: string;
@@ -436,7 +434,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       description: data.description,
       cron_expression: data.cronExpression || undefined,
       cli_tool: data.cliTool,
-      cli_model: data.cliModel,
       skip_if_running: data.skipIfRunning,
       schedule_type: data.scheduleType,
       run_at: data.runAt,
@@ -456,7 +453,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
   }, []);
 
-  const handleEditSchedule = useCallback(async (scheduleId: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; cli_model?: string; skip_if_running?: boolean }) => {
+  const handleEditSchedule = useCallback(async (scheduleId: string, updates: { title?: string; description?: string; cron_expression?: string; cli_tool?: string; skip_if_running?: boolean }) => {
     const updated = await schedulesApi.updateSchedule(scheduleId, updates);
     setSchedules((prev) => prev.map((s) => (s.id === scheduleId ? updated : s)));
   }, []);
@@ -488,19 +485,19 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   }, []);
 
   const handleConvertPlannerToTodo = useCallback(async (itemId: string, data: Record<string, unknown>) => {
-    const result = await plannerApi.convertToTodo(itemId, data as { cli_tool?: string; cli_model?: string; max_turns?: number });
+    const result = await plannerApi.convertToTodo(itemId, data as { cli_tool?: string; max_turns?: number });
     setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
     setTodos((prev) => [...prev, result.todo]);
   }, []);
 
   const handleConvertPlannerToSchedule = useCallback(async (itemId: string, data: Record<string, unknown>) => {
-    const result = await plannerApi.convertToSchedule(itemId, data as { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string; cli_model?: string });
+    const result = await plannerApi.convertToSchedule(itemId, data as { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string });
     setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
     setSchedules((prev) => [result.schedule, ...prev]);
   }, []);
 
   const handleConvertPlannerToSession = useCallback(async (itemId: string, data: Record<string, unknown>) => {
-    const result = await plannerApi.convertToSession(itemId, data as { cli_tool?: string; cli_model?: string; use_worktree?: boolean });
+    const result = await plannerApi.convertToSession(itemId, data as { cli_tool?: string; use_worktree?: boolean });
     setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? result.plannerItem : i)));
     setSessions((prev) => [result.session, ...prev]);
   }, []);
@@ -821,7 +818,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           todos={todos}
           projectId={id}
           projectCliTool={project.cli_tool}
-          projectCliModel={project.claude_model ?? undefined}
           projectIsGitRepo={!!project.is_git_repo}
           projectUseWorktree={project.use_worktree !== 0}
           onAddTodo={handleAddTodo}
@@ -855,7 +851,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           projectId={id}
           sessions={sessions}
           projectCliTool={project.cli_tool}
-          projectCliModel={project.claude_model ?? undefined}
           isGitRepo={!!project.is_git_repo}
           projectUseWorktree={project.use_worktree !== 0}
           projectDefaultBranch={project.default_branch}
@@ -905,7 +900,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <ScheduleList
           schedules={schedules}
           projectCliTool={project.cli_tool}
-          projectCliModel={project.claude_model ?? undefined}
           onAddSchedule={handleAddSchedule}
           onToggleSchedule={handleToggleSchedule}
           onDeleteSchedule={handleDeleteSchedule}
@@ -920,7 +914,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           plannerItems={plannerItems}
           existingTags={plannerTags}
           projectCliTool={project.cli_tool}
-          projectCliModel={project.claude_model ?? undefined}
           onAddItem={handleAddPlannerItem}
           onEditItem={handleEditPlannerItem}
           onDeleteItem={handleDeletePlannerItem}
