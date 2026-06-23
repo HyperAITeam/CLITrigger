@@ -146,18 +146,30 @@ export default function SessionTerminal({
   // Thumbnail of the most recently pasted image, mirrored into a bottom-left
   // overlay (same spot as the IME composition mirror). The CLI only renders
   // an opaque `[Image #N]` token, so without this the user gets no visual
-  // confirmation of WHAT was just pasted. Cleared by a timer below.
+  // confirmation of WHAT was just pasted. Cleared via showPastePreview below.
   const [pastedImage, setPastedImage] = useState<{ dataUrl: string; bytes: number } | null>(null);
-  const setPastedImageRef = useRef(setPastedImage);
-  setPastedImageRef.current = setPastedImage;
 
-  // Auto-dismiss the pasted-image preview. Keyed on the object identity so a
-  // second paste while the first preview is visible restarts the window.
-  useEffect(() => {
-    if (!pastedImage) return;
-    const t = setTimeout(() => setPastedImage(null), 3000);
-    return () => clearTimeout(t);
-  }, [pastedImage]);
+  // Show the thumbnail and keep it up only WHILE the paste round-trip is in
+  // flight — dismissed when the `pasteImage` promise settles (clipboard write
+  // + ESC+v done), not on a fixed timer. A small floor keeps a fast paste from
+  // flashing. `done.then(dismiss, dismiss)` so a failed paste clears too. The
+  // token guards against a newer paste arriving mid-window: the older promise's
+  // dismiss must not nuke the newer preview.
+  const pasteTokenRef = useRef(0);
+  const showPastePreview = (dataUrl: string, bytes: number, done: Promise<unknown>) => {
+    const token = ++pasteTokenRef.current;
+    const shownAt = Date.now();
+    setPastedImage({ dataUrl, bytes });
+    const dismiss = () => {
+      const wait = Math.max(0, 600 - (Date.now() - shownAt));
+      setTimeout(() => {
+        if (pasteTokenRef.current === token) setPastedImage(null);
+      }, wait);
+    };
+    done.then(dismiss, dismiss);
+  };
+  const showPastePreviewRef = useRef(showPastePreview);
+  showPastePreviewRef.current = showPastePreview;
 
   // useToast must be called from the component body, but pasteFromClipboard
   // lives inside the mount-only useEffect. Stash the dispatcher in a ref so
@@ -265,8 +277,9 @@ export default function SessionTerminal({
                 // ESC+v into the PTY in the same transaction (see paste-image
                 // route) so two concurrent paste-image requests can't race on
                 // the shared OS clipboard. We don't send ESC+v here.
-                setPastedImageRef.current({ dataUrl, bytes: blob.size });
-                pasteImage(sessionId, dataUrl).catch((err) => console.warn('[paste] pasteImage failed:', err));
+                const done = pasteImage(sessionId, dataUrl);
+                done.catch((err) => console.warn('[paste] pasteImage failed:', err));
+                showPastePreviewRef.current(dataUrl, blob.size, done);
               };
               reader.readAsDataURL(blob);
               return;
@@ -501,7 +514,7 @@ export default function SessionTerminal({
     const isPasteAlreadyHandled = () => Date.now() - pasteHandledAt < 300;
     const isImagePasteDisabled = () => disableImagePasteRef.current;
     const onComposingChange = (text: string) => setComposingTextRef.current(text);
-    const onImagePasted = (dataUrl: string, bytes: number) => setPastedImageRef.current({ dataUrl, bytes });
+    const onImagePasted = (dataUrl: string, bytes: number, done: Promise<unknown>) => showPastePreviewRef.current(dataUrl, bytes, done);
     const inputCleanup = isMobileImeDevice()
       ? setupMobileImeInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled })
       : setupDesktopInput({ container, term, sessionId, sendMessage: guardedSend, isPasteAlreadyHandled, isImagePasteDisabled, onComposingChange, onImagePasted });
@@ -719,8 +732,8 @@ export default function SessionTerminal({
           {pastedImage && (
             // Thumbnail of the image that was just uploaded via paste — the
             // CLI itself only shows `[Image #N]`, so this is the user's only
-            // visual confirmation of what got attached. Auto-dismissed by the
-            // 3s timer above.
+            // visual confirmation of what got attached. Dismissed when the
+            // paste round-trip settles (see showPastePreview above).
             <div
               style={{
                 padding: 4,
@@ -859,7 +872,7 @@ interface InputSetupArgs {
   // Fires when the paste-event fallback uploads a clipboard image, so the
   // React layer can show the same bottom-left thumbnail preview as the
   // clipboard.read() path.
-  onImagePasted?: (dataUrl: string, bytes: number) => void;
+  onImagePasted?: (dataUrl: string, bytes: number, done: Promise<unknown>) => void;
 }
 
 // === Hangul jamo composer (mobile fallback) ===
@@ -1101,8 +1114,9 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
             console.debug('[paste-fallback] image via paste event, bytes=', file.size);
             // Server injects ESC+v after writing the clipboard; see the
             // paste-image route. We don't send it from the client.
-            onImagePasted?.(dataUrl, file.size);
-            pasteImage(sessionId, dataUrl, file.name).catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
+            const done = pasteImage(sessionId, dataUrl, file.name);
+            done.catch((err) => console.warn('[paste-fallback] pasteImage failed:', err));
+            onImagePasted?.(dataUrl, file.size, done);
           };
           reader.readAsDataURL(file);
           return;

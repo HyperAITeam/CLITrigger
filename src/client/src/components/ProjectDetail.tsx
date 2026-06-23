@@ -888,10 +888,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <AnalyticsPanel projectId={id} />
       )}
       {activeTab === 'git' && project.is_git_repo ? (
-        <GitStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
+        <GitStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'svn' && project.svn_enabled ? (
-        <SvnStatusPanel project={project} refreshTrigger={gitRefreshTrigger} />
+        <SvnStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'files' && id && (
         <VaultLayout projectId={id} />
