@@ -8,6 +8,7 @@ const router = Router();
 const HASH_KEY = 'auth.password_hash';
 const CHANGED_AT_KEY = 'auth.password_changed_at';
 const MIN_LENGTH = 8;
+const REMEMBER_ME_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Rate limit auth attempts: max 10 per 15 minutes per IP
 const authLimiter = rateLimit({
@@ -40,6 +41,7 @@ function markPasswordChanged(): void {
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res) => {
   const { password } = req.body ?? {};
+  const remember = req.body?.remember === true;
   const hash = getSetting(HASH_KEY);
 
   if (!hash) {
@@ -61,6 +63,9 @@ router.post('/login', authLimiter, async (req, res) => {
   if (ok) {
     req.session.authenticated = true;
     req.session.createdAt = Date.now();
+    if (remember) {
+      req.session.cookie.maxAge = REMEMBER_ME_MAX_AGE;
+    }
     res.json({ success: true });
   } else {
     console.warn(`Failed login attempt from ${req.ip}`);
