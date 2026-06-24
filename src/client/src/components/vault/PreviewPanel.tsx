@@ -19,7 +19,7 @@ import type { FileEntry } from '../../api/files';
 import { ApiError } from '../../api/client';
 import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
-import { useVaultZoom } from '../../hooks/useVaultZoom';
+import { useVaultZoom, DEFAULT_VAULT_FONT_SIZE } from '../../hooks/useVaultZoom';
 import MarkdownContent from '../MarkdownContent';
 import ToastContainer from '../Toast';
 import {
@@ -350,6 +350,25 @@ export function PreviewPanel({
     overlayRef.current?.clearAll();
   }, [path, editMode]);
 
+  // HTML preview only: an iframe swallows wheel events, so VaultLayout's
+  // Ctrl/Cmd+wheel zoom never fires over it. While the zoom key is held we
+  // disable iframe pointer-events so the wheel reaches the parent listener.
+  const [zoomKeyHeld, setZoomKeyHeld] = useState(false);
+  useEffect(() => {
+    if (!isHtml) return;
+    const onDown = (e: KeyboardEvent) => { if (e.ctrlKey || e.metaKey) setZoomKeyHeld(true); };
+    const onUp = (e: KeyboardEvent) => { if (!e.ctrlKey && !e.metaKey) setZoomKeyHeld(false); };
+    const onBlur = () => setZoomKeyHeld(false);
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [isHtml]);
+
   const toggleAnnotate = useCallback(() => {
     setAnnotateMode(v => {
       if (v) overlayRef.current?.clearAll();
@@ -660,6 +679,7 @@ export function PreviewPanel({
               sandbox=""
               title={entry.name}
               className="flex-1 w-full border-0 bg-white min-h-[60vh]"
+              style={{ zoom: zoom / DEFAULT_VAULT_FONT_SIZE, pointerEvents: zoomKeyHeld ? 'none' : 'auto' }}
             />
           </div>
         )}
