@@ -5,6 +5,15 @@ const fs = require('node:fs');
 const net = require('node:net');
 const { pathToFileURL } = require('node:url');
 
+// Windows: Chromium의 네이티브 윈도우 가림 계산이 창을 잘못 "가려짐"으로 판정하면
+// 입력/IME가 멎고 IME 조합 창이 화면 좌상단에 고착된다(다른 앱에 포커스를 줬다
+// 오면 가림 재계산이 일어나며 풀림). 패키징 exe에서만 재현 — dev는 detached
+// DevTools가 떠 있어 가려진다. 이 기능을 끄면 고착이 사라진다.
+// 참고: electron/electron#4539, #31917.
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+
 let mainWindow = null;
 let serverPort = null;
 let cleanupStarted = false;
