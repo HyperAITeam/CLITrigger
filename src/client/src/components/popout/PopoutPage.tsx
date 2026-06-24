@@ -30,6 +30,7 @@ import {
   holdPopoutLock,
   screenToClient,
   isClientPointInWindow,
+  startViewportTracking,
   HEARTBEAT_MS,
   type BusMessage,
 } from './popoutBus';
@@ -328,8 +329,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   useEffect(() => {
     const onFocus = () => { focusAtRef.current = Date.now(); };
     window.addEventListener('focus', onFocus);
+    // Keep the screen→client offset fresh from real mouse events so a
+    // cross-window dock-probe hit-tests at the right spot in this popout.
+    const stopTrack = startViewportTracking();
     return () => {
       window.removeEventListener('focus', onFocus);
+      stopTrack();
       if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
     };
   }, []);

@@ -40,6 +40,7 @@ import {
   heldPopoutIds,
   screenToClient,
   isClientPointInWindow,
+  startViewportTracking,
   HEARTBEAT_MS,
   HEARTBEAT_TIMEOUT_MS,
   type BusMessage,
@@ -1047,8 +1048,12 @@ export default function SessionWindowsHost({
   useEffect(() => {
     const onFocus = () => { focusAtRef.current = Date.now(); };
     window.addEventListener('focus', onFocus);
+    // Keep the screen→client offset fresh from real mouse events so a
+    // cross-window dock-probe from a popout hit-tests at the right spot here.
+    const stopTrack = startViewportTracking();
     return () => {
       window.removeEventListener('focus', onFocus);
+      stopTrack();
       if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
     };
   }, []);
