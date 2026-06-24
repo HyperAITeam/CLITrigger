@@ -119,13 +119,34 @@ export const HEARTBEAT_MS = 5000;
 export const HEARTBEAT_TIMEOUT_MS = 15000;
 
 // ── Cross-window dock geometry ──────────────────────────────────────────────
-// Convert an OS-screen point to this window's client coordinates. The browser
-// chrome offset is approximated from the outer/inner size deltas: left/right
-// borders are assumed symmetric, and the remaining vertical delta is top
-// chrome (title bar, plus the URL bar on `popup` windows). Mixed-DPI
-// multi-monitor setups can skew the math — the same trade-off the tear-out
-// threshold already accepts.
+// The viewport's top-left in screen coordinates, sampled from the most recent
+// mouse event this window saw. `e.screenX - e.clientX` is EXACT (both come from
+// the same event, same units) and needs no browser-chrome guessing. Each window
+// (renderer) has its own module instance, so this is per-window. Stays accurate
+// as long as the window hasn't moved since the user last moused over it — true
+// during a stationary drag-dock.
+let viewportOffset: { x: number; y: number } | null = null;
+
+// Install a passive mouse tracker that keeps `viewportOffset` fresh. Call once
+// per window mount (main host + each popout); returns a cleanup.
+export function startViewportTracking(): () => void {
+  if (typeof window === 'undefined') return () => { /* SSR/no-DOM */ };
+  const onMove = (e: MouseEvent) => {
+    viewportOffset = { x: e.screenX - e.clientX, y: e.screenY - e.clientY };
+  };
+  window.addEventListener('mousemove', onMove, { passive: true });
+  return () => window.removeEventListener('mousemove', onMove);
+}
+
+// Convert an OS-screen point to this window's client coordinates. Prefer the
+// event-sampled viewport offset (exact); fall back to approximating the browser
+// chrome from outer/inner size deltas only before any mouse event was seen.
+// Mixed-DPI multi-monitor setups can still skew screen-pixel units across
+// monitors — the same trade-off the tear-out threshold already accepts.
 export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
+  if (viewportOffset) {
+    return { x: screenX - viewportOffset.x, y: screenY - viewportOffset.y };
+  }
   const borderX = Math.max(0, (window.outerWidth - window.innerWidth) / 2);
   const chromeTop = Math.max(0, window.outerHeight - window.innerHeight - borderX);
   return { x: screenX - window.screenX - borderX, y: screenY - window.screenY - chromeTop };
