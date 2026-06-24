@@ -3,11 +3,12 @@ import { SquareTerminal } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 interface LoginPageProps {
-  onLogin: (password: string) => Promise<void>;
+  onLogin: (password: string, remember: boolean) => Promise<void>;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { t, toggleLang } = useI18n();
@@ -18,7 +19,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setError('');
     setLoading(true);
     try {
-      await onLogin(password);
+      await onLogin(password, remember);
     } catch {
       setError(t('login.error'));
     } finally {
@@ -70,6 +71,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 {error}
               </div>
             )}
+
+            <label className="flex items-center gap-2 mt-5 text-sm text-theme-text-secondary cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="accent-accent w-4 h-4"
+              />
+              {t('login.rememberMe')}
+            </label>
 
             <button
               type="submit"

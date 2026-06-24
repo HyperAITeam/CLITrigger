@@ -25,8 +25,8 @@ export function useAuth() {
     return () => window.removeEventListener('auth:unauthorized', handler);
   }, []);
 
-  const login = useCallback(async (password: string) => {
-    await authApi.login(password);
+  const login = useCallback(async (password: string, remember: boolean) => {
+    await authApi.login(password, remember);
     setAuthenticated(true);
   }, []);
 

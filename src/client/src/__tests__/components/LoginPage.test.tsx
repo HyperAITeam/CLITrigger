@@ -34,7 +34,7 @@ describe('LoginPage', () => {
     expect(button).not.toBeDisabled();
   });
 
-  it('should call onLogin with password on submit', async () => {
+  it('should call onLogin with password and remember=false on submit', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined);
     renderWithProviders(<LoginPage onLogin={onLogin} />);
 
@@ -44,7 +44,21 @@ describe('LoginPage', () => {
     const button = screen.getByRole('button', { name: 'Sign In' });
     await userEvent.click(button);
 
-    expect(onLogin).toHaveBeenCalledWith('mypassword');
+    expect(onLogin).toHaveBeenCalledWith('mypassword', false);
+  });
+
+  it('should call onLogin with remember=true when checkbox is checked', async () => {
+    const onLogin = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(<LoginPage onLogin={onLogin} />);
+
+    const input = screen.getByPlaceholderText('*************');
+    await userEvent.type(input, 'mypassword');
+    await userEvent.click(screen.getByRole('checkbox'));
+
+    const button = screen.getByRole('button', { name: 'Sign In' });
+    await userEvent.click(button);
+
+    expect(onLogin).toHaveBeenCalledWith('mypassword', true);
   });
 
   it('should show error message on login failure', async () => {

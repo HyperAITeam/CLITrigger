@@ -6,8 +6,8 @@ export interface AuthStatus {
   setupRequired: boolean;
 }
 
-export function login(password: string): Promise<{ success: true }> {
-  return post('/api/auth/login', { password });
+export function login(password: string, remember = false): Promise<{ success: true }> {
+  return post('/api/auth/login', { password, remember });
 }
 
 export function logout(): Promise<void> {
