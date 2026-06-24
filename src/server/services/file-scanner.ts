@@ -3,7 +3,7 @@ import path from 'path';
 import ignore, { type Ignore } from 'ignore';
 import { parseWikilinks } from './memory-wikilinks.js';
 
-export type VaultFileKind = 'md' | 'html';
+export type VaultFileKind = 'md' | 'html' | 'pdf';
 
 export interface VaultFile {
   relativePath: string;
@@ -174,7 +174,7 @@ function walkDir(dir: string, root: string, excludes: string[], ig: Ignore, resu
 
     if (entry.isDirectory()) {
       walkDir(fullPath, root, excludes, ig, results);
-    } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm'))) {
+    } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm') || entry.name.endsWith('.pdf'))) {
       results.push(rel);
     }
   }
@@ -197,14 +197,13 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
       stat = fs.statSync(abs);
     } catch { continue; }
 
-    let content: string;
-    try {
-      content = fs.readFileSync(abs, 'utf-8');
-    } catch { continue; }
-
     const lower = rel.toLowerCase();
-    const kind: VaultFileKind = lower.endsWith('.md') ? 'md' : 'html';
-    const ext = kind === 'md' ? '.md' : (lower.endsWith('.html') ? '.html' : '.htm');
+    const kind: VaultFileKind = lower.endsWith('.md') ? 'md'
+      : lower.endsWith('.pdf') ? 'pdf'
+      : 'html';
+    const ext = kind === 'md' ? '.md'
+      : kind === 'pdf' ? '.pdf'
+      : (lower.endsWith('.html') ? '.html' : '.htm');
     const stem = path.basename(rel, ext);
 
     let title = stem;
@@ -212,33 +211,42 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
     let wikilinks: string[] = [];
     let bodyFlat = '';
 
-    if (kind === 'md') {
-      const { frontmatter, body } = parseFrontmatter(content);
-      if (frontmatter?.tags) {
-        const raw = frontmatter.tags;
-        if (Array.isArray(raw)) {
-          tags.push(...raw.map(String).filter(Boolean));
-        } else if (typeof raw === 'string') {
-          tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
-        }
-      }
-      tags.push(...parseInlineTags(body));
-      const refs = parseWikilinks(body);
-      wikilinks = [...new Set(refs.map(r => r.title))];
-      bodyFlat = body.replace(/\s+/g, ' ').trim();
-      title = (frontmatter?.title as string) || stem;
+    if (kind === 'pdf') {
+      // Binary — graph node only; no text parsing.
     } else {
-      const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
-      if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
-      const stripped = content
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
-      bodyFlat = stripped.replace(/\s+/g, ' ').trim();
+      let content: string;
+      try {
+        content = fs.readFileSync(abs, 'utf-8');
+      } catch { continue; }
+
+      if (kind === 'md') {
+        const { frontmatter, body } = parseFrontmatter(content);
+        if (frontmatter?.tags) {
+          const raw = frontmatter.tags;
+          if (Array.isArray(raw)) {
+            tags.push(...raw.map(String).filter(Boolean));
+          } else if (typeof raw === 'string') {
+            tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
+          }
+        }
+        tags.push(...parseInlineTags(body));
+        const refs = parseWikilinks(body);
+        wikilinks = [...new Set(refs.map(r => r.title))];
+        bodyFlat = body.replace(/\s+/g, ' ').trim();
+        title = (frontmatter?.title as string) || stem;
+      } else {
+        const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
+        if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
+        const stripped = content
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>');
+        bodyFlat = stripped.replace(/\s+/g, ' ').trim();
+      }
     }
 
     const bodyPreview = bodyFlat.length > BODY_PREVIEW_LEN
