@@ -1300,9 +1300,10 @@ export default function SessionWindowsHost({
       } else if (msg.t === 'dock-probe') {
         // A popout is dragging a tab across OS windows — report whether the
         // cursor sits over one of our floating stacks and preview the zone.
-        if (document.visibilityState !== 'visible') return;
+        if (document.visibilityState !== 'visible') { console.log('[DOCK] probe RECV ignored (main hidden)'); return; } // DEBUG
         const p = screenToClient(msg.x, msg.y);
         const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
+        console.log('[DOCK] probe RECV (main)', { msg: { x: msg.x, y: msg.y }, client: p, inWin: isClientPointInWindow(p), hit: hit?.groupId }); // DEBUG
         if (hit) {
           const prev = remoteDockRef.current;
           if (!prev || prev.zone !== hit.zone || prev.groupId !== hit.groupId || prev.path.join('.') !== hit.path.join('.')) {
