@@ -1324,9 +1324,15 @@ export default function SessionWindowsHost({
         const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
         const target = (hit && hit.zone) ? hit : (remoteDockRef.current?.zone ? remoteDockRef.current : null);
         let accepted = false;
-        // Reject when the session is already open in some main group — a
-        // second copy would double-subscribe the same PTY binary stream.
-        if (target && target.zone && !findGroupBySessionId(groupsRef.current, msg.sessionId)) {
+        // Reject only when the session is already open in a MAIN-OWNED group —
+        // that would double-subscribe the same PTY binary stream. A session
+        // handed over from a popout is still tracked here as ownerWindowId=its
+        // popout (we keep the popped-out group in `groups` but never render it),
+        // so checking all groups would wrongly reject every popout→main dock.
+        const mainOwned = groupsRef.current.filter(
+          (g) => (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
+        );
+        if (target && target.zone && !findGroupBySessionId(mainOwned, msg.sessionId)) {
           const dst = groupsRef.current.find(g => g.id === target.groupId);
           const node = dst ? getNode(dst.root, target.path) : null;
           if (dst && node && node.kind === 'stack') {
