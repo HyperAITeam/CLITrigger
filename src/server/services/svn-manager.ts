@@ -50,6 +50,11 @@ export interface SvnCommitFile {
   oldPath?: string;       // present for copies/moves
 }
 
+export interface SvnProperty {
+  name: string;           // e.g. "svn:ignore", "svn:externals"
+  value: string;
+}
+
 class SvnManager {
   // ── Status ───────────────────────────────────────────────────────────────
 
@@ -207,6 +212,19 @@ class SvnManager {
     else args.push(dirPath);
     const { stdout } = await runSvn(args, dirPath);
     return stdout;
+  }
+
+  // ── Properties (LOCAL — reads the working copy, no server contact) ─────────
+
+  async getProperties(dirPath: string, target?: string): Promise<SvnProperty[]> {
+    const { stdout } = await runSvn(['proplist', '-v', '--xml', target ?? dirPath], dirPath);
+    const props: SvnProperty[] = [];
+    const re = /<property\b[^>]*\bname="([^"]+)"[^>]*>([\s\S]*?)<\/property>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(stdout)) !== null) {
+      props.push({ name: m[1], value: unescapeXml(m[2]) });
+    }
+    return props;
   }
 
   // ── Mutations ────────────────────────────────────────────────────────────

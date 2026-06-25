@@ -215,6 +215,17 @@ router.post('/:id/svn-update', async (req: Request<{ id: string }>, res: Respons
   } catch (err) { fail(res, err); }
 });
 
+// GET /api/projects/:id/svn-properties (LOCAL — reads working copy)
+router.get('/:id/svn-properties', async (req: Request<{ id: string }>, res: Response) => {
+  const r = resolveSvnPath(req, res);
+  if (!r.ok) return;
+  try {
+    const file = req.query.file as string | undefined;
+    const properties = await svnManager.getProperties(r.path, file);
+    res.json({ properties });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/projects/:id/svn-cleanup
 router.post('/:id/svn-cleanup', async (req: Request<{ id: string }>, res: Response) => {
   const r = resolveSvnPath(req, res);
