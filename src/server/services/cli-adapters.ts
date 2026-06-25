@@ -342,6 +342,22 @@ function detectRawShellCommand(): { command: string; args: string[] } {
 
 const rawShellInfo = detectRawShellCommand();
 
+// Friendly name of the shell raw-shell actually spawns, for the UI dropdown
+// (e.g. "Raw Shell (PowerShell)"). Derived from the resolved command basename.
+export function getRawShellInfo(): { command: string; args: string[]; name: string } {
+  const base = rawShellInfo.command.split(/[\\/]/).pop()!.replace(/\.exe$/i, '').toLowerCase();
+  const PRETTY: Record<string, string> = {
+    powershell: 'PowerShell',
+    pwsh: 'PowerShell 7',
+    cmd: 'Command Prompt',
+    bash: 'bash',
+    zsh: 'zsh',
+    fish: 'fish',
+    sh: 'sh',
+  };
+  return { ...rawShellInfo, name: PRETTY[base] ?? base };
+}
+
 const rawShellAdapter: CliAdapter = {
   command: rawShellInfo.command,
   displayName: 'Raw Shell',

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { CLI_TOOLS, type CliTool } from '../cli-tools';
+import { CLI_TOOLS, type CliTool, type CliToolConfig } from '../cli-tools';
+import { getCliStatus, type CliToolStatus } from '../api/cli-status';
 import VaultInjectControl from './VaultInjectControl';
 import type { MemoryInjectMode, SessionTag } from '../types';
 import type { VaultInjectMode } from '../api/vault';
@@ -52,6 +53,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   const [includeLinked, setIncludeLinked] = useState<boolean>(false);
   const [tagId, setTagId] = useState<string | null>(initial?.tagId ?? null);
   const [tags, setTags] = useState<SessionTag[]>([]);
+  const [cliStatuses, setCliStatuses] = useState<CliToolStatus[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
 
   // Windows EXE + Korean IME: xterm's helper textarea retains the native HWND
@@ -111,7 +113,29 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
     return () => { cancelled = true; };
   }, [isEdit, isGitRepo]);
 
+  // CLI install status + resolved raw-shell name, for dropdown labels.
+  useEffect(() => {
+    let cancelled = false;
+    getCliStatus()
+      .then((list) => { if (!cancelled) setCliStatuses(list); })
+      .catch(() => { /* fall back to static labels */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const interactiveTools = CLI_TOOLS.filter((tool) => tool.supportsInteractive);
+
+  // Label each option from live status: raw-shell shows its actual shell
+  // ("Raw Shell (PowerShell)"); uninstalled AI CLIs get a "(not installed)" tag.
+  const optionLabel = (tool: CliToolConfig): string => {
+    const status = cliStatuses.find((s) => s.tool === tool.value);
+    if (tool.value === 'raw-shell') {
+      return status?.version ? `Raw Shell (${status.version})` : tool.label;
+    }
+    if (status && !status.installed) {
+      return `${tool.label}${t('session.cliNotInstalled')}`;
+    }
+    return tool.label;
+  };
   const selectedTool = (cliTool || projectCliTool || 'claude') as CliTool;
   // Raw shell: no auto-submitted prompt, no wiki/memory injection.
   // Description/memory state is left untouched in the form so toggling
@@ -165,7 +189,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         >
           <option value="">{t('session.cliTool')} (Default)</option>
           {interactiveTools.map((tool) => (
-            <option key={tool.value} value={tool.value}>{tool.label}</option>
+            <option key={tool.value} value={tool.value}>{optionLabel(tool)}</option>
           ))}
         </select>
       </div>

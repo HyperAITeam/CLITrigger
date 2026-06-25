@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { maybeTriggerSync } from './model-sync.js';
 import type { CliTool } from './cli-adapters.js';
+import { getRawShellInfo } from './cli-adapters.js';
 import { getDatabase } from '../db/connection.js';
 
 export interface CliToolStatus {
@@ -103,7 +104,11 @@ export async function checkAllTools(): Promise<CliToolStatus[]> {
     ...TOOLS.map((t) => t.tool),
     ...(includeSvn ? VCS_TOOLS.map((t) => t.tool) : []),
   ];
-  return order.map((tool) => results.find((r) => r.tool === tool)!);
+  const ordered = order.map((tool) => results.find((r) => r.tool === tool)!);
+  // raw-shell is always available; report the resolved shell name so the UI
+  // can label it "Raw Shell (PowerShell)" etc. No process is spawned.
+  ordered.push({ tool: 'raw-shell', installed: true, version: getRawShellInfo().name });
+  return ordered;
 }
 
 export function clearCache(): void {

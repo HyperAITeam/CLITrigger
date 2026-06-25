@@ -12,7 +12,7 @@ const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   { value: 'claude', label: 'Claude Code', supportsInteractive: true },
   { value: 'gemini', label: 'Gemini CLI', supportsInteractive: true },
   { value: 'codex', label: 'Codex CLI', supportsInteractive: true },
-  { value: 'raw-shell', label: 'Raw Shell (OS default)', supportsInteractive: true },
+  { value: 'raw-shell', label: 'Raw Shell', supportsInteractive: true },
 ];
 
 export const CLI_TOOLS = DEFAULT_CLI_TOOLS;
