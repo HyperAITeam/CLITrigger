@@ -233,6 +233,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   // ── Row context menu ──────────────────────────────────────────────────────
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; file: GitStatusFile } | null>(null);
 
+  // ── Properties dialog (LOCAL). null = closed; { file: null } = WC root. ───
+  const [propsTarget, setPropsTarget] = useState<{ file: string | null } | null>(null);
+
   const openCtxMenu = (e: React.MouseEvent, file: GitStatusFile) => {
     e.preventDefault();
     e.stopPropagation();
@@ -285,6 +288,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           <CmdButton label={t('svn.update')} remote disabled={busy} onClick={handleUpdate} />
           <CmdButton label={t('svn.updateToRevision')} remote disabled={busy} onClick={() => setShowRevDialog(true)} />
           <CmdButton label={t('svn.cleanup')} disabled={busy} onClick={handleCleanup} />
+          <CmdButton label={t('svn.properties')} onClick={() => setPropsTarget({ file: null })} />
 
           <div className="flex-1" />
         </div>
@@ -385,7 +389,12 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           onDelete={doDelete}
           onResolve={doResolve}
           onViewDiff={(p) => { setActiveFile(p); setCtxMenu(null); }}
+          onProperties={(p) => { setPropsTarget({ file: p }); setCtxMenu(null); }}
         />
+      )}
+
+      {propsTarget && (
+        <PropertiesDialog projectId={project.id} file={propsTarget.file} onClose={() => setPropsTarget(null)} />
       )}
     </div>
   );
@@ -672,6 +681,7 @@ function FileContextMenu(props: {
   onDelete: (files: string[]) => void;
   onResolve: (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') => void;
   onViewDiff: (path: string) => void;
+  onProperties: (path: string) => void;
 }) {
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -729,6 +739,9 @@ function FileContextMenu(props: {
       style={{ left: pos.x, top: pos.y }}
     >
       <Item label={t('svn.viewDiff')} onClick={() => props.onViewDiff(props.file.path)} />
+      {charOf(props.file) !== '?' && (
+        <Item label={t('svn.properties')} onClick={() => props.onProperties(props.file.path)} />
+      )}
       {addable.length > 0 && <Item label={`${t('svn.add')}${suffix}`} onClick={() => props.onAdd(addable)} />}
       {revertable.length > 0 && <Item label={`${t('svn.revert')}${suffix}`} onClick={() => props.onRevert(revertable)} />}
       {deletable.length > 0 && <Item label={`${t('svn.delete')}${suffix}`} danger onClick={() => props.onDelete(deletable)} />}
@@ -744,5 +757,67 @@ function FileContextMenu(props: {
       )}
     </div>,
     document.body
+  );
+}
+
+// ── Properties dialog (LOCAL: `svn proplist -v`) ──────────────────────────────
+
+function PropertiesDialog({ projectId, file, onClose }: {
+  projectId: string;
+  file: string | null;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [props, setProps] = useState<svnApi.SvnProperty[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setProps(null);
+    setError(null);
+    svnApi.getSvnProperties(projectId, file ?? undefined)
+      .then((r) => { if (!cancelled) setProps(r.properties); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load properties'); });
+    return () => { cancelled = true; };
+  }, [projectId, file]);
+
+  const target = file ?? t('svn.workingCopyRoot');
+
+  return (
+    <Modal open onClose={onClose} size="2xl">
+      <div className="bg-theme-card rounded-lg shadow-xl w-full max-h-[80vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-warm-100 flex items-center justify-between shrink-0">
+          <span className="text-sm font-semibold text-warm-700 truncate" title={target}>
+            {t('svn.propertiesOf').replace('{target}', target)}
+          </span>
+          <button onClick={onClose} className="text-warm-400 hover:text-warm-600 shrink-0 ml-2">✕</button>
+        </div>
+        <div className="p-4 overflow-y-auto">
+          {error ? (
+            <p className="text-status-error text-xs">{error}</p>
+          ) : props === null ? (
+            <p className="text-warm-400 text-xs">{t('git.loadingFiles')}</p>
+          ) : props.length === 0 ? (
+            <p className="text-warm-400 text-xs">{t('svn.noProperties')}</p>
+          ) : (
+            <div className="space-y-3">
+              {props.map((p) => (
+                <div key={p.name}>
+                  <div className="text-xs font-mono font-semibold text-accent break-all">{p.name}</div>
+                  <pre className="mt-1 text-2xs font-mono text-warm-600 bg-warm-50 dark:bg-warm-800/40 rounded p-2 whitespace-pre-wrap break-all">
+                    {p.value || '—'}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="px-4 py-3 border-t border-warm-100 shrink-0 text-right">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs rounded border border-warm-200 hover:bg-warm-50">
+            {t('svn.close')}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

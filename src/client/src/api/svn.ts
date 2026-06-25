@@ -51,6 +51,18 @@ export function getSvnDiff(id: string, file?: string): Promise<{ diff: string }>
   return get(`/api/projects/${id}/svn-diff${qs ? `?${qs}` : ''}`);
 }
 
+export interface SvnProperty {
+  name: string;
+  value: string;
+}
+
+export function getSvnProperties(id: string, file?: string): Promise<{ properties: SvnProperty[] }> {
+  const params = new URLSearchParams();
+  if (file) params.set('file', file);
+  const qs = params.toString();
+  return get(`/api/projects/${id}/svn-properties${qs ? `?${qs}` : ''}`);
+}
+
 export function svnAdd(id: string, files: string[]): Promise<{ ok: boolean }> {
   return post(`/api/projects/${id}/svn-add`, { files });
 }
