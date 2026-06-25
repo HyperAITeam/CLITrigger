@@ -108,7 +108,8 @@ router.get('/:id/svn-commit-diff', async (req: Request<{ id: string }>, res: Res
       return;
     }
     const file = req.query.file as string | undefined;
-    const diff = await svnManager.getCommitDiff(r.path, revision, file);
+    const status = req.query.status as string | undefined;
+    const diff = await svnManager.getCommitDiff(r.path, revision, file, status);
     res.json({ diff });
   } catch (err) { fail(res, err); }
 });

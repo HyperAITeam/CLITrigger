@@ -190,17 +190,30 @@ class SvnManager {
     return files;
   }
 
-  async getCommitDiff(dirPath: string, revision: string, file?: string): Promise<string> {
+  async getCommitDiff(dirPath: string, revision: string, file?: string, status?: string): Promise<string> {
     if (!/^\d+$/.test(revision)) throw new Error('Invalid revision');
-    const prev = Math.max(0, parseInt(revision, 10) - 1);
-    if (prev === 0) {
-      // Root commit — diff against empty tree by listing the new content.
-      // svn diff -r 0:1 works but produces full-add output, which is fine.
+    const rev = parseInt(revision, 10);
+    const prev = Math.max(0, rev - 1);
+
+    if (!file) {
+      // Whole-revision diff scoped to the working copy.
+      const { stdout } = await runSvn(['diff', '--internal-diff', '-r', `${prev}:${rev}`, dirPath], dirPath);
+      return stdout;
     }
-    const args = ['diff', '--internal-diff', '-r', `${prev}:${revision}`];
-    if (file) args.push(file);
-    else args.push(dirPath);
-    const { stdout } = await runSvn(args, dirPath);
+
+    // `file` is a repository-root-relative path from `svn log -v`
+    // (e.g. "/program/.../foo.prefab"), NOT a local working-copy path —
+    // passing it to `svn diff` as a target fails with E155007. Diff the
+    // repository URL instead, with a peg revision so added/deleted files
+    // resolve correctly: a deleted file no longer exists at `rev`, so peg it
+    // at the previous revision.
+    const { repositoryRoot } = await this.getInfo(dirPath);
+    const url = repositoryRoot + file.split('/').map(encodeURIComponent).join('/');
+    const peg = status === 'D' ? prev : rev;
+    const { stdout } = await runSvn(
+      ['diff', '--internal-diff', '-r', `${prev}:${rev}`, `${url}@${peg}`],
+      dirPath,
+    );
     return stdout;
   }
 
