@@ -223,12 +223,13 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     if (!selectedRev || !revSelectedFile) { setRevDiff(''); return; }
     let cancelled = false;
     setRevDiffLoading(true);
-    svnApi.getSvnCommitDiff(project.id, selectedRev, revSelectedFile)
+    const status = revFiles.find((f) => f.path === revSelectedFile)?.status;
+    svnApi.getSvnCommitDiff(project.id, selectedRev, revSelectedFile, status)
       .then((r) => { if (!cancelled) setRevDiff(r.diff); })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Diff failed'); })
       .finally(() => { if (!cancelled) setRevDiffLoading(false); });
     return () => { cancelled = true; };
-  }, [project.id, selectedRev, revSelectedFile]);
+  }, [project.id, selectedRev, revSelectedFile, revFiles]);
 
   // ── Row context menu ──────────────────────────────────────────────────────
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; file: GitStatusFile } | null>(null);

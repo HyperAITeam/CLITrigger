@@ -38,9 +38,10 @@ export function getSvnCommitFiles(id: string, revision: string): Promise<{ files
   return get(`/api/projects/${id}/svn-commit-files?revision=${encodeURIComponent(revision)}`);
 }
 
-export function getSvnCommitDiff(id: string, revision: string, file?: string): Promise<{ diff: string }> {
+export function getSvnCommitDiff(id: string, revision: string, file?: string, status?: string): Promise<{ diff: string }> {
   const params = new URLSearchParams({ revision });
   if (file) params.set('file', file);
+  if (status) params.set('status', status);
   return get(`/api/projects/${id}/svn-commit-diff?${params}`);
 }
 
