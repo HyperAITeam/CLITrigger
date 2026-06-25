@@ -1,6 +1,6 @@
 import { get, post, put, del } from './client';
 
-export type VaultFileKind = 'md' | 'html';
+export type VaultFileKind = 'md' | 'html' | 'pdf';
 
 export interface VaultFile {
   relativePath: string;
