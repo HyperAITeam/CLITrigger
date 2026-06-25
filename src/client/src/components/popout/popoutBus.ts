@@ -120,12 +120,14 @@ export const HEARTBEAT_TIMEOUT_MS = 15000;
 
 // ── Cross-window dock geometry ──────────────────────────────────────────────
 // Anchor: the most recent mouse event this window saw, both its screen and
-// client coords. screenX/Y are DEVICE pixels, clientX/Y are CSS pixels, so
-// within one window: screen = origin + client × devicePixelRatio. We need BOTH
-// the anchor and the dpr scale to convert — a constant offset alone drifts with
-// distance under display scaling (e.g. 125% → dpr 1.25). Each window (renderer)
-// has its own module instance, so this is per-window. Accurate as long as the
-// window hasn't moved since the user last moused over it (true mid-drag).
+// client coords. In Chromium/Electron BOTH screenX/Y and clientX/Y are CSS
+// pixels (DIPs), so within one window `screen − client` is an EXACT constant
+// offset regardless of display scaling — no dpr factor belongs here. (Dividing
+// the delta by dpr makes the result drift with distance from the anchor at
+// e.g. 120% → dpr 1.2; that was the docking-coords bug this avoids.) Each
+// window (renderer) has its own module instance, so this is per-window.
+// Accurate as long as the window hasn't moved since the user last moused over
+// it (true mid-drag).
 let lastSample: { sx: number; sy: number; cx: number; cy: number } | null = null;
 
 // Install a passive mouse tracker that keeps the anchor fresh. Call once per
@@ -140,22 +142,22 @@ export function startViewportTracking(): () => void {
 }
 
 // Convert an OS-screen point to this window's client coordinates.
-//   screen = origin + client × dpr  ⇒  client = sampleClient + (screen − sampleScreen) / dpr
-// Anchoring on a real event point cancels the unknown viewport origin; dividing
-// the screen delta by dpr undoes display scaling. Falls back to a chrome
-// estimate only before any mouse event was seen. Mixed-DPI multi-monitor can
-// still skew across monitors — the same trade-off the tear-out threshold accepts.
+//   client = sampleClient + (screen − sampleScreen)
+// Anchoring on a real event point cancels the unknown viewport origin; screen
+// and client are the same unit (CSS px), so the delta needs no scaling. Falls
+// back to a chrome estimate only before any mouse event was seen. Mixed-DPI
+// multi-monitor can still skew across monitors — the same trade-off the
+// tear-out threshold accepts.
 export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
-  const dpr = window.devicePixelRatio || 1;
   if (lastSample) {
     return {
-      x: lastSample.cx + (screenX - lastSample.sx) / dpr,
-      y: lastSample.cy + (screenY - lastSample.sy) / dpr,
+      x: lastSample.cx + (screenX - lastSample.sx),
+      y: lastSample.cy + (screenY - lastSample.sy),
     };
   }
   const borderX = Math.max(0, (window.outerWidth - window.innerWidth) / 2);
   const chromeTop = Math.max(0, window.outerHeight - window.innerHeight - borderX);
-  return { x: (screenX - window.screenX) / dpr - borderX, y: (screenY - window.screenY) / dpr - chromeTop };
+  return { x: screenX - window.screenX - borderX, y: screenY - window.screenY - chromeTop };
 }
 
 export function isClientPointInWindow(p: { x: number; y: number }): boolean {

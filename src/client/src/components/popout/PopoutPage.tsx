@@ -353,7 +353,6 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       if (!active) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
         active = true;
-        console.log('[DOCK] drag active (source popout)', popoutId); // DEBUG
       }
       // Outside our OS window: the local DOM can't be a target anymore —
       // switch to probing the other windows over the bus (screen coords).
@@ -365,7 +364,6 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         setDrag({ sessionId, fromPath, hoveredPath: null, hoveredRect: null, zone: null });
         if (Date.now() - lastProbeAt > 33) {
           lastProbeAt = Date.now();
-          console.log('[DOCK] probe SENT', { sx: ev.screenX, sy: ev.screenY }); // DEBUG
           busRef.current?.post({ t: 'dock-probe', from: popoutId, x: ev.screenX, y: ev.screenY });
         }
         return;
@@ -480,13 +478,9 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     if (!bus) return;
     if (msg.t === 'dock-probe' && msg.from !== popoutId) {
       // Receiver: does the dragged cursor sit over one of our stacks?
-      if (document.visibilityState !== 'visible' || !groupRef.current) {
-        console.log('[DOCK] probe RECV ignored', { vis: document.visibilityState, hasGroup: !!groupRef.current }); // DEBUG
-        return;
-      }
+      if (document.visibilityState !== 'visible' || !groupRef.current) return;
       const p = screenToClient(msg.x, msg.y);
       const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
-      console.log('[DOCK] probe RECV (popout)', { msg: { x: msg.x, y: msg.y }, client: p, inWin: isClientPointInWindow(p), hit: hit?.groupId, myGroup: groupRef.current.id }); // DEBUG
       if (hit && hit.groupId === groupRef.current.id) {
         const prev = remoteDockRef.current;
         if (!prev || prev.zone !== hit.zone || prev.path.join('.') !== hit.path.join('.')) {
