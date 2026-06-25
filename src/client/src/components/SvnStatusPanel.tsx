@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
 import type { SvnStatusResult } from '../api/svn';
 import type { CommitFile, GitLogEntry, GitStatusFile } from '../api/projects';
 import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
+import Modal from './Modal';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 
 interface SvnStatusPanelProps {
@@ -12,23 +14,27 @@ interface SvnStatusPanelProps {
   refreshTrigger?: number;
 }
 
-type WorkspaceView = 'files' | 'history';
+type View = 'modifications' | 'log';
 
-const VIEW_KEY = (id: string) => `svn-workspace:${id}`;
+const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
+
+const charColor = (ch: string) =>
+  ch === 'A' ? 'text-status-success'
+    : ch === 'D' ? 'text-status-error'
+    : ch === 'M' ? 'text-accent'
+    : ch === 'U' ? 'text-purple-500'
+    : ch === '?' ? 'text-warm-400'
+    : 'text-amber-500';
 
 export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPanelProps) {
   const { t } = useI18n();
 
-  const [view, setView] = useState<WorkspaceView>(() => {
-    const stored = localStorage.getItem(VIEW_KEY(project.id));
-    return stored === 'history' ? 'history' : 'files';
-  });
-  useEffect(() => {
-    localStorage.setItem(VIEW_KEY(project.id), view);
-  }, [view, project.id]);
+  // Always land on the local "Check for modifications" view. Server-contacting
+  // views (log) are never the restored default — they must be opened explicitly.
+  const [view, setView] = useState<View>('modifications');
 
-  // Common error/loading state
   const [error, setError] = useState<string | null>(null);
+  const [actionFlash, setActionFlash] = useState<string | null>(null);
   const [svnInstalled, setSvnInstalled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -43,44 +49,58 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     return () => { cancelled = true; };
   }, []);
 
-  // ── File Status state ───────────────────────────────────────────────────
+  // ── Working copy status (LOCAL: `svn status`) ────────────────────────────
   const [status, setStatus] = useState<SvnStatusResult | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [remoteChecking, setRemoteChecking] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [workingDiff, setWorkingDiff] = useState<string>('');
   const [workingDiffLoading, setWorkingDiffLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
-  const [actionFlash, setActionFlash] = useState<string | null>(null);
 
+  const applyStatus = useCallback((s: SvnStatusResult) => {
+    setStatus(s);
+    setSelectedFiles((prev) => {
+      const valid = new Set(s.files.map((f) => f.path));
+      const next = new Set<string>();
+      prev.forEach((p) => valid.has(p) && next.add(p));
+      return next;
+    });
+    setActiveFile((prev) => (prev && !s.files.some((f) => f.path === prev) ? null : prev));
+  }, []);
+
+  // LOCAL only — safe to run on mount / refreshTrigger. Never adds --show-updates.
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
     setError(null);
     try {
-      const s = await svnApi.getSvnStatus(project.id);
-      setStatus(s);
-      // Drop stale selections that no longer exist
-      setSelectedFiles((prev) => {
-        const valid = new Set(s.files.map((f) => f.path));
-        const next = new Set<string>();
-        prev.forEach((p) => valid.has(p) && next.add(p));
-        return next;
-      });
-      if (activeFile && !s.files.some((f) => f.path === activeFile)) {
-        setActiveFile(null);
-        setWorkingDiff('');
-      }
+      applyStatus(await svnApi.getSvnStatus(project.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load SVN status');
     } finally {
       setStatusLoading(false);
     }
-  }, [project.id, activeFile]);
+  }, [project.id, applyStatus]);
 
-  useEffect(() => {
-    if (view === 'files') refreshStatus();
-  }, [view, refreshStatus, refreshTrigger]);
+  useEffect(() => { refreshStatus(); }, [refreshStatus, refreshTrigger]);
+
+  // SERVER: `svn status -u`. Only ever called from the explicit button.
+  const checkRepository = useCallback(async () => {
+    setRemoteChecking(true);
+    setError(null);
+    setActionFlash(null);
+    try {
+      const s = await svnApi.getSvnStatus(project.id, true);
+      applyStatus(s);
+      setActionFlash(s.behind > 0 ? t('svn.behindCount').replace('{n}', String(s.behind)) : t('svn.upToDate'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to contact server');
+    } finally {
+      setRemoteChecking(false);
+    }
+  }, [project.id, applyStatus, t]);
 
   useEffect(() => {
     if (!activeFile) { setWorkingDiff(''); return; }
@@ -116,36 +136,36 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     }
   };
 
-  const requireSelection = (): string[] | null => {
-    if (selectedFiles.size === 0) {
-      setError(t('svn.selectFiles'));
-      return null;
-    }
-    return Array.from(selectedFiles);
-  };
+  // ── File-level operations (LOCAL) — invoked from the row context menu ─────
+  const doAdd = (files: string[]) => runAction(() => svnApi.svnAdd(project.id, files));
+  const doRevert = (files: string[]) => runAction(() => svnApi.svnRevert(project.id, files));
+  const doDelete = (files: string[]) => runAction(() => svnApi.svnDelete(project.id, files));
+  const doResolve = (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') =>
+    runAction(() => svnApi.svnResolve(project.id, files, accept));
 
-  const handleAdd = () => {
-    const files = requireSelection(); if (!files) return;
-    runAction(() => svnApi.svnAdd(project.id, files));
-  };
-  const handleRevert = () => {
-    const files = requireSelection(); if (!files) return;
-    runAction(() => svnApi.svnRevert(project.id, files));
-  };
-  const handleDelete = () => {
-    const files = requireSelection(); if (!files) return;
-    runAction(() => svnApi.svnDelete(project.id, files));
-  };
-  const handleResolve = () => {
-    const files = requireSelection(); if (!files) return;
-    runAction(() => svnApi.svnResolve(project.id, files, 'working'));
-  };
-  const handleUpdate = () => {
+  // ── Global commands ───────────────────────────────────────────────────────
+  const handleUpdate = () =>
     runAction(async () => {
       const r = await svnApi.svnUpdate(project.id);
       setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
     });
+
+  const [showRevDialog, setShowRevDialog] = useState(false);
+  const [revInput, setRevInput] = useState('');
+  const handleUpdateToRevision = () => {
+    const rev = revInput.trim();
+    if (!rev) return;
+    setShowRevDialog(false);
+    runAction(async () => {
+      const r = await svnApi.svnUpdate(project.id, rev);
+      setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
+      setRevInput('');
+    });
   };
+
+  const handleCleanup = () =>
+    runAction(() => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
+
   const handleCommit = () => {
     if (!commitMessage.trim()) {
       setError(t('svn.commitMessagePlaceholder'));
@@ -159,7 +179,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     });
   };
 
-  // ── History state ───────────────────────────────────────────────────────
+  // ── Log (SERVER: `svn log`) — fetched only on explicit user action ────────
   const [logEntries, setLogEntries] = useState<GitLogEntry[]>([]);
   const [logLoading, setLogLoading] = useState(false);
   const [logHasMore, setLogHasMore] = useState(false);
@@ -175,7 +195,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     setError(null);
     try {
       const r = await svnApi.getSvnLog(project.id, skip, 50);
-      setLogEntries((prev) => skip === 0 ? r.commits : [...prev, ...r.commits]);
+      setLogEntries((prev) => (skip === 0 ? r.commits : [...prev, ...r.commits]));
       setLogHasMore(r.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Log failed');
@@ -183,10 +203,6 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       setLogLoading(false);
     }
   }, [project.id]);
-
-  useEffect(() => {
-    if (view === 'history' && logEntries.length === 0) loadLog(0);
-  }, [view, logEntries.length, loadLog]);
 
   const selectRevision = useCallback(async (rev: string) => {
     setSelectedRev(rev);
@@ -214,7 +230,15 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     return () => { cancelled = true; };
   }, [project.id, selectedRev, revSelectedFile]);
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  // ── Row context menu ──────────────────────────────────────────────────────
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; file: GitStatusFile } | null>(null);
+
+  const openCtxMenu = (e: React.MouseEvent, file: GitStatusFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, file });
+  };
+
   const repoLine = useMemo(() => {
     if (!status) return null;
     const parts: string[] = [];
@@ -222,6 +246,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     if (status.revision) parts.push(`r${status.revision}`);
     return parts.join('  ·  ');
   }, [status]);
+
+  const busy = actionBusy || statusLoading || remoteChecking;
 
   return (
     <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
@@ -231,132 +257,202 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         </div>
       )}
       <div className="flex flex-1 min-h-0 gap-2">
-      {/* Sidebar */}
-      <div className="card w-44 shrink-0 flex flex-col overflow-hidden">
-        <div className="px-3 py-3 border-b border-warm-100">
-          <div className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">SVN</div>
-          {repoLine && (
-            <div className="mt-1 text-2xs text-warm-400 truncate" title={status?.tracking ?? undefined}>
-              {repoLine}
-            </div>
+        {/* Command list sidebar (TortoiseSVN-style) */}
+        <div className="card w-52 shrink-0 flex flex-col overflow-y-auto">
+          <div className="px-3 py-3 border-b border-warm-100">
+            <div className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">SVN</div>
+            {repoLine && (
+              <div className="mt-1 text-2xs text-warm-400 truncate" title={status?.tracking ?? undefined}>
+                {repoLine}
+              </div>
+            )}
+          </div>
+
+          <SidebarHeader label={t('svn.viewsHeader')} />
+          <CmdButton
+            label={t('svn.checkForModifications')}
+            active={view === 'modifications'}
+            onClick={() => setView('modifications')}
+          />
+          <CmdButton
+            label={t('svn.showLog')}
+            remote
+            active={view === 'log'}
+            onClick={() => setView('log')}
+          />
+
+          <SidebarHeader label={t('svn.actionsHeader')} />
+          <CmdButton label={t('svn.update')} remote disabled={busy} onClick={handleUpdate} />
+          <CmdButton label={t('svn.updateToRevision')} remote disabled={busy} onClick={() => setShowRevDialog(true)} />
+          <CmdButton label={t('svn.cleanup')} disabled={busy} onClick={handleCleanup} />
+
+          <div className="flex-1" />
+        </div>
+
+        {/* Main */}
+        <div className="card flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
+          {view === 'modifications' ? (
+            <ModificationsView
+              statusFiles={status?.files ?? []}
+              statusLoading={statusLoading}
+              remoteChecking={remoteChecking}
+              onRefresh={refreshStatus}
+              onCheckRepository={checkRepository}
+              selectedFiles={selectedFiles}
+              onToggle={toggleFile}
+              activeFile={activeFile}
+              onActivate={setActiveFile}
+              onContextMenu={openCtxMenu}
+              workingDiff={workingDiff}
+              workingDiffLoading={workingDiffLoading}
+              commitMessage={commitMessage}
+              onCommitMessageChange={setCommitMessage}
+              onCommit={handleCommit}
+              busy={busy}
+              actionFlash={actionFlash}
+              error={error}
+            />
+          ) : (
+            <LogView
+              loaded={logEntries.length > 0}
+              entries={logEntries}
+              loading={logLoading}
+              hasMore={logHasMore}
+              onLoad={() => loadLog(0)}
+              onLoadMore={() => loadLog(logEntries.length)}
+              selectedRev={selectedRev}
+              onSelectRev={selectRevision}
+              revFiles={revFiles}
+              revFilesLoading={revFilesLoading}
+              selectedFile={revSelectedFile}
+              onSelectFile={setRevSelectedFile}
+              revDiff={revDiff}
+              revDiffLoading={revDiffLoading}
+              error={error}
+            />
           )}
         </div>
-        <button
-          onClick={() => setView('files')}
-          className={`text-left px-3 py-2 text-xs transition-colors ${
-            view === 'files' ? 'bg-accent/10 text-accent font-semibold border-l-2 border-accent' : 'text-warm-600 hover:bg-warm-50'
-          }`}
-        >
-          {t('svn.fileStatus')}
-        </button>
-        <button
-          onClick={() => setView('history')}
-          className={`text-left px-3 py-2 text-xs transition-colors ${
-            view === 'history' ? 'bg-accent/10 text-accent font-semibold border-l-2 border-accent' : 'text-warm-600 hover:bg-warm-50'
-          }`}
-        >
-          {t('svn.history')}
-        </button>
-        <div className="flex-1" />
       </div>
 
-      {/* Main */}
-      <div className="card flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
-        {/* Action bar */}
-        <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0 flex-wrap">
-          {view === 'files' ? (
-            <>
-              <button onClick={refreshStatus} disabled={actionBusy || statusLoading}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-                {t('svn.refresh')}
+      {/* Update to revision dialog */}
+      <Modal open={showRevDialog} onClose={() => setShowRevDialog(false)} size="sm">
+        <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+          <div className="px-4 py-3 border-b border-warm-100 flex items-center gap-2">
+            <span className="text-sm font-semibold text-warm-700">{t('svn.updateToRevision')}</span>
+            <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {t('svn.remoteBadge')}
+            </span>
+          </div>
+          <div className="p-4 space-y-3">
+            <input
+              autoFocus
+              value={revInput}
+              onChange={(e) => setRevInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateToRevision(); }}
+              placeholder={t('svn.revisionPlaceholder')}
+              className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-3 py-2 text-sm rounded border border-warm-200 hover:bg-warm-50"
+                onClick={() => setShowRevDialog(false)}
+              >
+                {t('svn.cancel')}
               </button>
-              <button onClick={handleUpdate} disabled={actionBusy}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
+              <button
+                className="flex-1 px-3 py-2 text-sm font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+                disabled={!revInput.trim() || busy}
+                onClick={handleUpdateToRevision}
+              >
                 {t('svn.update')}
               </button>
-              <span className="w-px h-4 bg-warm-200 mx-1" />
-              <button onClick={handleAdd} disabled={actionBusy || selectedFiles.size === 0}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-                {t('svn.add')}
-              </button>
-              <button onClick={handleRevert} disabled={actionBusy || selectedFiles.size === 0}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-                {t('svn.revert')}
-              </button>
-              <button onClick={handleDelete} disabled={actionBusy || selectedFiles.size === 0}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-                {t('svn.delete')}
-              </button>
-              <button onClick={handleResolve} disabled={actionBusy || selectedFiles.size === 0}
-                className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-                {t('svn.resolve')}
-              </button>
-            </>
-          ) : (
-            <button onClick={() => loadLog(0)} disabled={logLoading}
-              className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
-              {t('svn.refresh')}
-            </button>
-          )}
-          {actionFlash && <span className="text-2xs text-status-success ml-2">{actionFlash}</span>}
-          {error && <span className="text-2xs text-status-error ml-2">{error}</span>}
+            </div>
+          </div>
         </div>
+      </Modal>
 
-        {view === 'files' ? (
-          <FileStatusView
-            statusFiles={status?.files ?? []}
-            statusLoading={statusLoading}
-            selectedFiles={selectedFiles}
-            onToggle={toggleFile}
-            activeFile={activeFile}
-            onActivate={setActiveFile}
-            workingDiff={workingDiff}
-            workingDiffLoading={workingDiffLoading}
-            commitMessage={commitMessage}
-            onCommitMessageChange={setCommitMessage}
-            onCommit={handleCommit}
-            commitBusy={actionBusy}
-          />
-        ) : (
-          <HistoryView
-            entries={logEntries}
-            loading={logLoading}
-            hasMore={logHasMore}
-            onLoadMore={() => loadLog(logEntries.length)}
-            selectedRev={selectedRev}
-            onSelectRev={selectRevision}
-            revFiles={revFiles}
-            revFilesLoading={revFilesLoading}
-            selectedFile={revSelectedFile}
-            onSelectFile={setRevSelectedFile}
-            revDiff={revDiff}
-            revDiffLoading={revDiffLoading}
-          />
-        )}
-      </div>
-      </div>
+      {/* File row context menu */}
+      {ctxMenu && (
+        <FileContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          file={ctxMenu.file}
+          allFiles={status?.files ?? []}
+          selected={selectedFiles}
+          onClose={() => setCtxMenu(null)}
+          onAdd={doAdd}
+          onRevert={doRevert}
+          onDelete={doDelete}
+          onResolve={doResolve}
+          onViewDiff={(p) => { setActiveFile(p); setCtxMenu(null); }}
+        />
+      )}
     </div>
   );
 }
 
-// ── File Status view ──────────────────────────────────────────────────────
+// ── Sidebar primitives ──────────────────────────────────────────────────────
 
-function FileStatusView(props: {
+function SidebarHeader({ label }: { label: string }) {
+  return (
+    <div className="px-3 pt-3 pb-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">
+      {label}
+    </div>
+  );
+}
+
+function CmdButton({ label, active, remote, disabled, onClick }: {
+  label: string;
+  active?: boolean;
+  remote?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors disabled:opacity-40 ${
+        active ? 'bg-accent/10 text-accent font-semibold border-l-2 border-accent' : 'text-warm-600 hover:bg-warm-50'
+      }`}
+    >
+      <span className="truncate flex-1">{label}</span>
+      {remote && (
+        <span
+          title={t('svn.remoteHint')}
+          className="shrink-0 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+        >
+          {t('svn.remoteBadge')}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── Modifications view (LOCAL) ───────────────────────────────────────────────
+
+function ModificationsView(props: {
   statusFiles: GitStatusFile[];
   statusLoading: boolean;
+  remoteChecking: boolean;
+  onRefresh: () => void;
+  onCheckRepository: () => void;
   selectedFiles: Set<string>;
   onToggle: (path: string) => void;
   activeFile: string | null;
   onActivate: (path: string) => void;
+  onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
   workingDiff: string;
   workingDiffLoading: boolean;
   commitMessage: string;
   onCommitMessageChange: (msg: string) => void;
   onCommit: () => void;
-  commitBusy: boolean;
+  busy: boolean;
+  actionFlash: string | null;
+  error: string | null;
 }) {
   const { t } = useI18n();
-  const taRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -366,95 +462,110 @@ function FileStatusView(props: {
   };
 
   return (
-    <div className="flex-1 grid grid-cols-2 min-h-0">
-      {/* Left: file list + commit area */}
-      <div className="border-r border-warm-100 flex flex-col min-h-0">
-        <div className="px-3 py-2 border-b border-warm-100 flex items-center justify-between shrink-0">
-          <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
-            {t('svn.changed')}
+    <>
+      <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0 flex-wrap">
+        <button onClick={props.onRefresh} disabled={props.busy}
+          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
+          {props.statusLoading ? t('svn.checking') : t('svn.refresh')}
+        </button>
+        <button onClick={props.onCheckRepository} disabled={props.busy}
+          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40 flex items-center gap-1">
+          {props.remoteChecking ? t('svn.checking') : t('svn.checkRepository')}
+          <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            {t('svn.remoteBadge')}
           </span>
-          <span className="text-2xs text-warm-400">{props.statusFiles.length}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {props.statusLoading ? (
-            <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
-          ) : props.statusFiles.length === 0 ? (
-            <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
-          ) : (
-            props.statusFiles.map((f) => {
-              const checked = props.selectedFiles.has(f.path);
-              const isActive = props.activeFile === f.path;
-              const ch = f.working_dir.trim() || '?';
-              const color = ch === 'A' ? 'text-status-success'
-                : ch === 'D' ? 'text-status-error'
-                : ch === 'M' ? 'text-accent'
-                : ch === 'U' ? 'text-purple-500'
-                : ch === '?' ? 'text-warm-400'
-                : 'text-amber-500';
-              return (
-                <div
-                  key={f.path}
-                  onClick={() => props.onActivate(f.path)}
-                  className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 ${
-                    isActive ? 'bg-accent/10 border-l-2 border-accent' : ''
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => { e.stopPropagation(); props.onToggle(f.path); }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="shrink-0"
-                  />
-                  <span className={`font-mono font-bold text-2xs w-3 shrink-0 ${color}`}>{ch}</span>
-                  <span className="truncate flex-1 text-warm-600" title={f.path}>
-                    {f.path.split('/').pop()}
-                    <span className="text-warm-400 ml-1 text-2xs">
-                      {f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : ''}
+        </button>
+        {props.actionFlash && <span className="text-2xs text-status-success ml-1">{props.actionFlash}</span>}
+        {props.error && <span className="text-2xs text-status-error ml-1">{props.error}</span>}
+      </div>
+
+      <div className="flex-1 grid grid-cols-2 min-h-0">
+        {/* Left: file list + commit area */}
+        <div className="border-r border-warm-100 flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-warm-100 flex items-center justify-between shrink-0">
+            <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">{t('svn.changed')}</span>
+            <span className="text-2xs text-warm-400">{props.statusFiles.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {props.statusLoading ? (
+              <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
+            ) : props.statusFiles.length === 0 ? (
+              <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
+            ) : (
+              props.statusFiles.map((f) => {
+                const checked = props.selectedFiles.has(f.path);
+                const isActive = props.activeFile === f.path;
+                const ch = charOf(f);
+                return (
+                  <div
+                    key={f.path}
+                    onClick={() => props.onActivate(f.path)}
+                    onContextMenu={(e) => props.onContextMenu(e, f)}
+                    className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 ${
+                      isActive ? 'bg-accent/10 border-l-2 border-accent' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => { e.stopPropagation(); props.onToggle(f.path); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0"
+                    />
+                    <span className={`font-mono font-bold text-2xs w-3 shrink-0 ${charColor(ch)}`}>{ch}</span>
+                    <span className="truncate flex-1 text-warm-600" title={f.path}>
+                      {f.path.split('/').pop()}
+                      <span className="text-warm-400 ml-1 text-2xs">
+                        {f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : ''}
+                      </span>
                     </span>
-                  </span>
-                </div>
-              );
-            })
-          )}
+                    <button
+                      onClick={(e) => props.onContextMenu(e, f)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-warm-400 hover:text-warm-700 px-1 transition-opacity"
+                      title={t('svn.fileStatus')}
+                    >
+                      ⋯
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="border-t border-warm-100 p-2 shrink-0">
+            <textarea
+              value={props.commitMessage}
+              onChange={(e) => props.onCommitMessageChange(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder={t('svn.commitMessagePlaceholder')}
+              className="w-full text-xs p-2 border border-warm-200 rounded resize-y min-h-[60px] focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
+              rows={3}
+            />
+            <button
+              onClick={props.onCommit}
+              disabled={props.busy || !props.commitMessage.trim()}
+              className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+            >
+              {props.busy ? t('svn.committing') : t('svn.commit')}
+            </button>
+          </div>
         </div>
-        <div className="border-t border-warm-100 p-2 shrink-0">
-          <textarea
-            ref={taRef}
-            value={props.commitMessage}
-            onChange={(e) => props.onCommitMessageChange(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder={t('svn.commitMessagePlaceholder')}
-            className="w-full text-xs p-2 border border-warm-200 rounded resize-y min-h-[60px] focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
-            rows={3}
-          />
-          <button
-            onClick={props.onCommit}
-            disabled={props.commitBusy || !props.commitMessage.trim()}
-            className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
-          >
-            {props.commitBusy ? t('svn.committing') : t('svn.commit')}
-          </button>
+        {/* Right: working diff */}
+        <div className="min-w-0">
+          <CommitDiffViewer diff={props.workingDiff} loading={props.workingDiffLoading} selectedFile={props.activeFile} />
         </div>
       </div>
-      {/* Right: working diff */}
-      <div className="min-w-0">
-        <CommitDiffViewer
-          diff={props.workingDiff}
-          loading={props.workingDiffLoading}
-          selectedFile={props.activeFile}
-        />
-      </div>
-    </div>
+    </>
   );
 }
 
-// ── History view ──────────────────────────────────────────────────────────
+// ── Log view (SERVER) ─────────────────────────────────────────────────────────
 
-function HistoryView(props: {
+function LogView(props: {
+  loaded: boolean;
   entries: GitLogEntry[];
   loading: boolean;
   hasMore: boolean;
+  onLoad: () => void;
   onLoadMore: () => void;
   selectedRev: string | null;
   onSelectRev: (rev: string) => void;
@@ -464,67 +575,174 @@ function HistoryView(props: {
   onSelectFile: (path: string) => void;
   revDiff: string;
   revDiffLoading: boolean;
+  error: string | null;
 }) {
   const { t } = useI18n();
 
+  // Nothing is fetched until the user explicitly presses "Load log".
+  if (!props.loaded) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-xs text-warm-400 max-w-xs">{t('svn.logEmptyHint')}</p>
+        <button
+          onClick={props.onLoad}
+          disabled={props.loading}
+          className="px-4 py-2 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40 flex items-center gap-2"
+        >
+          {props.loading ? t('svn.checking') : t('svn.loadLog')}
+          <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-white/20">{t('svn.remoteBadge')}</span>
+        </button>
+        {props.error && <span className="text-2xs text-status-error">{props.error}</span>}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 grid grid-cols-[1fr_1fr] min-h-0">
-      {/* Log list */}
-      <div className="border-r border-warm-100 flex flex-col min-h-0">
-        <div className="px-3 py-2 border-b border-warm-100 shrink-0">
-          <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">
-            {t('svn.history')}
-          </span>
+    <>
+      <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0">
+        <button onClick={props.onLoad} disabled={props.loading}
+          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
+          {props.loading ? t('svn.checking') : t('svn.refresh')}
+        </button>
+        {props.error && <span className="text-2xs text-status-error ml-1">{props.error}</span>}
+      </div>
+      <div className="flex-1 grid grid-cols-[1fr_1fr] min-h-0">
+        {/* Log list */}
+        <div className="border-r border-warm-100 flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-warm-100 shrink-0">
+            <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">{t('svn.history')}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {props.entries.map((e) => (
+              <div
+                key={e.hash}
+                onClick={() => props.onSelectRev(e.hash)}
+                className={`px-3 py-2 cursor-pointer text-xs border-b border-warm-50 hover:bg-warm-50/50 ${
+                  props.selectedRev === e.hash ? 'bg-accent/10 border-l-2 border-accent' : ''
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-2xs text-warm-400 shrink-0">r{e.hash}</span>
+                  <span className="truncate flex-1 text-warm-700" title={e.message}>{e.message.split('\n')[0]}</span>
+                </div>
+                <div className="mt-0.5 text-2xs text-warm-400 truncate">
+                  {e.author}
+                  {e.date && <span> · {new Date(e.date).toLocaleString()}</span>}
+                </div>
+              </div>
+            ))}
+            {props.hasMore && !props.loading && (
+              <button onClick={props.onLoadMore} className="w-full py-2 text-2xs text-warm-500 hover:bg-warm-50">
+                + {t('svn.loadMore')}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {props.entries.length === 0 && props.loading && (
-            <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
-          )}
-          {props.entries.map((e) => (
-            <div
-              key={e.hash}
-              onClick={() => props.onSelectRev(e.hash)}
-              className={`px-3 py-2 cursor-pointer text-xs border-b border-warm-50 hover:bg-warm-50/50 ${
-                props.selectedRev === e.hash ? 'bg-accent/10 border-l-2 border-accent' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-2xs text-warm-400 shrink-0">r{e.hash}</span>
-                <span className="truncate flex-1 text-warm-700" title={e.message}>{e.message.split('\n')[0]}</span>
-              </div>
-              <div className="mt-0.5 text-2xs text-warm-400 truncate">
-                {e.author}
-                {e.date && <span> · {new Date(e.date).toLocaleString()}</span>}
-              </div>
-            </div>
-          ))}
-          {props.hasMore && !props.loading && (
-            <button onClick={props.onLoadMore}
-              className="w-full py-2 text-2xs text-warm-500 hover:bg-warm-50">
-              + {t('svn.refresh')}
-            </button>
-          )}
+        {/* Detail (file list + diff) */}
+        <div className="grid grid-rows-[1fr_2fr] min-h-0">
+          <div className="border-b border-warm-100 min-h-0">
+            <CommitFileList
+              files={props.revFiles}
+              loading={props.revFilesLoading}
+              selectedFile={props.selectedFile}
+              onFileClick={props.onSelectFile}
+              commitHash={props.selectedRev ?? undefined}
+            />
+          </div>
+          <div className="min-h-0">
+            <CommitDiffViewer diff={props.revDiff} loading={props.revDiffLoading} selectedFile={props.selectedFile} />
+          </div>
         </div>
       </div>
-      {/* Detail (file list + diff) */}
-      <div className="grid grid-rows-[1fr_2fr] min-h-0">
-        <div className="border-b border-warm-100 min-h-0">
-          <CommitFileList
-            files={props.revFiles}
-            loading={props.revFilesLoading}
-            selectedFile={props.selectedFile}
-            onFileClick={props.onSelectFile}
-            commitHash={props.selectedRev ?? undefined}
-          />
-        </div>
-        <div className="min-h-0">
-          <CommitDiffViewer
-            diff={props.revDiff}
-            loading={props.revDiffLoading}
-            selectedFile={props.selectedFile}
-          />
-        </div>
-      </div>
-    </div>
+    </>
+  );
+}
+
+// ── File row context menu ─────────────────────────────────────────────────────
+
+function FileContextMenu(props: {
+  x: number;
+  y: number;
+  file: GitStatusFile;
+  allFiles: GitStatusFile[];
+  selected: Set<string>;
+  onClose: () => void;
+  onAdd: (files: string[]) => void;
+  onRevert: (files: string[]) => void;
+  onDelete: (files: string[]) => void;
+  onResolve: (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') => void;
+  onViewDiff: (path: string) => void;
+}) {
+  const { t } = useI18n();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: props.x, y: props.y });
+
+  // Target = the selected set if this row is part of it, otherwise just this row.
+  const targets = useMemo(() => {
+    if (props.selected.size > 0 && props.selected.has(props.file.path)) {
+      return props.allFiles.filter((f) => props.selected.has(f.path));
+    }
+    return [props.file];
+  }, [props.selected, props.allFiles, props.file]);
+
+  const addable = targets.filter((f) => charOf(f) === '?').map((f) => f.path);
+  const revertable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
+  const deletable = targets.filter((f) => !['?', 'D'].includes(charOf(f))).map((f) => f.path);
+  const resolvable = targets.filter((f) => charOf(f) === 'U').map((f) => f.path);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) props.onClose();
+    };
+    const onScroll = () => props.onClose();
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('scroll', onScroll, true); };
+  }, [props]);
+
+  // Clamp into viewport.
+  useEffect(() => {
+    if (!menuRef.current) return;
+    const r = menuRef.current.getBoundingClientRect();
+    let { x, y } = { x: props.x, y: props.y };
+    if (x + r.width > window.innerWidth) x = window.innerWidth - r.width - 8;
+    if (y + r.height > window.innerHeight) y = window.innerHeight - r.height - 8;
+    setPos({ x, y });
+  }, [props.x, props.y]);
+
+  const count = targets.length;
+  const suffix = count > 1 ? ` (${count})` : '';
+
+  const Item = ({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) => (
+    <button
+      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-theme-hover transition-colors ${danger ? 'text-status-error' : 'text-theme-text'}`}
+      onClick={() => { onClick(); props.onClose(); }}
+    >
+      {label}
+    </button>
+  );
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-sticky bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-xl py-1 min-w-[200px]"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <Item label={t('svn.viewDiff')} onClick={() => props.onViewDiff(props.file.path)} />
+      {addable.length > 0 && <Item label={`${t('svn.add')}${suffix}`} onClick={() => props.onAdd(addable)} />}
+      {revertable.length > 0 && <Item label={`${t('svn.revert')}${suffix}`} onClick={() => props.onRevert(revertable)} />}
+      {deletable.length > 0 && <Item label={`${t('svn.delete')}${suffix}`} danger onClick={() => props.onDelete(deletable)} />}
+      {resolvable.length > 0 && (
+        <>
+          <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+          <div className="px-3 py-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">{t('svn.resolve')}</div>
+          <Item label={t('svn.resolveWorking')} onClick={() => props.onResolve(resolvable, 'working')} />
+          <Item label={t('svn.resolveMine')} onClick={() => props.onResolve(resolvable, 'mine-full')} />
+          <Item label={t('svn.resolveTheirs')} onClick={() => props.onResolve(resolvable, 'theirs-full')} />
+          <Item label={t('svn.resolveBase')} onClick={() => props.onResolve(resolvable, 'base')} />
+        </>
+      )}
+    </div>,
+    document.body
   );
 }
