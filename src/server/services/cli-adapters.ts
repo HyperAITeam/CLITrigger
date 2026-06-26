@@ -296,6 +296,9 @@ const codexAdapter: CliAdapter = {
     const args: string[] = [];
     if (mode !== 'interactive') {
       args.push('exec');
+      // codex exec aborts in a non-trusted / non-git dir unless this is set;
+      // worktrees & untrusted project paths can't show the interactive trust prompt.
+      args.push('--skip-git-repo-check');
       if (continueSession) {
         args.push('resume', '--last');
       }
