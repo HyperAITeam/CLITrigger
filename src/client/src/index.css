@@ -177,6 +177,20 @@
     transform: translateY(-2px);
   }
 
+  /* Base outlined button — gives bare `.btn` (e.g. `btn btn-sm`) the same subtle
+     outline as the other variants. Defined BEFORE the variants so they override
+     bg/border/color; only buttons without a variant fall back to this look. */
+  .btn {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-muted);
+    @apply inline-flex items-center justify-center gap-2 font-medium
+           px-4 py-2 rounded-xl transition-all duration-300
+           hover:bg-theme-bg-tertiary hover:text-theme-text hover:-translate-y-0.5
+           active:scale-[0.97]
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
+  }
+
   .btn-primary {
     background-color: var(--color-bg-tertiary);
     color: var(--color-accent);
@@ -221,6 +235,7 @@
 
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 bg-status-error/10 text-status-error font-semibold
+           border border-status-error/20
            px-6 py-2.5 rounded-xl transition-all duration-300
            hover:bg-status-error hover:text-white hover:shadow-lg hover:shadow-status-error/20 hover:-translate-y-0.5
            active:scale-[0.97] active:brightness-90
@@ -229,6 +244,7 @@
 
   .btn-ghost {
     color: var(--color-text-tertiary);
+    border: 1px solid var(--color-border-muted);
     @apply inline-flex items-center justify-center gap-2 font-medium
            px-3 py-2 rounded-xl transition-all duration-300
            hover:bg-theme-bg-tertiary hover:text-theme-text hover:-translate-y-0.5
