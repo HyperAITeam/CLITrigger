@@ -711,7 +711,12 @@ router.post('/discussions/:id/cleanup', async (req: Request<{ id: string }>, res
 
     const result = { worktreeRemoved: false, branchDeleted: false };
 
-    if (discussion.worktree_path || discussion.branch_name) {
+    // Only a real worktree run has its own branch + path; runs without isolation store
+    // worktree_path === project.path and no branch — there is nothing (and must be nothing) to remove.
+    const hasRealWorktree = !!discussion.branch_name
+      && !!discussion.worktree_path
+      && discussion.worktree_path !== project.path;
+    if (hasRealWorktree) {
       const cleanup = await worktreeManager.cleanupWorktree(
         project.path,
         discussion.worktree_path || '',
