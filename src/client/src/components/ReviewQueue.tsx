@@ -114,6 +114,8 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
 
   const removeFromQueue = (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
+    // Item left the review set — tell the sidebar badge to recount.
+    window.dispatchEvent(new Event('review:changed'));
   };
 
   const handleApprove = useCallback(async (item: ReviewItem) => {
@@ -146,7 +148,11 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
     if (!confirm(t('review.discardConfirm'))) return;
     setBusy(item.id, true);
     try {
+      // Discard = scrap the todo: clean its worktree/branch, then delete the
+      // row so it leaves the review set (cleanup alone leaves status untouched,
+      // so the item — and the badge — would otherwise come back on reload).
       await todosApi.cleanupTodo(item.id, true);
+      await todosApi.deleteTodo(item.id);
       removeFromQueue(item.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -157,6 +157,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     return () => window.removeEventListener('projects:changed', handler);
   }, []);
 
+  // Recount the review badge when the queue mutates (approve/discard).
+  useEffect(() => {
+    const handler = () => loadReviewCount();
+    window.addEventListener('review:changed', handler);
+    return () => window.removeEventListener('review:changed', handler);
+  }, []);
+
   // WebSocket events for status updates
   useEffect(() => {
     return onEvent((event) => {
