@@ -348,7 +348,9 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
   const canImplement = discussion.status === 'completed' || discussion.status === 'paused';
   const canMerge = discussion.status === 'completed';
   const canInject = discussion.status === 'paused' || discussion.status === 'running';
-  const canCleanup = !canStop && !!discussion.worktree_path;
+  // Only real worktree runs have a branch_name; runs in the project root don't and must
+  // not show a "delete worktree" action (it would target the project itself).
+  const canCleanup = !canStop && !!discussion.branch_name;
   const { canEdit, allowAdvancedFields } = getEditableDiscussionConfig(discussion.status);
 
   const parseInitialMemoryIds = (raw: string | null | undefined): string[] => {

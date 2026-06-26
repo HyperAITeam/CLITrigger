@@ -191,6 +191,13 @@ export class WorktreeManager {
       worktreeRemoved: false,
       branchDeleted: false,
     };
+    // Safety: runs without isolation store worktreePath === projectPath. The main
+    // working tree is not a removable worktree — `worktree remove --force` would fail
+    // and the rmSync fallback below would delete the whole project. Refuse outright.
+    if (worktreePath && path.resolve(worktreePath) === path.resolve(projectPath)) {
+      return result;
+    }
+
     const git = createGit(projectPath);
 
     // 1. Remove worktree. `worktree remove --force` does both the admin entry

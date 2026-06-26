@@ -1,8 +1,19 @@
 import { describe, it, expect } from 'vitest';
+import path from 'path';
 import { WorktreeManager } from '../worktree-manager.js';
 
 describe('WorktreeManager', () => {
   const manager = new WorktreeManager();
+
+  describe('cleanupWorktree safety guard', () => {
+    it('refuses to touch the main working tree when worktreePath === projectPath', async () => {
+      // A discussion/session run without isolation stores worktreePath === projectPath.
+      // The guard must return early before any git/fs call so the project is never deleted.
+      const projectPath = path.resolve('non-existent-project-root-for-test');
+      const result = await manager.cleanupWorktree(projectPath, projectPath, '');
+      expect(result).toEqual({ worktreeRemoved: false, branchDeleted: false });
+    });
+  });
 
   describe('sanitizeBranchName', () => {
     it('should convert simple English title to branch name', () => {
