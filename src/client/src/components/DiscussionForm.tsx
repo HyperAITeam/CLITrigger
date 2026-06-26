@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { GitBranch } from 'lucide-react';
 import type { DiscussionAgent, MemoryInjectMode } from '../types';
 import type { DiscussionInput } from '../api/discussions';
 import { useI18n } from '../i18n';
@@ -15,6 +16,7 @@ export interface DiscussionFormValues {
   memory_inject_mode: MemoryInjectMode;
   memory_node_ids: string[];
   memory_raw_file_paths: string[];
+  use_worktree: boolean;
 }
 
 interface DiscussionFormProps {
@@ -24,6 +26,9 @@ interface DiscussionFormProps {
   mode: 'create' | 'edit';
   allowAdvancedFields?: boolean;
   submitting?: boolean;
+  isGitRepo?: boolean;
+  /** Default for `use_worktree` in create mode; ignored when initialValues sets it. */
+  projectUseWorktree?: boolean;
   onSubmit: (values: DiscussionInput) => Promise<void>;
   onCancel: () => void;
 }
@@ -38,6 +43,7 @@ const DEFAULT_VALUES: DiscussionFormValues = {
   memory_inject_mode: 'none',
   memory_node_ids: [],
   memory_raw_file_paths: [],
+  use_worktree: true,
 };
 
 export default function DiscussionForm({
@@ -47,16 +53,21 @@ export default function DiscussionForm({
   mode,
   allowAdvancedFields = true,
   submitting = false,
+  isGitRepo = false,
+  projectUseWorktree = true,
   onSubmit,
   onCancel,
 }: DiscussionFormProps) {
   const { t, lang } = useI18n();
-  const [values, setValues] = useState<DiscussionFormValues>({ ...DEFAULT_VALUES, ...initialValues });
+  const buildInitial = (): DiscussionFormValues =>
+    ({ ...DEFAULT_VALUES, use_worktree: projectUseWorktree, ...initialValues });
+  const [values, setValues] = useState<DiscussionFormValues>(buildInitial);
   const [includeLinked, setIncludeLinked] = useState<boolean>(false);
 
   useEffect(() => {
-    setValues({ ...DEFAULT_VALUES, ...initialValues });
-  }, [initialValues]);
+    setValues(buildInitial());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialValues, projectUseWorktree]);
 
   const setField = <K extends keyof DiscussionFormValues>(field: K, value: DiscussionFormValues[K]) => {
     setValues((prev) => ({ ...prev, [field]: value }));
@@ -115,6 +126,8 @@ export default function DiscussionForm({
       memory_inject_mode: allowAdvancedFields ? values.memory_inject_mode : 'none',
       memory_node_ids: allowAdvancedFields && values.memory_inject_mode === 'selected' ? values.memory_node_ids : [],
       memory_raw_file_paths: allowAdvancedFields ? values.memory_raw_file_paths : [],
+      // Only sent when the checkbox is shown (git repos); otherwise the stored value is left untouched.
+      ...(isGitRepo ? { use_worktree: values.use_worktree } : {}),
     });
   };
 
@@ -312,6 +325,28 @@ export default function DiscussionForm({
             />
             <p className="text-2xs text-warm-400 mt-1.5">{t('discussions.roundExplain')}</p>
           </div>
+
+          {isGitRepo && (
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={values.use_worktree}
+                  onChange={(e) => setField('use_worktree', e.target.checked)}
+                  className="rounded border-warm-300 text-accent focus:ring-accent"
+                />
+                <GitBranch size={14} className="text-warm-500" />
+                <span className="text-xs font-medium text-warm-500">
+                  {lang === 'ko' ? '워크트리에서 격리 실행' : 'Run in isolated worktree'}
+                </span>
+              </label>
+              <p className="text-2xs text-warm-400 mt-1 ml-6">
+                {lang === 'ko'
+                  ? '체크하면 전용 브랜치/워크트리를 만들어 격리 실행합니다. 해제하면 프로젝트 원본 경로에서 바로 실행합니다.'
+                  : 'Checked: create a dedicated branch/worktree for isolation. Unchecked: run directly in the project root.'}
+              </p>
+            </div>
+          )}
 
           {projectId && (
             <div>

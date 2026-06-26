@@ -369,6 +369,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
     memory_inject_mode: (discussion.memory_inject_mode as 'none' | 'all' | 'selected' | 'auto' | null) || 'none',
     memory_node_ids: parseInitialMemoryIds(discussion.memory_node_ids),
     memory_raw_file_paths: parseInitialMemoryIds(discussion.memory_raw_file_paths),
+    use_worktree: discussion.use_worktree == null ? true : discussion.use_worktree === 1,
   };
 
   const rounds = new Map<number, DiscussionMessage[]>();

@@ -11,6 +11,8 @@ import EmptyState from './EmptyState';
 interface DiscussionListProps {
   projectId: string;
   discussions: Discussion[];
+  isGitRepo?: boolean;
+  projectUseWorktree?: boolean;
   onAddDiscussion: (discussion: Discussion) => void;
   onStartDiscussion: (id: string) => Promise<void>;
   onStopDiscussion: (id: string) => Promise<void>;
@@ -29,6 +31,8 @@ const STATUS_COLORS: Record<string, string> = {
 export default function DiscussionList({
   projectId,
   discussions,
+  isGitRepo,
+  projectUseWorktree,
   onAddDiscussion,
   onStartDiscussion,
   onStopDiscussion,
@@ -97,6 +101,8 @@ export default function DiscussionList({
           projectId={projectId}
           mode="create"
           submitting={creating}
+          isGitRepo={isGitRepo}
+          projectUseWorktree={projectUseWorktree}
           onSubmit={handleCreate}
           onCancel={() => setShowForm(false)}
         />

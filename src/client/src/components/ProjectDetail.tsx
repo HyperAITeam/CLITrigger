@@ -865,6 +865,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <DiscussionList
           projectId={id}
           discussions={discussions}
+          isGitRepo={!!project.is_git_repo}
+          projectUseWorktree={project.use_worktree !== 0}
           onAddDiscussion={handleAddDiscussion}
           onStartDiscussion={handleStartDiscussion}
           onStopDiscussion={handleStopDiscussion}

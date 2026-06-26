@@ -356,6 +356,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'debug_logging', definition: 'INTEGER DEFAULT 0' },
     { table: 'discussions', column: 'auto_implement', definition: 'INTEGER DEFAULT 0' },
     { table: 'discussions', column: 'implement_agent_id', definition: 'TEXT' },
+    // null = inherit project.use_worktree; 0 = run in project root; 1 = isolated worktree
+    { table: 'discussions', column: 'use_worktree', definition: 'INTEGER' },
     { table: 'projects', column: 'use_worktree', definition: 'INTEGER DEFAULT 1' },
     { table: 'todos', column: 'execution_mode', definition: 'TEXT' },
     { table: 'projects', column: 'show_token_usage', definition: 'INTEGER DEFAULT 0' },

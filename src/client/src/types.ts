@@ -236,6 +236,7 @@ export interface Discussion {
   current_agent_id: string | null;
   branch_name: string | null;
   worktree_path: string | null;
+  use_worktree?: number | null;
   agent_ids: string;
   auto_implement: number;
   implement_agent_id: string | null;
