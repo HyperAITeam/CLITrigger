@@ -11,6 +11,7 @@ export interface DiscussionInput {
   memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids?: string[];
   memory_raw_file_paths?: string[];
+  use_worktree?: boolean;
 }
 
 export interface DiscussionUpdateInput {
@@ -23,6 +24,7 @@ export interface DiscussionUpdateInput {
   memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids?: string[];
   memory_raw_file_paths?: string[];
+  use_worktree?: boolean;
 }
 
 // ── Agents ──

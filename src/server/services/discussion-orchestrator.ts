@@ -72,7 +72,9 @@ export class DiscussionOrchestrator {
     let branchName = discussion.branch_name;
 
     if (!worktreePath) {
-      const useWorktree = !!project.is_git_repo && !!project.use_worktree;
+      // Per-discussion choice; null (legacy rows / unset) inherits the project default.
+      const wantWorktree = discussion.use_worktree == null ? !!project.use_worktree : discussion.use_worktree === 1;
+      const useWorktree = !!project.is_git_repo && wantWorktree;
       if (useWorktree) {
         const requestedBranch = worktreeManager.sanitizeBranchName(`discuss-${discussion.title}`);
         try {
@@ -92,7 +94,7 @@ export class DiscussionOrchestrator {
         worktreePath = project.path;
         queries.updateDiscussion(discussionId, { worktree_path: worktreePath });
         queries.createDiscussionLog(discussionId, null, 'info', project.is_git_repo
-          ? 'Running directly on main branch without worktree isolation (use_worktree disabled).'
+          ? 'Running directly on main branch without worktree isolation.'
           : 'Project is not a git repository. Running directly without worktree isolation.');
       }
     }

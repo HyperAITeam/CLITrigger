@@ -8,7 +8,7 @@ import { extractActionItems, type ExtractedActionItem } from '../services/discus
 
 const router = Router();
 
-const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id', 'memory_inject_mode', 'memory_node_ids', 'memory_raw_file_paths'] as const;
+const FULL_EDITABLE_DISCUSSION_FIELDS = ['title', 'description', 'max_rounds', 'agent_ids', 'auto_implement', 'implement_agent_id', 'memory_inject_mode', 'memory_node_ids', 'memory_raw_file_paths', 'use_worktree'] as const;
 const RAW_DIR_PREFIX = '.clitrigger/raw/';
 
 function normalizeRawFilePathsList(input: unknown): string[] {
@@ -46,6 +46,7 @@ interface DiscussionPayload {
   memory_inject_mode: 'none' | 'all' | 'selected' | 'auto';
   memory_node_ids: string[];
   memory_raw_file_paths: string[];
+  use_worktree: number | null;
 }
 
 function parseDiscussionAgentIds(agentIdsJson: string): string[] {
@@ -97,6 +98,10 @@ function normalizeDiscussionPayload(input: Record<string, unknown>): DiscussionP
     memory_inject_mode: memMode,
     memory_node_ids: memIds,
     memory_raw_file_paths: normalizeRawFilePathsList(input.memory_raw_file_paths),
+    // true/1 → worktree, false/0 → project root, anything else → inherit project default
+    use_worktree: input.use_worktree === true || input.use_worktree === 1 ? 1
+      : input.use_worktree === false || input.use_worktree === 0 ? 0
+      : null,
   };
 }
 
@@ -266,6 +271,7 @@ router.post('/projects/:id/discussions', (req: Request<{ id: string }>, res: Res
       payload.memory_inject_mode,
       memNodeIdsJson,
       memRawJson,
+      payload.use_worktree,
     );
     res.status(201).json(discussion);
   } catch (err: unknown) {
@@ -357,6 +363,7 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       memory_inject_mode: discussion.memory_inject_mode || 'none',
       memory_node_ids: existingMemIds,
       memory_raw_file_paths: existingRawPaths,
+      use_worktree: discussion.use_worktree,
       ...rawUpdates,
     });
 
@@ -366,7 +373,7 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
 
-    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>> = {};
+    const updates: Partial<Pick<queries.Discussion, 'title' | 'description' | 'max_rounds' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'use_worktree'>> = {};
 
     if (rawUpdates.title !== undefined) {
       updates.title = mergedPayload.title;
@@ -394,6 +401,9 @@ router.put('/discussions/:id', (req: Request<{ id: string }>, res: Response) => 
     }
     if (rawUpdates.memory_raw_file_paths !== undefined) {
       updates.memory_raw_file_paths = mergedPayload.memory_raw_file_paths.length > 0 ? JSON.stringify(mergedPayload.memory_raw_file_paths) : null;
+    }
+    if (rawUpdates.use_worktree !== undefined) {
+      updates.use_worktree = mergedPayload.use_worktree;
     }
 
     const updated = queries.updateDiscussion(discussion.id, updates);

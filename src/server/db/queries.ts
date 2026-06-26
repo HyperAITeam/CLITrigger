@@ -769,6 +769,7 @@ export interface Discussion {
   current_agent_id: string | null;
   branch_name: string | null;
   worktree_path: string | null;
+  use_worktree: number | null;
   process_pid: number | null;
   agent_ids: string;
   auto_implement: number;
@@ -784,15 +785,15 @@ export function createDiscussion(
   projectId: string, title: string, description: string, agentIds: string[], maxRounds = 3,
   autoImplement = false, implementAgentId?: string,
   memoryInjectMode: string = 'none', memoryNodeIds: string | null = null,
-  memoryRawFilePaths: string | null = null
+  memoryRawFilePaths: string | null = null, useWorktree: number | null = null
 ): Discussion {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, auto_implement, implement_agent_id, memory_inject_mode, memory_node_ids, memory_raw_file_paths, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), autoImplement ? 1 : 0, implementAgentId || null, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, now, now);
+    `INSERT INTO discussions (id, project_id, title, description, max_rounds, agent_ids, auto_implement, implement_agent_id, memory_inject_mode, memory_node_ids, memory_raw_file_paths, use_worktree, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description, maxRounds, JSON.stringify(agentIds), autoImplement ? 1 : 0, implementAgentId || null, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, useWorktree, now, now);
   return getDiscussionById(id)!;
 }
 
@@ -806,7 +807,7 @@ export function getDiscussionById(id: string): Discussion | undefined {
   return db.prepare('SELECT * FROM discussions WHERE id = ?').get(id) as Discussion | undefined;
 }
 
-export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'process_pid' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>>): Discussion | undefined {
+export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, 'title' | 'description' | 'current_round' | 'max_rounds' | 'current_agent_id' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'process_pid' | 'agent_ids' | 'auto_implement' | 'implement_agent_id' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>>): Discussion | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -818,6 +819,7 @@ export function updateDiscussion(id: string, updates: Partial<Pick<Discussion, '
   if (updates.current_agent_id !== undefined) { fields.push('current_agent_id = ?'); values.push(updates.current_agent_id); }
   if (updates.branch_name !== undefined) { fields.push('branch_name = ?'); values.push(updates.branch_name); }
   if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
+  if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree); }
   if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
   if (updates.agent_ids !== undefined) { fields.push('agent_ids = ?'); values.push(updates.agent_ids); }
   if (updates.auto_implement !== undefined) { fields.push('auto_implement = ?'); values.push(updates.auto_implement); }
