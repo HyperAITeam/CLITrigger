@@ -12,7 +12,7 @@ describe('cli-adapters', () => {
     });
 
     expect(adapter.requiresTty).toBeUndefined();
-    expect(args).toEqual(['exec', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3', '--color=never']);
+    expect(args).toEqual(['exec', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3', '--color=never']);
   });
 
   it('adds headless flag for Gemini in non-interactive mode', () => {
@@ -58,7 +58,7 @@ describe('cli-adapters', () => {
       continueSession: true,
     });
 
-    expect(args).toEqual(['exec', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
+    expect(args).toEqual(['exec', '--skip-git-repo-check', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
   });
 
   it('sends Codex prompts over stdin', () => {
