@@ -208,6 +208,17 @@ export function initDatabase(db: Database.Database): void {
       UNIQUE(project_id, name)
     );
 
+    -- Free-form Notion-style pages (BlockNote document JSON in content).
+    -- Separate from planner_items; flat list per project (no nesting).
+    CREATE TABLE IF NOT EXISTS planner_pages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT 'Untitled',
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Global (project-agnostic) personal organizer items. Pure notes/agenda
     -- with no CLI execution. start_at NULL = undated backlog memo. Memos span a
     -- date range [start_at, end_at] (day granularity, no time). due_at/all_day

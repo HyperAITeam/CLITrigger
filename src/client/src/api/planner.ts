@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { PlannerItem, PlannerTag, Todo, Schedule, Session, ImageMeta } from '../types';
+import type { PlannerItem, PlannerTag, PlannerPage, Todo, Schedule, Session, ImageMeta } from '../types';
 
 export function getPlannerItems(projectId: string): Promise<PlannerItem[]> {
   return get(`/api/projects/${projectId}/planner`);
@@ -35,6 +35,27 @@ export function updatePlannerItem(
 
 export function deletePlannerItem(id: string): Promise<void> {
   return del(`/api/planner/${id}`);
+}
+
+// ── Planner Pages (Notion-style documents) ──
+export function getPlannerPages(projectId: string): Promise<PlannerPage[]> {
+  return get(`/api/projects/${projectId}/planner/pages`);
+}
+
+export function createPlannerPage(projectId: string, title?: string): Promise<PlannerPage> {
+  return post(`/api/projects/${projectId}/planner/pages`, { title });
+}
+
+export function getPlannerPage(pageId: string): Promise<PlannerPage> {
+  return get(`/api/planner/pages/${pageId}`);
+}
+
+export function updatePlannerPage(pageId: string, data: { title?: string; content?: string }): Promise<PlannerPage> {
+  return put(`/api/planner/pages/${pageId}`, data);
+}
+
+export function deletePlannerPage(pageId: string): Promise<void> {
+  return del(`/api/planner/pages/${pageId}`);
 }
 
 export function convertToTodo(

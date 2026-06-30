@@ -917,6 +917,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <PlannerList
           plannerItems={plannerItems}
           existingTags={plannerTags}
+          projectId={id!}
           projectCliTool={project.cli_tool}
           onAddItem={handleAddPlannerItem}
           onEditItem={handleEditPlannerItem}

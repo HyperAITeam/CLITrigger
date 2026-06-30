@@ -353,6 +353,17 @@ export interface PlannerTag {
   color: string;
 }
 
+// Free-form Notion-style page. `content` is BlockNote document JSON;
+// list responses omit it (so it may be missing/null in metadata).
+export interface PlannerPage {
+  id: string;
+  project_id: string;
+  title: string;
+  content?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Favorites ──
 
 export type FavoriteType = 'executable' | 'command' | 'url';

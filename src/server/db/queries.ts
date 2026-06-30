@@ -1350,6 +1350,63 @@ export function deletePlannerItem(id: string): boolean {
   return result.changes > 0;
 }
 
+export interface PlannerPage {
+  id: string;
+  project_id: string;
+  title: string;
+  content: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createPlannerPage(projectId: string, title = 'Untitled'): PlannerPage {
+  const db = getDatabase();
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO planner_pages (id, project_id, title, content, created_at, updated_at)
+     VALUES (?, ?, ?, NULL, ?, ?)`
+  ).run(id, projectId, title, now, now);
+  return getPlannerPageById(id)!;
+}
+
+// Metadata only (no content) — keeps the page-list response small.
+export function getPlannerPagesByProjectId(projectId: string): Omit<PlannerPage, 'content'>[] {
+  const db = getDatabase();
+  return db.prepare(
+    'SELECT id, project_id, title, created_at, updated_at FROM planner_pages WHERE project_id = ? ORDER BY created_at ASC'
+  ).all(projectId) as Omit<PlannerPage, 'content'>[];
+}
+
+export function getPlannerPageById(id: string): PlannerPage | undefined {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM planner_pages WHERE id = ?').get(id) as PlannerPage | undefined;
+}
+
+export function updatePlannerPage(id: string, updates: Partial<Pick<PlannerPage, 'title' | 'content'>>): PlannerPage | undefined {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
+  if (updates.content !== undefined) { fields.push('content = ?'); values.push(updates.content); }
+
+  if (fields.length === 0) return getPlannerPageById(id);
+
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.prepare(`UPDATE planner_pages SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getPlannerPageById(id);
+}
+
+export function deletePlannerPage(id: string): boolean {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM planner_pages WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
 export interface PlannerTag {
   id: string;
   project_id: string;
