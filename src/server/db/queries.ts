@@ -1366,14 +1366,14 @@ export interface PlannerPage {
   updated_at: string;
 }
 
-export function createPlannerPage(projectId: string, title = 'Untitled'): PlannerPage {
+export function createPlannerPage(projectId: string, title = 'Untitled', content?: string): PlannerPage {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
     `INSERT INTO planner_pages (id, project_id, title, content, created_at, updated_at)
-     VALUES (?, ?, ?, NULL, ?, ?)`
-  ).run(id, projectId, title, now, now);
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, content ?? null, now, now);
   return getPlannerPageById(id)!;
 }
 

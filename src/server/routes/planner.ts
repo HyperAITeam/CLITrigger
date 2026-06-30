@@ -357,7 +357,7 @@ router.post('/projects/:id/planner/pages', (req: Request<{ id: string }>, res: R
   try {
     const project = queries.getProjectById(req.params.id);
     if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
-    const page = queries.createPlannerPage(req.params.id, req.body?.title || undefined);
+    const page = queries.createPlannerPage(req.params.id, req.body?.title || undefined, req.body?.content);
     res.status(201).json(page);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });

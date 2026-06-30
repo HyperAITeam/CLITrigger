@@ -42,8 +42,8 @@ export function getPlannerPages(projectId: string): Promise<PlannerPage[]> {
   return get(`/api/projects/${projectId}/planner/pages`);
 }
 
-export function createPlannerPage(projectId: string, title?: string): Promise<PlannerPage> {
-  return post(`/api/projects/${projectId}/planner/pages`, { title });
+export function createPlannerPage(projectId: string, title?: string, content?: string): Promise<PlannerPage> {
+  return post(`/api/projects/${projectId}/planner/pages`, { title, content });
 }
 
 export function getPlannerPage(pageId: string): Promise<PlannerPage> {

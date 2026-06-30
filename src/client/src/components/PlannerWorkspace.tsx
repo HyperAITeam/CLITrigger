@@ -6,6 +6,8 @@ import * as plannerApi from '../api/planner';
 import { useI18n } from '../i18n';
 import PlannerList, { type PlannerItemsProps } from './PlannerList';
 import PlannerPageView from './PlannerPageView';
+import Modal from './Modal';
+import { PAGE_TEMPLATES, type PageTemplate } from './planner/pageTemplates';
 
 interface PlannerWorkspaceProps extends PlannerItemsProps {
   projectId: string;
@@ -18,6 +20,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   const [pages, setPages] = useState<PlannerPage[]>([]);
   const [selection, setSelection] = useState<Selection>({ kind: 'work' });
   const [workView, setWorkView] = useState<CalView>('table');
+  const [showPicker, setShowPicker] = useState(false);
   const didInit = useRef(false);
 
   // Page-centric: land on the first page if any exist (once, on first load).
@@ -31,8 +34,13 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
     });
   }, [projectId]);
 
-  const handleNewPage = async () => {
-    const page = await plannerApi.createPlannerPage(projectId, t('planner.pages.untitled'));
+  const handleNewPage = async (template: PageTemplate) => {
+    setShowPicker(false);
+    const page = await plannerApi.createPlannerPage(
+      projectId,
+      template.title || t('planner.pages.untitled'),
+      template.blocks ? JSON.stringify(template.blocks) : undefined,
+    );
     setPages((list) => [...list, page]);
     setSelection({ kind: 'page', id: page.id });
   };
@@ -79,7 +87,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
       <div className="w-52 flex-shrink-0 flex flex-col card p-2 overflow-y-auto">
         <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
           <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
-          <button onClick={handleNewPage} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
+          <button onClick={() => setShowPicker(true)} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
             <Plus size={14} />
           </button>
         </div>
@@ -123,6 +131,27 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
           <PlannerList {...itemProps} view={workView} onChangeView={setWorkView} />
         )}
       </div>
+
+      <Modal open={showPicker} onClose={() => setShowPicker(false)} size="md">
+        <div className="p-5">
+          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
+            {t('planner.pages.newTemplate')}
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            {PAGE_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => handleNewPage(tpl)}
+                className="text-left p-3 rounded-lg border transition-colors hover:bg-warm-50"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{t(tpl.labelKey)}</div>
+                <div className="text-2xs text-warm-400 mt-0.5">{t(tpl.descKey)}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
