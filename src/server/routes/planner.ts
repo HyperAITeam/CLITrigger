@@ -339,6 +339,66 @@ router.delete('/planner/:id', (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
+// ── Planner Pages (Notion-style free-form documents) ──────────────────────
+
+// GET /api/projects/:id/planner/pages - list pages (metadata only)
+router.get('/projects/:id/planner/pages', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+    res.json(queries.getPlannerPagesByProjectId(req.params.id));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/planner/pages - create page
+router.post('/projects/:id/planner/pages', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+    const page = queries.createPlannerPage(req.params.id, req.body?.title || undefined);
+    res.status(201).json(page);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/planner/pages/:pageId - get full page (with content)
+router.get('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Response) => {
+  try {
+    const page = queries.getPlannerPageById(req.params.pageId);
+    if (!page) { res.status(404).json({ error: 'Planner page not found' }); return; }
+    res.json(page);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// PUT /api/planner/pages/:pageId - update title/content
+router.put('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Response) => {
+  try {
+    const existing = queries.getPlannerPageById(req.params.pageId);
+    if (!existing) { res.status(404).json({ error: 'Planner page not found' }); return; }
+    const { title, content } = req.body;
+    res.json(queries.updatePlannerPage(req.params.pageId, { title, content }));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// DELETE /api/planner/pages/:pageId - delete page
+router.delete('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Response) => {
+  try {
+    const existing = queries.getPlannerPageById(req.params.pageId);
+    if (!existing) { res.status(404).json({ error: 'Planner page not found' }); return; }
+    queries.deletePlannerPage(req.params.pageId);
+    res.status(204).send();
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // POST /api/planner/:id/convert-to-todo - convert to TODO
 router.post('/planner/:id/convert-to-todo', (req: Request<{ id: string }>, res: Response) => {
   try {

@@ -5,18 +5,21 @@ import PlannerItemRow from './PlannerItem';
 import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
 import PlannerCalendar from './PlannerCalendar';
+import PlannerPages from './PlannerPages';
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import type { CalView } from './calendar/calendarShared';
 
 type SortField = 'title' | 'tags' | 'priority' | 'due_date' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
+type PlannerView = CalView | 'pages';
 
 const STATUS_ORDER: Record<string, number> = { pending: 0, in_progress: 1, done: 2, moved: 3 };
 
 interface PlannerListProps {
   plannerItems: PlannerItemType[];
   existingTags: PlannerTag[];
+  projectId: string;
   projectCliTool?: string;
   onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<PlannerItemType>;
   onEditItem: (id: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => Promise<void>;
@@ -31,14 +34,14 @@ interface PlannerListProps {
 }
 
 export default function PlannerList({
-  plannerItems, existingTags, projectCliTool,
+  plannerItems, existingTags, projectId, projectCliTool,
   onAddItem, onEditItem, onDeleteItem, onConvertToTodo, onConvertToSchedule, onConvertToSession,
   onUpdateTag, onDeleteTag, onExport, onImport,
 }: PlannerListProps) {
   const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<PlannerItemType | null>(null);
-  const [view, setView] = useState<CalView>('table');
+  const [view, setView] = useState<PlannerView>('table');
   const [addDueDate, setAddDueDate] = useState<string | undefined>(undefined);
   const [filterTag, setFilterTag] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -192,9 +195,9 @@ export default function PlannerList({
         </h2>
 
         <div className="flex items-center gap-2 min-w-0">
-          {/* View toggle: month / week / day / table */}
+          {/* View toggle: month / week / day / table / pages */}
           <div className="flex gap-0.5 p-0.5 rounded-lg shrink-0" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-            {(['month', 'week', 'day', 'table'] as CalView[]).map((v) => (
+            {(['month', 'week', 'day', 'table', 'pages'] as PlannerView[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -203,11 +206,12 @@ export default function PlannerList({
                   ? { backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', fontWeight: 600 }
                   : { color: 'var(--color-text-tertiary)' }}
               >
-                {t(`agenda.view.${v}`)}
+                {v === 'pages' ? t('planner.view.pages') : t(`agenda.view.${v}`)}
               </button>
             ))}
           </div>
 
+          {view !== 'pages' && (<>
           <select className="input-field text-xs py-1.5 px-2 w-auto max-w-[10rem] shrink" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
             <option value="">{t('planner.filterTag')}</option>
             {tagNames.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}
@@ -259,6 +263,7 @@ export default function PlannerList({
               {t('planner.add')}
             </button>
           )}
+          </>)}
         </div>
       </div>
 
@@ -287,8 +292,10 @@ export default function PlannerList({
         </div>
       )}
 
-      {/* Table view (calendar views render PlannerCalendar instead) */}
-      {view === 'table' ? (
+      {/* Pages = Notion-style workspace; table = list; else calendar */}
+      {view === 'pages' ? (
+        <PlannerPages projectId={projectId} />
+      ) : view === 'table' ? (
       <div
         className="card relative"
         onDragEnter={onImport ? handleDragEnter : undefined}
