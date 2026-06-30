@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, FileText, Calendar, List } from 'lucide-react';
 import type { PlannerPage } from '../types';
 import type { CalView } from './calendar/calendarShared';
@@ -18,9 +18,17 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   const [pages, setPages] = useState<PlannerPage[]>([]);
   const [selection, setSelection] = useState<Selection>({ kind: 'work' });
   const [workView, setWorkView] = useState<CalView>('table');
+  const didInit = useRef(false);
 
+  // Page-centric: land on the first page if any exist (once, on first load).
   useEffect(() => {
-    plannerApi.getPlannerPages(projectId).then(setPages);
+    plannerApi.getPlannerPages(projectId).then((list) => {
+      setPages(list);
+      if (!didInit.current) {
+        didInit.current = true;
+        if (list.length > 0) setSelection({ kind: 'page', id: list[0].id });
+      }
+    });
   }, [projectId]);
 
   const handleNewPage = async () => {
@@ -67,15 +75,9 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
 
   return (
     <div className="flex gap-4" style={{ minHeight: '70vh' }}>
-      {/* Unified sidebar: work views + pages */}
+      {/* Unified sidebar: pages (primary) + work roll-up views (secondary) */}
       <div className="w-52 flex-shrink-0 flex flex-col card p-2 overflow-y-auto">
-        <div className="px-2.5 pt-1 pb-1 text-2xs font-semibold uppercase tracking-wider text-warm-400">
-          {t('planner.title')}
-        </div>
-        {navItem(calActive, selectCalendar, <Calendar size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.calendar'))}
-        {navItem(listActive, selectList, <List size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.list'))}
-
-        <div className="flex items-center justify-between px-2.5 pt-3 pb-1">
+        <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
           <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
           <button onClick={handleNewPage} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
             <Plus size={14} />
@@ -93,13 +95,29 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
             <Trash2 size={13} />
           </button>,
         ))}
+
+        <div className="px-2.5 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-warm-400">
+          {t('planner.view.all')}
+        </div>
+        {navItem(calActive, selectCalendar, <Calendar size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.calendar'))}
+        {navItem(listActive, selectList, <List size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.list'))}
       </div>
 
       {/* Main pane */}
       <div className="flex-1 min-w-0 flex flex-col">
         {selection.kind === 'page' ? (
           <div className="card flex flex-col flex-1">
-            <PlannerPageView key={selection.id} pageId={selection.id} onTitleChange={handleTitleChange} />
+            <PlannerPageView
+              key={selection.id}
+              pageId={selection.id}
+              projectId={projectId}
+              projectCliTool={itemProps.projectCliTool}
+              existingTags={itemProps.existingTags}
+              onTitleChange={handleTitleChange}
+              onConvertToTodo={itemProps.onConvertToTodo}
+              onConvertToSchedule={itemProps.onConvertToSchedule}
+              onConvertToSession={itemProps.onConvertToSession}
+            />
           </div>
         ) : (
           <PlannerList {...itemProps} view={workView} onChangeView={setWorkView} />
