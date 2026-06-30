@@ -17,6 +17,8 @@ const p = (text?: string): any => (text ? { type: 'paragraph', content: text } :
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const bullet = (text?: string): any => (text ? { type: 'bulletListItem', content: text } : { type: 'bulletListItem' });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+const check = (text?: string): any => (text ? { type: 'checkListItem', content: text } : { type: 'checkListItem' });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tasklist = (): any => ({ type: 'tasklist' });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const calendar = (): any => ({ type: 'calendar' });
@@ -47,21 +49,6 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     ],
   },
   {
-    id: 'daily',
-    labelKey: 'planner.tpl.daily',
-    descKey: 'planner.tpl.daily.desc',
-    title: '데일리 플랜',
-    blocks: [
-      h(1, '데일리 플랜'),
-      h(2, '오늘 할 일'),
-      tasklist(),
-      h(2, '일정'),
-      calendar(),
-      h(2, '메모'),
-      p(),
-    ],
-  },
-  {
     id: 'project',
     labelKey: 'planner.tpl.project',
     descKey: 'planner.tpl.project.desc',
@@ -87,8 +74,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
       h(1, '위클리 플래너'),
       h(2, '이번 주 목표'),
       bullet(),
-      h(2, '할 일'),
-      tasklist(),
+      h(2, '요일별 할 일'),
+      h(3, '월요일'), check(),
+      h(3, '화요일'), check(),
+      h(3, '수요일'), check(),
+      h(3, '목요일'), check(),
+      h(3, '금요일'), check(),
+      h(3, '토요일'), check(),
+      h(3, '일요일'), check(),
       h(2, '주간 일정'),
       calendar(),
     ],
