@@ -34,6 +34,8 @@
 npm i -g clitrigger && clitrigger
 ```
 
+**또는 데스크톱 앱 다운로드** — Node.js 불필요: **[Windows `.exe` · macOS `.dmg` · Linux `.AppImage`](https://github.com/HyperAITeam/CLITrigger/releases/latest)**
+
 **60초 안에 시작** — `http://localhost:3000` 접속 → 비밀번호 설정 → 프로젝트 추가 → TODO 작성 → Start 클릭.
 
 </div>
