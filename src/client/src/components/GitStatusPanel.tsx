@@ -892,17 +892,20 @@ function WorkingChangesView({
 
         {/* Commit bar */}
         <div className="border-t border-warm-200 shrink-0 bg-theme-bg">
-          <textarea
-            className="w-full px-3 py-2 text-sm bg-transparent text-warm-800 border-0 focus:outline-none resize-none placeholder:text-warm-400"
-            rows={3}
-            placeholder={t('git.commitMessage')}
-            value={commitMessage}
-            onChange={e => setCommitMessage(e.target.value)}
-            onKeyDown={e => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCommit();
-            }}
-            disabled={committing}
-          />
+          <div className="p-2">
+            <textarea
+              className="w-full px-3 py-2 text-sm rounded-md border resize-none focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-warm-400"
+              style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+              rows={3}
+              placeholder={t('git.commitMessage')}
+              value={commitMessage}
+              onChange={e => setCommitMessage(e.target.value)}
+              onKeyDown={e => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCommit();
+              }}
+              disabled={committing}
+            />
+          </div>
           <div className="px-3 py-2 border-t border-warm-200 flex items-center gap-3">
             <label className="flex items-center gap-1.5 text-2xs text-warm-600 cursor-pointer select-none">
               <input
