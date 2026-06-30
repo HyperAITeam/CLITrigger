@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createReactBlockSpec } from '@blocknote/react';
 import { CheckSquare, Square, Trash2, Terminal, Clock, ArrowRight, Plus } from 'lucide-react';
 import type { PlannerItem } from '../../types';
@@ -6,6 +6,50 @@ import * as plannerApi from '../../api/planner';
 import { useI18n } from '../../i18n';
 import PlannerCalendar from '../PlannerCalendar';
 import { usePlannerPage } from './PlannerPageContext';
+
+// Shared propSchema: persisted drag size (0 = natural/auto).
+const sizeProps = { width: { default: 0 }, height: { default: 0 } };
+
+// Wrapper giving a block a native resize handle; persists the dragged size to
+// block props (so it survives re-render/reload). Only a real pointer-drag
+// persists — content-driven growth doesn't (no mouseup), so it stays auto.
+function ResizableBlock({ block, editor, minHeight, children }: {
+  block: { id: string; props: { width: number; height: number } };
+  editor: { updateBlock: (id: string, update: { props: Record<string, number> }) => void };
+  minHeight: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const persistSize = () => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const w = Math.round(r.width), h = Math.round(r.height);
+    if (w !== (block.props.width || 0) || h !== (block.props.height || 0)) {
+      editor.updateBlock(block.id, { props: { width: w, height: h } });
+    }
+  };
+  return (
+    <div
+      ref={ref}
+      contentEditable={false}
+      onMouseUp={persistSize}
+      className="my-1 rounded-lg"
+      style={{
+        border: '1px solid var(--color-border-muted)',
+        resize: 'both',
+        overflow: 'auto',
+        minHeight,
+        minWidth: 240,
+        maxWidth: '100%',
+        width: block.props.width || undefined,
+        height: block.props.height || undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 // Hook: load + mutate the current page's tasks. Shared by both blocks.
 function usePageTasks() {
@@ -52,7 +96,7 @@ function TaskListBlockView() {
   };
 
   return (
-    <div contentEditable={false} className="my-1 rounded-lg" style={{ border: '1px solid var(--color-border-muted)' }}>
+    <>
       {items.map((item) => {
         const done = item.status === 'done';
         return (
@@ -88,13 +132,17 @@ function TaskListBlockView() {
           style={{ color: 'var(--color-text-primary)' }}
         />
       </div>
-    </div>
+    </>
   );
 }
 
 export const taskListBlock = createReactBlockSpec(
-  { type: 'tasklist', propSchema: {}, content: 'none' },
-  { render: () => <TaskListBlockView /> },
+  { type: 'tasklist', propSchema: sizeProps, content: 'none' },
+  { render: ({ block, editor }) => (
+    <ResizableBlock block={block} editor={editor} minHeight={120}>
+      <TaskListBlockView />
+    </ResizableBlock>
+  ) },
 );
 
 // ── Calendar block ────────────────────────────────────────────────────
@@ -104,21 +152,23 @@ function CalendarBlockView() {
   const tagColors = useMemo(() => new Map(existingTags.map((tg) => [tg.name, tg.color])), [existingTags]);
 
   return (
-    <div contentEditable={false} className="my-1">
-      <PlannerCalendar
-        view="month"
-        items={items}
-        tagColors={tagColors}
-        onQuickAdd={(dateKey) => add({ title: 'New task', due_date: dateKey })}
-        onEditItem={() => { /* v1: no inline edit in calendar block */ }}
-        onConvert={(item, mode) => openConvert(item, mode, reload)}
-        onDeleteItem={(id) => remove(id)}
-      />
-    </div>
+    <PlannerCalendar
+      view="month"
+      items={items}
+      tagColors={tagColors}
+      onQuickAdd={(dateKey) => add({ title: 'New task', due_date: dateKey })}
+      onEditItem={() => { /* v1: no inline edit in calendar block */ }}
+      onConvert={(item, mode) => openConvert(item, mode, reload)}
+      onDeleteItem={(id) => remove(id)}
+    />
   );
 }
 
 export const calendarBlock = createReactBlockSpec(
-  { type: 'calendar', propSchema: {}, content: 'none' },
-  { render: () => <CalendarBlockView /> },
+  { type: 'calendar', propSchema: sizeProps, content: 'none' },
+  { render: ({ block, editor }) => (
+    <ResizableBlock block={block} editor={editor} minHeight={320}>
+      <CalendarBlockView />
+    </ResizableBlock>
+  ) },
 );
