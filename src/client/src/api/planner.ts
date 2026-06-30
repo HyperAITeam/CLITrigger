@@ -21,7 +21,7 @@ export function deletePlannerTag(projectId: string, name: string): Promise<void>
 
 export function createPlannerItem(
   projectId: string,
-  data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }
+  data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number; page_id?: string }
 ): Promise<PlannerItem> {
   return post(`/api/projects/${projectId}/planner`, data);
 }
@@ -56,6 +56,11 @@ export function updatePlannerPage(pageId: string, data: { title?: string; conten
 
 export function deletePlannerPage(pageId: string): Promise<void> {
   return del(`/api/planner/pages/${pageId}`);
+}
+
+// Tasks belonging to a page (page-owned planner items).
+export function getPlannerPageItems(pageId: string): Promise<PlannerItem[]> {
+  return get(`/api/planner/pages/${pageId}/items`);
 }
 
 export function convertToTodo(

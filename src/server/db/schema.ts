@@ -379,6 +379,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'use_worktree', definition: 'INTEGER' },
     { table: 'sessions', column: 'use_worktree', definition: 'INTEGER DEFAULT 0' },
     { table: 'planner_items', column: 'images', definition: 'TEXT' },
+    { table: 'planner_items', column: 'page_id', definition: 'TEXT' },
     { table: 'cli_models', column: 'deprecated', definition: 'INTEGER DEFAULT 0' },
     { table: 'cli_models', column: 'last_verified_at', definition: 'DATETIME' },
     { table: 'cli_models', column: 'source', definition: "TEXT DEFAULT 'seed'" },

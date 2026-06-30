@@ -271,14 +271,14 @@ router.post('/projects/:id/planner', (req: Request<{ id: string }>, res: Respons
       return;
     }
 
-    const { title, description, tags, due_date, priority } = req.body;
+    const { title, description, tags, due_date, priority, page_id } = req.body;
     if (!title) {
       res.status(400).json({ error: 'Title is required' });
       return;
     }
 
     const item = queries.createPlannerItem(
-      req.params.id, title, description, tags, due_date, priority
+      req.params.id, title, description, tags, due_date, priority, undefined, page_id
     );
     res.status(201).json(item);
   } catch (err: unknown) {
@@ -375,6 +375,15 @@ router.get('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Res
   }
 });
 
+// GET /api/planner/pages/:pageId/items - tasks belonging to this page
+router.get('/planner/pages/:pageId/items', (req: Request<{ pageId: string }>, res: Response) => {
+  try {
+    res.json(queries.getPlannerItemsByPageId(req.params.pageId));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // PUT /api/planner/pages/:pageId - update title/content
 router.put('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Response) => {
   try {
@@ -387,11 +396,15 @@ router.put('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Res
   }
 });
 
-// DELETE /api/planner/pages/:pageId - delete page
+// DELETE /api/planner/pages/:pageId - delete page (cascades its page-owned tasks)
 router.delete('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: Response) => {
   try {
     const existing = queries.getPlannerPageById(req.params.pageId);
     if (!existing) { res.status(404).json({ error: 'Planner page not found' }); return; }
+    for (const item of queries.getPlannerItemsByPageId(req.params.pageId)) {
+      cleanupPlannerImages(item.id);
+      queries.deletePlannerItem(item.id);
+    }
     queries.deletePlannerPage(req.params.pageId);
     res.status(204).send();
   } catch (err: unknown) {

@@ -1281,6 +1281,7 @@ export interface PlannerItem {
   converted_type: string | null;
   converted_id: string | null;
   source_discussion_id: string | null;
+  page_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1292,16 +1293,22 @@ export function createPlannerItem(
   tags?: string,
   dueDate?: string,
   priority = 0,
-  sourceDiscussionId?: string
+  sourceDiscussionId?: string,
+  pageId?: string
 ): PlannerItem {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO planner_items (id, project_id, title, description, tags, due_date, priority, source_discussion_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, tags ?? null, dueDate ?? null, priority, sourceDiscussionId ?? null, now, now);
+    `INSERT INTO planner_items (id, project_id, title, description, tags, due_date, priority, source_discussion_id, page_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, tags ?? null, dueDate ?? null, priority, sourceDiscussionId ?? null, pageId ?? null, now, now);
   return getPlannerItemById(id)!;
+}
+
+export function getPlannerItemsByPageId(pageId: string): PlannerItem[] {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM planner_items WHERE page_id = ? ORDER BY created_at ASC').all(pageId) as PlannerItem[];
 }
 
 export function getPlannerItemsByProjectId(projectId: string): PlannerItem[] {

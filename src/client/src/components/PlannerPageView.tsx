@@ -1,23 +1,34 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { PlannerPage } from '../types';
+import type { PlannerPage, PlannerItem, PlannerTag } from '../types';
 import * as plannerApi from '../api/planner';
 import { useI18n } from '../i18n';
 import PlannerPageEditor from './PlannerPageEditor';
+import PlannerConvertDialog from './PlannerConvertDialog';
+import { PlannerPageProvider, type ConvertMode } from './planner/PlannerPageContext';
 
 const SAVE_DEBOUNCE_MS = 800;
 
 interface PlannerPageViewProps {
   pageId: string;
-  // Report title edits up so the sidebar list stays in sync.
+  projectId: string;
+  projectCliTool?: string;
+  existingTags: PlannerTag[];
   onTitleChange: (pageId: string, title: string) => void;
+  onConvertToTodo: (id: string, data: Record<string, unknown>) => Promise<void>;
+  onConvertToSchedule: (id: string, data: Record<string, unknown>) => Promise<void>;
+  onConvertToSession: (id: string, data: Record<string, unknown>) => Promise<void>;
 }
 
 // Self-contained page editor: loads its own content, autosaves (debounced),
-// and flushes on unmount. Mount with key={pageId} so switching pages remounts.
-export default function PlannerPageView({ pageId, onTitleChange }: PlannerPageViewProps) {
+// flushes on unmount, and hosts the task-conversion dialog for embedded blocks.
+export default function PlannerPageView({
+  pageId, projectId, projectCliTool, existingTags, onTitleChange,
+  onConvertToTodo, onConvertToSchedule, onConvertToSession,
+}: PlannerPageViewProps) {
   const { t } = useI18n();
   const [page, setPage] = useState<PlannerPage | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [convert, setConvert] = useState<{ item: PlannerItem; mode: ConvertMode; onDone?: () => void } | null>(null);
 
   const pendingRef = useRef<{ title: string; content: string | null }>({ title: '', content: null });
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,7 +51,6 @@ export default function PlannerPageView({ pageId, onTitleChange }: PlannerPageVi
       .then(() => setSaveState('saved'));
   }, [pageId]);
 
-  // Flush pending edits on unmount (page switch / leaving workspace).
   useEffect(() => () => { if (timerRef.current) flush(); }, [flush]);
 
   const scheduleSave = useCallback(() => {
@@ -61,25 +71,48 @@ export default function PlannerPageView({ pageId, onTitleChange }: PlannerPageVi
     scheduleSave();
   };
 
+  const openConvert = useCallback((item: PlannerItem, mode: ConvertMode, onDone?: () => void) => {
+    setConvert({ item, mode, onDone });
+  }, []);
+
   if (!page) return null;
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col">
-      <div className="flex items-center gap-3 px-6 pt-5 pb-2">
-        <input
-          value={page.title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          placeholder={t('planner.pages.untitled')}
-          className="flex-1 bg-transparent text-2xl font-bold outline-none"
-          style={{ color: 'var(--color-text-primary)' }}
+    <PlannerPageProvider value={{ projectId, pageId, projectCliTool, existingTags, openConvert }}>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex items-center gap-3 px-6 pt-5 pb-2">
+          <input
+            value={page.title}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            placeholder={t('planner.pages.untitled')}
+            className="flex-1 bg-transparent text-2xl font-bold outline-none"
+            style={{ color: 'var(--color-text-primary)' }}
+          />
+          <span className="text-2xs text-warm-400 flex-shrink-0">
+            {saveState === 'saving' ? t('planner.pages.saving') : saveState === 'saved' ? t('planner.pages.saved') : ''}
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto pb-6">
+          <PlannerPageEditor initialContent={page.content ?? null} onChange={handleContentChange} />
+        </div>
+      </div>
+
+      {convert && (
+        <PlannerConvertDialog
+          item={convert.item}
+          mode={convert.mode}
+          projectCliTool={projectCliTool}
+          onConvert={async (data) => {
+            const { item, mode, onDone } = convert;
+            if (mode === 'todo') await onConvertToTodo(item.id, data);
+            else if (mode === 'session') await onConvertToSession(item.id, data);
+            else await onConvertToSchedule(item.id, data);
+            onDone?.();
+            setConvert(null);
+          }}
+          onClose={() => setConvert(null)}
         />
-        <span className="text-2xs text-warm-400 flex-shrink-0">
-          {saveState === 'saving' ? t('planner.pages.saving') : saveState === 'saved' ? t('planner.pages.saved') : ''}
-        </span>
-      </div>
-      <div className="flex-1 overflow-y-auto pb-6">
-        <PlannerPageEditor initialContent={page.content ?? null} onChange={handleContentChange} />
-      </div>
-    </div>
+      )}
+    </PlannerPageProvider>
   );
 }
