@@ -290,8 +290,8 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
           {/* Settings section tabs */}
           <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {[
-              { key: 'execution', label: t('header.execConfig') },
               { key: 'harness', label: t('tabs.harness') },
+              { key: 'execution', label: t('header.execConfig') },
               { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
               ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
             ].map((s) => (
