@@ -48,7 +48,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   // Tasks/Discussions/Schedules are unified under one "automation" hub tab
   // with inner sub-tabs. The URL `tab` param still stores the sub value
   // (tasks → no param) so existing deep links keep working.
-  const AUTOMATION_SUBS = ['tasks', 'discussions', 'schedules'];
+  const AUTOMATION_SUBS = ['tasks', 'discussions', 'schedules', 'analytics'];
   const rawTab = searchParams.get('tab') || 'tasks';
   const [activeTab, _setActiveTab] = useState<string>(
     AUTOMATION_SUBS.includes(rawTab) ? 'automation' : rawTab
@@ -763,7 +763,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
           ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
-          { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
         ].map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
             <button
@@ -793,6 +792,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
             { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
             { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
             { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
+            { key: 'analytics', label: t('tabs.analytics') },
           ].map((s) => (
             <button
               key={s.key}
@@ -805,9 +805,11 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
               style={automationSub === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
             >
               {s.label}
-              <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
-                {s.count}
-              </span>
+              {'count' in s && typeof s.count === 'number' && (
+                <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                  {s.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -886,7 +888,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           />
         ) : null
       )}
-      {activeTab === 'analytics' && id && (
+      {activeTab === 'automation' && automationSub === 'analytics' && id && (
         <AnalyticsPanel projectId={id} />
       )}
       {activeTab === 'git' && project.is_git_repo ? (
