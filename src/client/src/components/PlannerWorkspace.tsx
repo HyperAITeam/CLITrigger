@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Trash2, FileText, Calendar, List } from 'lucide-react';
 import type { PlannerPage } from '../types';
 import type { CalView } from './calendar/calendarShared';
@@ -6,7 +7,6 @@ import * as plannerApi from '../api/planner';
 import { useI18n } from '../i18n';
 import PlannerList, { type PlannerItemsProps } from './PlannerList';
 import PlannerPageView from './PlannerPageView';
-import Modal from './Modal';
 import { PAGE_TEMPLATES, type PageTemplate } from './planner/pageTemplates';
 
 interface PlannerWorkspaceProps extends PlannerItemsProps {
@@ -21,7 +21,38 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   const [selection, setSelection] = useState<Selection>({ kind: 'work' });
   const [workView, setWorkView] = useState<CalView>('table');
   const [showPicker, setShowPicker] = useState(false);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+  const addBtnRef = useRef<HTMLButtonElement>(null);
   const didInit = useRef(false);
+
+  const PICKER_W = 240;
+  const openPicker = () => {
+    const r = addBtnRef.current?.getBoundingClientRect();
+    if (r) {
+      const left = Math.min(r.left, window.innerWidth - PICKER_W - 8);
+      setPickerPos({ top: r.bottom + 4, left: Math.max(8, left) });
+    }
+    setShowPicker(true);
+  };
+
+  // Close picker on outside click / scroll / resize.
+  useEffect(() => {
+    if (!showPicker) return;
+    const close = () => setShowPicker(false);
+    const onDown = (e: MouseEvent) => {
+      if (addBtnRef.current?.contains(e.target as Node)) return;
+      if ((e.target as HTMLElement).closest('[data-template-picker]')) return;
+      setShowPicker(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [showPicker]);
 
   // Page-centric: land on the first page if any exist (once, on first load).
   useEffect(() => {
@@ -87,7 +118,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
       <div className="w-52 flex-shrink-0 flex flex-col card p-2 overflow-y-auto">
         <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
           <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
-          <button onClick={() => setShowPicker(true)} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
+          <button ref={addBtnRef} onClick={() => (showPicker ? setShowPicker(false) : openPicker())} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
             <Plus size={14} />
           </button>
         </div>
@@ -132,26 +163,25 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
         )}
       </div>
 
-      <Modal open={showPicker} onClose={() => setShowPicker(false)} size="md">
-        <div className="p-5">
-          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
-            {t('planner.pages.newTemplate')}
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
-            {PAGE_TEMPLATES.map((tpl) => (
-              <button
-                key={tpl.id}
-                onClick={() => handleNewPage(tpl)}
-                className="text-left p-3 rounded-lg border transition-colors hover:bg-warm-50"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
-                <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{t(tpl.labelKey)}</div>
-                <div className="text-2xs text-warm-400 mt-0.5">{t(tpl.descKey)}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </Modal>
+      {showPicker && createPortal(
+        <div
+          data-template-picker
+          className="fixed z-tooltip rounded-xl py-1 shadow-elevated animate-scale-in"
+          style={{ top: pickerPos.top, left: pickerPos.left, width: PICKER_W, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+        >
+          {PAGE_TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              onClick={() => handleNewPage(tpl)}
+              className="w-full text-left px-3 py-2 hover:bg-warm-100 transition-colors"
+            >
+              <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{t(tpl.labelKey)}</div>
+              <div className="text-2xs text-warm-400 mt-0.5">{t(tpl.descKey)}</div>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
