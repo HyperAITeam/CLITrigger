@@ -22,7 +22,7 @@ import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import SessionWindowsHost from './SessionWindowsHost';
 import AnalyticsPanel from './AnalyticsPanel';
-import PlannerList from './PlannerList';
+import PlannerWorkspace from './PlannerWorkspace';
 import MemoryList from './MemoryList';
 import VaultLayout from './vault/VaultLayout';
 import { getPluginsWithTabs } from '../plugins/registry';
@@ -914,7 +914,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         />
       )}
       {activeTab === 'planner' && (
-        <PlannerList
+        <PlannerWorkspace
           plannerItems={plannerItems}
           existingTags={plannerTags}
           projectId={id!}
