@@ -24,6 +24,39 @@ const configFile = path.join(userDataDir, 'config.json');
 const dbPath = path.join(userDataDir, 'clitrigger.db');
 const migratedFlag = path.join(userDataDir, '.password-migrated');
 
+// IME diagnostics — toggleable from Settings ▸ Terminal (the renderer sends
+// ime:set-debug), or seeded from the CLITRIGGER_IME_DEBUG env var. When
+// enabled, JSON lines are appended to userData/ime-debug.log so the packaged
+// exe can be observed without DevTools — opening DevTools un-occludes the
+// window and masks the very occlusion bug this log exists to diagnose.
+let imeDebugEnabled = !!process.env.CLITRIGGER_IME_DEBUG;
+const imeDebugLogFile = path.join(userDataDir, 'ime-debug.log');
+function imeDebugLog(source, data) {
+  if (!imeDebugEnabled) return;
+  try {
+    fs.appendFileSync(imeDebugLogFile, `${JSON.stringify({ t: new Date().toISOString(), source, ...data })}\n`);
+  } catch { /* best-effort diagnostics */ }
+}
+function logImeStartup() {
+  imeDebugLog('startup', {
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    disableFeatures: app.commandLine.getSwitchValue('disable-features'),
+  });
+}
+// Attach listeners unconditionally so a runtime toggle takes effect without
+// recreating the window — imeDebugLog itself gates on the current flag.
+function attachImeWindowLogging(win, label) {
+  for (const ev of ['focus', 'blur', 'show', 'hide']) {
+    win.on(ev, () => {
+      if (win.isDestroyed()) return;
+      imeDebugLog(label, { event: ev, visible: win.isVisible(), focused: win.isFocused() });
+    });
+  }
+}
+
 function readOrInitConfig() {
   fs.mkdirSync(userDataDir, { recursive: true });
   let config = {};
@@ -114,6 +147,7 @@ async function bootServer() {
 }
 
 function createWindow(port) {
+  logImeStartup();
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -219,7 +253,10 @@ function createWindow(port) {
     childWin.on('focus', () => {
       if (!childWin.isDestroyed()) childWin.webContents.focus();
     });
+    attachImeWindowLogging(childWin, 'popout');
   });
+
+  attachImeWindowLogging(mainWindow, 'mainWindow');
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
@@ -238,6 +275,22 @@ function createWindow(port) {
     if (!mainWindow.isDestroyed()) mainWindow.webContents.focus();
   });
 }
+
+ipcMain.on('ime:log', (_event, payload) => {
+  imeDebugLog('renderer', payload && typeof payload === 'object' ? payload : { payload });
+});
+
+ipcMain.on('ime:set-debug', (_event, enabled) => {
+  const on = !!enabled;
+  // Log a fresh startup snapshot on each enable so the log always opens with
+  // the runtime state (occlusion switch value, versions) even mid-session.
+  if (on && !imeDebugEnabled) {
+    imeDebugEnabled = true;
+    logImeStartup();
+  } else {
+    imeDebugEnabled = on;
+  }
+});
 
 ipcMain.on('ime:reset', (event) => {
   // Route the focus call to the sender's webContents so popout child
