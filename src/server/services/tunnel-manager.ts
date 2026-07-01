@@ -40,6 +40,13 @@ export class TunnelManager extends EventEmitter {
 
       const urlPattern = /https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/;
       let resolved = false;
+      // Keep the tail of cloudflared's output so we can surface the real reason
+      // when it dies before producing a URL (quick-tunnel rejection, etc.).
+      let outputTail = '';
+      const tail = () => {
+        const t = outputTail.trim().split('\n').slice(-6).join('\n');
+        return t ? `:\n${t}` : '';
+      };
 
       // A timeout so we don't hang forever waiting for a URL
       const timeout = setTimeout(() => {
@@ -47,12 +54,13 @@ export class TunnelManager extends EventEmitter {
           resolved = true;
           this.status = 'error';
           this.emit('error', new Error('Timed out waiting for tunnel URL'));
-          reject(new Error('Timed out waiting for tunnel URL (30s)'));
+          reject(new Error(`Timed out waiting for tunnel URL (30s)${tail()}`));
         }
       }, 30_000);
 
       const handleOutput = (data: Buffer) => {
         const text = data.toString();
+        outputTail = (outputTail + text).slice(-4000);
         const match = text.match(urlPattern);
         if (match && !resolved) {
           resolved = true;
@@ -90,7 +98,7 @@ export class TunnelManager extends EventEmitter {
         } else if (!resolved) {
           resolved = true;
           this.status = 'error';
-          reject(new Error(`cloudflared exited with code ${code} before producing a URL`));
+          reject(new Error(`cloudflared exited with code ${code} before producing a URL${tail()}`));
         }
       });
     });
@@ -131,6 +139,11 @@ export class TunnelManager extends EventEmitter {
       this.process = proc;
 
       let resolved = false;
+      let outputTail = '';
+      const tail = () => {
+        const t = outputTail.trim().split('\n').slice(-6).join('\n');
+        return t ? `:\n${t}` : '';
+      };
 
       // For named tunnels, look for a connection registration message
       const connPattern = /connection.*registered|Registered tunnel connection/i;
@@ -153,6 +166,7 @@ export class TunnelManager extends EventEmitter {
 
       const handleOutput = (data: Buffer) => {
         const text = data.toString();
+        outputTail = (outputTail + text).slice(-4000);
         if (connPattern.test(text) && !resolved) {
           resolved = true;
           clearTimeout(timeout);
@@ -194,7 +208,7 @@ export class TunnelManager extends EventEmitter {
         } else if (!resolved) {
           resolved = true;
           this.status = 'error';
-          reject(new Error(`cloudflared exited with code ${code}`));
+          reject(new Error(`cloudflared exited with code ${code}${tail()}`));
         }
       });
     });
