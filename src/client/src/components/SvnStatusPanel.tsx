@@ -16,6 +16,12 @@ interface SvnStatusPanelProps {
 
 type View = 'modifications' | 'log';
 
+// Module-level cache of the last LOCAL status per project. Survives the
+// key={project.id} remount so revisiting a project shows the previous result
+// instantly while a fresh `svn status` runs in the background.
+// ponytail: unbounded Map, projects are few; add eviction only if it matters.
+const statusCache = new Map<string, SvnStatusResult>();
+
 const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
 
 const charColor = (ch: string) =>
@@ -50,7 +56,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   }, []);
 
   // ── Working copy status (LOCAL: `svn status`) ────────────────────────────
-  const [status, setStatus] = useState<SvnStatusResult | null>(null);
+  const [status, setStatus] = useState<SvnStatusResult | null>(
+    () => statusCache.get(project.id) ?? null,
+  );
   const [statusLoading, setStatusLoading] = useState(false);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -61,6 +69,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [actionBusy, setActionBusy] = useState(false);
 
   const applyStatus = useCallback((s: SvnStatusResult) => {
+    statusCache.set(project.id, s);
     setStatus(s);
     setSelectedFiles((prev) => {
       const valid = new Set(s.files.map((f) => f.path));
@@ -69,18 +78,21 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       return next;
     });
     setActiveFile((prev) => (prev && !s.files.some((f) => f.path === prev) ? null : prev));
-  }, []);
+  }, [project.id]);
 
   // LOCAL only — safe to run on mount / refreshTrigger. Never adds --show-updates.
+  // With a cached result, skip the loading gate so the previous file list stays
+  // visible and gets replaced silently once the fresh scan finishes.
   const refreshStatus = useCallback(async () => {
-    setStatusLoading(true);
+    const hasCache = statusCache.has(project.id);
+    if (!hasCache) setStatusLoading(true);
     setError(null);
     try {
       applyStatus(await svnApi.getSvnStatus(project.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load SVN status');
     } finally {
-      setStatusLoading(false);
+      if (!hasCache) setStatusLoading(false);
     }
   }, [project.id, applyStatus]);
 
