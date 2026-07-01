@@ -789,28 +789,29 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'automation' && (
         <div className="flex gap-0.5 mb-4 p-1 rounded-xl w-fit overflow-x-auto" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
           {[
-            { key: 'tasks', label: t('tabs.tasks'), count: todos.length },
-            { key: 'discussions', label: t('tabs.discussions'), count: discussions.length },
-            { key: 'schedules', label: t('tabs.schedules'), count: schedules.length },
-            { key: 'analytics', label: t('tabs.analytics') },
+            { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
+            { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
+            { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
+            { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
           ].map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setAutomationSub(s.key)}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
-                automationSub === s.key
-                  ? 'text-warm-800 font-semibold shadow-soft'
-                  : 'text-warm-500 font-normal hover:text-warm-600'
-              }`}
-              style={automationSub === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
-            >
-              {s.label}
-              {'count' in s && typeof s.count === 'number' && (
-                <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
-                  {s.count}
-                </span>
-              )}
-            </button>
+            <TabHoverHelp key={s.key} title={s.label} body={s.help}>
+              <button
+                onClick={() => setAutomationSub(s.key)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
+                  automationSub === s.key
+                    ? 'text-warm-800 font-semibold shadow-soft'
+                    : 'text-warm-500 font-normal hover:text-warm-600'
+                }`}
+                style={automationSub === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+              >
+                {s.label}
+                {'count' in s && typeof s.count === 'number' && (
+                  <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                    {s.count}
+                  </span>
+                )}
+              </button>
+            </TabHoverHelp>
           ))}
         </div>
       )}
