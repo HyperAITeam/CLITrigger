@@ -1,4 +1,4 @@
-export type CliTool = 'claude' | 'gemini' | 'codex' | 'raw-shell';
+export type CliTool = 'claude' | 'antigravity' | 'codex' | 'raw-shell';
 
 export interface CliToolConfig {
   value: CliTool;
@@ -10,7 +10,7 @@ export interface CliToolConfig {
 // CLI's default model, so this registry only describes the tools themselves.
 const DEFAULT_CLI_TOOLS: CliToolConfig[] = [
   { value: 'claude', label: 'Claude Code', supportsInteractive: true },
-  { value: 'gemini', label: 'Gemini CLI', supportsInteractive: true },
+  { value: 'antigravity', label: 'Antigravity CLI', supportsInteractive: true },
   { value: 'codex', label: 'Codex CLI', supportsInteractive: true },
   { value: 'raw-shell', label: 'Raw Shell', supportsInteractive: true },
 ];

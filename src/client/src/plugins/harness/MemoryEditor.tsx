@@ -10,7 +10,7 @@ interface MemoryEditorProps {
 }
 
 // Editor for a CLI memory/instruction file (CLAUDE.md, CLAUDE.local.md,
-// GEMINI.md, AGENTS.md, …). Titled by the actual file name, with an
+// AGENTS.md, …). Titled by the actual file name, with an
 // expand toggle so long files can be read without scrolling a tiny box.
 export default function MemoryEditor({ filePath, content, saving, onSave }: MemoryEditorProps) {
   const { t } = useI18n();

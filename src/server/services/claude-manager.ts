@@ -160,7 +160,7 @@ export class ClaudeManager {
       const delayStdin = !!adapter.delayStdinUntilReady;
       const autoRespondRules = adapter.autoRespondRules ?? [];
       const readyPattern = adapter.readyIndicatorPattern;
-      // PTY submit sequence: most Ink-based TUIs accept '\r', but Gemini
+      // PTY submit sequence: most Ink-based TUIs accept '\r', but Antigravity
       // needs '\r\n'. Replaces a trailing '\n' on writes going to the PTY.
       const submitSeq = adapter.stdinSubmitSequence ?? '\r';
 
@@ -242,7 +242,7 @@ export class ClaudeManager {
 
         // Clear blocking flag once the CLI is back at a ready indicator AND no
         // blocking rule still matches. Reset stdinDelivered so the initial prompt
-        // is (re)sent — handles Gemini's in-process restart after trust approval.
+        // is (re)sent — handles Antigravity's in-process restart after trust approval.
         if (trustPending && readyPattern?.test(clean)) {
           const stillBlocking = autoRespondRules.some(r => r.blocksInitialPrompt && r.pattern.test(clean));
           if (!stillBlocking) {
@@ -357,7 +357,7 @@ export class ClaudeManager {
         child = spawn(adapter.command, args, {
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
-          // shell needed on Windows to resolve .cmd shims (claude.cmd, gemini.cmd)
+          // shell needed on Windows to resolve .cmd shims (claude.cmd, agy.cmd)
           // Safe: prompts are delivered via stdin, not as command-line arguments
           shell: process.platform === 'win32',
           windowsHide: true,

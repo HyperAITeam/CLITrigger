@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import TOML from '@iarna/toml';
 import { claudeHarnessAdapter } from '../adapters/claude.js';
-import { geminiHarnessAdapter } from '../adapters/gemini.js';
+import { antigravityHarnessAdapter } from '../adapters/antigravity.js';
 import { codexHarnessAdapter } from '../adapters/codex.js';
 import { safeJoin, deepMerge, HarnessPathError } from '../io.js';
 
@@ -118,41 +118,41 @@ describe('claudeHarnessAdapter', () => {
   });
 });
 
-describe('geminiHarnessAdapter', () => {
+describe('antigravityHarnessAdapter', () => {
   let dir: string;
   beforeEach(async () => { dir = await makeTempProject(); });
   afterEach(async () => { await rmrf(dir); });
 
   it('round-trips model under model.name', async () => {
-    await geminiHarnessAdapter.writeSettings(dir, { model: 'gemini-2.5-pro' });
-    const snap = await geminiHarnessAdapter.read(dir);
-    expect(snap.settings.model).toBe('gemini-2.5-pro');
+    await antigravityHarnessAdapter.writeSettings(dir, { model: 'antigravity-default' });
+    const snap = await antigravityHarnessAdapter.read(dir);
+    expect(snap.settings.model).toBe('antigravity-default');
   });
 
   it('keeps existing nested groups when patching a sibling', async () => {
-    const sp = path.join(dir, '.gemini', 'settings.json');
+    const sp = path.join(dir, '.agents', 'settings.json');
     await fs.mkdir(path.dirname(sp), { recursive: true });
     await fs.writeFile(
       sp,
       JSON.stringify({ ui: { theme: 'GitHub' }, tools: { sandbox: 'docker' } }),
     );
 
-    await geminiHarnessAdapter.writeSettings(dir, { model: 'gemini-2.5-pro' });
+    await antigravityHarnessAdapter.writeSettings(dir, { model: 'antigravity-default' });
     const raw = JSON.parse(await fs.readFile(sp, 'utf8'));
     expect(raw.ui).toEqual({ theme: 'GitHub' });
     expect(raw.tools).toEqual({ sandbox: 'docker' });
-    expect(raw.model).toEqual({ name: 'gemini-2.5-pro' });
+    expect(raw.model).toEqual({ name: 'antigravity-default' });
   });
 
-  it('inlines MCP servers under settings.json mcpServers', async () => {
-    await geminiHarnessAdapter.upsertMcp(dir, {
+  it('writes MCP servers to a dedicated mcp_config.json', async () => {
+    await antigravityHarnessAdapter.upsertMcp(dir, {
       alias: 'fetcher',
       transport: 'http',
       url: 'https://example.com/mcp',
       headers: { Authorization: 'Bearer x' },
     });
 
-    const raw = JSON.parse(await fs.readFile(path.join(dir, '.gemini', 'settings.json'), 'utf8'));
+    const raw = JSON.parse(await fs.readFile(path.join(dir, '.agents', 'mcp_config.json'), 'utf8'));
     expect(raw.mcpServers.fetcher.httpUrl).toBe('https://example.com/mcp');
     expect(raw.mcpServers.fetcher.headers).toEqual({ Authorization: 'Bearer x' });
   });

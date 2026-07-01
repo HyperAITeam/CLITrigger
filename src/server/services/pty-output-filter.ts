@@ -307,7 +307,7 @@ function isSpinnerOrThinking(line: string): boolean {
 }
 
 /**
- * Plain-text mode noise filter for headless Gemini/Codex runs whose stdout/stderr
+ * Plain-text mode noise filter for headless Antigravity/Codex runs whose stdout/stderr
  * is consumed line-by-line outside the interactive PTY pipeline. Tracks the same
  * multi-line noise blocks (xterm.js parser dumps, node-pty conpty stack traces)
  * via the shared PtyFilterState. Returns true if the line should be dropped.
