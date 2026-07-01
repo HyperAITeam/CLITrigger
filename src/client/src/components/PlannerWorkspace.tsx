@@ -8,6 +8,11 @@ import { useI18n } from '../i18n';
 import PlannerList, { type PlannerItemsProps } from './PlannerList';
 import PlannerPageView from './PlannerPageView';
 import { PAGE_TEMPLATES, type PageTemplate } from './planner/pageTemplates';
+import { Resizer } from './vault/Resizer';
+
+const SIDEBAR_MIN = 160;
+const SIDEBAR_MAX = 480;
+const SIDEBAR_KEY = 'plannerSidebarWidth';
 
 interface PlannerWorkspaceProps extends PlannerItemsProps {
   projectId: string;
@@ -23,7 +28,19 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   const [showPicker, setShowPicker] = useState(false);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const addBtnRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const didInit = useRef(false);
+
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(SIDEBAR_KEY));
+    return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : 208;
+  });
+  const resizeSidebar = useCallback((clientX: number) => {
+    const left = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+    const w = Math.round(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, clientX - left)));
+    setSidebarWidth(w);
+    localStorage.setItem(SIDEBAR_KEY, String(w));
+  }, []);
 
   const PICKER_W = 240;
   const openPicker = () => {
@@ -115,7 +132,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   return (
     <div className="flex gap-4" style={{ minHeight: '70vh' }}>
       {/* Unified sidebar: pages (primary) + work roll-up views (secondary) */}
-      <div className="w-52 flex-shrink-0 flex flex-col card p-2 overflow-y-auto">
+      <div ref={sidebarRef} className="flex-shrink-0 flex flex-col card p-2 overflow-y-auto" style={{ width: sidebarWidth }}>
         <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
           <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
           <button ref={addBtnRef} onClick={() => (showPicker ? setShowPicker(false) : openPicker())} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
@@ -141,6 +158,8 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
         {navItem(calActive, selectCalendar, <Calendar size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.calendar'))}
         {navItem(listActive, selectList, <List size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.list'))}
       </div>
+
+      <Resizer onResize={resizeSidebar} />
 
       {/* Main pane */}
       <div className="flex-1 min-w-0 flex flex-col">
