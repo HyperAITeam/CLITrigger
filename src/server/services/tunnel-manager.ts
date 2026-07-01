@@ -2,7 +2,15 @@ import { spawn, execFile, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { bin as cloudflaredBin } from 'cloudflared';
+import { bin as cloudflaredBinRaw } from 'cloudflared';
+
+// In a packaged Electron app the server runs from inside app.asar, so
+// `require('cloudflared').bin` resolves to a path *inside* the archive
+// (.../app.asar/node_modules/cloudflared/bin/cloudflared.exe). The binary is
+// asarUnpack'd, so the real file lives under app.asar.unpacked — without this
+// rewrite every spawn/execFile hits a nonexistent archive path and exits 1.
+// No-op in dev (the path contains no "app.asar").
+const cloudflaredBin = cloudflaredBinRaw.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
 
 export class TunnelManager extends EventEmitter {
   private process: ChildProcess | null = null;
@@ -33,7 +41,9 @@ export class TunnelManager extends EventEmitter {
     return new Promise<string>((resolve, reject) => {
       const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`], {
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
+        // Only a bare "cloudflared" (PATH fallback) needs a shell to resolve.
+        // For an absolute .exe path, shell:true breaks on spaces / asar paths.
+        shell: this.cloudflaredPath === 'cloudflared',
       });
 
       this.process = proc;
@@ -133,7 +143,7 @@ export class TunnelManager extends EventEmitter {
     return new Promise<string>((resolve, reject) => {
       const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`, 'run', tunnelName], {
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
+        shell: this.cloudflaredPath === 'cloudflared',
       });
 
       this.process = proc;
