@@ -24,7 +24,7 @@ interface Props {
 // Written by the onboarding "ignore everything" choice. The unhide flow
 // (right-click → "볼트에 다시 보이기") appends gitignore negations on top.
 const IGNORE_ALL_TEMPLATE = `# CLITrigger Vault — 전부 숨김으로 시작
-# 파일 탐색기에서 우클릭 → "볼트에 다시 보이기"로 필요한 문서만 해제하세요.
+# 파일 탐색기에서 우클릭 → "문서에 다시 보이기"로 필요한 문서만 해제하세요.
 # gitignore 문법(*, **, ! 제외 패턴)을 그대로 사용합니다.
 *
 `;
@@ -223,7 +223,7 @@ export default function VaultLayout({ projectId }: Props) {
   if (!ready) {
     return (
       <div className="flex h-[calc(100vh-220px)] min-h-[500px] items-center justify-center border border-warm-200 rounded-lg bg-[var(--color-bg-card)]">
-        <span className="text-xs text-warm-400">{showOnboarding ? '' : '볼트 준비 중…'}</span>
+        <span className="text-xs text-warm-400">{showOnboarding ? '' : '문서 준비 중…'}</span>
         {showOnboarding && (
           <VaultOnboardingModal
             saving={onboardSaving}
