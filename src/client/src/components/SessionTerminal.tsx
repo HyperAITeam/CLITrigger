@@ -712,18 +712,18 @@ export default function SessionTerminal({
         style={{ height: '100%', width: '100%' }}
       />
       {(composingText || pastedImage) && (
-        // Bottom-left overlay stack: pasted-image thumbnail and the IME
+        // Bottom-right overlay stack: pasted-image thumbnail and the IME
         // composition mirror share the corner without overlapping.
         // pointer-events: none so selection/click in the terminal still work.
         <div
           style={{
             position: 'absolute',
-            left: 12,
+            right: 12,
             bottom: 12,
             maxWidth: 'calc(100% - 24px)',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'flex-start',
+            alignItems: 'flex-end',
             gap: 6,
             zIndex: 2,
             pointerEvents: 'none',
@@ -772,7 +772,6 @@ export default function SessionTerminal({
                 textOverflow: 'ellipsis',
               }}
             >
-              <span style={{ color: CMD.dim, marginRight: 6 }}>IME</span>
               {composingText}
             </div>
           )}
