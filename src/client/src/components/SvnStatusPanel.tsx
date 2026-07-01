@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronDown, ChevronRight, Folder, FolderTree, List } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
 import type { SvnStatusResult } from '../api/svn';
@@ -15,6 +16,12 @@ interface SvnStatusPanelProps {
 }
 
 type View = 'modifications' | 'log';
+
+// Module-level cache of the last LOCAL status per project. Survives the
+// key={project.id} remount so revisiting a project shows the previous result
+// instantly while a fresh `svn status` runs in the background.
+// ponytail: unbounded Map, projects are few; add eviction only if it matters.
+const statusCache = new Map<string, SvnStatusResult>();
 
 const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
 
@@ -50,7 +57,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   }, []);
 
   // ── Working copy status (LOCAL: `svn status`) ────────────────────────────
-  const [status, setStatus] = useState<SvnStatusResult | null>(null);
+  const [status, setStatus] = useState<SvnStatusResult | null>(
+    () => statusCache.get(project.id) ?? null,
+  );
   const [statusLoading, setStatusLoading] = useState(false);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -61,6 +70,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [actionBusy, setActionBusy] = useState(false);
 
   const applyStatus = useCallback((s: SvnStatusResult) => {
+    statusCache.set(project.id, s);
     setStatus(s);
     setSelectedFiles((prev) => {
       const valid = new Set(s.files.map((f) => f.path));
@@ -69,18 +79,21 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       return next;
     });
     setActiveFile((prev) => (prev && !s.files.some((f) => f.path === prev) ? null : prev));
-  }, []);
+  }, [project.id]);
 
   // LOCAL only — safe to run on mount / refreshTrigger. Never adds --show-updates.
+  // With a cached result, skip the loading gate so the previous file list stays
+  // visible and gets replaced silently once the fresh scan finishes.
   const refreshStatus = useCallback(async () => {
-    setStatusLoading(true);
+    const hasCache = statusCache.has(project.id);
+    if (!hasCache) setStatusLoading(true);
     setError(null);
     try {
       applyStatus(await svnApi.getSvnStatus(project.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load SVN status');
     } finally {
-      setStatusLoading(false);
+      if (!hasCache) setStatusLoading(false);
     }
   }, [project.id, applyStatus]);
 
@@ -440,6 +453,161 @@ function CmdButton({ label, active, remote, disabled, onClick }: {
   );
 }
 
+// ── Directory tree grouping (LOCAL modifications) ────────────────────────────
+
+interface DirTree {
+  name: string;              // segment name; compacted chains join with '/'
+  path: string;              // full path of this dir (post-compaction)
+  dirs: DirTree[];
+  files: GitStatusFile[];
+}
+
+function buildDirTree(files: GitStatusFile[]): DirTree {
+  const root: DirTree = { name: '', path: '', dirs: [], files: [] };
+  for (const f of files) {
+    const parts = f.path.split('/');
+    parts.pop(); // drop the file name; only dir segments remain
+    let node = root;
+    let acc = '';
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      let child = node.dirs.find((d) => d.name === part);
+      if (!child) {
+        child = { name: part, path: acc, dirs: [], files: [] };
+        node.dirs.push(child);
+      }
+      node = child;
+    }
+    node.files.push(f);
+  }
+  compactDirs(root);
+  sortDir(root);
+  return root;
+}
+
+// IntelliJ-style: collapse a chain of single-child dirs (no direct files) into
+// one row named "parent/child/…".
+function compactDirs(node: DirTree): void {
+  node.dirs = node.dirs.map((d) => {
+    let cur = d;
+    while (cur.dirs.length === 1 && cur.files.length === 0) {
+      const only = cur.dirs[0];
+      cur = { name: `${cur.name}/${only.name}`, path: only.path, dirs: only.dirs, files: only.files };
+    }
+    return cur;
+  });
+  node.dirs.forEach(compactDirs);
+}
+
+function sortDir(node: DirTree): void {
+  node.dirs.sort((a, b) => a.name.localeCompare(b.name));
+  node.files.sort((a, b) => a.path.localeCompare(b.path));
+  node.dirs.forEach(sortDir);
+}
+
+function countDir(node: DirTree): { dirs: number; files: number } {
+  let dirs = node.dirs.length;
+  let files = node.files.length;
+  for (const d of node.dirs) {
+    const c = countDir(d);
+    dirs += c.dirs;
+    files += c.files;
+  }
+  return { dirs, files };
+}
+
+interface FileRowShared {
+  selectedFiles: Set<string>;
+  activeFile: string | null;
+  onActivate: (path: string) => void;
+  onToggle: (path: string) => void;
+  onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
+}
+
+function FileRow({ file, indent, showDir, shared }: {
+  file: GitStatusFile;
+  indent: number;
+  showDir?: boolean;
+  shared: FileRowShared;
+}) {
+  const { t } = useI18n();
+  const ch = charOf(file);
+  const isActive = shared.activeFile === file.path;
+  return (
+    <div
+      onClick={() => shared.onActivate(file.path)}
+      onContextMenu={(e) => shared.onContextMenu(e, file)}
+      style={{ paddingLeft: 12 + indent * 14 }}
+      className={`group flex items-center gap-2 pr-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 ${
+        isActive ? 'bg-accent/10 border-l-2 border-accent' : ''
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={shared.selectedFiles.has(file.path)}
+        onChange={(e) => { e.stopPropagation(); shared.onToggle(file.path); }}
+        onClick={(e) => e.stopPropagation()}
+        className="shrink-0"
+      />
+      <span className={`font-mono font-bold text-2xs w-3 shrink-0 ${charColor(ch)}`}>{ch}</span>
+      <span className="truncate flex-1 text-warm-600" title={file.path}>
+        {file.path.split('/').pop()}
+        {showDir && file.path.includes('/') && (
+          <span className="text-warm-400 ml-1 text-2xs">{file.path.substring(0, file.path.lastIndexOf('/'))}</span>
+        )}
+      </span>
+      <button
+        onClick={(e) => shared.onContextMenu(e, file)}
+        className="shrink-0 opacity-0 group-hover:opacity-100 text-warm-400 hover:text-warm-700 px-1 transition-opacity"
+        title={t('svn.fileStatus')}
+      >
+        ⋯
+      </button>
+    </div>
+  );
+}
+
+function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps }: {
+  node: DirTree;
+  depth: number;
+  collapsed: Set<string>;
+  onToggleCollapse: (path: string) => void;
+  fileProps: FileRowShared;
+}) {
+  const { t } = useI18n();
+  const isCollapsed = collapsed.has(node.path);
+  const c = countDir(node);
+  const countLabel = c.dirs > 0
+    ? t('svn.dirFileCount').replace('{d}', String(c.dirs)).replace('{f}', String(c.files))
+    : t('svn.fileCount').replace('{f}', String(c.files));
+  return (
+    <>
+      <div
+        onClick={() => onToggleCollapse(node.path)}
+        style={{ paddingLeft: 12 + depth * 14 }}
+        className="flex items-center gap-1 pr-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 select-none"
+      >
+        {isCollapsed
+          ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
+          : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-warm-400" />}
+        <Folder className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+        <span className="truncate text-warm-700 font-medium" title={node.path}>{node.name}</span>
+        <span className="text-warm-400 text-2xs ml-1 shrink-0">{countLabel}</span>
+      </div>
+      {!isCollapsed && (
+        <>
+          {node.dirs.map((d) => (
+            <DirNode key={d.path} node={d} depth={depth + 1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} fileProps={fileProps} />
+          ))}
+          {node.files.map((f) => (
+            <FileRow key={f.path} file={f} indent={depth + 1} shared={fileProps} />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
 // ── Modifications view (LOCAL) ───────────────────────────────────────────────
 
 function ModificationsView(props: {
@@ -463,6 +631,29 @@ function ModificationsView(props: {
   error: string | null;
 }) {
   const { t } = useI18n();
+
+  const [groupByDir, setGroupByDir] = useState<boolean>(() => {
+    try { return localStorage.getItem('svn.groupByDir') !== 'false'; } catch { return true; }
+  });
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const tree = useMemo(() => buildDirTree(props.statusFiles), [props.statusFiles]);
+  const toggleGroup = () => setGroupByDir((v) => {
+    const next = !v;
+    try { localStorage.setItem('svn.groupByDir', String(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const toggleCollapse = (path: string) => setCollapsed((prev) => {
+    const next = new Set(prev);
+    if (next.has(path)) next.delete(path); else next.add(path);
+    return next;
+  });
+  const fileProps: FileRowShared = {
+    selectedFiles: props.selectedFiles,
+    activeFile: props.activeFile,
+    onActivate: props.onActivate,
+    onToggle: props.onToggle,
+    onContextMenu: props.onContextMenu,
+  };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -494,51 +685,35 @@ function ModificationsView(props: {
         <div className="border-r border-warm-100 flex flex-col min-h-0">
           <div className="px-3 py-2 border-b border-warm-100 flex items-center justify-between shrink-0">
             <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">{t('svn.changed')}</span>
-            <span className="text-2xs text-warm-400">{props.statusFiles.length}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleGroup}
+                title={groupByDir ? t('svn.viewFlat') : t('svn.groupByDir')}
+                className="text-warm-400 hover:text-warm-700 p-0.5 rounded hover:bg-warm-100"
+              >
+                {groupByDir ? <List className="w-3.5 h-3.5" /> : <FolderTree className="w-3.5 h-3.5" />}
+              </button>
+              <span className="text-2xs text-warm-400">{props.statusFiles.length}</span>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {props.statusLoading ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
             ) : props.statusFiles.length === 0 ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
+            ) : groupByDir ? (
+              <>
+                {tree.dirs.map((d) => (
+                  <DirNode key={d.path} node={d} depth={0} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} />
+                ))}
+                {tree.files.map((f) => (
+                  <FileRow key={f.path} file={f} indent={0} shared={fileProps} />
+                ))}
+              </>
             ) : (
-              props.statusFiles.map((f) => {
-                const checked = props.selectedFiles.has(f.path);
-                const isActive = props.activeFile === f.path;
-                const ch = charOf(f);
-                return (
-                  <div
-                    key={f.path}
-                    onClick={() => props.onActivate(f.path)}
-                    onContextMenu={(e) => props.onContextMenu(e, f)}
-                    className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 ${
-                      isActive ? 'bg-accent/10 border-l-2 border-accent' : ''
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => { e.stopPropagation(); props.onToggle(f.path); }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="shrink-0"
-                    />
-                    <span className={`font-mono font-bold text-2xs w-3 shrink-0 ${charColor(ch)}`}>{ch}</span>
-                    <span className="truncate flex-1 text-warm-600" title={f.path}>
-                      {f.path.split('/').pop()}
-                      <span className="text-warm-400 ml-1 text-2xs">
-                        {f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : ''}
-                      </span>
-                    </span>
-                    <button
-                      onClick={(e) => props.onContextMenu(e, f)}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 text-warm-400 hover:text-warm-700 px-1 transition-opacity"
-                      title={t('svn.fileStatus')}
-                    >
-                      ⋯
-                    </button>
-                  </div>
-                );
-              })
+              props.statusFiles.map((f) => (
+                <FileRow key={f.path} file={f} indent={0} showDir shared={fileProps} />
+              ))
             )}
           </div>
           <div className="border-t border-warm-100 p-2 shrink-0">
