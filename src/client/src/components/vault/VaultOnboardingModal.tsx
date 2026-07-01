@@ -18,9 +18,9 @@ export function VaultOnboardingModal({ saving, onIgnoreAll, onShowAll }: Props) 
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50">
       <div className="bg-[var(--color-bg-card)] border border-warm-200 rounded-lg shadow-elevated w-[min(560px,90vw)] max-h-[85vh] overflow-y-auto flex flex-col">
         <div className="px-5 py-4 border-b border-warm-200">
-          <div className="text-sm font-semibold text-warm-800">볼트 시작하기</div>
+          <div className="text-sm font-semibold text-warm-800">문서 시작하기</div>
           <p className="mt-1.5 text-xs text-warm-500 leading-relaxed">
-            볼트는 프로젝트의 <code className="text-warm-700">.md</code>/<code className="text-warm-700">.html</code> 문서를
+            문서 탭은 프로젝트의 <code className="text-warm-700">.md</code>/<code className="text-warm-700">.html</code> 파일을
             스캔해 <code className="text-warm-700">[[wikilink]]</code> 그래프로 보여줍니다.
             큰 프로젝트는 파일이 많아 첫 스캔과 그래프 렌더링이 느릴 수 있어요.
             <code className="text-warm-700">.vaultignore</code>(gitignore 문법)로 표시할 문서만 골라두면 가볍게 쓸 수 있습니다.
@@ -33,14 +33,14 @@ export function VaultOnboardingModal({ saving, onIgnoreAll, onShowAll }: Props) 
             <p className="leading-relaxed">
               <span className="font-semibold text-warm-700">① 전부 숨김으로 시작</span> —
               <code className="text-warm-700"> .vaultignore</code>에 <code className="text-warm-700">*</code>가 들어가
-              모든 파일이 볼트에서 제외된 상태로 시작합니다 (파일은 그대로, 볼트에서만 안 보임).
+              모든 파일이 문서 탭에서 제외된 상태로 시작합니다 (파일은 그대로, 문서 탭에서만 안 보임).
             </p>
           </div>
           <div className="flex items-start gap-2.5">
             <MousePointerClick className="w-4 h-4 mt-0.5 text-warm-400 flex-shrink-0" />
             <p className="leading-relaxed">
               <span className="font-semibold text-warm-700">② 필요한 문서만 해제</span> —
-              파일 탐색기에서 회색으로 표시된 파일·폴더를 우클릭 → <span className="font-semibold text-warm-700">"볼트에 다시 보이기"</span>.
+              파일 탐색기에서 회색으로 표시된 파일·폴더를 우클릭 → <span className="font-semibold text-warm-700">"문서에 다시 보이기"</span>.
               숨김 파일 표시(<Eye className="w-3 h-3 inline" />)는 자동으로 켜 둡니다.
             </p>
           </div>
