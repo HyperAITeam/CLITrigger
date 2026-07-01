@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitBranch, Type } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitBranch, Type, Bug } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
 import * as tagsApi from '../api/sessionTags';
@@ -32,8 +32,10 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   const [tags, setTags] = useState<SessionTag[]>([]);
   const [defaultUseWorktree, setDefaultUseWorktree] = useState(false);
   const [defaultFontSize, setDefaultFontSize] = useState<number>(DEFAULT_FONT_SIZE);
+  const [imeDebug, setImeDebug] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [savingWorktree, setSavingWorktree] = useState(false);
+  const [savingImeDebug, setSavingImeDebug] = useState(false);
   const fontSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [newName, setNewName] = useState('');
@@ -64,6 +66,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         setDefaultUseWorktree(settings.defaultUseWorktree);
         setDefaultFontSize(settings.defaultFontSize);
         setGlobalDefaultFontSize(settings.defaultFontSize);
+        setImeDebug(settings.imeDebug);
         setNewColor(pickPaletteColor(tagList));
         setAliases(aliasList);
         setLoaded(true);
@@ -110,6 +113,23 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       toastError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSavingWorktree(false);
+    }
+  };
+
+  const handleToggleImeDebug = async (next: boolean) => {
+    setSavingImeDebug(true);
+    try {
+      const updated = await settingsApi.updateSessionSettings({ imeDebug: next });
+      setImeDebug(updated.imeDebug);
+      // Push to the Electron main process so file logging starts/stops now,
+      // without a restart. No-op in the browser build.
+      (window as unknown as { electronAPI?: { imeSetDebug?: (v: boolean) => void } })
+        .electronAPI?.imeSetDebug?.(updated.imeDebug);
+      toastSuccess(t('sessionSettings.saved'));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingImeDebug(false);
     }
   };
 
@@ -510,6 +530,27 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
             })}
           </ul>
         )}
+      </section>
+
+      <section className="mt-7">
+        <h3 className="text-sm font-semibold text-warm-700 mb-2 flex items-center gap-1.5">
+          <Bug size={14} />
+          IME 디버그 로그
+        </h3>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={imeDebug}
+            disabled={savingImeDebug || !loaded}
+            onChange={(e) => handleToggleImeDebug(e.target.checked)}
+            className="rounded border-warm-300"
+          />
+          <span className="text-sm text-warm-600">한글 입력(IME) 진단 로그 기록</span>
+        </label>
+        <p className="mt-1 text-2xs ml-6" style={{ color: 'var(--color-text-muted)' }}>
+          조합 창이 화면 좌상단에 뜨는 문제를 진단하기 위해 입력 시점 상태를 기록합니다.
+          데스크톱 앱에서만 동작하며, 로그는 앱 데이터 폴더의 ime-debug.log에 저장됩니다.
+        </p>
       </section>
 
       {onClose && (
