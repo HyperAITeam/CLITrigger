@@ -192,7 +192,7 @@ function safeParseLintIssues(raw: string): LintIssue[] {
 
 function buildInvocation(cliTool: CliTool): { command: string; args: string[] } {
   switch (cliTool) {
-    case 'gemini': return { command: 'gemini', args: ['--yolo', '--prompt='] };
+    case 'antigravity': return { command: 'agy', args: ['--dangerously-skip-permissions', '--headless'] };
     case 'codex': return { command: 'codex', args: ['exec'] };
     case 'claude':
     default: return { command: 'claude', args: ['--print'] };
@@ -302,7 +302,7 @@ export function runHeadless(
 }
 
 export function resolveCliTool(value: unknown): CliTool {
-  if (value === 'claude' || value === 'gemini' || value === 'codex') return value;
+  if (value === 'claude' || value === 'antigravity' || value === 'codex') return value;
   return 'claude';
 }
 

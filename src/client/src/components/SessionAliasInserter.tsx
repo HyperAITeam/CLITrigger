@@ -2,7 +2,7 @@
 // and insert it into the active session's PTY as terminal input. Enter is
 // NOT submitted — the user reviews/edits and presses Enter themselves.
 //
-// Works for every session type (claude/gemini/codex/raw-shell): the alias
+// Works for every session type (claude/antigravity/codex/raw-shell): the alias
 // is just text routed through the same WS path xterm.js uses for typed
 // keystrokes (`session:terminal-input`). The server's WS handler already
 // gates that path on session.status === 'running' so clicks against a

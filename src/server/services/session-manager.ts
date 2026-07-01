@@ -129,7 +129,7 @@ export class SessionManager {
         throw new Error('Resume is not supported for raw shell sessions');
       }
       // --continue is currently only wired for Claude in interactive mode.
-      // Gemini/Codex have the adapter flag but their interactive resume is
+      // Antigravity/Codex have the adapter flag but their interactive resume is
       // not yet validated, so reject early with a clear message.
       if (cliTool !== 'claude') {
         throw new Error('Resume is only supported for Claude sessions');
@@ -374,7 +374,7 @@ export class SessionManager {
   /**
    * Submit the held initial prompt to the running PTY. The payload is
    * terminated with `\n` so claudeManager's ptyWritable converts it to the
-   * adapter's submit sequence (\r for Claude/Codex, \r\n for Gemini).
+   * adapter's submit sequence (\r for Claude/Codex, \r\n for Antigravity).
    * Returns false if there's no pending prompt or the PTY is gone.
    */
   submitInitialPrompt(sessionId: string): boolean {

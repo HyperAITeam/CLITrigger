@@ -73,7 +73,7 @@ interface SessionTerminalProps {
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
 // Wrap multi-line paste content in DEC bracketed paste sequences so modern
-// CLI TUIs (Claude / Gemini / Codex Ink) treat embedded LFs as paste content
+// CLI TUIs (Claude / Antigravity / Codex Ink) treat embedded LFs as paste content
 // rather than individual Enter keys, which otherwise causes multi-line paste
 // to look truncated or scrambled. We only wrap when '\n' is present —
 // single-line paste was working as raw input and we don't want to send
@@ -607,7 +607,7 @@ export default function SessionTerminal({
   // broadcast the new dimensions to the PTY through a long debounce.
   //
   // The PTY resize is debounced 300ms (vs. ResizeObserver's 150ms) because
-  // each SIGWINCH causes Claude/Codex/Gemini to re-emit their welcome banner
+  // each SIGWINCH causes Claude/Codex/Antigravity to re-emit their welcome banner
   // into the main screen buffer, stacking duplicates in xterm's scrollback.
   // Coalescing rapid Ctrl+=/Ctrl+- presses into a single resize keeps the
   // duplication count bounded. The fontSize timer uses a dedicated ref so
@@ -615,7 +615,7 @@ export default function SessionTerminal({
   //
   // Alternate buffer has no scrollback, and xterm.js truncates from the top
   // when rows shrink there — so a fit() that lowers rows permanently drops
-  // the oldest TUI lines (Claude/Codex/Gemini conversation history above the
+  // the oldest TUI lines (Claude/Codex/Antigravity conversation history above the
   // input box). We only mutate the glyph size in that mode and leave cols/
   // rows pinned to whatever the CLI last drew at; the layout becomes a bit
   // smaller/larger than the viewport but no data is lost. Normal buffer

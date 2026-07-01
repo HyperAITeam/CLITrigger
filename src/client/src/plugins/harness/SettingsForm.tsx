@@ -11,13 +11,15 @@ interface SettingsFormProps {
 
 const APPROVAL_OPTIONS: Record<CliId, string[]> = {
   claude: ['ask', 'accept', 'auto', 'bypassPermissions'],
-  gemini: ['default', 'auto_edit', 'yolo'],
+  // PROVISIONAL: Antigravity approval-mode values unconfirmed (verify via `agy inspect`).
+  antigravity: ['default', 'auto', 'all'],
   codex: ['untrusted', 'on-request', 'on-failure', 'never'],
 };
 
 const SANDBOX_OPTIONS: Record<CliId, string[]> = {
   claude: [],
-  gemini: ['true', 'false', 'docker', 'podman', 'lxc', 'windows-native'],
+  // PROVISIONAL: Antigravity sandbox values unconfirmed (verify via `agy inspect`).
+  antigravity: ['true', 'false', 'docker', 'podman'],
   codex: ['read-only', 'workspace-write', 'danger-full-access'],
 };
 

@@ -21,7 +21,7 @@ const cache = new Map<string, CacheEntry>();
 
 const TOOLS = [
   { tool: 'claude', command: 'claude' },
-  { tool: 'gemini', command: 'gemini' },
+  { tool: 'antigravity', command: 'agy' },
   { tool: 'codex', command: 'codex' },
 ] as const;
 
@@ -34,7 +34,7 @@ const VCS_TOOLS = [
 function checkTool(tool: string, command: string, isVcs = false): Promise<CliToolStatus> {
   return new Promise((resolve) => {
     const opts: { timeout: number; shell?: boolean } = { timeout: CHECK_TIMEOUT };
-    // Windows needs shell:true to resolve .cmd shims (claude.cmd, gemini.cmd, etc.)
+    // Windows needs shell:true to resolve .cmd shims (claude.cmd, agy.cmd, etc.)
     if (process.platform === 'win32') opts.shell = true;
 
     execFile(command, ['--version'], opts, async (error, stdout) => {

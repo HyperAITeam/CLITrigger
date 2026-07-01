@@ -6,14 +6,14 @@ import type { PluginPanelProps } from '../types';
 import CliTab from './CliTab';
 import type { CliId, HarnessSnapshot } from './types';
 
-const CLI_IDS: CliId[] = ['claude', 'gemini', 'codex'];
+const CLI_IDS: CliId[] = ['claude', 'antigravity', 'codex'];
 
 const STORAGE_KEY = 'harness:active-cli';
 
 function loadActiveCli(projectId: string): CliId {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}:${projectId}`);
-    if (raw === 'claude' || raw === 'gemini' || raw === 'codex') return raw;
+    if (raw === 'claude' || raw === 'antigravity' || raw === 'codex') return raw;
   } catch { /* ignore */ }
   return 'claude';
 }
