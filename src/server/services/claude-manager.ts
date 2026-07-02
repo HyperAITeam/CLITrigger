@@ -6,6 +6,7 @@ import { createRequire } from 'module';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
+import { getToolStatus } from './cli-status.js';
 import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
@@ -127,6 +128,19 @@ export class ClaudeManager {
   }> {
     const adapter = getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
+
+    // Pre-flight on Windows only: spawn goes through cmd.exe (shell:true), so
+    // a missing CLI never fires ENOENT — cmd exits 1 with a localized (often
+    // mojibake) message. POSIX already surfaces ENOENT via the 'error' event.
+    if (process.platform === 'win32') {
+      const status = await getToolStatus(tool);
+      if (status && !status.installed) {
+        throw new Error(
+          `${adapter.displayName} ('${adapter.command}') was not found on PATH. `
+          + `Install it first — or if it was installed after CLITrigger started, restart CLITrigger to pick up the updated PATH.`
+        );
+      }
+    }
 
     if (adapter.requiresTty || mode === 'interactive') {
       // Empty prompt (sessions stash the real prompt in pendingInitialPrompts and
