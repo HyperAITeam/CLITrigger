@@ -32,7 +32,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GripVertical, X, ExternalLink } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
-import { MAIN_WINDOW_ID } from './popout/popoutBus';
+import { MAIN_WINDOW_ID, openBus, type PopoutBus } from './popout/popoutBus';
 import { useI18n } from '../i18n';
 import * as projectsApi from '../api/projects';
 import type { Project } from '../types';
@@ -46,11 +46,12 @@ interface MinimizedChip {
   // 'minimized' = collapsed floating window; 'popped' = torn out into a
   // separate OS window. Both get a dock chip so the user keeps a handle on it.
   kind: 'minimized' | 'popped';
+  // For popped chips: the owning popout window id, used to target it over the bus.
+  ownerWindowId?: string;
 }
 
 const STORAGE_PREFIX = 'sessionGroups:';
 const RESTORE_KEY = 'pendingSessionRestore';
-const RECALL_KEY = 'pendingSessionRecall';
 // User-defined chip order (array of "projectId:groupId") and the tray's
 // horizontal offset, both persisted locally. The tray stays bottom-anchored;
 // only `left` is draggable.
@@ -120,6 +121,7 @@ function readAllMinimized(): MinimizedChip[] {
             sessionIds: allSessionIds(g.root),
             titles,
             kind: popped ? 'popped' : 'minimized',
+            ownerWindowId: popped ? g.ownerWindowId : undefined,
           });
         }
       } catch { /* skip malformed entry */ }
@@ -145,6 +147,14 @@ export default function GlobalSessionDockTray() {
   const currentProjectId = getCurrentProjectId(location.pathname);
 
   const refresh = useCallback(() => setChips(readAllMinimized()), []);
+
+  // Bus handle for posting to popout OS windows (focus). Post-only here.
+  const busRef = useRef<PopoutBus | null>(null);
+  useEffect(() => {
+    const bus = openBus();
+    busRef.current = bus;
+    return () => { bus.close(); busRef.current = null; };
+  }, []);
 
   // ── Chip reorder (HTML5 drag) ──────────────────────────────────────────
   const [order, setOrder] = useState<string[]>(() => readOrder());
@@ -252,20 +262,26 @@ export default function GlobalSessionDockTray() {
   if (chips.length === 0) return null;
 
   const handleRestore = (chip: MinimizedChip) => {
-    // Popped chips recall the separate OS window back into the main app; plain
-    // minimized chips just un-minimize the floating window. Same-project goes
-    // through a custom event the host listens for; cross-project stashes an
-    // intent and navigates so the destination host picks it up on mount.
-    const event = chip.kind === 'popped' ? 'session-windows:recall' : 'session-windows:restore';
-    const stashKey = chip.kind === 'popped' ? RECALL_KEY : RESTORE_KEY;
+    // Popped chips just bring the existing external OS window to the front over
+    // the bus — no recall into the main app. The bus is global, so this works
+    // regardless of which project is currently open (no navigate needed).
+    if (chip.kind === 'popped') {
+      if (chip.ownerWindowId) {
+        busRef.current?.post({ t: 'group-focus', popoutId: chip.ownerWindowId, groupId: chip.groupId });
+      }
+      return;
+    }
+    // Minimized chips un-minimize the floating window. Same-project goes through
+    // a custom event the host listens for; cross-project stashes an intent and
+    // navigates so the destination host picks it up on mount.
     if (chip.projectId === currentProjectId) {
-      window.dispatchEvent(new CustomEvent(event, {
+      window.dispatchEvent(new CustomEvent('session-windows:restore', {
         detail: { projectId: chip.projectId, groupId: chip.groupId },
       }));
       return;
     }
     try {
-      sessionStorage.setItem(stashKey, JSON.stringify({
+      sessionStorage.setItem(RESTORE_KEY, JSON.stringify({
         projectId: chip.projectId, groupId: chip.groupId,
       }));
     } catch { /* private mode; navigation will still happen, just no restore */ }

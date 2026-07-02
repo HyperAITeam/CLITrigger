@@ -178,6 +178,9 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         const g = groupRef.current;
         if (g) bus.post({ t: 'group-return', from: popoutId, groupId: g.id, group: g, projectId });
         setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 50);
+      } else if (msg.t === 'group-focus' && msg.popoutId === popoutId && msg.groupId === groupId) {
+        // Main app asked to bring this popout window to the front (no recall).
+        try { window.focus(); } catch { /* focus blocked */ }
       } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
         // Main reclaimed our ownership. Drop the group immediately so the
         // StackView → SessionPane → SessionTerminal tree unmounts and the
