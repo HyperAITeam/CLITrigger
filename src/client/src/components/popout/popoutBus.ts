@@ -56,6 +56,8 @@ export type BusMessage =
   | { t: 'group-update'; from: string; groupId: string; patch: unknown }
   | { t: 'group-close'; from: string; groupId: string }
   | { t: 'group-recall'; popoutId: string; groupId: string }
+  // main → popout, "bring your OS window to the front" (window.focus), no recall
+  | { t: 'group-focus'; popoutId: string; groupId: string }
   | { t: 'group-reclaimed'; popoutId: string; groupIds: string[]; reason: 'heartbeat-timeout' | 'late-return' }
   | { t: 'heartbeat'; from: string; ownedGroupIds: string[] }
   | { t: 'bye'; from: string }
