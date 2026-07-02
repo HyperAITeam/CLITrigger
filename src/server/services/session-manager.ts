@@ -297,7 +297,9 @@ export class SessionManager {
       this.pendingInitialPrompts.delete(sessionId);
       this.startupInputBuffer.delete(sessionId);
       const current = queries.getSessionById(sessionId);
-      if (current && current.status === 'running') {
+      // pid guard: a session stopped-then-restarted during the kill window has
+      // a new process_pid — the old process's exit must not clobber it.
+      if (current && current.status === 'running' && current.process_pid === pid) {
         const status = exitCode === 0 ? 'completed' : 'failed';
         const msg = exitCode === 0
           ? `${adapter.displayName} session completed.`
@@ -332,20 +334,22 @@ export class SessionManager {
   async stopSession(sessionId: string): Promise<void> {
     const session = queries.getSessionById(sessionId);
     if (!session) throw new Error('Session not found');
+    const pid = session.process_pid;
 
-    if (session.process_pid) {
-      await claudeManager.stopClaude(session.process_pid);
+    // Mark stopped + broadcast BEFORE the (up to 7s) graceful kill so the UI
+    // updates immediately; the exit handler's guards then skip this session.
+    queries.updateSessionStatus(sessionId, 'stopped');
+    queries.updateSession(sessionId, { process_pid: 0 });
+    queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
+    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
+    broadcastProjectStatus(session.project_id);
+
+    if (pid) {
+      await claudeManager.stopClaude(pid);
     }
     this.flushAndForgetRaw(sessionId);
     this.pendingInitialPrompts.delete(sessionId);
     this.startupInputBuffer.delete(sessionId);
-
-    queries.updateSessionStatus(sessionId, 'stopped');
-    queries.updateSession(sessionId, { process_pid: 0 });
-    queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
-
-    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
-    broadcastProjectStatus(session.project_id);
   }
 
   /**
