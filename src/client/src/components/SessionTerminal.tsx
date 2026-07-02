@@ -1037,9 +1037,13 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   // compositionupdate (not compositionstart), so on the very first Hangul
   // jamo the OS IME candidate window reads the textarea's default
   // `left: -9999em` (xterm.css) and shows the panel far from the cursor —
-  // typically clipped to the viewport's bottom-right. Pre-position the
-  // textarea at the cursor on mount and again in the compositionstart
-  // capture phase so the OS sees correct coords before drawing the panel.
+  // typically clipped to the viewport's bottom-right. Keep the textarea
+  // pinned to the cursor at all times (mount + every cursor move + the
+  // compositionstart capture phase): Windows TSF can query caret bounds
+  // BEFORE the DOM compositionstart event dispatches, and the Korean IME
+  // doesn't re-query mid-composition, so repositioning inside the handler
+  // alone is too late — an ime-debug capture (2026-07-02) showed the helper
+  // parked at mount-time (0,0) for 4s until the first keystroke.
   // Cell width/height are derived from .xterm-screen's bounding rect to
   // avoid touching xterm's private renderService.
   // Temporary IME diagnostics — forwarded to the Electron main process, which
@@ -1052,17 +1056,19 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     } catch { /* best-effort diagnostics */ }
   };
 
-  const positionHelperAtCursor = () => {
+  // quiet: skip imeLog — cursor-move calls fire per frame during TUI redraws
+  // and would flood ime-debug.log.
+  const positionHelperAtCursor = (quiet = false) => {
     try {
       const helper = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
       const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
-      if (!helper || !screen) { imeLog('pos:no-dom', { hasHelper: !!helper, hasScreen: !!screen }); return; }
+      if (!helper || !screen) { if (!quiet) imeLog('pos:no-dom', { hasHelper: !!helper, hasScreen: !!screen }); return; }
       const cols = term.cols;
       const rows = term.rows;
-      if (cols <= 0 || rows <= 0) { imeLog('pos:no-grid', { cols, rows }); return; }
+      if (cols <= 0 || rows <= 0) { if (!quiet) imeLog('pos:no-grid', { cols, rows }); return; }
       const screenRect = screen.getBoundingClientRect();
       if (screenRect.width === 0 || screenRect.height === 0) {
-        imeLog('pos:zero-screen', { w: screenRect.width, h: screenRect.height });
+        if (!quiet) imeLog('pos:zero-screen', { w: screenRect.width, h: screenRect.height });
         return;
       }
       const cellW = screenRect.width / cols;
@@ -1074,10 +1080,17 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       helper.style.top = `${cursorY * cellH}px`;
       helper.style.width = `${Math.max(cellW, 1)}px`;
       helper.style.height = `${Math.max(cellH, 1)}px`;
-      imeLog('pos:applied', { cursorX, cursorY, left: cursorX * cellW, top: cursorY * cellH });
+      if (!quiet) imeLog('pos:applied', { cursorX, cursorY, left: cursorX * cellW, top: cursorY * cellH });
     } catch { /* defensive: xterm DOM may not be fully built yet */ }
   };
   positionHelperAtCursor();
+  // rAF-coalesced so heavy output doesn't pay a layout read per cursor move.
+  let posRaf = 0;
+  const schedulePositionHelper = () => {
+    if (posRaf) return;
+    posRaf = requestAnimationFrame(() => { posRaf = 0; positionHelperAtCursor(true); });
+  };
+  const cursorMoveDisposable = term.onCursorMove(schedulePositionHelper);
 
   const handleCompStart = () => {
     composing = true;
@@ -1108,11 +1121,15 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   // and carries no data.
   const handleCompUpdate = (e: Event) => {
     reportComposing((e as CompositionEvent).data ?? '');
+    imeLog('compositionupdate', { data: (e as CompositionEvent).data ?? '' });
   };
   const handleCompEnd = (e: Event) => {
     composing = false;
     reportComposing('');
     const data = (e as CompositionEvent).data;
+    // Distinguishes a cancelled composition (empty data, nothing sent) from
+    // a committed-but-never-echoed one in ime-debug captures.
+    imeLog('compositionend', { data: data ?? '', sent: !!data });
     if (data) {
       pendingDedup = data;
       sendMessage({ type: 'session:terminal-input', sessionId, input: data });
@@ -1179,6 +1196,8 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   });
   return () => {
     onDataDisposable.dispose();
+    cursorMoveDisposable.dispose();
+    if (posRaf) cancelAnimationFrame(posRaf);
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
