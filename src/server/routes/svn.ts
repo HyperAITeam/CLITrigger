@@ -186,6 +186,22 @@ router.post('/:id/svn-resolve', async (req: Request<{ id: string }>, res: Respon
   } catch (err) { fail(res, err); }
 });
 
+// POST /api/projects/:id/svn-changelist — assign files to a changelist (or remove when name is empty)
+router.post('/:id/svn-changelist', async (req: Request<{ id: string }>, res: Response) => {
+  const r = resolveSvnPath(req, res);
+  if (!r.ok) return;
+  try {
+    const { name, files } = req.body;
+    if (!Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'files array is required' });
+      return;
+    }
+    const clName = typeof name === 'string' && name.trim() ? name.trim() : null;
+    await svnManager.changelist(r.path, clName, files);
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/projects/:id/svn-commit
 router.post('/:id/svn-commit', async (req: Request<{ id: string }>, res: Response) => {
   const r = resolveSvnPath(req, res);

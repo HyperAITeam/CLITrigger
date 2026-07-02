@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, Folder, FolderTree, List } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
-import type { SvnStatusResult } from '../api/svn';
+import type { SvnFile, SvnStatusResult } from '../api/svn';
 import type { CommitFile, GitLogEntry, GitStatusFile } from '../api/projects';
 import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
@@ -134,6 +134,14 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     });
   };
 
+  const selectMany = (paths: string[], select: boolean) => {
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      paths.forEach((p) => { if (select) next.add(p); else next.delete(p); });
+      return next;
+    });
+  };
+
   const runAction = async (action: () => Promise<unknown>, successMsg?: string) => {
     setActionBusy(true);
     setError(null);
@@ -155,6 +163,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const doDelete = (files: string[]) => runAction(() => svnApi.svnDelete(project.id, files));
   const doResolve = (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') =>
     runAction(() => svnApi.svnResolve(project.id, files, accept));
+  const doChangelist = (name: string | null, files: string[]) =>
+    runAction(() => svnApi.svnChangelist(project.id, name, files));
 
   // ── Global commands ───────────────────────────────────────────────────────
   const handleUpdate = () =>
@@ -178,6 +188,18 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
 
   const handleCleanup = () =>
     runAction(() => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
+
+  // ── New changelist dialog. Non-null = files pending assignment. ───────────
+  const [clDialogFiles, setClDialogFiles] = useState<string[] | null>(null);
+  const [clNameInput, setClNameInput] = useState('');
+  const handleNewChangelist = () => {
+    const name = clNameInput.trim();
+    if (!name || !clDialogFiles) return;
+    const files = clDialogFiles;
+    setClDialogFiles(null);
+    setClNameInput('');
+    doChangelist(name, files);
+  };
 
   const handleCommit = () => {
     if (!commitMessage.trim()) {
@@ -256,6 +278,11 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     setCtxMenu({ x: e.clientX, y: e.clientY, file });
   };
 
+  const changelistNames = useMemo(
+    () => Array.from(new Set((status?.files ?? []).map((f) => f.changelist).filter((n): n is string => !!n))).sort(),
+    [status],
+  );
+
   const repoLine = useMemo(() => {
     if (!status) return null;
     const parts: string[] = [];
@@ -318,6 +345,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onCheckRepository={checkRepository}
               selectedFiles={selectedFiles}
               onToggle={toggleFile}
+              onSelectMany={selectMany}
               activeFile={activeFile}
               onActivate={setActiveFile}
               onContextMenu={openCtxMenu}
@@ -389,6 +417,40 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         </div>
       </Modal>
 
+      {/* New changelist dialog */}
+      <Modal open={clDialogFiles !== null} onClose={() => setClDialogFiles(null)} size="sm">
+        <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+          <div className="px-4 py-3 border-b border-warm-100">
+            <span className="text-sm font-semibold text-warm-700">{t('svn.newChangelist')}</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <input
+              autoFocus
+              value={clNameInput}
+              onChange={(e) => setClNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleNewChangelist(); }}
+              placeholder={t('svn.changelistNamePlaceholder')}
+              className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-3 py-2 text-sm rounded border border-warm-200 hover:bg-warm-50"
+                onClick={() => setClDialogFiles(null)}
+              >
+                {t('svn.cancel')}
+              </button>
+              <button
+                className="flex-1 px-3 py-2 text-sm font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+                disabled={!clNameInput.trim() || busy}
+                onClick={handleNewChangelist}
+              >
+                {t('svn.moveToChangelist')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {/* File row context menu */}
       {ctxMenu && (
         <FileContextMenu
@@ -402,6 +464,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           onRevert={doRevert}
           onDelete={doDelete}
           onResolve={doResolve}
+          changelists={changelistNames}
+          onChangelist={doChangelist}
+          onNewChangelist={(files) => setClDialogFiles(files)}
           onViewDiff={(p) => { setActiveFile(p); setCtxMenu(null); }}
           onProperties={(p) => { setPropsTarget({ file: p }); setCtxMenu(null); }}
         />
@@ -608,16 +673,49 @@ function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps }: {
   );
 }
 
+// ── Changelist sections (IntelliJ-style) ─────────────────────────────────────
+
+interface ClSection {
+  key: string;               // stable key; '§'-prefixed in the collapsed set
+  label: string;
+  files: SvnFile[];
+}
+
+// Named changelists first (sorted), then the default bucket, then automatic
+// status sections (unversioned '?', locally deleted '!').
+function partitionSections(files: SvnFile[], t: (k: string) => string): ClSection[] {
+  const named = new Map<string, SvnFile[]>();
+  const def: SvnFile[] = [];
+  const unversioned: SvnFile[] = [];
+  const missing: SvnFile[] = [];
+  for (const f of files) {
+    const ch = charOf(f);
+    if (f.changelist) {
+      const arr = named.get(f.changelist);
+      if (arr) arr.push(f); else named.set(f.changelist, [f]);
+    } else if (ch === '?') unversioned.push(f);
+    else if (ch === '!') missing.push(f);
+    else def.push(f);
+  }
+  const sections: ClSection[] = Array.from(named.keys()).sort()
+    .map((name) => ({ key: `cl:${name}`, label: name, files: named.get(name)! }));
+  if (def.length) sections.push({ key: 'default', label: t('svn.changelistDefault'), files: def });
+  if (unversioned.length) sections.push({ key: 'unversioned', label: t('svn.changelistUnversioned'), files: unversioned });
+  if (missing.length) sections.push({ key: 'missing', label: t('svn.changelistMissing'), files: missing });
+  return sections;
+}
+
 // ── Modifications view (LOCAL) ───────────────────────────────────────────────
 
 function ModificationsView(props: {
-  statusFiles: GitStatusFile[];
+  statusFiles: SvnFile[];
   statusLoading: boolean;
   remoteChecking: boolean;
   onRefresh: () => void;
   onCheckRepository: () => void;
   selectedFiles: Set<string>;
   onToggle: (path: string) => void;
+  onSelectMany: (paths: string[], select: boolean) => void;
   activeFile: string | null;
   onActivate: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
@@ -636,7 +734,7 @@ function ModificationsView(props: {
     try { return localStorage.getItem('svn.groupByDir') !== 'false'; } catch { return true; }
   });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const tree = useMemo(() => buildDirTree(props.statusFiles), [props.statusFiles]);
+  const sections = useMemo(() => partitionSections(props.statusFiles, t), [props.statusFiles, t]);
   const toggleGroup = () => setGroupByDir((v) => {
     const next = !v;
     try { localStorage.setItem('svn.groupByDir', String(next)); } catch { /* ignore */ }
@@ -701,19 +799,50 @@ function ModificationsView(props: {
               <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
             ) : props.statusFiles.length === 0 ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
-            ) : groupByDir ? (
-              <>
-                {tree.dirs.map((d) => (
-                  <DirNode key={d.path} node={d} depth={0} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} />
-                ))}
-                {tree.files.map((f) => (
-                  <FileRow key={f.path} file={f} indent={0} shared={fileProps} />
-                ))}
-              </>
             ) : (
-              props.statusFiles.map((f) => (
-                <FileRow key={f.path} file={f} indent={0} showDir shared={fileProps} />
-              ))
+              sections.map((sec) => {
+                const secKey = `§${sec.key}`;
+                const isCollapsed = collapsed.has(secKey);
+                const selCount = sec.files.reduce((n, f) => n + (props.selectedFiles.has(f.path) ? 1 : 0), 0);
+                const allSelected = selCount === sec.files.length;
+                const tree = groupByDir ? buildDirTree(sec.files) : null;
+                return (
+                  <div key={sec.key}>
+                    <div
+                      onClick={() => toggleCollapse(secKey)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs bg-warm-50/70 hover:bg-warm-50 select-none border-b border-warm-100/60"
+                    >
+                      {isCollapsed
+                        ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
+                        : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-warm-400" />}
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = selCount > 0 && !allSelected; }}
+                        onChange={(e) => { e.stopPropagation(); props.onSelectMany(sec.files.map((f) => f.path), !allSelected); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <span className="truncate text-warm-700 font-semibold">{sec.label}</span>
+                      <span className="text-warm-400 text-2xs ml-1 shrink-0">{sec.files.length}</span>
+                    </div>
+                    {!isCollapsed && (tree ? (
+                      <>
+                        {tree.dirs.map((d) => (
+                          <DirNode key={d.path} node={d} depth={1} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} />
+                        ))}
+                        {tree.files.map((f) => (
+                          <FileRow key={f.path} file={f} indent={1} shared={fileProps} />
+                        ))}
+                      </>
+                    ) : (
+                      sec.files.map((f) => (
+                        <FileRow key={f.path} file={f} indent={1} showDir shared={fileProps} />
+                      ))
+                    ))}
+                  </div>
+                );
+              })
             )}
           </div>
           <div className="border-t border-warm-100 p-2 shrink-0">
@@ -848,14 +977,17 @@ function LogView(props: {
 function FileContextMenu(props: {
   x: number;
   y: number;
-  file: GitStatusFile;
-  allFiles: GitStatusFile[];
+  file: SvnFile;
+  allFiles: SvnFile[];
   selected: Set<string>;
   onClose: () => void;
   onAdd: (files: string[]) => void;
   onRevert: (files: string[]) => void;
   onDelete: (files: string[]) => void;
   onResolve: (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') => void;
+  changelists: string[];
+  onChangelist: (name: string | null, files: string[]) => void;
+  onNewChangelist: (files: string[]) => void;
   onViewDiff: (path: string) => void;
   onProperties: (path: string) => void;
 }) {
@@ -875,6 +1007,9 @@ function FileContextMenu(props: {
   const revertable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
   const deletable = targets.filter((f) => !['?', 'D'].includes(charOf(f))).map((f) => f.path);
   const resolvable = targets.filter((f) => charOf(f) === 'U').map((f) => f.path);
+  // Native changelists only take versioned paths — unversioned '?' is excluded.
+  const clable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
+  const inChangelist = targets.filter((f) => f.changelist).map((f) => f.path);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -929,6 +1064,19 @@ function FileContextMenu(props: {
           <Item label={t('svn.resolveMine')} onClick={() => props.onResolve(resolvable, 'mine-full')} />
           <Item label={t('svn.resolveTheirs')} onClick={() => props.onResolve(resolvable, 'theirs-full')} />
           <Item label={t('svn.resolveBase')} onClick={() => props.onResolve(resolvable, 'base')} />
+        </>
+      )}
+      {clable.length > 0 && (
+        <>
+          <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+          <div className="px-3 py-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">{t('svn.moveToChangelist')}</div>
+          {props.changelists.map((name) => (
+            <Item key={name} label={`${name}${suffix}`} onClick={() => props.onChangelist(name, clable)} />
+          ))}
+          <Item label={t('svn.newChangelist')} onClick={() => props.onNewChangelist(clable)} />
+          {inChangelist.length > 0 && (
+            <Item label={`${t('svn.removeFromChangelist')}${suffix}`} onClick={() => props.onChangelist(null, inChangelist)} />
+          )}
         </>
       )}
     </div>,
