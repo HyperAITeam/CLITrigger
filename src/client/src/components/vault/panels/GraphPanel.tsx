@@ -9,9 +9,11 @@ interface Props {
   activeFile: string | null;
   onSelectFile: (path: string) => void;
   loading: boolean;
+  projectId: string;
+  onGraphChanged?: () => void;
 }
 
-export function GraphPanel({ files, edges, activeFile, onSelectFile, loading }: Props) {
+export function GraphPanel({ files, edges, activeFile, onSelectFile, loading, projectId, onGraphChanged }: Props) {
   const { t } = useI18n();
   if (loading && files.length === 0) {
     return (
@@ -27,6 +29,8 @@ export function GraphPanel({ files, edges, activeFile, onSelectFile, loading }: 
         edges={edges}
         selectedPath={activeFile}
         onSelectFile={(p) => { if (p) onSelectFile(p); }}
+        projectId={projectId}
+        onGraphChanged={onGraphChanged}
       />
     </div>
   );

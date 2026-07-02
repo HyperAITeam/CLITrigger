@@ -182,6 +182,8 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
           activeFile={state.activeFile}
           onSelectFile={state.setActiveFile}
           loading={vaultLoading}
+          projectId={projectId}
+          onGraphChanged={reloadVault}
         />
       ),
     },
@@ -217,7 +219,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, reloadVault]);
 
   // Hold off the entire vault (scan + panels + graph) until the onboarding
   // choice — that's the whole point: nothing heavy runs before the user has
