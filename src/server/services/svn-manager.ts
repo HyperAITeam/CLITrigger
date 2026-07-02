@@ -240,6 +240,10 @@ class SvnManager {
     return props;
   }
 
+  async setProperty(dirPath: string, name: string, value: string, target?: string): Promise<void> {
+    await runSvn(['propset', name, value, target ?? dirPath], dirPath);
+  }
+
   // ── Mutations ────────────────────────────────────────────────────────────
 
   async add(dirPath: string, files: string[]): Promise<void> {
