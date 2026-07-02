@@ -251,7 +251,12 @@ function createWindow(port) {
   // doesn't go dead after resume.
   mainWindow.webContents.on('did-create-window', (childWin) => {
     childWin.on('focus', () => {
-      if (!childWin.isDestroyed()) childWin.webContents.focus();
+      // Skip when webContents already holds focus — a redundant programmatic
+      // focus() resets the Windows IME (TSF) caret context, which is the
+      // prime suspect for the candidate window jumping to the screen corner.
+      if (childWin.isDestroyed() || childWin.webContents.isFocused()) return;
+      imeDebugLog('popout', { event: 'focus-bridge' });
+      childWin.webContents.focus();
     });
     attachImeWindowLogging(childWin, 'popout');
   });
@@ -269,10 +274,14 @@ function createWindow(port) {
   // Windows lock-screen / screensaver hands the native HWND keyboard focus
   // off to the lock UI; on resume it doesn't always return to webContents,
   // leaving every input (SessionForm, SessionTerminal) dead until the user
-  // minimizes and restores. Re-focus webContents on every window focus event
-  // so the OS-level focus is always routed back into the renderer.
+  // minimizes and restores. Re-focus webContents on window focus — but only
+  // when it doesn't already hold focus: a redundant programmatic focus()
+  // resets the Windows IME (TSF) caret context (candidate window jumps to
+  // the screen corner).
   mainWindow.on('focus', () => {
-    if (!mainWindow.isDestroyed()) mainWindow.webContents.focus();
+    if (mainWindow.isDestroyed() || mainWindow.webContents.isFocused()) return;
+    imeDebugLog('mainWindow', { event: 'focus-bridge' });
+    mainWindow.webContents.focus();
   });
 }
 
