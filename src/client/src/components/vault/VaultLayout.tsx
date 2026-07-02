@@ -19,6 +19,8 @@ import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 
 interface Props {
   projectId: string;
+  // Create an automation task from a file (file explorer right-click menu).
+  onCreateTask?: (path: string) => void;
 }
 
 // Written by the onboarding "ignore everything" choice. The unhide flow
@@ -29,7 +31,7 @@ const IGNORE_ALL_TEMPLATE = `# CLITrigger Vault — 전부 숨김으로 시작
 *
 `;
 
-export default function VaultLayout({ projectId }: Props) {
+export default function VaultLayout({ projectId, onCreateTask }: Props) {
   const { t } = useI18n();
   const state = useVaultState(projectId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +140,7 @@ export default function VaultLayout({ projectId }: Props) {
           activeFile={state.activeFile}
           onSelectFile={state.setActiveFile}
           onVaultIgnoreChanged={reloadVault}
+          onCreateTask={onCreateTask}
         />
       ),
     },
@@ -165,7 +168,7 @@ export default function VaultLayout({ projectId }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, reloadVault]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, reloadVault, onCreateTask]);
 
   const rightPanels = useMemo<readonly PanelDef<RightPanelId>[]>(() => [
     {

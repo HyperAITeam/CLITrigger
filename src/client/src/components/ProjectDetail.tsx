@@ -243,6 +243,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setTodos((prev) => [...prev, newTodo]);
   }, [id]);
 
+  // File explorer right-click → 작업으로 보내기: create a task referencing the
+  // file by @path (CLI reads it inside the worktree). Reuses handleAddTodo so
+  // the list updates immediately.
+  const handleCreateTaskFromFile = useCallback((path: string) => {
+    const name = path.split('/').filter(Boolean).pop() ?? path;
+    handleAddTodo(name, `다음 파일을 참고하세요:\n@${path}`).catch(() => { /* swallow */ });
+  }, [handleAddTodo]);
+
   const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {
     const shouldTrackInteractive = mode === 'interactive';
     if (shouldTrackInteractive) {
@@ -899,7 +907,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <SvnStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'files' && id && (
-        <VaultLayout projectId={id} />
+        <VaultLayout projectId={id} onCreateTask={handleCreateTaskFromFile} />
       )}
       {activeTab === 'automation' && automationSub === 'schedules' && (
         <ScheduleList

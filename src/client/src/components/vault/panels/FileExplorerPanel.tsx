@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff, TerminalSquare, ListPlus,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile, moveFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
 import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
+import { useSessionWindowsOptional } from '../../SessionWindowsHost';
 import { iconFor } from '../files-utils';
+
+// Shell-safe when injected into a raw terminal: quote paths containing spaces.
+const quoteIfSpace = (p: string) => (/\s/.test(p) ? `"${p}"` : p);
 
 interface TreeNodeState {
   expanded: boolean;
@@ -21,6 +25,8 @@ interface Props {
   activeFile: string | null;
   onSelectFile: (path: string) => void;
   onVaultIgnoreChanged?: () => void;
+  // Create an automation task referencing this file (right-click → 작업으로 보내기).
+  onCreateTask?: (path: string) => void;
 }
 
 // Custom drag type carrying the dragged item's project-relative path.
@@ -270,7 +276,7 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose }: {
+function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, onSendToTerminal, onCreateTask }: {
   state: ContextMenuState;
   projectId: string;
   isPinned: boolean;
@@ -278,6 +284,9 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   onHide: () => void;
   onUnhide: () => void;
   onClose: () => void;
+  // File-only actions; undefined onCreateTask hides that item.
+  onSendToTerminal: () => void;
+  onCreateTask?: () => void;
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
@@ -388,6 +397,29 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
         <Copy className="w-3.5 h-3.5" />
         <span>{t('files.copyPath')}</span>
       </button>
+      {!isDir && (
+        <>
+          <div className="my-1 border-t border-warm-200" />
+          <button
+            type="button"
+            onClick={() => { onSendToTerminal(); onClose(); }}
+            className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+          >
+            <TerminalSquare className="w-3.5 h-3.5" />
+            <span>{t('files.sendToTerminal')}</span>
+          </button>
+          {onCreateTask && (
+            <button
+              type="button"
+              onClick={() => { onCreateTask(); onClose(); }}
+              className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+            >
+              <ListPlus className="w-3.5 h-3.5" />
+              <span>{t('files.sendToTask')}</span>
+            </button>
+          )}
+        </>
+      )}
       {/* When the entry is hidden specifically by a .vaultignore pattern,
           offer to unhide (remove the pattern) instead of hide. Dotfiles /
           DEFAULT_HIDDEN aren't `ignored`, so they keep the plain "hide". */}
@@ -415,8 +447,9 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   );
 }
 
-export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged }: Props) {
+export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask }: Props) {
   const { t } = useI18n();
+  const windows = useSessionWindowsOptional();
   const lsKey = `vault:fileExplorer:${projectId}`;
   const [rootEntries, setRootEntries] = useState<FileEntry[] | null>(null);
   const [rootError, setRootError] = useState<string | null>(null);
@@ -646,6 +679,8 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
+          onSendToTerminal={() => { windows?.sendToActiveTerminal(quoteIfSpace(contextMenu.path)); }}
+          onCreateTask={onCreateTask ? () => onCreateTask(contextMenu.path) : undefined}
         />
       )}
     </div>
