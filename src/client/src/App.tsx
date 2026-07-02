@@ -25,7 +25,13 @@ function App() {
   useEffect(() => {
     if (!authenticated) return;
     getSessionSettings()
-      .then((s) => setGlobalDefaultFontSize(s.defaultFontSize))
+      .then((s) => {
+        setGlobalDefaultFontSize(s.defaultFontSize);
+        // Seed the Electron main process with the saved IME-debug flag so file
+        // logging resumes across restarts without needing the env var.
+        (window as unknown as { electronAPI?: { imeSetDebug?: (v: boolean) => void } })
+          .electronAPI?.imeSetDebug?.(s.imeDebug);
+      })
       .catch(() => { /* fall back to built-in default */ });
   }, [authenticated]);
 

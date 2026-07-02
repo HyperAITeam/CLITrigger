@@ -43,7 +43,7 @@ export class LogStreamer {
   /** Current round number per task (for multi-round "continue" feature) */
   private roundMap: Map<string, number> = new Map();
   /**
-   * Per-task noise filter state for headless plain-text streams (Gemini/Codex).
+   * Per-task noise filter state for headless plain-text streams (Antigravity/Codex).
    * Shared across stdout and stderr so multi-line noise blocks (xterm.js parser
    * dumps, node-pty conpty stack traces) are tracked even when the start and
    * end markers arrive on different streams.
@@ -106,7 +106,7 @@ export class LogStreamer {
 
   /**
    * Attach to a CLI process stdout/stderr and save logs to DB.
-   * Used for Gemini/Codex (plain text output).
+   * Used for Antigravity/Codex (plain text output).
    * stdout -> log_type: 'output'
    * stderr -> log_type: 'error'
    * Also detects git commit messages in output -> log_type: 'commit'
@@ -519,7 +519,7 @@ export class LogStreamer {
    */
   getTokenUsage(todoId: string): TokenUsage | null {
     // Always clean up the noise-filter state, even when no token usage was
-    // recorded (Gemini/Codex paths never initialize tokenUsageMap).
+    // recorded (Antigravity/Codex paths never initialize tokenUsageMap).
     this.noiseFilterMap.delete(todoId);
     const usage = this.tokenUsageMap.get(todoId);
     if (!usage) return null;

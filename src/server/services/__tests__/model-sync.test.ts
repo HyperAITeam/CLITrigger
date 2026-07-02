@@ -152,10 +152,10 @@ describe('model-sync', () => {
     expect(models.some((m) => m.value === 'claude-sonnet-4-6')).toBe(true);
   });
 
-  it('records version on gemini even when probe fails (registry fallback)', async () => {
+  it('records version on antigravity even when probe fails (registry fallback)', async () => {
     mockProbe.mockResolvedValueOnce(null);
-    await syncModels('gemini', '1.0.0');
-    const version = queries.getCliVersion('gemini');
+    await syncModels('antigravity', '1.0.0');
+    const version = queries.getCliVersion('antigravity');
     expect(version?.last_version).toBe('5|1.0.0');
   });
 });

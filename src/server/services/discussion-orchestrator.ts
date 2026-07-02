@@ -635,7 +635,7 @@ Keep your response focused and under 2000 words.`;
       try {
         event = JSON.parse(line);
       } catch {
-        // Not valid JSON — treat as raw text (Gemini/Codex fallback)
+        // Not valid JSON — treat as raw text (Antigravity/Codex fallback)
         emitLine(line);
         return;
       }

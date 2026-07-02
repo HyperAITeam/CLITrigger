@@ -21,7 +21,7 @@ export const gstackClientPlugin: ClientPluginManifest = {
       'header.gstackGuideStep2': 'When a task starts, selected skill files are copied to the worktree\'s .claude/skills/ directory',
       'header.gstackGuideStep3': 'Claude CLI automatically recognizes and applies these skills during execution',
       'header.gstackGuideStep4': 'Skills are isolated in gstack-* prefixed directories and don\'t conflict with existing skills',
-      'header.gstackGuideNote': 'Only works with Claude CLI. Gemini and Codex do not support skill files.',
+      'header.gstackGuideNote': 'Only works with Claude CLI. Antigravity and Codex do not support skill files.',
     },
     ko: {
       'header.gstackTitle': 'gstack 스킬',
@@ -35,7 +35,7 @@ export const gstackClientPlugin: ClientPluginManifest = {
       'header.gstackGuideStep2': '태스크 실행 시 선택된 스킬 파일이 worktree의 .claude/skills/ 디렉토리에 복사됩니다',
       'header.gstackGuideStep3': 'Claude CLI가 스킬을 자동 인식하여 실행에 적용합니다',
       'header.gstackGuideStep4': '스킬은 gstack-* 접두사 디렉토리에 격리되어 기존 스킬과 충돌하지 않습니다',
-      'header.gstackGuideNote': 'Claude CLI 전용 기능입니다. Gemini, Codex에서는 지원되지 않습니다.',
+      'header.gstackGuideNote': 'Claude CLI 전용 기능입니다. Antigravity, Codex에서는 지원되지 않습니다.',
     },
   },
 };

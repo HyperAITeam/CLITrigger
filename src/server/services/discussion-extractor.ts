@@ -84,8 +84,8 @@ interface CliInvocation {
 
 function buildInvocation(cliTool: CliTool): CliInvocation {
   switch (cliTool) {
-    case 'gemini':
-      return { command: 'gemini', args: ['--yolo', '--prompt='], displayName: 'Gemini' };
+    case 'antigravity':
+      return { command: 'agy', args: ['--dangerously-skip-permissions', '--headless'], displayName: 'Antigravity' };
     case 'codex':
       return { command: 'codex', args: ['exec'], displayName: 'Codex' };
     case 'claude':
@@ -149,7 +149,7 @@ function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 120_000): Pro
 }
 
 function resolveCliTool(value: unknown): CliTool {
-  if (value === 'claude' || value === 'gemini' || value === 'codex') return value;
+  if (value === 'claude' || value === 'antigravity' || value === 'codex') return value;
   if (value) console.warn(`[discussion-extractor] Unknown cli_tool "${String(value)}", falling back to claude`);
   return 'claude';
 }

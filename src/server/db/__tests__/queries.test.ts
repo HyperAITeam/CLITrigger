@@ -90,18 +90,18 @@ describe('Database Queries', () => {
         project.id,
         'claude',
         'claude-opus-4-6',
-        'gemini',
-        'gemini-2.5-pro'
+        'antigravity',
+        'antigravity-default'
       );
 
       expect(result.updatedTodos).toBe(1);
       expect(result.updatedSchedules).toBe(1);
 
-      expect(queries.getTodoById(pendingTodo.id)?.cli_tool).toBe('gemini');
-      expect(queries.getTodoById(pendingTodo.id)?.cli_model).toBe('gemini-2.5-pro');
+      expect(queries.getTodoById(pendingTodo.id)?.cli_tool).toBe('antigravity');
+      expect(queries.getTodoById(pendingTodo.id)?.cli_model).toBe('antigravity-default');
       expect(queries.getTodoById(runningTodo.id)?.cli_tool).toBe('claude');
       expect(queries.getTodoById(customTodo.id)?.cli_tool).toBe('codex');
-      expect(queries.getScheduleById(schedule.id)?.cli_tool).toBe('gemini');
+      expect(queries.getScheduleById(schedule.id)?.cli_tool).toBe('antigravity');
       expect(queries.getScheduleById(customSchedule.id)?.cli_tool).toBe('codex');
     });
 
