@@ -70,6 +70,23 @@ function svnRequested(): boolean {
   }
 }
 
+/**
+ * Cached single-tool probe for pre-flight checks before spawning a CLI.
+ * On Windows spawn uses shell:true, so a missing binary never fires ENOENT —
+ * cmd.exe just exits 1 with a localized "not recognized" message. Probing
+ * first turns that into an actionable error. Returns null for tools without
+ * an installation probe (e.g. raw-shell).
+ */
+export async function getToolStatus(tool: string): Promise<CliToolStatus | null> {
+  const entry = TOOLS.find((t) => t.tool === tool);
+  if (!entry) return null;
+  const cached = cache.get(tool);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.status;
+  const status = await checkTool(entry.tool, entry.command, false);
+  cache.set(tool, { status, timestamp: Date.now() });
+  return status;
+}
+
 export async function checkAllTools(): Promise<CliToolStatus[]> {
   const now = Date.now();
   const aiNeeds: typeof TOOLS[number][] = [];
