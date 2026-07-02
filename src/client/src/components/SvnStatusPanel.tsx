@@ -946,6 +946,10 @@ function PropertiesDialog({ projectId, file, onClose }: {
   const { t } = useI18n();
   const [props, setProps] = useState<svnApi.SvnProperty[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null); // property name being edited
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -955,7 +959,21 @@ function PropertiesDialog({ projectId, file, onClose }: {
       .then((r) => { if (!cancelled) setProps(r.properties); })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load properties'); });
     return () => { cancelled = true; };
-  }, [projectId, file]);
+  }, [projectId, file, reloadKey]);
+
+  const save = async (name: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await svnApi.svnPropset(projectId, name, draft, file ?? undefined);
+      setEditing(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save property');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const target = file ?? t('svn.workingCopyRoot');
 
@@ -969,20 +987,59 @@ function PropertiesDialog({ projectId, file, onClose }: {
           <button onClick={onClose} className="text-warm-400 hover:text-warm-600 shrink-0 ml-2">✕</button>
         </div>
         <div className="p-4 overflow-y-auto">
-          {error ? (
-            <p className="text-status-error text-xs">{error}</p>
-          ) : props === null ? (
-            <p className="text-warm-400 text-xs">{t('git.loadingFiles')}</p>
+          {error && (
+            <p className="text-status-error text-xs mb-2 whitespace-pre-wrap break-all">{error}</p>
+          )}
+          {props === null ? (
+            !error && <p className="text-warm-400 text-xs">{t('git.loadingFiles')}</p>
           ) : props.length === 0 ? (
             <p className="text-warm-400 text-xs">{t('svn.noProperties')}</p>
           ) : (
             <div className="space-y-3">
               {props.map((p) => (
                 <div key={p.name}>
-                  <div className="text-xs font-mono font-semibold text-accent break-all">{p.name}</div>
-                  <pre className="mt-1 text-2xs font-mono text-warm-600 bg-warm-50 dark:bg-warm-800/40 rounded p-2 whitespace-pre-wrap break-all">
-                    {p.value || '—'}
-                  </pre>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-mono font-semibold text-accent break-all">{p.name}</div>
+                    {editing !== p.name && (
+                      <button
+                        onClick={() => { setEditing(p.name); setDraft(p.value); }}
+                        className="text-2xs text-warm-400 hover:text-accent shrink-0"
+                      >
+                        {t('svn.editProperty')}
+                      </button>
+                    )}
+                  </div>
+                  {editing === p.name ? (
+                    <>
+                      <textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        rows={Math.min(12, Math.max(3, draft.split('\n').length + 1))}
+                        spellCheck={false}
+                        className="mt-1 w-full text-2xs font-mono text-warm-700 bg-warm-50 dark:bg-warm-800/40 rounded p-2 border border-accent/40 focus:outline-none focus:border-accent resize-y"
+                      />
+                      <div className="mt-1 flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditing(null)}
+                          disabled={saving}
+                          className="px-2.5 py-1 text-2xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40"
+                        >
+                          {t('svn.cancel')}
+                        </button>
+                        <button
+                          onClick={() => save(p.name)}
+                          disabled={saving}
+                          className="px-2.5 py-1 text-2xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+                        >
+                          {t('svn.saveProperty')}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <pre className="mt-1 text-2xs font-mono text-warm-600 bg-warm-50 dark:bg-warm-800/40 rounded p-2 whitespace-pre-wrap break-all">
+                      {p.value || '—'}
+                    </pre>
+                  )}
                 </div>
               ))}
             </div>

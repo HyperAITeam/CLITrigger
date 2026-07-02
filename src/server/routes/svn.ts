@@ -227,6 +227,21 @@ router.get('/:id/svn-properties', async (req: Request<{ id: string }>, res: Resp
   } catch (err) { fail(res, err); }
 });
 
+// POST /api/projects/:id/svn-propset (LOCAL — sets a property on the working copy)
+router.post('/:id/svn-propset', async (req: Request<{ id: string }>, res: Response) => {
+  const r = resolveSvnPath(req, res);
+  if (!r.ok) return;
+  try {
+    const { file, name, value } = req.body;
+    if (typeof name !== 'string' || !name.trim() || typeof value !== 'string') {
+      res.status(400).json({ error: 'name and value are required' });
+      return;
+    }
+    await svnManager.setProperty(r.path, name.trim(), value, typeof file === 'string' ? file : undefined);
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/projects/:id/svn-cleanup
 router.post('/:id/svn-cleanup', async (req: Request<{ id: string }>, res: Response) => {
   const r = resolveSvnPath(req, res);

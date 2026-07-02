@@ -64,6 +64,10 @@ export function getSvnProperties(id: string, file?: string): Promise<{ propertie
   return get(`/api/projects/${id}/svn-properties${qs ? `?${qs}` : ''}`);
 }
 
+export function svnPropset(id: string, name: string, value: string, file?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/svn-propset`, { name, value, file });
+}
+
 export function svnAdd(id: string, files: string[]): Promise<{ ok: boolean }> {
   return post(`/api/projects/${id}/svn-add`, { files });
 }
