@@ -248,7 +248,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   // the list updates immediately.
   const handleCreateTaskFromFile = useCallback((path: string) => {
     const name = path.split('/').filter(Boolean).pop() ?? path;
-    handleAddTodo(name, `다음 파일을 참고하세요:\n@${path}`).catch(() => { /* swallow */ });
+    return handleAddTodo(name, `다음 파일을 참고하세요:\n@${path}`);
   }, [handleAddTodo]);
 
   const handleStartTodo = useCallback(async (todoId: string, mode?: 'headless' | 'interactive' | 'verbose') => {

@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
 import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
 import ImageLightbox from './ImageLightbox';
+import { AnchoredPopover } from './AnchoredPopover';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-500',
@@ -57,6 +58,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
   const [colorPickTag, setColorPickTag] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const tagRef = useRef<HTMLInputElement>(null);
+  const colorPickAnchorRef = useRef<HTMLElement | null>(null);
 
   // Image state
   const [images, setImages] = useState<ImageMeta[]>(() => {
@@ -417,13 +419,13 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                   <div key={tag} className="relative">
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
-                      onClick={() => setColorPickTag(colorPickTag === tag ? null : tag)}
+                      onClick={(e) => { colorPickAnchorRef.current = e.currentTarget; setColorPickTag(colorPickTag === tag ? null : tag); }}
                     >
                       {tag}
                       <button onClick={(e) => { e.stopPropagation(); removeTag(tag); }} className="opacity-60 hover:opacity-100"><X size={9} /></button>
                     </span>
                     {colorPickTag === tag && (
-                      <div className="absolute top-full left-0 mt-1 p-2 rounded-lg shadow-elevated z-20 w-[180px]" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                      <AnchoredPopover anchorRef={colorPickAnchorRef} width={180} onClose={() => setColorPickTag(null)} className="p-2 rounded-lg shadow-elevated z-tooltip" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                         <div className="text-2xs text-warm-400 mb-1.5">{t('plannerTag.color')}</div>
                         <div className="grid grid-cols-5 gap-1.5">
                           {TAG_COLOR_KEYS.map((colorKey) => (
@@ -433,14 +435,14 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                                 if (onUpdateTag) await onUpdateTag(tag, { color: colorKey });
                                 setColorPickTag(null);
                               }}
-                              className={`aspect-square rounded-md flex items-center justify-center transition-all ${tagColors.get(tag) === colorKey ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                              className={`aspect-square rounded-md flex items-center justify-center transition-all ${tagColors.get(tag) === colorKey ? 'ring-2 ring-accent ring-offset-1' : 'hover:scale-110'}`}
                               title={t(`plannerTag.color.${colorKey}`)}
                             >
                               <div className={`w-5 h-5 rounded ${TAG_COLOR_MAP[colorKey].swatch}`} />
                             </button>
                           ))}
                         </div>
-                      </div>
+                      </AnchoredPopover>
                     )}
                   </div>
                 ))}
@@ -460,13 +462,13 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                     onBlur={() => setTimeout(() => setShowTagDrop(false), 150)}
                   />
                   {showTagDrop && tagSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 mt-1 w-40 rounded-lg shadow-elevated z-10 py-1 max-h-32 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                    <AnchoredPopover anchorRef={tagRef} width={160} onClose={() => setShowTagDrop(false)} className="rounded-lg shadow-elevated z-tooltip py-1 max-h-32 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                       {tagSuggestions.slice(0, 8).map((s) => (
                         <button key={s} className="flex items-center w-full px-2 py-1 hover:bg-warm-100/50 transition-colors text-left" onMouseDown={() => addTag(s)}>
                           <span className={`px-2 py-0.5 rounded text-2xs font-medium ${getTagStyle(tagColors.get(s) || 'default')}`}>{s}</span>
                         </button>
                       ))}
-                    </div>
+                    </AnchoredPopover>
                   )}
                 </div>
               </div>

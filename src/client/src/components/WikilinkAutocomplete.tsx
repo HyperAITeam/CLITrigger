@@ -157,7 +157,7 @@ export default function WikilinkAutocomplete({ textareaRef, value, nodes, onChan
   return createPortal(
     <div
       ref={popupRef}
-      className="fixed z-tooltip rounded-lg border border-warm-300 bg-warm-50 shadow-lg overflow-hidden"
+      className="fixed z-tooltip rounded-lg border border-warm-300 bg-theme-card shadow-elevated overflow-hidden"
       style={{ left: popupPos.left, top: popupPos.top, width: 280 }}
     >
       <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-warm-500 border-b border-warm-200">

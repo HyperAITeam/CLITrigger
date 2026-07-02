@@ -710,20 +710,20 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Schedule Picker (inline, below header) */}
       {showSchedulePicker && (
-        <div className="border-t border-blue-200 px-5 py-3 bg-blue-50/50 animate-fade-in">
+        <div className="border-t border-accent/20 px-5 py-3 bg-accent/5 animate-fade-in">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="text-xs font-medium text-blue-600">{t('todo.scheduleAt')}</label>
+            <label className="text-xs font-medium text-accent">{t('todo.scheduleAt')}</label>
             <input
               type="datetime-local"
               value={scheduleRunAt}
               onChange={(e) => setScheduleRunAt(e.target.value)}
-              className="bg-theme-card border border-blue-200 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+              className="bg-theme-card border border-accent/20 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
               min={new Date().toISOString().slice(0, 16)}
             />
             <button
               onClick={handleSchedule}
               disabled={scheduling || !scheduleRunAt}
-              className="btn-primary text-xs py-1.5 !bg-blue-500 hover:!bg-blue-600 disabled:opacity-30"
+              className="btn-primary text-xs py-1.5 disabled:opacity-30"
             >
               {scheduling ? t('todo.scheduling') : t('todo.confirmSchedule')}
             </button>
@@ -733,12 +733,12 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             >
               {t('scheduleForm.cancel')}
             </button>
-            <label className="flex items-center gap-2 text-xs text-blue-700">
+            <label className="flex items-center gap-2 text-xs text-accent">
               <input
                 type="checkbox"
                 checked={keepOriginalOnSchedule}
                 onChange={(e) => setKeepOriginalOnSchedule(e.target.checked)}
-                className="rounded border-blue-300 text-blue-500 focus:ring-blue-400"
+                className="rounded border-accent/40 text-accent focus:ring-accent"
               />
               {t('todo.scheduleKeepOriginal')}
             </label>

@@ -168,12 +168,12 @@ export default function SessionAliasInserter({ sessionId, sendMessage }: Session
       {open && createPortal(
         <div
           ref={popRef}
+          className="z-tooltip"
           style={{
             position: 'fixed',
             top: pos.top,
             left: pos.left,
             width: POPOVER_WIDTH,
-            zIndex: 9999,
             background: '#1e1e1e',
             border: `1px solid ${CMD.separator}`,
             borderRadius: 6,

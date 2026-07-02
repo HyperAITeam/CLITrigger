@@ -348,7 +348,7 @@ export default function MemoryNetworkGraph({
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder={t('wiki.searchPlaceholder')}
-        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-50 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-50 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-accent"
       />
       <ReactFlow
         nodes={flowNodes}

@@ -8,6 +8,8 @@ import { listFiles, openFile, moveFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
 import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
 import { useSessionWindowsOptional } from '../../SessionWindowsHost';
+import { useToast } from '../../../hooks/useToast';
+import ToastContainer from '../../Toast';
 import { iconFor } from '../files-utils';
 
 // Shell-safe when injected into a raw terminal: quote paths containing spaces.
@@ -26,7 +28,7 @@ interface Props {
   onSelectFile: (path: string) => void;
   onVaultIgnoreChanged?: () => void;
   // Create an automation task referencing this file (right-click → 작업으로 보내기).
-  onCreateTask?: (path: string) => void;
+  onCreateTask?: (path: string) => void | Promise<void>;
 }
 
 // Custom drag type carrying the dragged item's project-relative path.
@@ -450,6 +452,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
 export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask }: Props) {
   const { t } = useI18n();
   const windows = useSessionWindowsOptional();
+  const { toasts, success, warning, error: toastError, dismiss } = useToast();
   const lsKey = `vault:fileExplorer:${projectId}`;
   const [rootEntries, setRootEntries] = useState<FileEntry[] | null>(null);
   const [rootError, setRootError] = useState<string | null>(null);
@@ -679,10 +682,18 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
-          onSendToTerminal={() => { windows?.sendToActiveTerminal(quoteIfSpace(contextMenu.path)); }}
-          onCreateTask={onCreateTask ? () => onCreateTask(contextMenu.path) : undefined}
+          onSendToTerminal={() => {
+            const ok = windows?.sendToActiveTerminal(quoteIfSpace(contextMenu.path));
+            if (ok) success(t('files.sentToTerminal'));
+            else warning(t('files.noActiveSession'));
+          }}
+          onCreateTask={onCreateTask ? async () => {
+            try { await onCreateTask(contextMenu.path); success(t('files.taskCreated')); }
+            catch { toastError(t('files.taskCreateFailed')); }
+          } : undefined}
         />
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

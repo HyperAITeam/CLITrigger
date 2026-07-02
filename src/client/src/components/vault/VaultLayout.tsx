@@ -20,7 +20,7 @@ import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 interface Props {
   projectId: string;
   // Create an automation task from a file (file explorer right-click menu).
-  onCreateTask?: (path: string) => void;
+  onCreateTask?: (path: string) => void | Promise<void>;
 }
 
 // Written by the onboarding "ignore everything" choice. The unhide flow

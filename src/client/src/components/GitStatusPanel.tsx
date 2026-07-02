@@ -1200,7 +1200,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
       {contextMenu && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-sticky bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-xl py-1 min-w-[220px] text-xs"
+          className="fixed z-tooltip bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-elevated py-1 min-w-[220px] text-xs"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           {/* Checkout */}

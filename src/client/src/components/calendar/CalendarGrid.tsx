@@ -262,7 +262,7 @@ export default function CalendarGrid({
         const dayNum = Number(expanded.key.slice(8, 10));
         return createPortal(
           <div
-            className="z-tooltip rounded-lg shadow-xl"
+            className="z-tooltip rounded-lg shadow-elevated"
             onMouseEnter={cancelClose}
             onMouseLeave={() => setExpanded(null)}
             style={{
