@@ -92,7 +92,7 @@ export function VaultIgnoreModal({ open, projectId, onClose, onSaved }: Props) {
             placeholder={PLACEHOLDER}
             disabled={loading || saving}
             spellCheck={false}
-            className="w-full h-[300px] resize-none rounded-md border border-warm-300 bg-[var(--color-bg-input)] text-warm-800 placeholder:text-warm-400 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-[300px] resize-none rounded-md border border-warm-300 bg-[var(--color-bg-input)] text-warm-800 placeholder:text-warm-400 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent"
           />
           {error && (
             <div className="mt-2 text-xs text-status-error">{error}</div>

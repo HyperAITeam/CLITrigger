@@ -53,12 +53,12 @@ export default function ProjectColorPicker({ project, anchorX, anchorY, onPick, 
     <div
       ref={popoverRef}
       role="menu"
+      className="z-tooltip"
       style={{
         position: 'fixed',
         left: pos.left,
         top: pos.top,
         width: POPOVER_WIDTH,
-        zIndex: 1000,
         background: 'var(--color-bg-elevated, #1f1f23)',
         border: '1px solid var(--color-border)',
         borderRadius: 10,

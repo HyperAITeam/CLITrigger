@@ -38,7 +38,7 @@ function WikilinkSpan({ title, alias, resolvedId, onSelect, onCreate }: Wikilink
           e.stopPropagation();
           onSelect?.(resolvedId);
         }}
-        className="text-blue-600 hover:underline font-medium"
+        className="text-accent hover:underline font-medium"
       >
         {display}
       </button>
@@ -146,7 +146,7 @@ export default function MarkdownContent({
               return (
                 <button
                   type="button"
-                  className="text-blue-600 hover:underline"
+                  className="text-accent hover:underline"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkClick(href); }}
                 >{children}</button>
               );

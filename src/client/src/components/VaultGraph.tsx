@@ -153,6 +153,7 @@ function runForceLayout(
 
 function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; tagColor: string | null; showLabel: boolean; onSelect: (p: string) => void } }) {
   const { file, size, selected, highlight, tagColor, showLabel } = data;
+  const { t } = useI18n();
   const fill = selected ? '#3B82F6' : highlight ? '#10B981' : tagColor ?? '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
   const centeredHandle: React.CSSProperties = {
@@ -181,6 +182,9 @@ function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: b
         style={{ top: size * 2 + 14 }}
       >
         {file.stem}
+        <span className="block text-[9px] font-normal text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+          {t('vault.graph.rightClickHint')}
+        </span>
       </div>
     </div>
   );
@@ -388,18 +392,18 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder={t('vault.searchPlaceholder')}
-        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-accent"
       />
       <button
         type="button"
         onClick={() => setShowLabels(v => !v)}
         title={t('vault.graph.showLabels')}
-        className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg border transition-colors ${showLabels ? 'bg-blue-600/80 border-blue-500 text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
+        className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg border transition-colors ${showLabels ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
       >
         <Type className="w-3.5 h-3.5" />
       </button>
       {linkSource && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-blue-600/90 border border-blue-400 text-white text-xs shadow-elevated whitespace-nowrap pointer-events-none">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-accent border border-accent text-white text-xs shadow-elevated whitespace-nowrap pointer-events-none">
           {linkSourceStem ? `${linkSourceStem} → ` : ''}{t('vault.graph.linkHint')}
         </div>
       )}

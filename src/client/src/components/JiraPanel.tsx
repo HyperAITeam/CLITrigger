@@ -224,7 +224,7 @@ function IssueCard({ issue, projectId, expanded, onToggle, importing, imported, 
           <div className="flex items-center gap-2">
             <button
               onClick={onToggle}
-              className="text-xs font-mono text-blue-600 hover:text-blue-800 font-medium flex-shrink-0"
+              className="text-xs font-mono text-accent hover:text-accent-dark font-medium flex-shrink-0"
             >
               {issue.key}
             </button>
@@ -261,7 +261,7 @@ function IssueCard({ issue, projectId, expanded, onToggle, importing, imported, 
           className={`flex-shrink-0 text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
             imported
               ? 'bg-status-success/10 text-status-success'
-              : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+              : 'bg-accent/10 text-accent hover:bg-accent/15'
           }`}
           title={t('jira.import')}
         >

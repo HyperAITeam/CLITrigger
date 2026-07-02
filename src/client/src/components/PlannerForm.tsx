@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import { getTagStyle } from './plannerTagColors';
 import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
 import ImageLightbox from './ImageLightbox';
+import { AnchoredPopover } from './AnchoredPopover';
 
 interface PendingImage {
   id: string;
@@ -268,7 +269,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
               onBlur={() => setTimeout(() => setShowTagDrop(false), 150)}
             />
             {showTagDrop && (suggestions.length > 0 || tagInput.trim()) && (
-              <div className="absolute top-full left-0 mt-1 w-52 rounded-lg shadow-elevated z-10 py-1.5 max-h-48 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+              <AnchoredPopover anchorRef={tagInputRef} width={208} onClose={() => setShowTagDrop(false)} className="rounded-lg shadow-elevated z-tooltip py-1.5 max-h-48 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                 {suggestions.slice(0, 10).map((tagObj) => (
                   <button key={tagObj.name} className="flex items-center w-full px-2.5 py-1 hover:bg-warm-100/50 transition-colors text-left" onMouseDown={() => addTag(tagObj.name)}>
                     <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${getTagStyle(tagObj.color)}`}>{tagObj.name}</span>
@@ -279,7 +280,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
                     <span className="text-xs text-warm-500">+ "{tagInput.trim()}"</span>
                   </button>
                 )}
-              </div>
+              </AnchoredPopover>
             )}
           </div>
         </div>
