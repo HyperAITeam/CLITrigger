@@ -24,6 +24,7 @@ import {
   setSplitSizes as treeSetSplitSizes,
   pruneInvalid,
   allSessionIds,
+  activeSessionIds,
   simplify,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
@@ -130,6 +131,9 @@ export interface SessionWindowsAPI {
   // main-owned group) or open it as a new floating window. Used by the "+"
   // button next to tabs and by the Ctrl/Cmd+T global shortcut.
   createRawShellTab: (targetGroupId: string | null, targetPath?: Path) => Promise<void>;
+  // Inject text into the active (topmost) visible session's terminal without
+  // stealing focus. Returns false when no session is open to receive it.
+  sendToActiveTerminal: (text: string) => boolean;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -1464,14 +1468,31 @@ export default function SessionWindowsHost({
     return () => clearInterval(timer);
   }, []);
 
+  // Inject text into the topmost visible session's terminal without stealing
+  // focus. Same z-based "active window" pick as the Ctrl+T handler above.
+  const sendToActiveTerminal = useCallback((text: string): boolean => {
+    const visible = groupsRef.current.filter(g =>
+      !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
+    );
+    const topmost = visible.reduce<OpenGroup | null>(
+      (acc, g) => (acc && acc.z >= g.z ? acc : g),
+      null,
+    );
+    if (!topmost) return false;
+    const sid = activeSessionIds(topmost.root)[0];
+    if (!sid) return false;
+    sendMessage({ type: 'session:terminal-input', sessionId: sid, input: text });
+    return true;
+  }, [sendMessage]);
+
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
-    beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+    beginTabDrag, dockGroup, popOutGroup, createRawShellTab, sendToActiveTerminal,
   }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab]);
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab, sendToActiveTerminal]);
 
   // Per-session placement, derived from the live groups. Drives the session
   // list badges + actions; recomputed on every groups change.
