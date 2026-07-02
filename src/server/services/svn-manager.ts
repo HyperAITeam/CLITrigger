@@ -17,6 +17,7 @@ export interface SvnStatusFile {
   path: string;
   index: string;
   working_dir: string;
+  changelist?: string;   // native SVN changelist name, when the file belongs to one
 }
 
 export interface SvnStatus {
@@ -67,6 +68,19 @@ class SvnManager {
     const files: SvnStatusFile[] = [];
     let behind = 0;
 
+    // Files in a changelist are wrapped in <changelist name="X"> blocks
+    // (siblings of <target>); map path → name so the global entry loop below
+    // can attach membership.
+    const clMap = new Map<string, string>();
+    const clRe = /<changelist\b[^>]*\bname="([^"]+)"[^>]*>([\s\S]*?)<\/changelist>/g;
+    const clPathRe = /<entry\b[^>]*\bpath="([^"]+)"/g;
+    let cl: RegExpExecArray | null;
+    while ((cl = clRe.exec(stdout)) !== null) {
+      const name = unescapeXml(cl[1]);
+      let p: RegExpExecArray | null;
+      while ((p = clPathRe.exec(cl[2])) !== null) clMap.set(p[1], name);
+    }
+
     // Each <entry> has a <wc-status> with `item` (working copy state) and
     // possibly a <repos-status> with `item` (incoming changes when -u is set).
     const entryRe = /<entry\b[^>]*\bpath="([^"]+)"[^>]*>([\s\S]*?)<\/entry>/g;
@@ -79,10 +93,12 @@ class SvnManager {
 
       const wcChar = mapSvnStatusToChar(wcMatch?.[1] ?? 'normal');
       if (wcChar !== ' ') {
+        const changelist = clMap.get(fullPath);
         files.push({
           path: relativizePath(fullPath, dirPath),
           index: ' ',
           working_dir: wcChar,
+          ...(changelist !== undefined ? { changelist } : {}),
         });
       }
       if (reposMatch && reposMatch[1] !== 'none') {
@@ -267,6 +283,13 @@ class SvnManager {
   async resolve(dirPath: string, files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base' = 'working'): Promise<void> {
     if (files.length === 0) return;
     await runSvn(['resolve', `--accept=${accept}`, ...files], dirPath);
+  }
+
+  /** Assign files to a native changelist, or remove them from any (name === null). */
+  async changelist(dirPath: string, name: string | null, files: string[]): Promise<void> {
+    if (files.length === 0) return;
+    const args = name ? ['changelist', name, ...files] : ['changelist', '--remove', ...files];
+    await runSvn(args, dirPath);
   }
 
   async commit(dirPath: string, message: string, files?: string[]): Promise<{ revision: string | null; output: string }> {

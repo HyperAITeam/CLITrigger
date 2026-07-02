@@ -11,12 +11,17 @@ export interface SvnInfo {
   revision: string;
 }
 
+// Git-shaped status file plus native SVN changelist membership.
+export interface SvnFile extends GitStatusFile {
+  changelist?: string;
+}
+
 export interface SvnStatusResult {
   branch: string;
   tracking: string | null;
   ahead: number;
   behind: number;
-  files: GitStatusFile[];
+  files: SvnFile[];
   revision: string | null;
 }
 
@@ -82,6 +87,10 @@ export function svnDelete(id: string, files: string[], keepLocal = false): Promi
 
 export function svnResolve(id: string, files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base' = 'working'): Promise<{ ok: boolean }> {
   return post(`/api/projects/${id}/svn-resolve`, { files, accept });
+}
+
+export function svnChangelist(id: string, name: string | null, files: string[]): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/svn-changelist`, { name, files });
 }
 
 export function svnCommit(id: string, message: string, files?: string[]): Promise<{ ok: boolean; revision: string | null; output: string }> {
