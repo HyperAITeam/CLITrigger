@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ReactFlow,
   Background,
   Controls,
   Handle,
   Position,
+  MarkerType,
   type Node,
   type Edge,
+  type NodeMouseHandler,
   BackgroundVariant,
   useNodesState,
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Type, Link2 } from 'lucide-react';
 import type { VaultFile, VaultEdge as VaultEdgeType } from '../api/vault';
+import { getVaultFileContent, saveVaultFile } from '../api/vault';
 import { useI18n } from '../i18n';
 
 interface Props {
@@ -20,6 +25,9 @@ interface Props {
   edges: VaultEdgeType[];
   selectedPath: string | null;
   onSelectFile: (path: string | null) => void;
+  projectId: string;
+  // Called after a wikilink is written so the parent reloads the graph.
+  onGraphChanged?: () => void;
 }
 
 const NODE_RADIUS_BASE = 8;
@@ -31,6 +39,35 @@ const EDGE_STYLE = {
   strokeDasharray: '4 3',
   opacity: 0.6,
 };
+
+const RELATED_HEADING = '## 관련 문서';
+
+// Insert a `- [[stem]]` bullet into the "## 관련 문서" section, creating that
+// section at end-of-file if it doesn't exist. Returns null (no-op) when the
+// link already exists anywhere in the doc — that edge is already present.
+function addRelatedLink(content: string, stem: string): string | null {
+  const link = `[[${stem}]]`;
+  if (content.includes(link)) return null;
+  const bullet = `- ${link}`;
+  const lines = content.split('\n');
+  const hIdx = lines.findIndex(l => l.trim() === RELATED_HEADING);
+  if (hIdx === -1) {
+    const base = content.replace(/\s+$/, '');
+    return `${base}\n\n${RELATED_HEADING}\n\n${bullet}\n`;
+  }
+  // End of section = next markdown heading after hIdx, or EOF.
+  let end = lines.length;
+  for (let i = hIdx + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) { end = i; break; }
+  }
+  // Insert after the last non-empty line inside the section.
+  let insertAt = hIdx + 1;
+  for (let i = hIdx + 1; i < end; i++) {
+    if (lines[i].trim() !== '') insertAt = i + 1;
+  }
+  lines.splice(insertAt, 0, bullet);
+  return lines.join('\n');
+}
 
 function hashTagToHsl(tag: string): string {
   let h = 0;
@@ -114,8 +151,8 @@ function runForceLayout(
   return out;
 }
 
-function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; tagColor: string | null; onSelect: (p: string) => void } }) {
-  const { file, size, selected, highlight, tagColor } = data;
+function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; tagColor: string | null; showLabel: boolean; onSelect: (p: string) => void } }) {
+  const { file, size, selected, highlight, tagColor, showLabel } = data;
   const fill = selected ? '#3B82F6' : highlight ? '#10B981' : tagColor ?? '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
   const centeredHandle: React.CSSProperties = {
@@ -140,7 +177,7 @@ function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: b
         className="rounded-full transition-transform group-hover:scale-110"
       />
       <div
-        className="absolute opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap text-[11px] font-medium text-gray-100 bg-[#1A1A1A]/95 border border-white/10 px-2 py-1 rounded-md shadow-elevated"
+        className={`absolute ${showLabel ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity pointer-events-none whitespace-nowrap text-[11px] font-medium text-gray-100 bg-[#1A1A1A]/95 border border-white/10 px-2 py-1 rounded-md shadow-elevated`}
         style={{ top: size * 2 + 14 }}
       >
         {file.stem}
@@ -151,9 +188,101 @@ function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: b
 
 const nodeTypes = { vaultDot: VaultDot };
 
-export default function VaultGraph({ files, edges, selectedPath, onSelectFile }: Props) {
+// Small portal menu for right-clicking a graph node. Follows the project's
+// floating-element rule: createPortal + position:fixed + viewport clamp.
+function NodeContextMenu({ menu, canLink, label, onPick, onClose }: {
+  menu: { x: number; y: number };
+  canLink: boolean;
+  label: string;
+  onPick: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: menu.y, left: menu.x, visible: false });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let left = menu.x, top = menu.y;
+    if (left + el.offsetWidth > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - el.offsetWidth);
+    if (top + el.offsetHeight > window.innerHeight - 8) top = Math.max(8, window.innerHeight - 8 - el.offsetHeight);
+    setPos({ top: Math.max(8, top), left: Math.max(8, left), visible: true });
+  }, [menu.x, menu.y]);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as HTMLElement)) onClose(); };
+    const onScroll = () => onClose();
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed z-tooltip min-w-[160px] rounded-lg py-1 shadow-elevated text-xs"
+      style={{ top: pos.top, left: pos.left, opacity: pos.visible ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+    >
+      <button
+        type="button"
+        disabled={!canLink}
+        onClick={onPick}
+        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Link2 className="w-3.5 h-3.5" />
+        <span>{label}</span>
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+export default function VaultGraph({ files, edges, selectedPath, onSelectFile, projectId, onGraphChanged }: Props) {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
+  // Node-label visibility toggle (default off), persisted per project.
+  const [showLabels, setShowLabels] = useState(() => {
+    try { return localStorage.getItem(`vault:graph:showLabels:${projectId}`) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(`vault:graph:showLabels:${projectId}`, showLabels ? '1' : '0'); } catch { /* ignore */ }
+  }, [showLabels, projectId]);
+  // Link-drawing mode: relativePath of the source node awaiting a target click.
+  const [linkSource, setLinkSource] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; rel: string; stem: string; kind: VaultFile['kind'] } | null>(null);
+  const linkSourceStem = useMemo(
+    () => files.find(f => f.relativePath === linkSource)?.stem ?? null,
+    [files, linkSource],
+  );
+
+  // Write a `[[targetStem]]` into the source file's 관련 문서 section, then reload.
+  const commitLink = useCallback(async (sourceRel: string, targetStem: string) => {
+    try {
+      const { content } = await getVaultFileContent(projectId, sourceRel);
+      const next = addRelatedLink(content, targetStem);
+      if (next == null) return; // already linked — nothing to do
+      await saveVaultFile(projectId, sourceRel, next);
+      onGraphChanged?.();
+    } catch { /* swallow — read/save failure leaves the doc untouched */ }
+  }, [projectId, onGraphChanged]);
+
+  // Esc cancels link mode / closes the menu.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setLinkSource(null); setMenu(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const onNodeContextMenu = useCallback<NodeMouseHandler>((e, node) => {
+    e.preventDefault();
+    const f = files.find(ff => ff.relativePath === node.id);
+    if (!f) return;
+    setMenu({ x: e.clientX, y: e.clientY, rel: f.relativePath, stem: f.stem, kind: f.kind });
+  }, [files]);
 
   const degree = useMemo(() => {
     const d = new Map<string, number>();
@@ -192,8 +321,16 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
   }, [files.length, edges.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback((p: string) => {
+    if (linkSource) {
+      if (p !== linkSource) {
+        const target = files.find(f => f.relativePath === p);
+        if (target) void commitLink(linkSource, target.stem);
+      }
+      setLinkSource(null);
+      return;
+    }
     onSelectFile(p === selectedPath ? null : p);
-  }, [selectedPath, onSelectFile]);
+  }, [linkSource, files, commitLink, selectedPath, onSelectFile]);
 
   const matchesSearch = useCallback((file: VaultFile) => {
     if (!search.trim()) return true;
@@ -212,10 +349,10 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
       id: f.relativePath,
       type: 'vaultDot',
       position: { x: pos.x, y: pos.y },
-      data: { file: f, size, selected: f.relativePath === selectedPath, highlight, tagColor, onSelect: handleSelect },
+      data: { file: f, size, selected: f.relativePath === selectedPath, highlight, tagColor, showLabel: showLabels, onSelect: handleSelect },
       style: search.trim() && !highlight ? { opacity: 0.18 } : undefined,
     };
-  }), [files, positions, degree, maxDegree, firstTagByPath, selectedPath, handleSelect, matchesSearch, search]);
+  }), [files, positions, degree, maxDegree, firstTagByPath, selectedPath, handleSelect, matchesSearch, search, showLabels]);
 
   const initialEdges: Edge[] = useMemo(() =>
     edges.map((e, i) => ({
@@ -224,6 +361,8 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
       target: e.to,
       type: 'straight',
       style: EDGE_STYLE,
+      // Arrowhead at the target = link direction (from → to).
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#9CA3AF', width: 16, height: 16 },
     })),
   [edges]);
 
@@ -251,12 +390,27 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
         placeholder={t('vault.searchPlaceholder')}
         className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+      <button
+        type="button"
+        onClick={() => setShowLabels(v => !v)}
+        title={t('vault.graph.showLabels')}
+        className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg border transition-colors ${showLabels ? 'bg-blue-600/80 border-blue-500 text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
+      >
+        <Type className="w-3.5 h-3.5" />
+      </button>
+      {linkSource && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-blue-600/90 border border-blue-400 text-white text-xs shadow-elevated whitespace-nowrap pointer-events-none">
+          {linkSourceStem ? `${linkSourceStem} → ` : ''}{t('vault.graph.linkHint')}
+        </div>
+      )}
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneClick={() => { setLinkSource(null); setMenu(null); }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
@@ -279,6 +433,15 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile }:
             </div>
           ))}
         </div>
+      )}
+      {menu && (
+        <NodeContextMenu
+          menu={menu}
+          canLink={menu.kind === 'md'}
+          label={t('vault.graph.addLink')}
+          onPick={() => { setLinkSource(menu.rel); setMenu(null); }}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   );
