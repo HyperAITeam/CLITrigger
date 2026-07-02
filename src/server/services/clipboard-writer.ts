@@ -1,5 +1,5 @@
 // Writes raw image bytes into the host OS clipboard so a CLI subprocess
-// (Claude / Codex / Gemini) can pick it up via its native Alt+V handler —
+// (Claude / Codex / Antigravity) can pick it up via its native Alt+V handler —
 // no disk file ever touches the user's project tree.
 //
 // Concurrent calls are serialized via a process-wide promise chain so two

@@ -2,18 +2,18 @@ import { Router, type Request, type Response } from 'express';
 import { getProjectById } from '../../db/queries.js';
 import type { PluginHelpers } from '../types.js';
 import { claudeHarnessAdapter } from './adapters/claude.js';
-import { geminiHarnessAdapter } from './adapters/gemini.js';
+import { antigravityHarnessAdapter } from './adapters/antigravity.js';
 import { codexHarnessAdapter } from './adapters/codex.js';
 import { HarnessPathError } from './io.js';
 import type { CliId, HarnessAdapter, HarnessSettings, McpServer } from './types.js';
 
 const adapters: Record<CliId, HarnessAdapter> = {
   claude: claudeHarnessAdapter,
-  gemini: geminiHarnessAdapter,
+  antigravity: antigravityHarnessAdapter,
   codex: codexHarnessAdapter,
 };
 
-const CLI_IDS: CliId[] = ['claude', 'gemini', 'codex'];
+const CLI_IDS: CliId[] = ['claude', 'antigravity', 'codex'];
 
 function resolveProjectPath(projectId: string): string | null {
   const project = getProjectById(projectId);
@@ -22,7 +22,7 @@ function resolveProjectPath(projectId: string): string | null {
 }
 
 function isCliId(value: string): value is CliId {
-  return value === 'claude' || value === 'gemini' || value === 'codex';
+  return value === 'claude' || value === 'antigravity' || value === 'codex';
 }
 
 function handleError(res: Response, err: unknown): void {

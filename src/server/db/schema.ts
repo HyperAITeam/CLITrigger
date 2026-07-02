@@ -477,11 +477,54 @@ export function initDatabase(db: Database.Database): void {
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
 
+  // Rename the retired 'gemini' CLI provider to 'antigravity' (Google shut down
+  // Gemini CLI on 2026-06-18; Antigravity CLI is its successor). Idempotent —
+  // once no 'gemini' rows remain these UPDATEs are no-ops.
+  migrateGeminiToAntigravity(db);
+
   // Seed cli_models if empty
   const modelCount = db.prepare('SELECT COUNT(*) as count FROM cli_models').get() as { count: number };
   if (modelCount.count === 0) {
     seedCliModels(db);
   }
+}
+
+/**
+ * One-time rename of the 'gemini' cli_tool value to 'antigravity' across every
+ * table that stores it, plus the 'gemini' token inside projects.cli_fallback_chain.
+ * Idempotent and defensive: each statement is wrapped so a missing table/column on
+ * an old DB doesn't abort startup.
+ */
+function migrateGeminiToAntigravity(db: Database.Database): void {
+  const tables = [
+    'cli_models',
+    'cli_versions',
+    'projects',
+    'todos',
+    'schedules',
+    'sessions',
+    'discussion_agents',
+  ];
+  const rename = db.transaction(() => {
+    for (const table of tables) {
+      try {
+        db.prepare(`UPDATE ${table} SET cli_tool = 'antigravity' WHERE cli_tool = 'gemini'`).run();
+      } catch {
+        // table/column may not exist on very old DBs — skip
+      }
+    }
+    // cli_fallback_chain stores an ordered CSV of cli_tool tokens (e.g. "claude,gemini,codex").
+    try {
+      db.prepare(
+        `UPDATE projects
+            SET cli_fallback_chain = replace(cli_fallback_chain, 'gemini', 'antigravity')
+          WHERE cli_fallback_chain LIKE '%gemini%'`,
+      ).run();
+    } catch {
+      // column may not exist on old DBs — skip
+    }
+  });
+  rename();
 }
 
 /**
@@ -608,8 +651,8 @@ function seedCliModels(db: Database.Database): void {
     ['claude', 'claude-sonnet-4-6', 'Claude Sonnet 4.6', 1, 0],
     ['claude', 'claude-opus-4-6', 'Claude Opus 4.6', 2, 0],
     ['claude', 'claude-haiku-4-5', 'Claude Haiku 4.5', 3, 0],
-    // Gemini
-    ['gemini', '', 'Default (Gemini 2.5 Pro)', 0, 1],
+    // Antigravity
+    ['antigravity', '', 'Default (Antigravity)', 0, 1],
     // Codex
     ['codex', '', 'Default', 0, 1],
     ['codex', 'gpt-4.1', 'GPT-4.1', 1, 0],

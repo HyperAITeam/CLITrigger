@@ -3,6 +3,7 @@ import { get, put } from './client';
 export interface SessionSettings {
   defaultUseWorktree: boolean;
   defaultFontSize: number;
+  imeDebug: boolean;
 }
 
 export function getSessionSettings(): Promise<SessionSettings> {

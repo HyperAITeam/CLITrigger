@@ -73,7 +73,7 @@ interface SessionTerminalProps {
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
 // Wrap multi-line paste content in DEC bracketed paste sequences so modern
-// CLI TUIs (Claude / Gemini / Codex Ink) treat embedded LFs as paste content
+// CLI TUIs (Claude / Antigravity / Codex Ink) treat embedded LFs as paste content
 // rather than individual Enter keys, which otherwise causes multi-line paste
 // to look truncated or scrambled. We only wrap when '\n' is present —
 // single-line paste was working as raw input and we don't want to send
@@ -607,7 +607,7 @@ export default function SessionTerminal({
   // broadcast the new dimensions to the PTY through a long debounce.
   //
   // The PTY resize is debounced 300ms (vs. ResizeObserver's 150ms) because
-  // each SIGWINCH causes Claude/Codex/Gemini to re-emit their welcome banner
+  // each SIGWINCH causes Claude/Codex/Antigravity to re-emit their welcome banner
   // into the main screen buffer, stacking duplicates in xterm's scrollback.
   // Coalescing rapid Ctrl+=/Ctrl+- presses into a single resize keeps the
   // duplication count bounded. The fontSize timer uses a dedicated ref so
@@ -615,7 +615,7 @@ export default function SessionTerminal({
   //
   // Alternate buffer has no scrollback, and xterm.js truncates from the top
   // when rows shrink there — so a fit() that lowers rows permanently drops
-  // the oldest TUI lines (Claude/Codex/Gemini conversation history above the
+  // the oldest TUI lines (Claude/Codex/Antigravity conversation history above the
   // input box). We only mutate the glyph size in that mode and leave cols/
   // rows pinned to whatever the CLI last drew at; the layout becomes a bit
   // smaller/larger than the viewport but no data is lost. Normal buffer
@@ -1042,16 +1042,29 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   // capture phase so the OS sees correct coords before drawing the panel.
   // Cell width/height are derived from .xterm-screen's bounding rect to
   // avoid touching xterm's private renderService.
+  // Temporary IME diagnostics — forwarded to the Electron main process, which
+  // only persists them when CLITRIGGER_IME_DEBUG is set. Lets us observe the
+  // packaged-exe compositionstart state (which layer fails) without DevTools.
+  const imeLog = (reason: string, extra: Record<string, unknown> = {}) => {
+    try {
+      (window as unknown as { electronAPI?: { imeLog?: (p: unknown) => void } })
+        .electronAPI?.imeLog?.({ reason, path: window.location.pathname, ...extra });
+    } catch { /* best-effort diagnostics */ }
+  };
+
   const positionHelperAtCursor = () => {
     try {
       const helper = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
       const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
-      if (!helper || !screen) return;
+      if (!helper || !screen) { imeLog('pos:no-dom', { hasHelper: !!helper, hasScreen: !!screen }); return; }
       const cols = term.cols;
       const rows = term.rows;
-      if (cols <= 0 || rows <= 0) return;
+      if (cols <= 0 || rows <= 0) { imeLog('pos:no-grid', { cols, rows }); return; }
       const screenRect = screen.getBoundingClientRect();
-      if (screenRect.width === 0 || screenRect.height === 0) return;
+      if (screenRect.width === 0 || screenRect.height === 0) {
+        imeLog('pos:zero-screen', { w: screenRect.width, h: screenRect.height });
+        return;
+      }
       const cellW = screenRect.width / cols;
       const cellH = screenRect.height / rows;
       const buf = term.buffer.active;
@@ -1061,6 +1074,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       helper.style.top = `${cursorY * cellH}px`;
       helper.style.width = `${Math.max(cellW, 1)}px`;
       helper.style.height = `${Math.max(cellH, 1)}px`;
+      imeLog('pos:applied', { cursorX, cursorY, left: cursorX * cellW, top: cursorY * cellH });
     } catch { /* defensive: xterm DOM may not be fully built yet */ }
   };
   positionHelperAtCursor();
@@ -1069,6 +1083,24 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     composing = true;
     positionHelperAtCursor();
     reportComposing('');
+    try {
+      const active = document.activeElement as HTMLElement | null;
+      const helper = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
+      const rect = helper?.getBoundingClientRect();
+      imeLog('compositionstart', {
+        activeTag: active?.tagName,
+        activeClass: active?.className,
+        activeIsHelper: !!active && active.classList?.contains('xterm-helper-textarea'),
+        helperStyleLeft: helper?.style.left,
+        helperStyleTop: helper?.style.top,
+        helperRectLeft: rect?.left,
+        helperRectTop: rect?.top,
+        visibility: document.visibilityState,
+        hasFocus: document.hasFocus(),
+        cols: term.cols,
+        rows: term.rows,
+      });
+    } catch { /* best-effort diagnostics */ }
   };
   // compositionupdate fires for every keystroke that mutates the in-flight
   // composition (jamo addition / syllable rebuild), so this is what we

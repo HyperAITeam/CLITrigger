@@ -433,7 +433,7 @@ router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, 
 
 // POST /api/sessions/:id/paste-image — push the bitmap into the host OS
 // clipboard and inject `\x1bv` (Alt+V) into the PTY so the CLI subprocess
-// (Claude/Codex/Gemini) fires its native image-paste handler in the same
+// (Claude/Codex/Antigravity) fires its native image-paste handler in the same
 // transaction. The ESC+v MUST be sent server-side, immediately after the
 // clipboard write, so concurrent paste-image requests can't race on the
 // shared OS clipboard (e.g. paste-B's write landing before paste-A's CLI

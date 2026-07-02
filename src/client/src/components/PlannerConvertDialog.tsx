@@ -65,7 +65,7 @@ export default function PlannerConvertDialog({
           <label className="text-xs font-medium text-warm-500 mb-1.5 block">{t('plannerConvert.cliTool')}</label>
           <select className="input-field text-xs w-full" value={cliTool} onChange={(e) => setCliTool(e.target.value)}>
             <option value="claude">Claude</option>
-            <option value="gemini">Gemini</option>
+            <option value="antigravity">Antigravity</option>
             <option value="codex">Codex</option>
           </select>
         </div>

@@ -44,10 +44,11 @@ const BUILTIN_REGISTRY: RegistryFile = {
       ],
     },
   ],
-  gemini: [
+  antigravity: [
     {
       versionPrefix: '*',
-      models: [{ value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }],
+      // PROVISIONAL: exact `agy` model ids unconfirmed; probe fills them at runtime.
+      models: [],
     },
   ],
   codex: [

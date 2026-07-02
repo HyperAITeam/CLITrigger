@@ -2,7 +2,7 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { isModelSupported } from '../db/queries.js';
 
-export type CliTool = 'claude' | 'gemini' | 'codex' | 'raw-shell';
+export type CliTool = 'claude' | 'antigravity' | 'codex' | 'raw-shell';
 export type CliMode = 'headless' | 'interactive' | 'verbose';
 export type SandboxMode = 'strict' | 'permissive';
 
@@ -165,7 +165,7 @@ export interface CliAdapter {
   /**
    * Byte sequence written to PTY stdin to submit a line of user input.
    * Replaces a trailing '\n' in writes going through the interactive relay
-   * and the initial-prompt delivery. Default: '\r'. Some TUIs (e.g. Gemini)
+   * and the initial-prompt delivery. Default: '\r'. Some TUIs (e.g. Antigravity)
    * only treat '\r\n' as Enter; others need '\n'.
    */
   stdinSubmitSequence?: string;
@@ -231,40 +231,45 @@ const claudeAdapter: CliAdapter = {
   },
 };
 
-const geminiAdapter: CliAdapter = {
-  command: 'gemini',
-  displayName: 'Gemini CLI',
+const antigravityAdapter: CliAdapter = {
+  command: 'agy',
+  displayName: 'Antigravity CLI',
   supportsInteractive: true,
   delayStdinUntilReady: true,
-  // Gemini's TUI only treats \r\n (CRLF) as Enter; a lone \r leaves the
-  // character in the input box without submitting.
+  // PROVISIONAL (agy not yet installed for verification): Antigravity's TUI is
+  // an Ink-based rewrite like Gemini's, so \r\n is the likely Enter sequence.
+  // Confirm against a real `agy` session and adjust to '\r' if a lone CR submits.
   stdinSubmitSequence: '\r\n',
-  // Gemini welcome screen fixed tokens shown after trust dialog is dismissed
-  readyIndicatorPattern: /Type your message|Shortcuts|ctrl\+y/i,
+  // PROVISIONAL: welcome/ready tokens. Broadened to also match the generic
+  // cursor glyphs; refine once a real `agy` startup is captured in logs.
+  readyIndicatorPattern: /Type your message|Shortcuts|ctrl\+y|›|>\s*$/i,
   autoRespondRules: [
     {
-      name: 'gemini-trust-folder',
-      // First-run folder trust dialog. Option 1 = "Trust folder" (current dir only)
+      name: 'antigravity-trust-folder',
+      // PROVISIONAL: first-run folder trust dialog. Option 1 = trust current dir.
       pattern: /Do you trust the files in this folder\?|Trust folder/i,
       response: '1\r',
       blocksInitialPrompt: true,
     },
     {
-      // Provisional pattern; refine once the actual update prompt is captured in logs.
-      // Decline updates to avoid unexpected CLI version changes mid-session.
-      name: 'gemini-update-prompt',
+      // PROVISIONAL: decline updates to avoid unexpected CLI changes mid-session.
+      name: 'antigravity-update-prompt',
       pattern: /update available.*\(y\/n\)|install.*new.*version.*\?/i,
       response: 'n\r',
     },
   ],
   buildArgs({ mode, prompt, model, extraOptions, continueSession }) {
-    // Gemini CLI: --yolo auto-approves all tool actions (file writes, shell commands)
-    // --prompt= enables headless mode with empty value; actual prompt delivered via stdin pipe.
-    // Must use --prompt= (single arg) instead of -p '' because Windows cmd.exe drops empty string args.
-    const normalizedModel = normalizeModel(model, 'gemini');
-    const args = ['--yolo'];
-    if (mode !== 'interactive') args.push('--prompt=');
-    if (continueSession) args.push('--resume', 'latest');
+    // Antigravity CLI (`agy`):
+    //   --dangerously-skip-permissions auto-approves all tool actions (file writes, shell).
+    //   --headless enables non-interactive mode; the actual prompt is delivered via stdin pipe.
+    //   --continue resumes the most recent conversation.
+    // PROVISIONAL: verify with `agy --help` that --headless reads the prompt from
+    // stdin. If it instead requires `-p <prompt>` inline, move the prompt into
+    // args here and make needsStdin(mode) return only mode === 'interactive'.
+    const normalizedModel = normalizeModel(model, 'antigravity');
+    const args = ['--dangerously-skip-permissions'];
+    if (mode !== 'interactive') args.push('--headless');
+    if (continueSession) args.push('--continue');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
@@ -278,7 +283,7 @@ const geminiAdapter: CliAdapter = {
     return prompt + '\n';
   },
   probeModels() {
-    return probeViaHelp('gemini');
+    return probeViaHelp('agy');
   },
 };
 
@@ -382,7 +387,7 @@ const rawShellAdapter: CliAdapter = {
 
 const adapters: Record<CliTool, CliAdapter> = {
   claude: claudeAdapter,
-  gemini: geminiAdapter,
+  antigravity: antigravityAdapter,
   codex: codexAdapter,
   'raw-shell': rawShellAdapter,
 };

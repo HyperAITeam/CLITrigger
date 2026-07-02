@@ -15,25 +15,25 @@ describe('cli-adapters', () => {
     expect(args).toEqual(['exec', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3', '--color=never']);
   });
 
-  it('adds headless flag for Gemini in non-interactive mode', () => {
-    const adapter = getAdapter('gemini');
+  it('adds headless flag for Antigravity in non-interactive mode', () => {
+    const adapter = getAdapter('antigravity');
     const args = adapter.buildArgs({
       mode: 'headless',
       prompt: 'Fix the login disclaimer',
     });
 
-    expect(args).toEqual(['--yolo', '--prompt=']);
+    expect(args).toEqual(['--dangerously-skip-permissions', '--headless']);
   });
 
-  it('uses --resume latest for Gemini when continuing a session', () => {
-    const adapter = getAdapter('gemini');
+  it('uses --continue for Antigravity when continuing a session', () => {
+    const adapter = getAdapter('antigravity');
     const args = adapter.buildArgs({
       mode: 'headless',
       prompt: 'Follow up',
       continueSession: true,
     });
 
-    expect(args).toEqual(['--yolo', '--prompt=', '--resume', 'latest']);
+    expect(args).toEqual(['--dangerously-skip-permissions', '--headless', '--continue']);
   });
 
   it('omits exec subcommand for Codex in interactive mode', () => {
@@ -70,7 +70,7 @@ describe('cli-adapters', () => {
 
   it('enables interactive mode for all CLI tools', () => {
     expect(supportsInteractiveMode('claude')).toBe(true);
-    expect(supportsInteractiveMode('gemini')).toBe(true);
+    expect(supportsInteractiveMode('antigravity')).toBe(true);
     expect(supportsInteractiveMode('codex')).toBe(true);
   });
 

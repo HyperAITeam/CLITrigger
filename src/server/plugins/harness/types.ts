@@ -1,4 +1,4 @@
-export type CliId = 'claude' | 'gemini' | 'codex';
+export type CliId = 'claude' | 'antigravity' | 'codex';
 
 export type McpTransport = 'stdio' | 'http' | 'sse';
 
