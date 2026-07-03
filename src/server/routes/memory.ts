@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { exec } from 'child_process';
+import { osOpenPath } from '../utils/open-path.js';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -706,18 +706,7 @@ router.post('/projects/:id/memory/raw-files/open', (req: Request<{ id: string }>
       return;
     }
     // mode === 'reveal' → open the containing folder, else open the file itself
-    const target = mode === 'reveal' ? path.dirname(absPath) : absPath;
-    if (process.platform === 'win32') {
-      if (mode === 'reveal') {
-        exec(`explorer.exe /select,"${absPath}"`);
-      } else {
-        exec(`start "" "${target}"`, { windowsHide: true });
-      }
-    } else if (process.platform === 'darwin') {
-      exec(mode === 'reveal' ? `open -R "${absPath}"` : `open "${target}"`);
-    } else {
-      exec(`xdg-open "${target}"`);
-    }
+    osOpenPath(absPath, { reveal: mode === 'reveal' });
     res.json({ ok: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });

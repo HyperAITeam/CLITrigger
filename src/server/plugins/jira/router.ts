@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import type { PluginHelpers } from '../types.js';
 import { validatePromptContent, MAX_DESCRIPTION_LENGTH } from '../../services/prompt-guard.js';
 import { jiraSearch } from '../../lib/jira-client.js';
+import { assertPublicHttpUrl } from '../../utils/net-safety.js';
 
 interface JiraConfig {
   baseUrl: string;
@@ -36,6 +37,7 @@ function jiraHeaders(config: JiraConfig): Record<string, string> {
 }
 
 async function jiraFetch(config: JiraConfig, path: string, options: RequestInit = {}): Promise<globalThis.Response> {
+  assertPublicHttpUrl(config.baseUrl);
   const url = `${config.baseUrl}${path}`;
   return fetch(url, {
     ...options,
@@ -88,7 +90,7 @@ export function createRouter(helpers: PluginHelpers): Router {
       let jql = config.projectKey ? `project = "${config.projectKey}"` : '';
 
       if (status && status !== 'all') {
-        const statusClause = `status = "${status}"`;
+        const statusClause = `status = "${status.replace(/"/g, '\\"')}"`;
         jql = jql ? `${jql} AND ${statusClause}` : statusClause;
       }
 

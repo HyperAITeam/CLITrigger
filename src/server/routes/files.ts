@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { exec } from 'child_process';
+import { osOpenPath } from '../utils/open-path.js';
+import { isRealpathWithinRoot } from '../utils/path-safety.js';
 import { getProjectById } from '../db/queries.js';
 import { loadVaultIgnore } from '../services/file-scanner.js';
 
@@ -39,6 +40,8 @@ function resolveSafe(projectId: string, relPath: string): { root: string; abs: s
   const abs = path.resolve(root, rel);
   const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
   if (abs !== root && !abs.startsWith(rootWithSep)) return null;
+  // Resolve symlinks too, so an in-tree symlink can't point outside the root.
+  if (!isRealpathWithinRoot(root, abs)) return null;
   return { root, abs };
 }
 
@@ -302,6 +305,8 @@ router.get('/:id/files/binary', (req: Request<{ id: string }>, res: Response) =>
     const ext = path.extname(safe.abs).toLowerCase();
     const mime = MIME_BY_EXT[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
+    // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
+    if (mime === 'image/svg+xml') res.setHeader('Content-Security-Policy', 'sandbox');
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
     res.sendFile(safe.abs);
@@ -338,21 +343,7 @@ router.post('/:id/files/open', (req: Request<{ id: string }>, res: Response) => 
     // reveal is only meaningful for files; for directories it degrades to "open".
     const wantReveal = mode === 'reveal' && !isDir;
 
-    if (process.platform === 'win32') {
-      if (wantReveal) {
-        exec(`explorer.exe /select,"${safe.abs}"`);
-      } else if (isDir) {
-        exec(`explorer.exe "${safe.abs}"`);
-      } else {
-        exec(`start "" "${safe.abs}"`, { windowsHide: true });
-      }
-    } else if (process.platform === 'darwin') {
-      exec(wantReveal ? `open -R "${safe.abs}"` : `open "${safe.abs}"`);
-    } else {
-      // Linux: no portable "reveal" — fall back to opening the containing folder.
-      const target = wantReveal ? path.dirname(safe.abs) : safe.abs;
-      exec(`xdg-open "${target}"`);
-    }
+    osOpenPath(safe.abs, { reveal: wantReveal });
 
     res.json({ ok: true });
   } catch (err: unknown) {

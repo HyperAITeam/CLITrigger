@@ -6,6 +6,7 @@ import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
 import { sessionManager } from '../services/session-manager.js';
 import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
+import { getSetting } from '../db/app-settings.js';
 
 export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -53,6 +54,13 @@ export function initWebSocket(server: Server): void {
     sessionMiddleware(req as any, res as any, () => {
       const session = (req as any).session;
       if (!session || !session.authenticated) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      // Reject sessions issued before the last password change (parity with HTTP).
+      const changedAt = Number(getSetting('auth.password_changed_at') || 0);
+      if (changedAt && (session.createdAt ?? 0) < changedAt) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
