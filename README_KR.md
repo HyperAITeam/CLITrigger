@@ -44,7 +44,7 @@ npm i -g clitrigger && clitrigger
 
 > ### 문서 → 계획 → 터미널 → 자동작업 → 형상관리. 하나의 파이프라인.
 >
-> 개발 사이클의 다섯 단계가 도구 다섯 개에 흩어져 있는 게 지금의 병목이다. CLITrigger는 그 전부를 한 앱으로 잇는다 — 프로젝트 지식을 **볼트(위키)** 에 쌓고, **플래너·캘린더**로 계획을 세우고, **터미널 세션**에서 AI와 함께 다듬고, 확정된 작업은 격리된 git worktree에서 여러 AI CLI(**Claude Code · Antigravity · Codex**)가 **병렬로 자동 실행**하고, 결과는 **리뷰 큐와 내장 Git 클라이언트**에서 머지까지 끝낸다.
+> 개발 사이클의 다섯 단계가 도구 다섯 개에 흩어져 있는 게 지금의 병목이다. CLITrigger는 그 전부를 한 앱으로 잇는다 — 프로젝트 지식을 **문서**에 쌓고, **플래너·캘린더**로 계획을 세우고, **터미널 세션**에서 AI와 함께 다듬고, 확정된 작업은 격리된 git worktree에서 여러 AI CLI(**Claude Code · Antigravity · Codex**)가 **병렬로 자동 실행**하고, 결과는 **리뷰 큐와 내장 Git 클라이언트**에서 머지까지 끝낸다.
 >
 > 당신이 자는 동안(혹은 다른 일에 집중하는 동안) AI는 토큰 한도를 끝까지 써가며 일한다. 다음 날 아침 책상에 앉아 쌓인 diff를 보고 **accept / reject / merge**만 하면 된다.
 >
@@ -52,7 +52,7 @@ npm i -g clitrigger && clitrigger
 
 ```mermaid
 flowchart LR
-    docs["📚 문서<br>볼트 · 위키"] --> plan["🗓 계획<br>플래너 · 캘린더"]
+    docs["📚 문서<br>프로젝트 지식"] --> plan["🗓 계획<br>플래너 · 캘린더"]
     plan --> term["⌨️ 터미널<br>인터랙티브 세션"]
     term --> auto["🤖 자동작업<br>병렬 worktree 실행"]
     auto --> vcs["🔀 형상관리<br>리뷰 큐 · Git"]
@@ -91,12 +91,12 @@ CLITrigger는 이 세 가지를 한 번에 해결한다:
 
 ### 📚 1. 문서 — 지식을 쌓는다
 
-#### 볼트 (파일 기반 지식)
+#### 문서 (파일 기반 지식)
 `[[wikilink]]` 그래프를 갖춘 프로젝트별 Obsidian 스타일 지식 저장소 — 파일을 CLI 불문으로 프롬프트에 주입. 여기 쌓인 문서가 파이프라인 전체의 입력이 된다. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize-KR#볼트)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="볼트 — Obsidian 스타일 파일 기반 지식 + 링크 그래프" width="800">
-  <p><em>Vault 탭 — 프로젝트 마크다운을 인라인 미리보기와 wikilink force-directed 그래프로 탐색하고, 파일을 골라 프롬프트에 주입</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="문서 — Obsidian 스타일 파일 기반 지식 + 링크 그래프" width="800">
+  <p><em>문서 탭 — 프로젝트 마크다운을 인라인 미리보기와 wikilink force-directed 그래프로 탐색하고, 파일을 골라 프롬프트에 주입</em></p>
 </div>
 
 ### 🗓 2. 계획 — 의도를 캡처한다
