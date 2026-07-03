@@ -47,7 +47,7 @@ Follow these phases exactly, in order.
 
 ### Phase 3: 릴리즈 노트 작성
 
-`docs/release-notes/v<new-version>.md`에 한국어 사용자 대상 릴리즈 노트를 작성한다. push 후 GitHub Actions(`.github/workflows/release.yml`)가 태그 체크아웃 tree에서 이 파일을 읽어 GitHub Release body로 사용한다 (파일이 없으면 자동 PR 인덱스로 폴백).
+`docs/release-notes/v<new-version>.md`에 **영어로** 릴리즈 노트를 작성한다 (GitHub Release는 영어권 사용자 대상 — 한국어로 쓰지 말 것. 단, 전체 커밋 목록의 커밋 메시지는 원문 그대로 둔다). push 후 GitHub Actions(`.github/workflows/release.yml`)가 태그 체크아웃 tree에서 이 파일을 읽어 GitHub Release body로 사용한다 (파일이 없으면 자동 PR 인덱스로 폴백).
 
 이 phase에서는 **파일만 작성**하고 commit하지 않는다. 다음 Phase 4가 release 커밋에 노트 파일을 함께 stage 해서 태그가 노트를 포함한 커밋을 가리키도록 한다.
 
@@ -69,7 +69,7 @@ git tag --sort=-v:refname | head -1
    git log <PREV_TAG>..HEAD --pretty=format:"%h %s"
    ```
 2. **changelog entry 묶음**: `<PREV_TAG>` 커밋의 author date(`git log -1 --format=%ad --date=short <PREV_TAG>`)부터 오늘까지의 `docs/changelog/YYYY-MM/YYYY-MM-DD*.md` 파일 모두 읽기.
-   - 이미 한국어로 큐레이션된 본문이 있으므로 release 노트는 이걸 **요약/재구성**하는 데 집중. 통째 복붙 금지.
+   - 이미 한국어로 큐레이션된 본문이 있으므로 release 노트는 이걸 **영어로 요약/재구성**하는 데 집중. 통째 복붙·직역 금지.
    - changelog entry가 0개면(짧은 패치 릴리즈) 커밋 메시지 + 핵심 diff만 보고 직접 작성.
 
 #### 3-3. 노트 파일 작성
@@ -79,61 +79,61 @@ git tag --sort=-v:refname | head -1
 템플릿 (외곽 fence는 4-backtick — 내부 ```bash 블록 보호용):
 
 ````markdown
-# v<new-version> — <한 줄 요약 제목>
+# v<new-version> — <one-line summary title>
 
-릴리즈 일자: YYYY-MM-DD
-이전 버전: v<prev-version>
+Release date: YYYY-MM-DD
+Previous version: v<prev-version>
 
-## 요약 (TL;DR)
+## TL;DR
 
-3~5줄. 사용자가 이번 버전에서 무엇이 바뀌는지 즉시 알 수 있게.
+3–5 lines. Users should immediately understand what changes in this version.
 
-## 주요 변경
+## Highlights
 
-### <기능/주제 1>
+### <feature/topic 1>
 
-- 사용자 관점에서 어떤 차이가 생기는지
+- What difference the user sees
 
-### <기능/주제 2>
+### <feature/topic 2>
 
 ...
 
 ## ⚠️ Breaking Changes
 
-(있을 때만 표시. 없으면 섹션 자체 생략.)
+(Only when present. Omit the section entirely otherwise.)
 
-- 어떤 동작이 바뀌었는지
-- 영향받는 사용 시나리오
+- What behavior changed
+- Affected usage scenarios
 
-## 마이그레이션
+## Migration
 
-(Breaking 또는 환경 변수/스키마/CLI 변경이 있을 때만.)
+(Only for breaking changes or env var/schema/CLI changes.)
 
-- 1단계: ...
-- 2단계: ...
+- Step 1: ...
+- Step 2: ...
 
-## 설치 / 업데이트
+## Install / Update
 
 ```bash
 npm i -g clitrigger@<new-version>
 ```
 
-데스크탑 앱: GitHub Release 자산의 `.exe` / `.dmg` / `.AppImage` 사용.
+Desktop app: use the `.exe` / `.dmg` / `.AppImage` from the GitHub Release assets.
 
-## 전체 커밋 목록
+## Full commit list
 
-<git log --pretty=format:"- %h %s" PREV_TAG..HEAD 결과 그대로 붙임>
+<git log --pretty=format:"- %h %s" PREV_TAG..HEAD output verbatim — keep commit messages in their original language>
 
-## 관련 문서
+## Related docs
 
-- [상세 changelog](../changelog/) — 날짜별 기술 결정 기록
+- [Detailed changelog](../changelog/) — per-date technical decision records
 ````
 
 **작성 가이드**:
 
-- "사용자가 무엇을 얻는가"가 1순위. 내부 리팩터·DB 마이그레이션 같은 항목은 *Breaking* 또는 *마이그레이션* 섹션에서만 다룬다.
+- **노트 본문은 영어로 쓴다.** changelog(한국어)를 재료로 쓰되 직역이 아니라 영어 릴리즈 노트 관례에 맞게 재구성한다.
+- "사용자가 무엇을 얻는가"가 1순위. 내부 리팩터·DB 마이그레이션 같은 항목은 *Breaking* 또는 *Migration* 섹션에서만 다룬다.
 - "수정된 파일 표"는 changelog 영역이지 release 노트 영역이 아니다. 노트에는 넣지 않는다.
-- 한국어 톤은 `docs/changelog/2026-04-*`, `docs/changelog/2026-05-02-*` 본문 스타일을 그대로 참조.
 - 같은 주제의 여러 커밋(WIP/fixup 포함)은 하나의 항목으로 통합한다.
 - `docs/changelog/` entry가 있으면 그걸 **요약**할 것. 본문을 그대로 옮기지 않는다.
 
