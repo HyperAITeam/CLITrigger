@@ -183,7 +183,9 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (session_id, seq)
     );
-    CREATE INDEX IF NOT EXISTS idx_session_raw_chunks_session ON session_raw_chunks(session_id);
+    -- idx_session_raw_chunks_session was redundant (prefix of the PK) and
+    -- doubled index-write cost on the PTY streaming insert path.
+    DROP INDEX IF EXISTS idx_session_raw_chunks_session;
 
     CREATE TABLE IF NOT EXISTS planner_items (
       id TEXT PRIMARY KEY,

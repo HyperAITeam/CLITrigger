@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import type { Todo, TaskLog } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
-import TaskGraph from './TaskGraph';
+// Code-split: keeps @xyflow/react + dagre out of the initial bundle.
+const TaskGraph = lazy(() => import('./TaskGraph'));
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp, Play, Square } from 'lucide-react';
@@ -386,6 +387,7 @@ export default function TodoList({
             {runStopButtons}
           </div>
         </div>
+        <Suspense fallback={null}>
         <TaskGraph
           todos={todos}
           projectId={projectId}
@@ -410,6 +412,7 @@ export default function TodoList({
           debugLogging={debugLogging}
           showTokenUsage={showTokenUsage}
         />
+        </Suspense>
       </div>
     );
   }

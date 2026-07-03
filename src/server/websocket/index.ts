@@ -136,9 +136,24 @@ export function initWebSocket(server: Server): void {
             try {
               sessionManager.flushPendingRaw(msg.sessionId);
               const chunks = getSessionRawChunks(msg.sessionId);
+              // Coalesce DB rows into large frames. A long session holds tens
+              // of thousands of tiny rows (one per 100ms flush); one ws frame
+              // per row made re-opening a terminal take seconds.
+              const REPLAY_FRAME_BYTES = 256 * 1024;
+              let batch: Buffer[] = [];
+              let batchBytes = 0;
+              const sendBatch = () => {
+                if (batch.length === 0) return;
+                ws.send(encodeSessionFrame(msg.sessionId, Buffer.concat(batch)), { binary: true });
+                batch = [];
+                batchBytes = 0;
+              };
               for (const c of chunks) {
-                ws.send(encodeSessionFrame(msg.sessionId, c.bytes), { binary: true });
+                batch.push(c.bytes);
+                batchBytes += c.bytes.length;
+                if (batchBytes >= REPLAY_FRAME_BYTES) sendBatch();
               }
+              sendBatch();
             } catch { /* ignore replay errors */ }
             ws.send(JSON.stringify({ type: 'session:replay-end', sessionId: msg.sessionId }));
           }
