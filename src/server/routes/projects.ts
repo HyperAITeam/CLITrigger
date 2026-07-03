@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import nodePath from 'path';
 import fs from 'fs';
-import { execFileSync, exec } from 'child_process';
+import { execFileSync } from 'child_process';
+import { osOpenPath } from '../utils/open-path.js';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults, reorderProjects } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
@@ -215,13 +216,7 @@ router.post('/open-folder', (req: Request, res: Response) => {
   }
 
   try {
-    if (process.platform === 'win32') {
-      exec(`explorer.exe "${resolved}"`);
-    } else if (process.platform === 'darwin') {
-      exec(`open "${resolved}"`);
-    } else {
-      exec(`xdg-open "${resolved}"`);
-    }
+    osOpenPath(resolved);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: 'failed to open folder' });
@@ -264,6 +259,20 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+// Strip legacy plaintext secret columns before returning a project to clients.
+const PROJECT_SECRET_FIELDS = ['jira_api_token', 'github_token', 'notion_api_key'];
+function omitProjectSecrets<T>(p: T): T {
+  const clone = { ...(p as Record<string, unknown>) };
+  for (const f of PROJECT_SECRET_FIELDS) delete clone[f];
+  return clone as T;
+}
+
+// Reject git ref/remote values starting with '-' — git would parse them as an
+// option (e.g. --upload-pack) even through simple-git's argv array.
+function hasDashArg(...vals: unknown[]): boolean {
+  return vals.some((v) => typeof v === 'string' && v.startsWith('-'));
+}
+
 // GET /api/projects - list all projects
 router.get('/', (_req: Request, res: Response) => {
   try {
@@ -273,7 +282,7 @@ router.get('/', (_req: Request, res: Response) => {
       try {
         pathExists = fs.statSync(p.path).isDirectory();
       } catch { /* path missing */ }
-      return { ...p, path_exists: pathExists };
+      return { ...omitProjectSecrets(p), path_exists: pathExists };
     });
     res.json(enriched);
   } catch (err: unknown) {
@@ -321,7 +330,7 @@ router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
         }
       } catch { /* best-effort; ignore failures */ }
     }
-    res.json(project);
+    res.json(omitProjectSecrets(project));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -661,6 +670,7 @@ router.post('/:id/git-pull', async (req: Request<{ id: string }>, res: Response)
   try {
     const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
     const { remote, branch } = req.body;
+    if (hasDashArg(remote, branch)) { res.status(400).json({ error: 'invalid remote/branch' }); return; }
     const summary = await worktreeManager.gitPull(dirPath, remote, branch);
     res.json({ ok: true, summary });
   } catch (err: unknown) {
@@ -692,6 +702,10 @@ router.post('/:id/git-push', async (req: Request<{ id: string }>, res: Response)
       branches = [{ local: body.branch, remote: body.branch, setUpstream: !!body.setUpstream }];
     }
 
+    if (hasDashArg(body.remote) || branches.some((b) => hasDashArg(b.local, b.remote))) {
+      res.status(400).json({ error: 'invalid remote/branch' }); return;
+    }
+
     await worktreeManager.gitPush(dirPath, {
       remote: body.remote,
       branches,
@@ -720,6 +734,7 @@ router.post('/:id/git-fetch', async (req: Request<{ id: string }>, res: Response
   try {
     const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
     const { remote, prune } = req.body;
+    if (hasDashArg(remote)) { res.status(400).json({ error: 'invalid remote' }); return; }
     await worktreeManager.gitFetch(dirPath, remote, prune);
     res.json({ ok: true });
   } catch (err: unknown) {
@@ -765,6 +780,7 @@ router.post('/:id/git-checkout', async (req: Request<{ id: string }>, res: Respo
     if (!branch || typeof branch !== 'string') {
       res.status(400).json({ error: 'branch is required' }); return;
     }
+    if (hasDashArg(branch.trim())) { res.status(400).json({ error: 'invalid branch' }); return; }
     await worktreeManager.gitCheckout(dirPath, branch.trim());
     res.json({ ok: true });
   } catch (err: unknown) {
@@ -780,6 +796,7 @@ router.post('/:id/git-merge', async (req: Request<{ id: string }>, res: Response
     if (!branch || typeof branch !== 'string') {
       res.status(400).json({ error: 'branch is required' }); return;
     }
+    if (hasDashArg(branch.trim())) { res.status(400).json({ error: 'invalid branch' }); return; }
     const result = await worktreeManager.gitMerge(dirPath, branch.trim());
     res.json({ ok: true, result });
   } catch (err: unknown) {
@@ -810,6 +827,7 @@ router.post('/:id/git-rebase', async (req: Request<{ id: string }>, res: Respons
     if (!onto || typeof onto !== 'string') {
       res.status(400).json({ error: 'onto is required' }); return;
     }
+    if (hasDashArg(onto.trim())) { res.status(400).json({ error: 'invalid onto' }); return; }
     const result = await worktreeManager.gitRebase(dirPath, onto.trim());
     res.json({ ok: true, result });
   } catch (err: unknown) {

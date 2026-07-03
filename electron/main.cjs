@@ -160,7 +160,7 @@ function createWindow(port) {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -194,7 +194,11 @@ function createWindow(port) {
   mainWindow.webContents.setWindowOpenHandler(({ url, features }) => {
     const isLocal = localOrigins.some((o) => url.startsWith(o));
     if (!isLocal) {
-      shell.openExternal(url);
+      // Only hand safe schemes to the OS — never file:/smb:/custom handlers.
+      try {
+        const proto = new URL(url).protocol;
+        if (proto === 'http:' || proto === 'https:' || proto === 'mailto:') shell.openExternal(url);
+      } catch { /* invalid url — ignore */ }
       return { action: 'deny' };
     }
     // Session pop-out windows: open as a real OS child window with the same
@@ -237,7 +241,7 @@ function createWindow(port) {
             preload: path.join(__dirname, 'preload.cjs'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false,
+            sandbox: true,
           },
         },
       };
@@ -245,11 +249,21 @@ function createWindow(port) {
     return { action: 'allow' };
   });
 
+  // Block top-level navigation to off-origin URLs so injected content / links
+  // can't load a remote page inside the trusted, preload-attached window.
+  const blockOffOriginNav = (contents) => {
+    contents.on('will-navigate', (e, navUrl) => {
+      if (!localOrigins.some((o) => navUrl.startsWith(o))) e.preventDefault();
+    });
+  };
+  blockOffOriginNav(mainWindow.webContents);
+
   // Newly-created child windows (popouts) inherit the main window's
   // setWindowOpenHandler but not the lock-screen focus-recovery handler.
   // Attach the same focus → webContents.focus() bridge so xterm typing
   // doesn't go dead after resume.
   mainWindow.webContents.on('did-create-window', (childWin) => {
+    blockOffOriginNav(childWin.webContents);
     childWin.on('focus', () => {
       // Skip when webContents already holds focus — a redundant programmatic
       // focus() resets the Windows IME (TSF) caret context, which is the

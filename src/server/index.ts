@@ -60,7 +60,6 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // Middleware
-const isDev = process.env.NODE_ENV !== 'production';
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
@@ -68,9 +67,6 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (same-origin, curl, etc.)
     if (!origin) {
-      callback(null, true);
-    // Development mode: allow all origins
-    } else if (isDev) {
       callback(null, true);
     } else if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -84,7 +80,27 @@ app.use(cors({
   credentials: true,
 }));
 app.use(helmet({
-  contentSecurityPolicy: false,  // Disable CSP for SPA compatibility
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      // 'unsafe-inline'/'unsafe-eval' kept for the Vite SPA (inline theme
+      // bootstrap + inline style attrs). Tighten to nonces later. The real
+      // wins here are object/base/frame-ancestors/form-action + connect scope.
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", 'ws:', 'wss:'],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      // Served over http on loopback (desktop) — don't force https upgrade.
+      upgradeInsecureRequests: null,
+    },
+  },
 }));
 app.use(express.json({ limit: '50mb' }));
 
@@ -322,8 +338,19 @@ if (process.env.HEADLESS === 'true') {
 const MAX_PORT_RETRIES = 10;
 const requestedPort = Number(PORT);
 
+// Security: an auth-disabled server must never be publicly reachable.
+if (process.env.DISABLE_AUTH === 'true' && process.env.TUNNEL_ENABLED === 'true') {
+  console.error('[security] Refusing to start: DISABLE_AUTH=true with TUNNEL_ENABLED=true would expose an unauthenticated server. Disable one of them.');
+  process.exit(1);
+}
+// Bind to loopback when auth is disabled (plugin/headless mode); otherwise all
+// interfaces, or BIND_HOST when explicitly set for intentional LAN sharing.
+const bindHost = process.env.DISABLE_AUTH === 'true'
+  ? '127.0.0.1'
+  : (process.env.BIND_HOST || '0.0.0.0');
+
 function tryListen(port: number, attempt: number) {
-  server.listen(port, () => {
+  server.listen(port, bindHost, () => {
     const tunnelEnabled = process.env.TUNNEL_ENABLED === 'true';
     console.log('');
     console.log('  ✔ CLITrigger is running');

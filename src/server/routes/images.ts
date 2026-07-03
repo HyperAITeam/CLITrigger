@@ -150,6 +150,8 @@ router.get('/todos/:id/images/:imageId', (req: Request<{ id: string; imageId: st
     };
 
     res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
+    if (ext === 'svg') res.setHeader('Content-Security-Policy', 'sandbox');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(filePath);
   } catch (err: unknown) {
@@ -267,6 +269,8 @@ router.get('/planner/:id/images/:imageId', (req: Request<{ id: string; imageId: 
       gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
     };
     res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
+    if (ext === 'svg') res.setHeader('Content-Security-Policy', 'sandbox');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(filePath);
   } catch (err: unknown) {
@@ -384,6 +388,8 @@ router.get('/personal-items/:id/images/:imageId', (req: Request<{ id: string; im
       gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
     };
     res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
+    if (ext === 'svg') res.setHeader('Content-Security-Policy', 'sandbox');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(filePath);
   } catch (err: unknown) {

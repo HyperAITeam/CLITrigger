@@ -3,6 +3,8 @@
 // (src/server/plugins/jira/router.ts) but takes an explicit connection so it
 // can be driven by the agenda's own global config.
 
+import { assertPublicHttpUrl } from '../utils/net-safety.js';
+
 export interface JiraConn {
   baseUrl: string; // e.g. https://xxx.atlassian.net (no trailing slash)
   email: string;
@@ -23,7 +25,9 @@ function normalizeBaseUrl(raw: string): string {
 }
 
 async function jiraFetch(conn: JiraConn, path: string): Promise<globalThis.Response> {
-  return fetch(`${normalizeBaseUrl(conn.baseUrl)}${path}`, { headers: headers(conn) });
+  const base = normalizeBaseUrl(conn.baseUrl);
+  assertPublicHttpUrl(base);
+  return fetch(`${base}${path}`, { headers: headers(conn) });
 }
 
 export async function jiraMyself(conn: JiraConn): Promise<{ displayName: string; emailAddress?: string }> {

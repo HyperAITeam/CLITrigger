@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import pathModule from 'path';
 import * as queries from '../db/queries.js';
+import { isRealpathWithinRoot } from '../utils/path-safety.js';
 import {
   scanVault,
   buildVaultGraph,
@@ -36,8 +37,11 @@ function isPathSafe(projectRoot: string, relativePath: string, allowHtml = false
   const isMd = lower.endsWith('.md');
   const isHtml = lower.endsWith('.html') || lower.endsWith('.htm');
   if (!isMd && !(allowHtml && isHtml)) return false;
+  const rootResolved = pathModule.resolve(projectRoot);
   const resolved = pathModule.resolve(projectRoot, relativePath);
-  return resolved.startsWith(pathModule.resolve(projectRoot) + pathModule.sep);
+  const sep = rootResolved.endsWith(pathModule.sep) ? rootResolved : rootResolved + pathModule.sep;
+  if (resolved !== rootResolved && !resolved.startsWith(sep)) return false;
+  return isRealpathWithinRoot(rootResolved, resolved);
 }
 
 // GET /api/projects/:id/vault/files

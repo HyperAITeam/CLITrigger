@@ -11,6 +11,19 @@ import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState }
 
 export type ClaudeMode = CliMode;
 
+// Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
+// server-only secrets so an agent or raw-shell can't read them — otherwise a
+// prompt-injected agent could exfiltrate SESSION_SECRET and forge session cookies.
+const CHILD_ENV_BLOCKLIST = new Set(['SESSION_SECRET', 'AUTH_PASSWORD', 'TUNNEL_TOKEN']);
+function childEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v === undefined || CHILD_ENV_BLOCKLIST.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 // node-pty ships its macOS/Linux `spawn-helper` as a prebuilt binary. Some npm
 // extractions drop the executable bit, so `pty.fork` fails with
 // "posix_spawnp failed." and every session shows a blank terminal. Restore +x
@@ -189,6 +202,7 @@ export class ClaudeManager {
           cols: ptyCols ?? 200,
           rows: ptyRows ?? 50,
           cwd,
+          env: childEnv(),
         });
       } catch (err) {
         reject(new Error(
@@ -375,6 +389,7 @@ export class ClaudeManager {
           // Safe: prompts are delivered via stdin, not as command-line arguments
           shell: process.platform === 'win32',
           windowsHide: true,
+          env: childEnv(),
         });
       } catch (err) {
         reject(new Error(
