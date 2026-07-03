@@ -362,6 +362,18 @@ Thanks to everyone who has contributed to CLITrigger!
 
 ---
 
+## ☕ Buy Me a Coffee
+
+If CLITrigger saves you time, consider buying me a coffee!
+
+<div align="center">
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/osgoodyz)
+
+</div>
+
+---
+
 ## License
 
 [MIT](LICENSE) — Free to use, modify, and distribute.
