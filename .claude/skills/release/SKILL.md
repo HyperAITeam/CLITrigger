@@ -118,7 +118,11 @@ Previous version: v<prev-version>
 npm i -g clitrigger@<new-version>
 ```
 
-Desktop app: use the `.exe` / `.dmg` / `.AppImage` from the GitHub Release assets.
+Desktop app — pick the right asset:
+
+- **Windows (recommended)**: `CLITrigger-Setup-<new-version>.exe` — installer with Start Menu shortcut, uninstaller, and auto-update.
+- **Windows (portable)**: `CLITrigger-<new-version>.exe` — run directly, no install; no shortcuts and no auto-update (grab new versions manually).
+- **macOS**: `.dmg` / **Linux**: `.AppImage`
 
 ## Full commit list
 
