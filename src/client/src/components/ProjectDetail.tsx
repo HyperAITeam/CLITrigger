@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import TabHoverHelp from './HoverHelp';
 import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag } from '../types';
@@ -21,10 +21,12 @@ import SvnStatusPanel from './SvnStatusPanel';
 import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import SessionWindowsHost from './SessionWindowsHost';
-import AnalyticsPanel from './AnalyticsPanel';
 import PlannerWorkspace from './PlannerWorkspace';
-import MemoryList from './MemoryList';
-import VaultLayout from './vault/VaultLayout';
+
+// Heavy tab panels are code-split so their deps (recharts, @xyflow/react,
+// codemirror) stay out of the initial bundle — they load on first tab open.
+const AnalyticsPanel = lazy(() => import('./AnalyticsPanel'));
+const VaultLayout = lazy(() => import('./vault/VaultLayout'));
 import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
@@ -898,7 +900,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         ) : null
       )}
       {activeTab === 'automation' && automationSub === 'analytics' && id && (
-        <AnalyticsPanel projectId={id} />
+        <Suspense fallback={null}>
+          <AnalyticsPanel projectId={id} />
+        </Suspense>
       )}
       {activeTab === 'git' && project.is_git_repo ? (
         <GitStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
@@ -907,7 +911,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         <SvnStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
       ) : null}
       {activeTab === 'files' && id && (
-        <VaultLayout projectId={id} onCreateTask={handleCreateTaskFromFile} />
+        <Suspense fallback={null}>
+          <VaultLayout projectId={id} onCreateTask={handleCreateTaskFromFile} />
+        </Suspense>
       )}
       {activeTab === 'automation' && automationSub === 'schedules' && (
         <ScheduleList

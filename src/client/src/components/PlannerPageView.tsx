@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import type { PlannerPage, PlannerItem, PlannerTag } from '../types';
 import * as plannerApi from '../api/planner';
 import { useI18n } from '../i18n';
-import PlannerPageEditor from './PlannerPageEditor';
+// Code-split: keeps BlockNote (+Mantine) out of the initial bundle.
+const PlannerPageEditor = lazy(() => import('./PlannerPageEditor'));
 import PlannerConvertDialog from './PlannerConvertDialog';
 import { PlannerPageProvider, type ConvertMode } from './planner/PlannerPageContext';
 
@@ -93,7 +94,9 @@ export default function PlannerPageView({
           </span>
         </div>
         <div className="flex-1 overflow-y-auto pb-6">
-          <PlannerPageEditor initialContent={page.content ?? null} onChange={handleContentChange} />
+          <Suspense fallback={null}>
+            <PlannerPageEditor initialContent={page.content ?? null} onChange={handleContentChange} />
+          </Suspense>
         </div>
       </div>
 
