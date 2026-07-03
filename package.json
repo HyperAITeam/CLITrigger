@@ -71,7 +71,7 @@
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "@types/iarna__toml": "^2.0.5",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.11.1",
     "cloudflared": "^0.7.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -89,7 +89,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.0",
+    "@electron/rebuild": "^4.1.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
@@ -101,8 +101,8 @@
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^4.1.1",
     "concurrently": "^9.1.0",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.27.0",
     "png-to-ico": "^3.0.1",
     "sharp": "^0.34.5",
