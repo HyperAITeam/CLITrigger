@@ -44,7 +44,7 @@ npm i -g clitrigger && clitrigger
 
 > ### Docs → Plan → Terminal → Autonomous Tasks → Version Control. One pipeline.
 >
-> The five stages of a development cycle scattered across five tools is today's real bottleneck. CLITrigger connects them in a single app — build project knowledge in the **Vault (wiki)**, shape it into a plan with the **planner & calendar**, refine it live in **terminal sessions**, then let multiple AI CLIs (**Claude Code · Antigravity · Codex**) **execute autonomously in parallel**, each in its own isolated git worktree — and land the results through the **review queue and built-in Git client**.
+> The five stages of a development cycle scattered across five tools is today's real bottleneck. CLITrigger connects them in a single app — build project knowledge in **Docs**, shape it into a plan with the **planner & calendar**, refine it live in **terminal sessions**, then let multiple AI CLIs (**Claude Code · Antigravity · Codex**) **execute autonomously in parallel**, each in its own isolated git worktree — and land the results through the **review queue and built-in Git client**.
 >
 > While you sleep (or focus elsewhere), they burn through your token quota. Next morning you sit down, review the stack of diffs, and **accept / reject / merge**.
 >
@@ -52,7 +52,7 @@ npm i -g clitrigger && clitrigger
 
 ```mermaid
 flowchart LR
-    docs["📚 Docs<br>Vault · Wiki"] --> plan["🗓 Plan<br>Planner · Calendar"]
+    docs["📚 Docs<br>Project knowledge"] --> plan["🗓 Plan<br>Planner · Calendar"]
     plan --> term["⌨️ Terminal<br>Interactive Sessions"]
     term --> auto["🤖 Autonomous Tasks<br>Parallel Worktrees"]
     auto --> vcs["🔀 Version Control<br>Review Queue · Git"]
@@ -91,12 +91,12 @@ The features follow the five pipeline stages — **📚 Docs → 🗓 Plan → �
 
 ### 📚 1. Docs — build the knowledge
 
-#### Vault (File-based Knowledge)
+#### Docs (File-based Knowledge)
 A per-project Obsidian-style knowledge base with a `[[wikilink]]` graph — inject any file into a prompt, CLI-agnostically. What accumulates here is the input to the whole pipeline. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Vault — Obsidian-style file-based knowledge with a link graph" width="800">
-  <p><em>The Vault tab — browse project markdown with inline preview and a force-directed wikilink graph, then selectively inject files into prompts</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Docs — Obsidian-style file-based knowledge with a link graph" width="800">
+  <p><em>The Docs tab — browse project markdown with inline preview and a force-directed wikilink graph, then selectively inject files into prompts</em></p>
 </div>
 
 ### 🗓 2. Plan — capture the intent
