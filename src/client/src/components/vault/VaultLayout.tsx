@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight, Settings } from 'lucide-react';
+import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight, Settings, HelpCircle } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useVaultState, type LeftPanelId, type RightPanelId } from './vault-state';
 import { Resizer } from './Resizer';
@@ -13,7 +13,7 @@ import { OutlinePanel } from './panels/OutlinePanel';
 import { BacklinksPanel } from './panels/BacklinksPanel';
 import { OutgoingLinksPanel } from './panels/OutgoingLinksPanel';
 import { CenterEditor } from './CenterEditor';
-import { VaultIgnoreModal } from './VaultIgnoreModal';
+import { VaultIgnoreModal, VaultIgnoreHelpModal } from './VaultIgnoreModal';
 import { VaultOnboardingModal } from './VaultOnboardingModal';
 import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 
@@ -38,13 +38,30 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
   const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
   const [vaultEdges, setVaultEdges] = useState<VaultEdge[]>([]);
   const [vaultLoading, setVaultLoading] = useState(false);
+  const [vaultError, setVaultError] = useState(false);
+  // Zero files scanned while .vaultignore has active patterns — most likely
+  // the onboarding "ignore everything" state, not a project without docs.
+  const [allHidden, setAllHidden] = useState(false);
   const [ignoreModalOpen, setIgnoreModalOpen] = useState(false);
+  const [ignoreHelpOpen, setIgnoreHelpOpen] = useState(false);
 
   const reloadVault = useCallback(() => {
     setVaultLoading(true);
     getVaultGraph(projectId)
-      .then((g) => { setVaultFiles(g.files); setVaultEdges(g.edges); })
-      .catch(() => { setVaultFiles([]); setVaultEdges([]); })
+      .then(async (g) => {
+        setVaultFiles(g.files);
+        setVaultEdges(g.edges);
+        setVaultError(false);
+        if (g.files.length === 0) {
+          try {
+            const { content } = await getVaultIgnore(projectId);
+            setAllHidden(content.split(/\r?\n/).some((l) => l.trim() && !l.trim().startsWith('#')));
+          } catch { setAllHidden(false); }
+        } else {
+          setAllHidden(false);
+        }
+      })
+      .catch(() => { setVaultFiles([]); setVaultEdges([]); setVaultError(true); })
       .finally(() => setVaultLoading(false));
   }, [projectId]);
 
@@ -182,6 +199,8 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
           activeFile={state.activeFile}
           onSelectFile={state.setActiveFile}
           loading={vaultLoading}
+          error={vaultError}
+          allHidden={allHidden}
           projectId={projectId}
           onGraphChanged={reloadVault}
         />
@@ -219,7 +238,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, reloadVault]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, vaultError, allHidden, reloadVault]);
 
   // Hold off the entire vault (scan + panels + graph) until the onboarding
   // choice — that's the whole point: nothing heavy runs before the user has
@@ -254,14 +273,24 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         panels={leftPanels}
         width={state.layout.leftWidth}
         actions={
-          <button
-            type="button"
-            onClick={() => setIgnoreModalOpen(true)}
-            className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
-            title=".vaultignore"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIgnoreHelpOpen(true)}
+              className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+              title={t('vault.ignoreHelp')}
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIgnoreModalOpen(true)}
+              className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+              title=".vaultignore"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+          </>
         }
       />
       {!state.layout.leftCollapsed && <Resizer onResize={onLeftResize} />}
@@ -288,6 +317,11 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         projectId={projectId}
         onClose={() => setIgnoreModalOpen(false)}
         onSaved={reloadVault}
+      />
+      <VaultIgnoreHelpModal
+        open={ignoreHelpOpen}
+        onClose={() => setIgnoreHelpOpen(false)}
+        onOpenEditor={() => { setIgnoreHelpOpen(false); setIgnoreModalOpen(true); }}
       />
     </div>
   );
