@@ -111,6 +111,31 @@ export function openBus(): PopoutBus {
 // for the "main app window". Popouts use `popout_<uuid>` instead.
 export const MAIN_WINDOW_ID = 'main';
 
+// ── Popout WindowProxy registry (main-window side) ──────────────────────────
+// The opener keeps the window.open() return value so a user-gesture click in
+// main (e.g. the dock tray chip) can call proxy.focus() — the only web-
+// platform path that reliably raises a popup OS window. A popout's own
+// window.focus() (in response to a bus message) is ignored by Chromium
+// because the popout has no transient user activation. The registry is lost
+// when main reloads; callers still post `group-focus` so Electron popouts can
+// self-raise via the main-process IPC bridge.
+const popoutWindows = new Map<string, Window>();
+
+export function registerPopoutWindow(popoutId: string, w: Window): void {
+  popoutWindows.set(popoutId, w);
+}
+
+// Raise the popout's OS window via the opener-held proxy. Returns false when
+// the proxy is gone (main reloaded) or the window was closed.
+export function focusPopoutWindow(popoutId: string): boolean {
+  const w = popoutWindows.get(popoutId);
+  if (!w || w.closed) {
+    popoutWindows.delete(popoutId);
+    return false;
+  }
+  try { w.focus(); return true; } catch { return false; }
+}
+
 export function newPopoutId(): string {
   return `popout_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
 }

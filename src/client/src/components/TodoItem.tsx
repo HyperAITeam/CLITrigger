@@ -39,6 +39,12 @@ import {
   GitCommit,
 } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
+import CursorContextMenu, {
+  CtxMenuSeparator,
+  ctxMenuItemClass,
+  ctxMenuDangerItemClass,
+  isNativeContextMenuTarget,
+} from './CursorContextMenu';
 
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -200,6 +206,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
     return `${y}-${mo}-${d}T${h}:${mi}`;
   });
   const [scheduling, setScheduling] = useState(false);
+  // Right-click menu offering the same actions as the buttons/MoreMenu.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const { t } = useI18n();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
@@ -500,6 +508,15 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
       onDragOver={handleItemDragOver}
       onDragLeave={handleItemDragLeave}
       onDrop={handleItemDrop}
+      // Right-click anywhere on the card → same actions as the buttons.
+      // Text fields / embedded terminals keep the browser menu; stop
+      // propagation so TodoList's empty-area menu doesn't also open.
+      onContextMenu={(e) => {
+        if (isNativeContextMenuTarget(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
     >
       <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
       {/* Header row */}
@@ -1111,6 +1128,94 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
           <Ban size={14} className="text-red-400 flex-shrink-0" />
           <span className="text-xs font-medium text-red-400">{t('dnd.cyclicWarning')}</span>
         </div>
+      )}
+
+      {/* Right-click menu — the same actions the buttons/MoreMenu expose,
+          gated on the same status flags so only valid ones appear. */}
+      {ctxMenu && (
+        <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => setCtxMenu(null)}>
+          {canStart && (
+            <button onClick={() => onStart(todo.id, 'headless')} className={ctxMenuItemClass} title={t('todo.startHeadless')}>
+              <Play size={14} />
+              {t('todo.start')}
+            </button>
+          )}
+          {canStart && supportsInteractive && (
+            <button onClick={() => onStart(todo.id, 'interactive')} className={ctxMenuItemClass} title={t('todo.startInteractiveDesc')}>
+              <Terminal size={14} />
+              {t('todo.startInteractive')}
+            </button>
+          )}
+          {canStart && (
+            <button onClick={() => onStart(todo.id, 'verbose')} className={ctxMenuItemClass} title={t('todo.startVerboseDesc')}>
+              <Eye size={14} />
+              {t('todo.startVerbose')}
+            </button>
+          )}
+          {canStop && (
+            <button onClick={() => onStop(todo.id)} className={ctxMenuItemClass}>
+              <Square size={14} />
+              {t('todo.stop')}
+            </button>
+          )}
+          {canMerge && (
+            <button onClick={handleMerge} disabled={merging} className={ctxMenuItemClass}>
+              <GitMerge size={14} />
+              {t('todo.merge')}
+            </button>
+          )}
+          {canContinue && (
+            <button onClick={() => { setShowContinueInput(true); setContinueError(null); }} disabled={continuing} className={ctxMenuItemClass}>
+              <ChevronsRight size={14} />
+              {t('todo.continue')}
+            </button>
+          )}
+          {canRetry && (
+            <button onClick={() => handleRetry('headless')} disabled={retrying} className={ctxMenuItemClass}>
+              <RotateCcw size={14} />
+              {t('todo.retry')}
+            </button>
+          )}
+          {canSchedule && (
+            <button onClick={() => setShowSchedulePicker(true)} className={ctxMenuItemClass} title={t('todo.scheduleDesc')}>
+              <Calendar size={14} />
+              {t('todo.schedule')}
+            </button>
+          )}
+          {canScheduleOnReset && (
+            <button onClick={() => { setShowResetSchedule(true); setResetError(null); }} className={ctxMenuItemClass} title={t('todo.scheduleOnResetDesc')}>
+              <Clock size={14} />
+              {t('todo.scheduleOnReset')}
+            </button>
+          )}
+          {canViewDiff && (
+            <button onClick={handleViewDiff} disabled={diffLoading} className={ctxMenuItemClass}>
+              <FileText size={14} />
+              {t('todo.viewDiff')}
+            </button>
+          )}
+          {debugLogging && hasResult && (
+            <button onClick={handleViewDebugLog} className={ctxMenuItemClass}>
+              <SlidersHorizontal size={14} />
+              {t('todo.viewDebugLog')}
+            </button>
+          )}
+          {canCleanup && (
+            <button onClick={handleCleanup} disabled={cleaning} className={ctxMenuItemClass}>
+              <Archive size={14} />
+              {t('todo.cleanup')}
+            </button>
+          )}
+          <CtxMenuSeparator />
+          <button onClick={() => setEditing(true)} className={ctxMenuItemClass}>
+            <Pencil size={14} />
+            {t('todo.edit')}
+          </button>
+          <button onClick={() => onDelete(todo.id)} className={ctxMenuDangerItemClass}>
+            <Trash2 size={14} />
+            {t('todo.delete')}
+          </button>
+        </CursorContextMenu>
       )}
     </div>
   );
