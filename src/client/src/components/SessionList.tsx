@@ -1,5 +1,11 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2 } from 'lucide-react';
+import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus } from 'lucide-react';
+import CursorContextMenu, {
+  CtxMenuSeparator,
+  ctxMenuItemClass,
+  ctxMenuDangerItemClass,
+  isNativeContextMenuTarget,
+} from './CursorContextMenu';
 import EmptyState from './EmptyState';
 import type { Session, MemoryInjectMode, SessionTag } from '../types';
 import { useI18n } from '../i18n';
@@ -72,6 +78,9 @@ export default function SessionList({
   const [editError, setEditError] = useState<string | null>(null);
   const [tags, setTags] = useState<SessionTag[]>([]);
   const [currentBranch, setCurrentBranch] = useState<string>('');
+  // Right-click menu state. sessionId === null → empty-area menu (new
+  // terminal only); otherwise the session's state-appropriate actions.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; sessionId: string | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +204,18 @@ export default function SessionList({
   }, [editingId, onUpdateSession]);
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div
+      // min-h so the blank space under a short list still belongs to this
+      // container — right-click there should offer "new terminal" too.
+      className="space-y-4 animate-fade-in min-h-[50vh]"
+      // Empty-area right-click → "new terminal" menu. Rows stopPropagation and
+      // open their own menu; text fields / terminals keep the native menu.
+      onContextMenu={(e) => {
+        if (isNativeContextMenuTarget(e)) return;
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY, sessionId: null });
+      }}
+    >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-warm-700 tracking-wide uppercase">
           {t('tabs.sessions')}
@@ -263,6 +283,12 @@ export default function SessionList({
                 key={session.id}
                 className={`card overflow-hidden animate-slide-up ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''}`}
                 style={{ animationDelay: `${index * 50}ms` }}
+                onContextMenu={(e) => {
+                  if (isNativeContextMenuTarget(e)) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCtxMenu({ x: e.clientX, y: e.clientY, sessionId: session.id });
+                }}
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
@@ -389,6 +415,122 @@ export default function SessionList({
           })}
         </div>
       )}
+
+      {/* Right-click menu — mirrors the row buttons for the clicked session,
+          or offers "new terminal" on empty space. Items are gated on the same
+          status flags as the buttons so only currently-valid actions show. */}
+      {ctxMenu && (() => {
+        const close = () => setCtxMenu(null);
+        const session = ctxMenu.sessionId ? sessions.find((s) => s.id === ctxMenu.sessionId) : undefined;
+        if (!session) {
+          return (
+            <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={close}>
+              <button
+                type="button"
+                onClick={() => { setEditingId(null); setEditError(null); setShowForm(true); }}
+                className={ctxMenuItemClass}
+              >
+                <Plus size={14} />
+                {t('session.new')}
+              </button>
+            </CursorContextMenu>
+          );
+        }
+        const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
+        const canStop = session.status === 'running';
+        const canEdit = session.status !== 'running';
+        const canResume =
+          ['stopped', 'failed', 'completed'].includes(session.status) &&
+          (session.cli_tool ?? 'claude') === 'claude' &&
+          !!session.worktree_path;
+        const canCleanup = session.status !== 'running' && (!!session.worktree_path || !!session.branch_name);
+        const winState = windowStates[session.id] ?? 'closed';
+        const isPopped = winState === 'popped';
+        const openLabel = isPopped
+          ? t('session.recallToMain')
+          : winState === 'minimized'
+            ? t('session.restoreWindow')
+            : winState === 'floating'
+              ? t('session.focusWindow')
+              : t('session.openWindow');
+        return (
+          <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={close}>
+            <button
+              type="button"
+              onClick={() => isPopped ? recallPopout(session.id) : openOrFocus(session.id, 'open')}
+              className={ctxMenuItemClass}
+            >
+              {isPopped ? <Maximize2 size={14} /> : <TerminalSquare size={14} />}
+              {openLabel}
+            </button>
+            {canStart && (
+              <button
+                type="button"
+                onClick={() => openOrFocus(session.id, 'start')}
+                className={ctxMenuItemClass}
+              >
+                <Play size={14} />
+                {t('session.start')}
+              </button>
+            )}
+            {canResume && (
+              <button
+                type="button"
+                onClick={() => openOrFocus(session.id, 'resume')}
+                className={ctxMenuItemClass}
+                title={t('session.resumeHint') || t('session.resume')}
+              >
+                <RotateCcw size={14} />
+                {t('session.resume')}
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => startEdit(session.id)}
+                className={ctxMenuItemClass}
+              >
+                <Edit2 size={14} />
+                {t('session.edit')}
+              </button>
+            )}
+            {canStop && (
+              <button
+                type="button"
+                onClick={() => onStopSession(session.id)}
+                className={ctxMenuItemClass}
+              >
+                <Square size={14} />
+                {t('session.stop')}
+              </button>
+            )}
+            {canCleanup && (
+              <button
+                type="button"
+                onClick={() => {
+                  const deleteBranch = session.branch_name
+                    ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
+                    : false;
+                  onCleanupSession(session.id, deleteBranch);
+                }}
+                className={ctxMenuItemClass}
+              >
+                <Archive size={14} />
+                {t('session.cleanup')}
+              </button>
+            )}
+            <CtxMenuSeparator />
+            <button
+              type="button"
+              onClick={() => onDeleteSession(session.id)}
+              className={ctxMenuDangerItemClass}
+            >
+              <Trash2 size={14} />
+              {t('session.delete')}
+            </button>
+          </CursorContextMenu>
+        );
+      })()}
     </div>
   );
 }

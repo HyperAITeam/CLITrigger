@@ -39,6 +39,7 @@ import {
   MAIN_WINDOW_ID,
   newPopoutId,
   heldPopoutIds,
+  registerPopoutWindow,
   screenToClient,
   isClientPointInWindow,
   startViewportTracking,
@@ -1108,7 +1109,11 @@ export default function SessionWindowsHost({
       alivePopoutsRef.current.delete(popoutId);
       setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: MAIN_WINDOW_ID } : g));
       window.alert(t('session.popout.blocked') || 'Popup blocked. Allow popups for this site to use Pop Out.');
+      return;
     }
+    // Keep the proxy so a later user click in main (dock chip) can raise the
+    // popout via proxy.focus() — the popout can't raise itself on the web.
+    registerPopoutWindow(popoutId, w);
   }, [projectId, t]);
   // Keep the forward ref pointed at the latest popOutGroup callback so
   // beginTabDrag (defined earlier) can invoke it for tear-out → OS window.

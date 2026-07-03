@@ -315,6 +315,18 @@ ipcMain.on('ime:set-debug', (_event, enabled) => {
   }
 });
 
+// Raise the sender's OS window to the front. Renderers can't do this
+// themselves: window.focus() without user activation is ignored by Chromium,
+// and popouts reacting to a BroadcastChannel message never have activation.
+ipcMain.on('window:focus-self', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  win.moveTop();
+});
+
 ipcMain.on('ime:reset', (event) => {
   // Route the focus call to the sender's webContents so popout child
   // windows reclaim their own keyboard focus, not the main window's.

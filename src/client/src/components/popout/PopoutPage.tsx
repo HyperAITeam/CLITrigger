@@ -180,7 +180,14 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         setTimeout(() => { try { window.close(); } catch { /* blocked */ } }, 50);
       } else if (msg.t === 'group-focus' && msg.popoutId === popoutId && msg.groupId === groupId) {
         // Main app asked to bring this popout window to the front (no recall).
-        try { window.focus(); } catch { /* focus blocked */ }
+        // Electron: a renderer's window.focus() can't raise/unminimize the OS
+        // window — route through the main process (BrowserWindow focus/moveTop).
+        // Plain web keeps window.focus(); it only takes effect when the
+        // opener's click already targeted us via its WindowProxy, harmless
+        // otherwise.
+        const eapi = (window as unknown as { electronAPI?: { windowFocus?: () => void } }).electronAPI;
+        if (eapi?.windowFocus) eapi.windowFocus();
+        else { try { window.focus(); } catch { /* focus blocked */ } }
       } else if (msg.t === 'group-reclaimed' && msg.popoutId === popoutId) {
         // Main reclaimed our ownership. Drop the group immediately so the
         // StackView → SessionPane → SessionTerminal tree unmounts and the

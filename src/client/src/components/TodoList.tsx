@@ -9,6 +9,7 @@ const TaskGraph = lazy(() => import('./TaskGraph'));
 import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp, Play, Square } from 'lucide-react';
+import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -96,6 +97,9 @@ export default function TodoList({
   showTokenUsage,
 }: TodoListProps) {
   const [showForm, setShowForm] = useState(false);
+  // Empty-area right-click menu ("new task"). TodoItem cards stopPropagation
+  // and show their own action menu instead.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
   const [dragOverGapIndex, setDragOverGapIndex] = useState<number | null>(null);
@@ -418,7 +422,18 @@ export default function TodoList({
   }
 
   return (
-    <div>
+    <div
+      // min-h so the blank space under a short list still belongs to this
+      // container — right-click there should offer "new task" too.
+      className="min-h-[50vh]"
+      // Empty-area right-click → "new task" menu. TodoItem cards
+      // stopPropagation; text fields keep the native menu.
+      onContextMenu={(e) => {
+        if (isNativeContextMenuTarget(e)) return;
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-sm font-semibold text-warm-600 uppercase tracking-wider">
           {t('todos.title')}
@@ -675,6 +690,16 @@ export default function TodoList({
           <Unlink size={20} className="mx-auto mb-1" />
           {t('dnd.dropToRemoveDep')}
         </div>
+      )}
+
+      {/* Empty-area right-click menu */}
+      {ctxMenu && (
+        <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => setCtxMenu(null)}>
+          <button onClick={() => setShowForm(true)} className={ctxMenuItemClass}>
+            <Plus size={14} />
+            {t('todos.add')}
+          </button>
+        </CursorContextMenu>
       )}
     </div>
   );

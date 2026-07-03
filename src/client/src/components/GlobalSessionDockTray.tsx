@@ -17,6 +17,10 @@
 //   - cross-project chip: stash `pendingSessionRestore` in sessionStorage then
 //     navigate. The destination host (remounted via key={projectId}) picks the
 //     intent up on mount and un-minimizes the group.
+//   - popped chip: raise the external OS window (proxy.focus() from this
+//     click's user gesture + `group-focus` over the bus for Electron
+//     self-raise). A dedicated button on the chip recalls the group back into
+//     the main window via `session-windows:recall` / `pendingSessionRecall`.
 //
 // Close (X) semantics:
 //   - same-project chip: dispatch `session-windows:close` so the host's
@@ -29,10 +33,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GripVertical, X, ExternalLink } from 'lucide-react';
+import { GripVertical, X, ExternalLink, Maximize2 } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
-import { MAIN_WINDOW_ID, openBus, type PopoutBus } from './popout/popoutBus';
+import { MAIN_WINDOW_ID, openBus, focusPopoutWindow, type PopoutBus } from './popout/popoutBus';
 import { useI18n } from '../i18n';
 import * as projectsApi from '../api/projects';
 import type { Project } from '../types';
@@ -52,6 +56,7 @@ interface MinimizedChip {
 
 const STORAGE_PREFIX = 'sessionGroups:';
 const RESTORE_KEY = 'pendingSessionRestore';
+const RECALL_KEY = 'pendingSessionRecall';
 // User-defined chip order (array of "projectId:groupId") and the tray's
 // horizontal offset, both persisted locally. The tray stays bottom-anchored;
 // only `left` is draggable.
@@ -262,11 +267,19 @@ export default function GlobalSessionDockTray() {
   if (chips.length === 0) return null;
 
   const handleRestore = (chip: MinimizedChip) => {
-    // Popped chips just bring the existing external OS window to the front over
-    // the bus — no recall into the main app. The bus is global, so this works
-    // regardless of which project is currently open (no navigate needed).
+    // Popped chips bring the existing external OS window to the front — no
+    // recall into the main app. Two channels, both needed:
+    //   1. proxy.focus() on the opener-held WindowProxy. Runs inside this
+    //      click's user gesture, which is what lets the browser actually
+    //      raise the popup (the popout raising itself is denied without
+    //      activation). Unavailable after a main-window reload.
+    //   2. `group-focus` over the bus: Electron popouts self-raise through
+    //      the main-process IPC bridge, which needs no user activation and
+    //      survives main reloads. The bus is global, so this works regardless
+    //      of which project is currently open (no navigate needed).
     if (chip.kind === 'popped') {
       if (chip.ownerWindowId) {
+        focusPopoutWindow(chip.ownerWindowId);
         busRef.current?.post({ t: 'group-focus', popoutId: chip.ownerWindowId, groupId: chip.groupId });
       }
       return;
@@ -285,6 +298,25 @@ export default function GlobalSessionDockTray() {
         projectId: chip.projectId, groupId: chip.groupId,
       }));
     } catch { /* private mode; navigation will still happen, just no restore */ }
+    navigate(`/projects/${chip.projectId}`);
+  };
+
+  // Bring a popped-out group back into the main window ("중앙으로 불러오기").
+  // Same-project goes through the host's `session-windows:recall` listener
+  // (group-recall handshake + dead-popout fallback live there); cross-project
+  // stashes an intent and navigates so the destination host recalls on mount.
+  const handleRecall = (chip: MinimizedChip) => {
+    if (chip.projectId === currentProjectId) {
+      window.dispatchEvent(new CustomEvent('session-windows:recall', {
+        detail: { projectId: chip.projectId, groupId: chip.groupId },
+      }));
+      return;
+    }
+    try {
+      sessionStorage.setItem(RECALL_KEY, JSON.stringify({
+        projectId: chip.projectId, groupId: chip.groupId,
+      }));
+    } catch { /* private mode; navigation will still happen, just no recall */ }
     navigate(`/projects/${chip.projectId}`);
   };
 
@@ -394,6 +426,20 @@ export default function GlobalSessionDockTray() {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
             </span>
+            {isPopped && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRecall(chip); }}
+                aria-label="recall"
+                title={t('session.recallToMain')}
+                style={{
+                  background: 'transparent', border: 'none', color: 'rgb(167,139,250)',
+                  cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', borderRadius: 3,
+                }}
+              >
+                <Maximize2 size={11} />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); handleClose(chip); }}
               aria-label="close"

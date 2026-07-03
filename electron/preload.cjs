@@ -16,4 +16,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Toggle IME file logging at runtime (Settings ▸ Terminal). Persisted in
   // session settings; the renderer re-sends the saved value on startup.
   imeSetDebug: (enabled) => ipcRenderer.send('ime:set-debug', enabled),
+  // Raise this window's BrowserWindow to the front (restore if minimized).
+  // A renderer's own window.focus() can't do this — Chromium requires user
+  // activation the caller doesn't have when reacting to a bus message. Used
+  // by popout windows when the main window's dock chip asks them to front.
+  windowFocus: () => ipcRenderer.send('window:focus-self'),
 });
