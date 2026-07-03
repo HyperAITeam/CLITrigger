@@ -63,21 +63,21 @@ app.set('trust proxy', 1);
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (same-origin, curl, etc.)
-    if (!origin) {
-      callback(null, true);
-    } else if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    // Allow Cloudflare Tunnel origins (*.trycloudflare.com)
-    } else if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+app.use(cors((req, callback) => {
+  const origin = req.headers.origin;
+  // Same-origin requests can still carry an Origin header (Vite's
+  // `crossorigin` asset tags, POST fetches) — match against the request's
+  // own Host so the desktop app's dynamic port (3737+) and LAN access work.
+  const sameOrigin = !!origin &&
+    (origin === `http://${req.headers.host}` || origin === `https://${req.headers.host}`);
+  const allowed = !origin // no Origin header (curl, top-level navigation)
+    || sameOrigin
+    || allowedOrigins.includes(origin)
+    // Cloudflare Tunnel origins (*.trycloudflare.com)
+    || /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin);
+  // origin:false just omits CORS headers (browser blocks cross-origin reads)
+  // instead of throwing — a 500 here broke same-origin asset loads entirely.
+  callback(null, { origin: allowed, credentials: true });
 }));
 app.use(helmet({
   contentSecurityPolicy: {
@@ -88,9 +88,9 @@ app.use(helmet({
       // bootstrap + inline style attrs). Tighten to nonces later. The real
       // wins here are object/base/frame-ancestors/form-action + connect scope.
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      fontSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       connectSrc: ["'self'", 'ws:', 'wss:'],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"],
