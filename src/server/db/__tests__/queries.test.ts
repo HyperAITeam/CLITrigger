@@ -251,4 +251,32 @@ describe('Database Queries', () => {
       expect(remaining[0].message).toBe('Recent log');
     });
   });
+
+  // ── Session Raw Chunks ──
+
+  describe('trimSessionRawChunks', () => {
+    let sessionId: string;
+
+    beforeEach(() => {
+      const project = queries.createProject('Chunks', '/tmp/chunks');
+      sessionId = queries.createSession(project.id, 'chunk session').id;
+    });
+
+    it('keeps everything when under the cap', () => {
+      queries.appendSessionRawChunk(sessionId, Buffer.alloc(100));
+      queries.appendSessionRawChunk(sessionId, Buffer.alloc(100));
+      expect(queries.trimSessionRawChunks(sessionId, 300)).toBe(0);
+      expect(queries.getSessionRawChunks(sessionId)).toHaveLength(2);
+    });
+
+    it('drops oldest chunks until the newest suffix fits the cap', () => {
+      for (let i = 0; i < 5; i++) {
+        queries.appendSessionRawChunk(sessionId, Buffer.alloc(100, i));
+      }
+      // Cap of 250 keeps the newest two (200 bytes); the third would overflow.
+      expect(queries.trimSessionRawChunks(sessionId, 250)).toBe(3);
+      const rows = queries.getSessionRawChunks(sessionId);
+      expect(rows.map(r => r.seq)).toEqual([3, 4]);
+    });
+  });
 });

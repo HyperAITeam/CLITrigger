@@ -10,6 +10,10 @@ import * as queries from '../db/queries.js';
 const RAW_FLUSH_BYTES = 4 * 1024;
 const RAW_FLUSH_MS = 100;
 const RAW_DB_CAP_BYTES = 2 * 1024 * 1024;
+// Enforce the DB cap only after this many bytes have been appended since the
+// last trim — trimming on every flush scanned the whole per-session chunk
+// table every ≤100ms and blocked the event loop under heavy TUI output.
+const RAW_TRIM_EVERY_BYTES = 256 * 1024;
 
 export class SessionManager {
   // Per-session pending-flush callback so we can drain the byte buffer when
@@ -33,6 +37,13 @@ export class SessionManager {
   // without any reordering window.
   private startupInputBuffer: Map<string, string[]> = new Map();
 
+  // sessionId → live PTY pid. Keystroke routing hot path: writeTerminalInput
+  // fires on every WS terminal-input message, and looking the pid up in the
+  // DB per keystroke stalls input echo whenever SQLite is busy with raw-chunk
+  // flushes. Populated by the drain block in startSession, cleared on
+  // stop/exit; the DB lookup remains as the fallback for cache misses.
+  private livePids: Map<string, number> = new Map();
+
   /**
    * Hook the raw PTY byte stream of `pid` into:
    *   1. live binary WS frames to currently subscribed clients
@@ -44,6 +55,7 @@ export class SessionManager {
   private subscribeRawForSession(sessionId: string, pid: number): void {
     let pending: Buffer[] = [];
     let pendingBytes = 0;
+    let bytesSinceTrim = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const flush = (): void => {
@@ -54,7 +66,11 @@ export class SessionManager {
       pendingBytes = 0;
       try {
         queries.appendSessionRawChunk(sessionId, buf);
-        queries.trimSessionRawChunks(sessionId, RAW_DB_CAP_BYTES);
+        bytesSinceTrim += buf.length;
+        if (bytesSinceTrim >= RAW_TRIM_EVERY_BYTES) {
+          bytesSinceTrim = 0;
+          queries.trimSessionRawChunks(sessionId, RAW_DB_CAP_BYTES);
+        }
       } catch { /* DB may be locked or session deleted; drop chunk */ }
     };
 
@@ -268,6 +284,7 @@ export class SessionManager {
     // see process_pid set and no buffer, and write straight to the PTY in
     // correct order after the replayed bytes.
     queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath });
+    this.livePids.set(sessionId, pid);
     const queued = this.startupInputBuffer.get(sessionId);
     this.startupInputBuffer.delete(sessionId);
     if (queued && queued.length > 0) {
@@ -294,6 +311,8 @@ export class SessionManager {
       // Flush any pending raw bytes before status update so re-opening the
       // session immediately shows the final output.
       this.flushAndForgetRaw(sessionId);
+      // Guard: a stop-then-restart may have already mapped a NEW pid.
+      if (this.livePids.get(sessionId) === pid) this.livePids.delete(sessionId);
       this.pendingInitialPrompts.delete(sessionId);
       this.startupInputBuffer.delete(sessionId);
       const current = queries.getSessionById(sessionId);
@@ -317,6 +336,7 @@ export class SessionManager {
       }
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);
+      if (this.livePids.get(sessionId) === pid) this.livePids.delete(sessionId);
       this.pendingInitialPrompts.delete(sessionId);
       this.startupInputBuffer.delete(sessionId);
       try {
@@ -338,6 +358,7 @@ export class SessionManager {
 
     // Mark stopped + broadcast BEFORE the (up to 7s) graceful kill so the UI
     // updates immediately; the exit handler's guards then skip this session.
+    this.livePids.delete(sessionId);
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
@@ -368,6 +389,12 @@ export class SessionManager {
     const buf = this.startupInputBuffer.get(sessionId);
     if (buf) {
       buf.push(input);
+      return;
+    }
+    // Hot path: avoid a synchronous DB read per keystroke.
+    const pid = this.livePids.get(sessionId);
+    if (pid) {
+      try { claudeManager.writeStdinRaw(pid, input); } catch { /* ignore */ }
       return;
     }
     const session = queries.getSessionById(sessionId);

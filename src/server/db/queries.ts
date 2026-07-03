@@ -1250,18 +1250,23 @@ export function deleteSessionRawChunks(sessionId: string): number {
  */
 export function trimSessionRawChunks(sessionId: string, maxBytes: number): number {
   const db = getDatabase();
+  // Newest-first: keep the maximal suffix that fits in maxBytes, drop the
+  // rest with one ranged DELETE (the per-row DELETE loop this replaces sat
+  // on the PTY flush hot path).
   const rows = db.prepare(
-    'SELECT seq, length(bytes) AS len FROM session_raw_chunks WHERE session_id = ? ORDER BY seq ASC'
+    'SELECT seq, length(bytes) AS len FROM session_raw_chunks WHERE session_id = ? ORDER BY seq DESC'
   ).all(sessionId) as { seq: number; len: number }[];
-  let total = rows.reduce((s, r) => s + r.len, 0);
-  let deleted = 0;
+  let kept = 0;
+  let cutoff: number | null = null;
   for (const r of rows) {
-    if (total <= maxBytes) break;
-    db.prepare('DELETE FROM session_raw_chunks WHERE session_id = ? AND seq = ?').run(sessionId, r.seq);
-    total -= r.len;
-    deleted += 1;
+    if (kept + r.len > maxBytes) { cutoff = r.seq; break; }
+    kept += r.len;
   }
-  return deleted;
+  if (cutoff === null) return 0;
+  const result = db.prepare(
+    'DELETE FROM session_raw_chunks WHERE session_id = ? AND seq <= ?'
+  ).run(sessionId, cutoff);
+  return result.changes;
 }
 
 // ── Planner Items ──
