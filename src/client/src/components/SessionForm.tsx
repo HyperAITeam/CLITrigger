@@ -177,7 +177,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t('session.description')}
-          className="input w-full text-sm min-h-[60px] resize-y"
+          className="input w-full text-sm min-h-[60px] max-h-[280px] resize-y [field-sizing:content]"
           rows={2}
         />
       )}
