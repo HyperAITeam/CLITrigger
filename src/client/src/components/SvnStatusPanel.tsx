@@ -349,6 +349,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               activeFile={activeFile}
               onActivate={setActiveFile}
               onContextMenu={openCtxMenu}
+              onChangelist={doChangelist}
               workingDiff={workingDiff}
               workingDiffLoading={workingDiffLoading}
               commitMessage={commitMessage}
@@ -587,6 +588,7 @@ interface FileRowShared {
   onActivate: (path: string) => void;
   onToggle: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
+  onDragStart: (e: React.DragEvent, file: GitStatusFile) => void;
 }
 
 function FileRow({ file, indent, showDir, shared }: {
@@ -600,6 +602,8 @@ function FileRow({ file, indent, showDir, shared }: {
   const isActive = shared.activeFile === file.path;
   return (
     <div
+      draggable
+      onDragStart={(e) => shared.onDragStart(e, file)}
       onClick={() => shared.onActivate(file.path)}
       onContextMenu={(e) => shared.onContextMenu(e, file)}
       style={{ paddingLeft: 12 + indent * 14 }}
@@ -719,6 +723,7 @@ function ModificationsView(props: {
   activeFile: string | null;
   onActivate: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
+  onChangelist: (name: string | null, files: string[]) => void;
   workingDiff: string;
   workingDiffLoading: boolean;
   commitMessage: string;
@@ -734,6 +739,7 @@ function ModificationsView(props: {
     try { return localStorage.getItem('svn.groupByDir') !== 'false'; } catch { return true; }
   });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const sections = useMemo(() => partitionSections(props.statusFiles, t), [props.statusFiles, t]);
   const toggleGroup = () => setGroupByDir((v) => {
     const next = !v;
@@ -751,6 +757,29 @@ function ModificationsView(props: {
     onActivate: props.onActivate,
     onToggle: props.onToggle,
     onContextMenu: props.onContextMenu,
+    onDragStart: (e, file) => {
+      const paths = props.selectedFiles.size > 0 && props.selectedFiles.has(file.path)
+        ? props.statusFiles.filter((f) => props.selectedFiles.has(f.path)).map((f) => f.path)
+        : [file.path];
+      e.dataTransfer.setData('text/plain', JSON.stringify(paths));
+      e.dataTransfer.effectAllowed = 'move';
+    },
+  };
+
+  // Drop a dragged file set onto a changelist section header. Native `svn
+  // changelist` only accepts versioned paths, so unversioned '?' rows are
+  // filtered out; the default bucket (name=null) removes membership.
+  const dropOnSection = (e: React.DragEvent, sec: ClSection) => {
+    e.preventDefault();
+    setDragOverKey(null);
+    if (sec.key === 'unversioned' || sec.key === 'missing') return;
+    let paths: string[];
+    try { paths = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+    const files = paths.filter((p) => {
+      const f = props.statusFiles.find((x) => x.path === p);
+      return f && charOf(f) !== '?';
+    });
+    if (files.length) props.onChangelist(sec.key.startsWith('cl:') ? sec.label : null, files);
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -806,11 +835,18 @@ function ModificationsView(props: {
                 const selCount = sec.files.reduce((n, f) => n + (props.selectedFiles.has(f.path) ? 1 : 0), 0);
                 const allSelected = selCount === sec.files.length;
                 const tree = groupByDir ? buildDirTree(sec.files) : null;
+                const droppable = sec.key !== 'unversioned' && sec.key !== 'missing';
+                const isDropTarget = dragOverKey === sec.key;
                 return (
                   <div key={sec.key}>
                     <div
                       onClick={() => toggleCollapse(secKey)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs bg-warm-50/70 hover:bg-warm-50 select-none border-b border-warm-100/60"
+                      onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
+                      onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
+                      onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-b border-warm-100/60 ${
+                        isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-50/70 hover:bg-warm-50'
+                      }`}
                     >
                       {isCollapsed
                         ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
