@@ -35,6 +35,25 @@ function App() {
       .catch(() => { /* fall back to built-in default */ });
   }, [authenticated]);
 
+  // After interacting with an xterm terminal, the native Windows IME (TSF)
+  // context can stay bound to the terminal's helper textarea, leaving plain
+  // React inputs (Planner, forms) unable to compose Korean until an alt-tab.
+  // Re-focus webContents whenever focus lands on an editable element so the
+  // IME context re-binds. Skip the terminal's own helper textarea — it must
+  // not be reset mid-use. No-op outside Electron.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.classList?.contains('xterm-helper-textarea')) return;
+      const editable = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
+      if (!editable) return;
+      (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI?.imeReset?.();
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+    return () => document.removeEventListener('focusin', onFocusIn, true);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
