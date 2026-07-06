@@ -325,7 +325,7 @@ class SvnManager {
  *
  * - normal/none/external/incomplete → space (filtered out by caller)
  * - added → 'A', deleted → 'D', modified → 'M', replaced → 'R'
- * - conflicted → 'U' (git's "unmerged")
+ * - conflicted → 'C' (SVN's conflict marker)
  * - unversioned → '?', missing → '!', ignored → '!'
  * - obstructed → '!' (filesystem state mismatch)
  */
@@ -335,7 +335,7 @@ function mapSvnStatusToChar(item: string): string {
     case 'deleted': return 'D';
     case 'modified': return 'M';
     case 'replaced': return 'R';
-    case 'conflicted': return 'U';
+    case 'conflicted': return 'C';
     case 'unversioned': return '?';
     case 'missing': return '!';
     case 'ignored': return '!';

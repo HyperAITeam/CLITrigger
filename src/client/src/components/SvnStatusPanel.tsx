@@ -29,7 +29,7 @@ const charColor = (ch: string) =>
   ch === 'A' ? 'text-status-success'
     : ch === 'D' ? 'text-status-error'
     : ch === 'M' ? 'text-accent'
-    : ch === 'U' ? 'text-purple-500'
+    : ch === 'C' ? 'text-status-error'
     : ch === '?' ? 'text-warm-400'
     : 'text-amber-500';
 
@@ -350,6 +350,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onActivate={setActiveFile}
               onContextMenu={openCtxMenu}
               onChangelist={doChangelist}
+              onResolve={(p, accept) => doResolve([p], accept)}
               workingDiff={workingDiff}
               workingDiffLoading={workingDiffLoading}
               commitMessage={commitMessage}
@@ -589,6 +590,77 @@ interface FileRowShared {
   onToggle: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
   onDragStart: (e: React.DragEvent, file: GitStatusFile) => void;
+  onResolve: (path: string, accept: 'working' | 'mine-full' | 'theirs-full') => void;
+}
+
+// Inline conflict resolver shown on conflicted ('C') rows — the common accept
+// modes without opening the full context menu. Base/other modes stay there.
+function ConflictResolveButton({ onResolve }: {
+  onResolve: (accept: 'working' | 'mine-full' | 'theirs-full') => void;
+}) {
+  const { t } = useI18n();
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [pos]);
+
+  const open = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // Clamp to viewport (menu ≈ 180×110).
+    const x = Math.min(r.left, window.innerWidth - 188);
+    const y = Math.min(r.bottom + 2, window.innerHeight - 118);
+    setPos({ x: Math.max(8, x), y: Math.max(8, y) });
+  };
+
+  const pick = (accept: 'working' | 'mine-full' | 'theirs-full') => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPos(null);
+    onResolve(accept);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        draggable={false}
+        onClick={open}
+        className="shrink-0 text-2xs px-1.5 py-0.5 rounded bg-status-error/15 text-status-error hover:bg-status-error/25 font-medium"
+      >
+        {t('svn.resolve')} ▾
+      </button>
+      {pos && createPortal(
+        <div
+          className="fixed z-tooltip bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-elevated py-1 min-w-[180px]"
+          style={{ left: pos.x, top: pos.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button className="w-full text-left px-3 py-1.5 text-xs text-theme-text hover:bg-theme-hover transition-colors" onClick={pick('working')}>
+            {t('svn.resolveWorking')}
+          </button>
+          <button className="w-full text-left px-3 py-1.5 text-xs text-theme-text hover:bg-theme-hover transition-colors" onClick={pick('theirs-full')}>
+            {t('svn.resolveTheirs')}
+          </button>
+          <button className="w-full text-left px-3 py-1.5 text-xs text-theme-text hover:bg-theme-hover transition-colors" onClick={pick('mine-full')}>
+            {t('svn.resolveMine')}
+          </button>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 function FileRow({ file, indent, showDir, shared }: {
@@ -619,12 +691,15 @@ function FileRow({ file, indent, showDir, shared }: {
         className="shrink-0"
       />
       <span className={`font-mono font-bold text-2xs w-3 shrink-0 ${charColor(ch)}`}>{ch}</span>
-      <span className="truncate flex-1 text-warm-600" title={file.path}>
+      <span className={`truncate flex-1 ${ch === 'C' ? 'text-status-error font-medium' : 'text-warm-600'}`} title={file.path}>
         {file.path.split('/').pop()}
         {showDir && file.path.includes('/') && (
           <span className="text-warm-400 ml-1 text-2xs">{file.path.substring(0, file.path.lastIndexOf('/'))}</span>
         )}
       </span>
+      {ch === 'C' && (
+        <ConflictResolveButton onResolve={(accept) => shared.onResolve(file.path, accept)} />
+      )}
       <button
         onClick={(e) => shared.onContextMenu(e, file)}
         className="shrink-0 opacity-0 group-hover:opacity-100 text-warm-400 hover:text-warm-700 px-1 transition-opacity"
@@ -724,6 +799,7 @@ function ModificationsView(props: {
   onActivate: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
   onChangelist: (name: string | null, files: string[]) => void;
+  onResolve: (path: string, accept: 'working' | 'mine-full' | 'theirs-full') => void;
   workingDiff: string;
   workingDiffLoading: boolean;
   commitMessage: string;
@@ -764,6 +840,7 @@ function ModificationsView(props: {
       e.dataTransfer.setData('text/plain', JSON.stringify(paths));
       e.dataTransfer.effectAllowed = 'move';
     },
+    onResolve: props.onResolve,
   };
 
   // Drop a dragged file set onto a changelist section header. Native `svn
@@ -1042,7 +1119,7 @@ function FileContextMenu(props: {
   const addable = targets.filter((f) => charOf(f) === '?').map((f) => f.path);
   const revertable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
   const deletable = targets.filter((f) => !['?', 'D'].includes(charOf(f))).map((f) => f.path);
-  const resolvable = targets.filter((f) => charOf(f) === 'U').map((f) => f.path);
+  const resolvable = targets.filter((f) => charOf(f) === 'C').map((f) => f.path);
   // Native changelists only take versioned paths — unversioned '?' is excluded.
   const clable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
   const inChangelist = targets.filter((f) => f.changelist).map((f) => f.path);
