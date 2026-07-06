@@ -844,8 +844,8 @@ function ModificationsView(props: {
                       onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
                       onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
                       onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-b border-warm-100/60 ${
-                        isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-50/70 hover:bg-warm-50'
+                      className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-y border-warm-200/70 ${
+                        isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-100 hover:bg-warm-200/60'
                       }`}
                     >
                       {isCollapsed
@@ -859,7 +859,7 @@ function ModificationsView(props: {
                         onClick={(e) => e.stopPropagation()}
                         className="shrink-0"
                       />
-                      <span className="truncate text-warm-700 font-semibold">{sec.label}</span>
+                      <span className="truncate text-warm-800 font-bold">{sec.label}</span>
                       <span className="text-warm-400 text-2xs ml-1 shrink-0">{sec.files.length}</span>
                     </div>
                     {!isCollapsed && (tree ? (
