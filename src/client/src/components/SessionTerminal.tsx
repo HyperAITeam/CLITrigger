@@ -438,6 +438,19 @@ export default function SessionTerminal({
     };
     container.addEventListener('wheel', onContainerWheel, { passive: false });
 
+    // In the Electron exe, Chromium eats Ctrl+wheel as a page-zoom gesture and
+    // never dispatches the DOM `wheel` event above, so main forwards the
+    // gesture over IPC instead. Only the focused terminal (its helper textarea
+    // holds focus) reacts, so multiple panes don't all zoom at once.
+    const zoomApi = (window as unknown as {
+      electronAPI?: { onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void };
+    }).electronAPI;
+    const offZoom = zoomApi?.onTerminalZoom?.((dir) => {
+      if (term.textarea && document.activeElement === term.textarea) {
+        bumpSessionFontSize(sessionId, dir === 'in' ? +1 : -1);
+      }
+    });
+
     // Right-click → our own context menu (Copy/Paste/Select All). Suppress the
     // browser's native menu. Paste reuses the exact image+text+ESC+v flow.
     pasteFnRef.current = () => { void pasteFromClipboard(); };
@@ -564,6 +577,7 @@ export default function SessionTerminal({
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
       container.removeEventListener('wheel', onContainerWheel);
+      offZoom?.();
       container.removeEventListener('contextmenu', onContextMenu);
       setCtxMenu(null);
       inputCleanup();
