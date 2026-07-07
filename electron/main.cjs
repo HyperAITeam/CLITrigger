@@ -258,12 +258,26 @@ function createWindow(port) {
   };
   blockOffOriginNav(mainWindow.webContents);
 
+  // Chromium handles Ctrl+wheel / pinch as a page-zoom gesture in the browser
+  // process and never dispatches a DOM `wheel` event to the renderer, so the
+  // terminal's own Ctrl+wheel font-zoom can't see it. Cancel the page zoom
+  // (pin the level to 0) and forward the direction so the focused terminal can
+  // bump its font size instead.
+  const wireTerminalZoom = (contents) => {
+    contents.on('zoom-changed', (_e, zoomDirection) => {
+      contents.setZoomLevel(0);
+      contents.send('terminal:zoom', zoomDirection);
+    });
+  };
+  wireTerminalZoom(mainWindow.webContents);
+
   // Newly-created child windows (popouts) inherit the main window's
   // setWindowOpenHandler but not the lock-screen focus-recovery handler.
   // Attach the same focus → webContents.focus() bridge so xterm typing
   // doesn't go dead after resume.
   mainWindow.webContents.on('did-create-window', (childWin) => {
     blockOffOriginNav(childWin.webContents);
+    wireTerminalZoom(childWin.webContents);
     childWin.on('focus', () => {
       // Skip when webContents already holds focus — a redundant programmatic
       // focus() resets the Windows IME (TSF) caret context, which is the

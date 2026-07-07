@@ -21,4 +21,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // activation the caller doesn't have when reacting to a bus message. Used
   // by popout windows when the main window's dock chip asks them to front.
   windowFocus: () => ipcRenderer.send('window:focus-self'),
+  // Ctrl+wheel / pinch is consumed by Chromium's browser process as a page-zoom
+  // gesture and never reaches the renderer as a DOM `wheel` event, so the
+  // terminal's own Ctrl+wheel font-zoom silently never fires in the exe. Main
+  // forwards the gesture ('in'/'out') here instead; the focused SessionTerminal
+  // subscribes and bumps its font size. Returns an unsubscribe fn.
+  onTerminalZoom: (cb) => {
+    const listener = (_e, dir) => cb(dir);
+    ipcRenderer.on('terminal:zoom', listener);
+    return () => ipcRenderer.removeListener('terminal:zoom', listener);
+  },
 });
