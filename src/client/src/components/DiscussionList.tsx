@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Pause, Trash2, MessageSquare } from 'lucide-react';
+import { Play, Pause, Trash2, MessageSquare, Plus } from 'lucide-react';
 import type { Discussion, DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import * as discussionsApi from '../api/discussions';
 import AgentManager from './AgentManager';
 import DiscussionForm from './DiscussionForm';
 import EmptyState from './EmptyState';
+import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 
 interface DiscussionListProps {
   projectId: string;
@@ -44,6 +45,7 @@ export default function DiscussionList({
   const [showForm, setShowForm] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     discussionsApi.getAgents(projectId).then(setAgents).catch(() => {});
@@ -70,7 +72,16 @@ export default function DiscussionList({
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div
+      // min-h so the blank space under a short list still catches the
+      // right-click → "new discussion" menu.
+      className="space-y-4 animate-fade-in min-h-[50vh]"
+      onContextMenu={(e) => {
+        if (isNativeContextMenuTarget(e)) return;
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-warm-700 tracking-wide uppercase">{t('discussions.title')}</h2>
         <div className="flex gap-2">
@@ -185,6 +196,15 @@ export default function DiscussionList({
             );
           })}
         </div>
+      )}
+
+      {ctxMenu && (
+        <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => setCtxMenu(null)}>
+          <button type="button" className={ctxMenuItemClass} onClick={() => { setShowForm(true); }}>
+            <Plus size={14} />
+            {t('discussions.add')}
+          </button>
+        </CursorContextMenu>
       )}
     </div>
   );
