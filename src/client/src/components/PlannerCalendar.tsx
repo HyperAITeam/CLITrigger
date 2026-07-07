@@ -5,6 +5,7 @@ import type { PlannerItem as PlannerItemType } from '../types';
 import { useI18n } from '../i18n';
 import { getTagStyle } from './plannerTagColors';
 import CalendarGrid from './calendar/CalendarGrid';
+import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
 import {
   ymd, useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
   type CalView, type CalChip,
@@ -42,6 +43,8 @@ export default function PlannerCalendar({
   const { t } = useI18n();
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
+  // Right-click on a day cell → "new item" pre-filled with that date.
+  const [cellMenu, setCellMenu] = useState<{ x: number; y: number; dateKey: string } | null>(null);
   const weekdayLabels = useWeekdayLabels();
   const { gridDays, cols, dimOutOfMonth } = useCalendarRange(view, cursor);
 
@@ -135,6 +138,7 @@ export default function PlannerCalendar({
             onSelectDate={setSelectedDate}
             onQuickAdd={onQuickAdd}
             onChipClick={(chip) => onEditItem(chip.payload as PlannerItemType)}
+            onCellContextMenu={(key, e) => { e.preventDefault(); setCellMenu({ x: e.clientX, y: e.clientY, dateKey: key }); }}
           />
         </div>
       </div>
@@ -181,6 +185,15 @@ export default function PlannerCalendar({
           </div>
         </div>
       </div>
+
+      {cellMenu && (
+        <CursorContextMenu x={cellMenu.x} y={cellMenu.y} onClose={() => setCellMenu(null)}>
+          <button type="button" className={ctxMenuItemClass} onClick={() => onQuickAdd(cellMenu.dateKey)}>
+            <Plus size={14} />
+            {t('planner.add')}
+          </button>
+        </CursorContextMenu>
+      )}
     </div>
   );
 }

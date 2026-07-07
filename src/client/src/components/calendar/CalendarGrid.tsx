@@ -18,6 +18,8 @@ interface CalendarGridProps {
   onSelectDate: (key: string) => void;
   onQuickAdd: (key: string) => void;
   onChipClick: (chip: CalChip) => void;
+  // Right-click on a day cell. Omitted by callers that don't offer it.
+  onCellContextMenu?: (key: string, e: React.MouseEvent) => void;
   // Multi-day spanning bars (month view only). Drawn as an overlay per week.
   bars?: CalBar[];
   onBarClick?: (bar: CalBar) => void;
@@ -74,7 +76,7 @@ function layoutWeekBars(weekDays: Date[], bars: CalBar[]): { placed: PlacedSeg[]
 export default function CalendarGrid({
   view, gridDays, cols, dimOutOfMonth, monthIdx, todayKey, selectedDate,
   chipsByDay, maxChips, weekdayLabels, addItemLabel, bars, onBarClick,
-  onSelectDate, onQuickAdd, onChipClick, monthCellHeight = 92,
+  onSelectDate, onQuickAdd, onChipClick, onCellContextMenu, monthCellHeight = 92,
 }: CalendarGridProps) {
   // Hover-to-expand: when a month cell hides entries behind "+N", dwelling on
   // it pops a portal card showing the whole day, with a small scale-in.
@@ -130,6 +132,7 @@ export default function CalendarGrid({
       <div
         key={key}
         onClick={() => onSelectDate(key)}
+        onContextMenu={onCellContextMenu ? (e) => onCellContextMenu(key, e) : undefined}
         onMouseEnter={hasOverflow ? (e) => scheduleOpen(key, e.currentTarget) : undefined}
         onMouseLeave={hasOverflow ? scheduleClose : undefined}
         className={`group relative ${cellMin} text-left p-1.5 flex flex-col gap-1 transition-colors cursor-pointer`}
