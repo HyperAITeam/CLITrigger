@@ -9,6 +9,7 @@ import ImageLightbox from './ImageLightbox';
 import MoveToPlannerButton from './MoveToPlannerButton';
 import { useI18n } from '../i18n';
 import CalendarGrid from './calendar/CalendarGrid';
+import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import {
   ymd, dayKeyLocalIso,
   useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
@@ -90,6 +91,8 @@ export default function PersonalAgenda() {
   const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
+  // Right-click → "new memo". dateKey '' means an undated (backlog) memo.
+  const [cellMenu, setCellMenu] = useState<{ x: number; y: number; dateKey: string } | null>(null);
 
   // form state (add / edit personal item)
   const [showForm, setShowForm] = useState(false);
@@ -673,6 +676,7 @@ export default function PersonalAgenda() {
               onSelectDate={setSelectedDate}
               onQuickAdd={openAdd}
               onChipClick={(chip) => openEntry(chip.payload as DayEntry)}
+              onCellContextMenu={(key, e) => { e.preventDefault(); setCellMenu({ x: e.clientX, y: e.clientY, dateKey: key }); }}
               bars={monthBars}
               onBarClick={(bar) => openEdit(bar.payload as PersonalItem)}
               monthCellHeight={monthCellH}
@@ -694,7 +698,15 @@ export default function PersonalAgenda() {
 
           {/* Table view */}
           {view === 'table' && (
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: '1px solid var(--color-border)' }}
+              onContextMenu={(e) => {
+                if (isNativeContextMenuTarget(e)) return;
+                e.preventDefault();
+                setCellMenu({ x: e.clientX, y: e.clientY, dateKey: '' });
+              }}
+            >
               <div
                 className="grid items-center px-3 py-2 text-2xs uppercase tracking-wider"
                 style={{ gridTemplateColumns: '1fr 150px 96px 72px', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
@@ -973,6 +985,15 @@ export default function PersonalAgenda() {
           )}
         </div>
       </div>
+
+      {cellMenu && (
+        <CursorContextMenu x={cellMenu.x} y={cellMenu.y} onClose={() => setCellMenu(null)}>
+          <button type="button" className={ctxMenuItemClass} onClick={() => openAdd(cellMenu.dateKey)}>
+            <Plus size={14} />
+            {t('agenda.memo')}
+          </button>
+        </CursorContextMenu>
+      )}
 
       {/* Add / edit form modal — expandable to a full-page view */}
       {showForm && (
