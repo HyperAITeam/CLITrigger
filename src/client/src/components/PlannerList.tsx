@@ -6,6 +6,7 @@ import PlannerForm from './PlannerForm';
 import PlannerConvertDialog from './PlannerConvertDialog';
 import PlannerCalendar from './PlannerCalendar';
 import EmptyState from './EmptyState';
+import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import { useI18n } from '../i18n';
 import type { CalView } from './calendar/calendarShared';
 
@@ -54,6 +55,8 @@ export default function PlannerList({
   const [convertMode, setConvertMode] = useState<'todo' | 'schedule' | 'session'>('todo');
   const [ioBusy, setIoBusy] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  // Right-click on the list (empty area or a row) → "new item" menu.
+  const [listMenu, setListMenu] = useState<{ x: number; y: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounterRef = useRef(0);
 
@@ -303,6 +306,11 @@ export default function PlannerList({
         onDragOver={onImport ? handleDragOver : undefined}
         onDragLeave={onImport ? handleDragLeave : undefined}
         onDrop={onImport ? handleDrop : undefined}
+        onContextMenu={(e) => {
+          if (isNativeContextMenuTarget(e)) return;
+          e.preventDefault();
+          setListMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         {isDragOver && (
           <div
@@ -392,6 +400,19 @@ export default function PlannerList({
           }}
           onClose={() => setConvertItem(null)}
         />
+      )}
+
+      {listMenu && (
+        <CursorContextMenu x={listMenu.x} y={listMenu.y} onClose={() => setListMenu(null)}>
+          <button
+            type="button"
+            className={ctxMenuItemClass}
+            onClick={() => { setEditItem(null); setAddDueDate(undefined); setShowForm(true); }}
+          >
+            <Plus size={14} />
+            {t('planner.add')}
+          </button>
+        </CursorContextMenu>
       )}
     </div>
   );
