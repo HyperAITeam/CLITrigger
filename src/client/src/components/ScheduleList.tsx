@@ -4,6 +4,7 @@ import type { Schedule } from '../types';
 import ScheduleItem from './ScheduleItem';
 import ScheduleForm from './ScheduleForm';
 import EmptyState from './EmptyState';
+import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import { useI18n } from '../i18n';
 
 interface ScheduleListProps {
@@ -38,10 +39,20 @@ export default function ScheduleList({
   onCleanupRun,
 }: ScheduleListProps) {
   const [showForm, setShowForm] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const { t } = useI18n();
 
   return (
-    <div>
+    <div
+      // min-h so blank space below a short list still catches the
+      // right-click → "new routine" menu.
+      className="min-h-[50vh]"
+      onContextMenu={(e) => {
+        if (isNativeContextMenuTarget(e)) return;
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-sm font-semibold text-warm-600 uppercase tracking-wider">
           {t('schedules.title')}
@@ -91,6 +102,15 @@ export default function ScheduleList({
           ))
         )}
       </div>
+
+      {ctxMenu && (
+        <CursorContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => setCtxMenu(null)}>
+          <button type="button" className={ctxMenuItemClass} onClick={() => setShowForm(true)}>
+            <Plus size={14} />
+            {t('schedules.add')}
+          </button>
+        </CursorContextMenu>
+      )}
     </div>
   );
 }
