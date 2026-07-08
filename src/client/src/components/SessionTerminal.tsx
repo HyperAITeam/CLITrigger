@@ -421,16 +421,36 @@ export default function SessionTerminal({
     }
 
 
-    // Ctrl/Cmd + wheel → font zoom. React onWheel is passive by default so we
-    // attach natively with passive:false to be able to preventDefault and stop
-    // the browser from triggering page zoom. Non-zoom wheel events still get
-    // their bubble stopped (page scroll guard) and pass through to xterm's own
-    // scrollback handler.
+    // Ctrl/Cmd + wheel → font zoom.
+    //
+    // TUI apps (Claude CLI etc.) enable mouse-tracking / alt-screen modes
+    // where xterm reports wheel events to the PTY (or converts them to arrow
+    // keys) and cancels them with stopPropagation — so they never bubble to
+    // the container listener below and zoom went dead exactly in those modes.
+    // attachCustomWheelEventHandler is consulted FIRST by every xterm wheel
+    // path; handle zoom there and return false so the gesture is neither
+    // reported to the PTY nor scrolled. In normal-buffer mode the event still
+    // bubbles afterwards, so mark it to keep the container fallback from
+    // double-bumping.
+    type ZoomWheelEvent = WheelEvent & { __zoomHandled?: boolean };
+    term.attachCustomWheelEventHandler((e) => {
+      if (!e.ctrlKey && !e.metaKey) return true;
+      e.preventDefault();
+      (e as ZoomWheelEvent).__zoomHandled = true;
+      if (e.deltaY !== 0) bumpSessionFontSize(sessionId, e.deltaY < 0 ? +1 : -1);
+      return false;
+    });
+
+    // Container fallback: catches Ctrl+wheel outside xterm's screen element
+    // (scrollbar strip) and guards page zoom/scroll. React onWheel is passive
+    // by default so we attach natively with passive:false to be able to
+    // preventDefault. Non-zoom wheel events still get their bubble stopped
+    // (page scroll guard) and pass through to xterm's own scrollback handler.
     const onContainerWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        if (e.deltaY === 0) return;
+        if (e.deltaY === 0 || (e as ZoomWheelEvent).__zoomHandled) return;
         bumpSessionFontSize(sessionId, e.deltaY < 0 ? +1 : -1);
         return;
       }
