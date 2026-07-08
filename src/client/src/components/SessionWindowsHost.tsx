@@ -24,7 +24,6 @@ import {
   setSplitSizes as treeSetSplitSizes,
   pruneInvalid,
   allSessionIds,
-  activeSessionIds,
   simplify,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
@@ -130,11 +129,16 @@ export interface SessionWindowsAPI {
   // Spawn a fresh raw-shell session and either add it as a tab to the
   // specified group's stack (when `targetGroupId` resolves to a visible
   // main-owned group) or open it as a new floating window. Used by the "+"
-  // button next to tabs and by the Ctrl/Cmd+T global shortcut.
-  createRawShellTab: (targetGroupId: string | null, targetPath?: Path) => Promise<void>;
-  // Inject text into the active (topmost) visible session's terminal without
-  // stealing focus. Returns false when no session is open to receive it.
-  sendToActiveTerminal: (text: string) => boolean;
+  // button next to tabs and by the Ctrl/Cmd+T global shortcut. Returns the
+  // new session's id.
+  createRawShellTab: (targetGroupId: string | null, targetPath?: Path) => Promise<string>;
+  // Inject text into a specific session's terminal without stealing focus.
+  sendToSession: (sessionId: string, text: string) => void;
+  // Currently-open terminals (main-owned groups), topmost first, with a
+  // display label. Used to populate a "send to which terminal?" list.
+  listOpenTerminals: () => { sessionId: string; label: string }[];
+  // Open a new raw-shell terminal and inject text into it once it's running.
+  sendToNewTerminal: (text: string) => Promise<void>;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -1212,7 +1216,7 @@ export default function SessionWindowsHost({
       // No host group to attach to (or popout owns it) — spawn a new
       // floating window. Intent 'start' triggers auto-start in SessionPane.
       openOrFocus(session.id, 'start');
-      return;
+      return session.id;
     }
 
     // Insert into the target stack. Falls back to the first stack in DFS
@@ -1240,6 +1244,7 @@ export default function SessionWindowsHost({
         intents: { ...g.intents, [session.id]: { intent: 'start' as WindowIntent, nonce: 0 } },
       };
     }));
+    return session.id;
   }, [projectId, onAddSession, openOrFocus, firstStackPath]);
 
   // Bus subscription: handle messages from popout children. Lives in the
@@ -1473,9 +1478,33 @@ export default function SessionWindowsHost({
     return () => clearInterval(timer);
   }, []);
 
-  // Inject text into the topmost visible session's terminal without stealing
-  // focus. Same z-based "active window" pick as the Ctrl+T handler above.
-  const sendToActiveTerminal = useCallback((text: string): boolean => {
+  // Inject text into a specific session's terminal without stealing focus.
+  const sendToSession = useCallback((sessionId: string, text: string) => {
+    sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+  }, [sendMessage]);
+
+  // Currently-open terminals in main-owned groups, topmost (highest z) first.
+  const listOpenTerminals = useCallback((): { sessionId: string; label: string }[] => {
+    const ordered = groupsRef.current
+      .filter(g => (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID)
+      .slice()
+      .sort((a, b) => b.z - a.z);
+    const out: { sessionId: string; label: string }[] = [];
+    for (const g of ordered) {
+      for (const sid of allSessionIds(g.root)) {
+        const label = sessionsRef.current.find(s => s.id === sid)?.title
+          || foreignSessionsRef.current[sid]?.title || sid;
+        out.push({ sessionId: sid, label });
+      }
+    }
+    return out;
+  }, []);
+
+  // New raw-shell terminal + deferred path injection. The shell takes time to
+  // spawn and writeTerminalInput drops input for a not-yet-running session, so
+  // we stash the text and flush it from the effect below once status is running.
+  const pendingInjectRef = useRef<Map<string, string>>(new Map());
+  const sendToNewTerminal = useCallback(async (text: string) => {
     const visible = groupsRef.current.filter(g =>
       !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
     );
@@ -1483,21 +1512,36 @@ export default function SessionWindowsHost({
       (acc, g) => (acc && acc.z >= g.z ? acc : g),
       null,
     );
-    if (!topmost) return false;
-    const sid = activeSessionIds(topmost.root)[0];
-    if (!sid) return false;
-    sendMessage({ type: 'session:terminal-input', sessionId: sid, input: text });
-    return true;
-  }, [sendMessage]);
+    const id = await createRawShellTab(topmost?.id ?? null);
+    pendingInjectRef.current.set(id, text);
+  }, [createRawShellTab]);
 
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
     setSplitSizes, setActiveTab, reorderTab,
-    beginTabDrag, dockGroup, popOutGroup, createRawShellTab, sendToActiveTerminal,
+    beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+    sendToSession, listOpenTerminals, sendToNewTerminal,
   }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab, sendToActiveTerminal]);
+       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+       sendToSession, listOpenTerminals, sendToNewTerminal]);
+
+  // Flush pending injections when their session reaches 'running'; drop on
+  // terminal states so the map doesn't leak.
+  useEffect(() => {
+    if (pendingInjectRef.current.size === 0) return;
+    for (const [id, text] of pendingInjectRef.current) {
+      const s = sessions.find(x => x.id === id) || foreignSessions[id];
+      if (!s) continue;
+      if (s.status === 'running') {
+        sendMessage({ type: 'session:terminal-input', sessionId: id, input: text });
+        pendingInjectRef.current.delete(id);
+      } else if (s.status === 'failed' || s.status === 'stopped') {
+        pendingInjectRef.current.delete(id);
+      }
+    }
+  }, [sessions, foreignSessions, sendMessage]);
 
   // Per-session placement, derived from the live groups. Drives the session
   // list badges + actions; recomputed on every groups change.
