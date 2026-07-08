@@ -75,6 +75,12 @@ export default function SessionPane({
   })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Terminal-requested rebuild (alt-screen font zoom settled). Composes with
+  // the host-driven remountKey in the React key below so either source
+  // disposes/recreates xterm — the remount's subscribe replay + resize make
+  // the TUI repaint at the new glyph size.
+  const [autoRefreshNonce, setAutoRefreshNonce] = useState(0);
+  const handleRequestRefresh = useCallback(() => setAutoRefreshNonce((n) => n + 1), []);
   const fittedRef = useRef<{ cols: number; rows: number } | null>(null);
   const startInFlightRef = useRef(false);
   const lastIntentNonceRef = useRef(intentNonce);
@@ -302,7 +308,7 @@ export default function SessionPane({
       }}
     >
       <SessionTerminal
-        key={remountKey}
+        key={`${remountKey}:${autoRefreshNonce}`}
         sessionId={session.id}
         isRunning={isRunning}
         subscribed={subscribed}
@@ -314,6 +320,7 @@ export default function SessionPane({
         theme={terminalTheme}
         inputBlocked={pendingPromptLength !== null}
         autoFocusOnMount={visible}
+        onRequestRefresh={handleRequestRefresh}
         disableImagePaste={session.cli_tool === 'raw-shell'}
         onCycleTab={onCycleTab}
       />

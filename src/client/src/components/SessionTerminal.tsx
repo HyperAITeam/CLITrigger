@@ -56,6 +56,14 @@ interface SessionTerminalProps {
    */
   autoFocusOnMount?: boolean;
   /**
+   * Debounced request for the host to remount this terminal (same effect as
+   * the header refresh button). Fired after font-size changes settle while
+   * the alt-screen guard skips fit() — glyphs change size but cols/rows stay
+   * pinned, so the TUI's bottom rows (input box, statusline) can fall outside
+   * the viewport until a rebuild re-fits and SIGWINCHes the PTY.
+   */
+  onRequestRefresh?: () => void;
+  /**
    * When true, skip the image-paste branch (clipboard.read() image MIME +
    * `paste-image` upload + server-side ESC+v). Text paste still works via
    * the normal readText / clipboardData fallback. Set by raw-shell sessions
@@ -101,6 +109,7 @@ export default function SessionTerminal({
   theme,
   inputBlocked = false,
   autoFocusOnMount = false,
+  onRequestRefresh,
   disableImagePaste = false,
   onCycleTab,
 }: SessionTerminalProps) {
@@ -119,6 +128,10 @@ export default function SessionTerminal({
   // changes, but the handler is registered once per session mount).
   const onCycleTabRef = useRef(onCycleTab);
   onCycleTabRef.current = onCycleTab;
+  // Ref'd so the debounced alt-screen refresh timer always calls the latest
+  // host callback (the timer outlives the render that scheduled it).
+  const onRequestRefreshRef = useRef(onRequestRefresh);
+  onRequestRefreshRef.current = onRequestRefresh;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -694,6 +707,15 @@ export default function SessionTerminal({
           `[session-fontsize] sessionId=${sessionId} type=alternate cols=${term.cols} rows=${term.rows} length=${term.buffer.active.length} cursorY=${term.buffer.active.cursorY} action=skip-alternate`,
         );
       }
+      // Cols/rows stay pinned here, so after a zoom-in the TUI's bottom rows
+      // (input box, statusline) sit below the visible viewport. Once the zoom
+      // gesture settles, ask the host to remount us — the rebuild re-fits at
+      // the new font size and the subscribe replay + SIGWINCH make the CLI
+      // repaint a correct full-screen layout.
+      if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
+      fontSizeResizeTimerRef.current = setTimeout(() => {
+        onRequestRefreshRef.current?.();
+      }, 500);
       return;
     }
     try {
