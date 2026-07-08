@@ -91,6 +91,9 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const groupRef = useRef<PopoutGroup | null>(null);
   groupRef.current = group;
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
+  // Set true only by the explicit close-window (X) handler so beforeunload can
+  // tell an intentional terminate apart from a redock / refresh.
+  const intentionalCloseRef = useRef(false);
 
   // Fetch the project's session list once for label/status rendering.
   // SessionPane uses session.status to pick its phase, so this is required
@@ -222,7 +225,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       // Best-effort: post both group-return (with payload) and bye.
       // BroadcastChannel.postMessage is synchronous so this lands before
       // teardown completes in typical browsers.
-      if (g) {
+      // Skip group-return on an intentional X-close — the handler already
+      // posted group-close (main drops the group); re-sending group-return
+      // here would race and resurrect it in the center window.
+      if (g && !intentionalCloseRef.current) {
         bus.post({
           t: 'group-return',
           from: popoutId,
@@ -587,6 +593,21 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     setTimeout(() => window.close(), 50);
   }, [popoutId, projectId]);
 
+  // Close (X): terminate this window's sessions and close, rather than docking
+  // the group back to main (that's Re-dock's job). Confirms first if anything
+  // is still running, mirroring handleTabClose / the main window's close.
+  const handleCloseWindow = useCallback(() => {
+    const g = groupRef.current;
+    if (!g || !busRef.current) { window.close(); return; }
+    const ids = allSessionIds(g.root);
+    const running = ids.filter(id => sessions.find(s => s.id === id)?.status === 'running');
+    if (running.length && !window.confirm(t('session.confirmStop') || 'Stop this running session?')) return;
+    running.forEach(id => sessionsApi.stopSession(id).catch(() => { /* swallow */ }));
+    intentionalCloseRef.current = true;
+    busRef.current.post({ t: 'group-close', from: popoutId, groupId: g.id });
+    setTimeout(() => window.close(), 50);
+  }, [sessions, t, popoutId]);
+
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
     for (const s of sessions) map.set(s.id, s);
@@ -671,7 +692,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           <span style={{ marginLeft: 4 }}>{t('session.popout.redockShort') || 'Re-dock'}</span>
         </button>
         <button
-          onClick={() => window.close()}
+          onClick={handleCloseWindow}
           style={chromeBtnStyle}
           aria-label="close-popout"
           title={t('session.popout.closeWindow') || 'Close window'}
