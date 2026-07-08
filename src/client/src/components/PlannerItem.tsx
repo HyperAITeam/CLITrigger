@@ -349,7 +349,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
             {/* Description edit */}
             <textarea
-              className="bg-transparent text-sm w-full outline-none border border-transparent focus:border-warm-300 rounded-md p-1 transition-colors resize-none"
+              className="bg-transparent text-sm w-full outline-none border border-transparent focus:border-warm-300 rounded-md p-1 transition-colors min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
               style={{ color: 'var(--color-text-secondary)' }}
               rows={3}
               placeholder={t('plannerForm.descPlaceholder')}

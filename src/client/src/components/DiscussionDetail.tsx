@@ -767,7 +767,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                         value={item.description}
                         onChange={(e) => setExtractItems((prev) => prev.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))}
                         rows={2}
-                        className="w-full text-xs text-warm-500 bg-transparent border border-warm-200 rounded p-1.5 focus:border-accent outline-none resize-none"
+                        className="w-full text-xs text-warm-500 bg-transparent border border-warm-200 rounded p-1.5 focus:border-accent outline-none min-h-[48px] max-h-[240px] resize-y [field-sizing:content]"
                         placeholder={t('plannerForm.descPlaceholder')}
                       />
                       <select
