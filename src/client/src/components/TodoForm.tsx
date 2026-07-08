@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Image as ImageIcon, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
@@ -83,6 +83,15 @@ export default function TodoForm({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
+
+  // Auto-grow the description box to fit its content (like the terminal window)
+  // instead of scrolling inside a fixed 3-row area. `rows` sets the minimum.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [description]);
 
   const addImagesFromFiles = useCallback((files: FileList | File[]) => {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
@@ -180,7 +189,7 @@ export default function TodoForm({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           rows={3}
-          className="input-field resize-none"
+          className="input-field resize-none overflow-hidden"
         />
         <div className="flex items-center gap-2 mt-1.5">
           <button
