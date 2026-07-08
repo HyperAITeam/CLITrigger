@@ -440,13 +440,26 @@ export default function SessionTerminal({
 
     // In the Electron exe, Chromium eats Ctrl+wheel as a page-zoom gesture and
     // never dispatches the DOM `wheel` event above, so main forwards the
-    // gesture over IPC instead. Only the focused terminal (its helper textarea
-    // holds focus) reacts, so multiple panes don't all zoom at once.
+    // gesture over IPC instead. Wheel is a pointer gesture, so target the
+    // hovered terminal first (matches the DOM path; works in popouts where
+    // the helper textarea may never have received focus). Fall back to the
+    // focused terminal only when no terminal in this window is hovered
+    // (cursor over sidebar etc.) — the two checks together still pick at
+    // most one pane, so multiple panes can't all zoom at once.
     const zoomApi = (window as unknown as {
-      electronAPI?: { onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void };
+      electronAPI?: {
+        onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void;
+        imeLog?: (p: unknown) => void;
+      };
     }).electronAPI;
     const offZoom = zoomApi?.onTerminalZoom?.((dir) => {
-      if (term.textarea && document.activeElement === term.textarea) {
+      const hovered = container.matches(':hover');
+      const anyTermHovered = document.querySelector('[data-term-container]:hover') !== null;
+      const focused = !!term.textarea && document.activeElement === term.textarea;
+      // Rides the IME debug channel (gated main-side) — diagnoses which link
+      // of the Ctrl+wheel chain breaks per window without DevTools.
+      zoomApi.imeLog?.({ reason: 'zoom:recv', dir, hovered, anyTermHovered, focused, path: window.location.pathname });
+      if (hovered || (!anyTermHovered && focused)) {
         bumpSessionFontSize(sessionId, dir === 'in' ? +1 : -1);
       }
     });
@@ -723,6 +736,7 @@ export default function SessionTerminal({
       )}
       <div
         ref={containerRef}
+        data-term-container
         style={{ height: '100%', width: '100%' }}
       />
       {(composingText || pastedImage) && (
