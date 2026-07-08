@@ -88,8 +88,35 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // the same session isn't being written to two xterm instances, then close
   // the OS window after a short user-visible notice.
   const [reclaimedNotice, setReclaimedNotice] = useState<string | null>(null);
-  // Bumped on each window focus to replay a brief outline flash (see render).
+  // Brief outline flash when this window is raised to the front by a click
+  // (see render). Only on click-to-raise — a click that arrives right after
+  // the window gains focus. Plain alt-tab / app-switch focus has no
+  // accompanying click, so it doesn't flash.
   const [focusFlashKey, setFocusFlashKey] = useState(0);
+  const lastFocusAtRef = useRef(0);
+  const lastPointerAtRef = useRef(0);
+  const flashedForFocusRef = useRef(0);
+  useEffect(() => {
+    const RAISE_MS = 400;
+    const tryFlash = () => {
+      const f = lastFocusAtRef.current;
+      if (!f || flashedForFocusRef.current === f) return;
+      // A focus gain paired with a click within RAISE_MS = the click that
+      // brought this window forward from behind another window.
+      if (Math.abs(lastPointerAtRef.current - f) <= RAISE_MS) {
+        flashedForFocusRef.current = f;
+        setFocusFlashKey((k) => k + 1);
+      }
+    };
+    const onFocus = () => { lastFocusAtRef.current = Date.now(); tryFlash(); };
+    const onPointerDown = () => { lastPointerAtRef.current = Date.now(); tryFlash(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, []);
   const groupRef = useRef<PopoutGroup | null>(null);
   groupRef.current = group;
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
@@ -243,16 +270,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     };
     window.addEventListener('beforeunload', onBeforeUnload);
 
-    // Flash the window outline when this OS window is raised/focused so the
-    // user notices it came to the front (esp. from behind the main window).
-    const onWindowFocus = () => setFocusFlashKey((k) => k + 1);
-    window.addEventListener('focus', onWindowFocus);
-
     return () => {
       clearInterval(beat);
       releaseLock();
       window.removeEventListener('beforeunload', onBeforeUnload);
-      window.removeEventListener('focus', onWindowFocus);
       unsub();
       bus.close();
       busRef.current = null;
