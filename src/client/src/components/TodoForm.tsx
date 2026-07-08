@@ -180,7 +180,7 @@ export default function TodoForm({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           rows={3}
-          className="input-field min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
+          className="prompt-field min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
         />
         <div className="flex items-center gap-2 mt-1.5">
           <button

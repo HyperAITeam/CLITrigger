@@ -105,7 +105,7 @@ export default function ScheduleForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="input-field min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
+          className="prompt-field min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
         />
       </div>
 
