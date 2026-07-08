@@ -166,7 +166,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
       />
 
       <textarea
-        className="input-field text-sm w-full mb-3 min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
+        className="prompt-field text-sm w-full mb-3 min-h-[76px] max-h-[320px] resize-y [field-sizing:content]"
         rows={3}
         placeholder={t('plannerForm.descPlaceholder')}
         value={description}

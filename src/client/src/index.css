@@ -296,6 +296,26 @@
     box-shadow: 0 0 0 3px var(--color-selection-bg), 0 0 12px -2px rgba(75, 141, 255, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
+  /* Prompt/description inputs that feed the CLI. Styled to match the session
+     terminal (CMD palette + Cascadia mono) so writing a prompt looks like the
+     place it runs. Always dark in both themes, like the raw log/terminal view. */
+  .prompt-field {
+    background-color: #0c0c0c;
+    color: #cccccc;
+    border: 1px solid #333333;
+    caret-color: #f2f2f2;
+    font-family: 'Cascadia Code', 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+    @apply w-full rounded-xl px-4 py-3 text-sm leading-relaxed
+           transition-all duration-200 focus:outline-none;
+  }
+  .prompt-field::placeholder {
+    color: #666666;
+  }
+  .prompt-field:focus {
+    border-color: #569cd6;
+    box-shadow: 0 0 0 3px rgba(86, 156, 214, 0.25);
+  }
+
   .badge {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0
            transition-all duration-200 hover:scale-105 cursor-default;
