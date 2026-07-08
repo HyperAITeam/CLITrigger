@@ -88,6 +88,8 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // the same session isn't being written to two xterm instances, then close
   // the OS window after a short user-visible notice.
   const [reclaimedNotice, setReclaimedNotice] = useState<string | null>(null);
+  // Bumped on each window focus to replay a brief outline flash (see render).
+  const [focusFlashKey, setFocusFlashKey] = useState(0);
   const groupRef = useRef<PopoutGroup | null>(null);
   groupRef.current = group;
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
@@ -241,10 +243,16 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     };
     window.addEventListener('beforeunload', onBeforeUnload);
 
+    // Flash the window outline when this OS window is raised/focused so the
+    // user notices it came to the front (esp. from behind the main window).
+    const onWindowFocus = () => setFocusFlashKey((k) => k + 1);
+    window.addEventListener('focus', onWindowFocus);
+
     return () => {
       clearInterval(beat);
       releaseLock();
       window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('focus', onWindowFocus);
       unsub();
       bus.close();
       busRef.current = null;
@@ -660,6 +668,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         flexDirection: 'column',
       }}
     >
+      {focusFlashKey > 0 && <div key={focusFlashKey} className="popout-focus-flash" aria-hidden />}
       <div
         style={{
           height: CHROME_HEIGHT,

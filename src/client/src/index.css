@@ -574,6 +574,23 @@
   animation: workspaceDotPulse 1.4s ease-in-out infinite;
 }
 
+/* Brief outline flash on a popped-out terminal window when it gains focus
+   (i.e. gets raised in front), so the user registers that it came forward. */
+@keyframes popoutFocusFlash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.popout-focus-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  box-shadow: inset 0 0 0 2px #569cd6, inset 0 0 16px rgba(86, 156, 214, 0.5);
+  animation: popoutFocusFlash 500ms ease-out;
+}
+
 /* IME 조합 중 xterm이 커서 셀에 그리는 인라인 미리보기(.composition-view)를
    숨긴다. 실행 중인 CLI(예: Claude Code)는 자체 블록 커서를 입력창에 직접
    그리는데(이건 PTY 출력이라 우리가 못 숨김), composition-view가 그 커서
