@@ -20,7 +20,7 @@ import { bumpVaultZoom } from '../../hooks/useVaultZoom';
 interface Props {
   projectId: string;
   // Create an automation task from a file (file explorer right-click menu).
-  onCreateTask?: (path: string) => void | Promise<void>;
+  onCreateTask?: (path: string, linkedPaths?: string[]) => void | Promise<void>;
 }
 
 // Written by the onboarding "ignore everything" choice. The unhide flow
@@ -158,6 +158,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
           onSelectFile={state.setActiveFile}
           onVaultIgnoreChanged={reloadVault}
           onCreateTask={onCreateTask}
+          edges={vaultEdges}
         />
       ),
     },
@@ -185,7 +186,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, reloadVault, onCreateTask]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, reloadVault, onCreateTask]);
 
   const rightPanels = useMemo<readonly PanelDef<RightPanelId>[]>(() => [
     {
