@@ -278,7 +278,7 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, onSendToTerminal, onCreateTask }: {
+function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask }: {
   state: ContextMenuState;
   projectId: string;
   isPinned: boolean;
@@ -287,7 +287,9 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   onUnhide: () => void;
   onClose: () => void;
   // File-only actions; undefined onCreateTask hides that item.
-  onSendToTerminal: () => void;
+  terminals: { sessionId: string; label: string }[];
+  onSendToTerminal: (sessionId: string) => void;
+  onSendToNewTerminal: () => void;
   onCreateTask?: () => void;
 }) {
   const { t } = useI18n();
@@ -402,13 +404,28 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
       {!isDir && (
         <>
           <div className="my-1 border-t border-warm-200" />
-          <button
-            type="button"
-            onClick={() => { onSendToTerminal(); onClose(); }}
-            className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
-          >
+          <div className="px-3 py-1 text-warm-500 flex items-center gap-2">
             <TerminalSquare className="w-3.5 h-3.5" />
             <span>{t('files.sendToTerminal')}</span>
+          </div>
+          <div className="max-h-40 overflow-y-auto">
+            {terminals.map((term) => (
+              <button
+                key={term.sessionId}
+                type="button"
+                onClick={() => { onSendToTerminal(term.sessionId); onClose(); }}
+                className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+              >
+                <span className="truncate">{term.label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => { onSendToNewTerminal(); onClose(); }}
+            className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+          >
+            <span>＋ {t('files.newTerminal')}</span>
           </button>
           {onCreateTask && (
             <button
@@ -452,7 +469,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
 export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask }: Props) {
   const { t } = useI18n();
   const windows = useSessionWindowsOptional();
-  const { toasts, success, warning, error: toastError, dismiss } = useToast();
+  const { toasts, success, error: toastError, dismiss } = useToast();
   const lsKey = `vault:fileExplorer:${projectId}`;
   const [rootEntries, setRootEntries] = useState<FileEntry[] | null>(null);
   const [rootError, setRootError] = useState<string | null>(null);
@@ -682,10 +699,16 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
-          onSendToTerminal={() => {
-            const ok = windows?.sendToActiveTerminal(quoteIfSpace(contextMenu.path));
-            if (ok) success(t('files.sentToTerminal'));
-            else warning(t('files.noActiveSession'));
+          terminals={windows?.listOpenTerminals() ?? []}
+          onSendToTerminal={(sessionId) => {
+            if (!windows) return;
+            windows.sendToSession(sessionId, quoteIfSpace(contextMenu.path));
+            success(t('files.sentToTerminal'));
+          }}
+          onSendToNewTerminal={() => {
+            if (!windows) return;
+            windows.sendToNewTerminal(quoteIfSpace(contextMenu.path)).catch(() => { /* swallow — createSession error */ });
+            success(t('files.sentToTerminal'));
           }}
           onCreateTask={onCreateTask ? async () => {
             try { await onCreateTask(contextMenu.path); success(t('files.taskCreated')); }
