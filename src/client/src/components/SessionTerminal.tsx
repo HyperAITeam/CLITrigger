@@ -698,7 +698,9 @@ export default function SessionTerminal({
       style={{
         position: 'relative',
         background: wrapperBg,
-        padding: 8,
+        // Breathing room so the near-white cursor at the grid edges doesn't sit
+        // flush against the (bright, focused) window border and get lost.
+        padding: 12,
         height,
         width: '100%',
         boxSizing: 'border-box',
