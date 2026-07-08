@@ -7,6 +7,8 @@ import { useI18n } from '../../../i18n';
 import { listFiles, openFile, moveFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
 import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
+import type { VaultEdge } from '../../../api/vault';
+import { collectLinkedPaths } from '../../../lib/vaultLinks';
 import { useSessionWindowsOptional } from '../../SessionWindowsHost';
 import { useToast } from '../../../hooks/useToast';
 import ToastContainer from '../../Toast';
@@ -28,7 +30,10 @@ interface Props {
   onSelectFile: (path: string) => void;
   onVaultIgnoreChanged?: () => void;
   // Create an automation task referencing this file (right-click → 작업으로 보내기).
-  onCreateTask?: (path: string) => void | Promise<void>;
+  onCreateTask?: (path: string, linkedPaths?: string[]) => void | Promise<void>;
+  // Vault wikilink graph edges (relativePath from→to), used to optionally
+  // include a document's linked docs when sending to a terminal/task.
+  edges: VaultEdge[];
 }
 
 // Custom drag type carrying the dragged item's project-relative path.
@@ -278,7 +283,7 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask }: {
+function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
   state: ContextMenuState;
   projectId: string;
   isPinned: boolean;
@@ -291,6 +296,11 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   onSendToTerminal: (sessionId: string) => void;
   onSendToNewTerminal: () => void;
   onCreateTask?: () => void;
+  // Number of docs reachable via wikilinks; when > 0 a toggle to also send
+  // them (paths) alongside this doc is offered.
+  linkedCount: number;
+  includeLinks: boolean;
+  onToggleIncludeLinks: () => void;
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
@@ -408,6 +418,16 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
             <TerminalSquare className="w-3.5 h-3.5" />
             <span>{t('files.sendToTerminal')}</span>
           </div>
+          {linkedCount > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleIncludeLinks(); }}
+              className="w-full text-left px-3 py-1 text-warm-600 flex items-center gap-2"
+            >
+              <span>{includeLinks ? '☑' : '☐'}</span>
+              <span>{t('files.includeLinks')} ({linkedCount})</span>
+            </button>
+          )}
           <div className="max-h-40 overflow-y-auto">
             {terminals.map((term) => (
               <button
@@ -466,7 +486,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   );
 }
 
-export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask }: Props) {
+export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask, edges }: Props) {
   const { t } = useI18n();
   const windows = useSessionWindowsOptional();
   const { toasts, success, error: toastError, dismiss } = useToast();
@@ -493,6 +513,13 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     } catch { return []; }
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // "Include linked docs" toggle for the send-to-terminal/task actions. Sticky
+  // across right-clicks; the toggle row only shows when the target has links.
+  const [includeLinks, setIncludeLinks] = useState(false);
+  const linkedPaths = useMemo(
+    () => (contextMenu ? collectLinkedPaths(edges, contextMenu.path) : []),
+    [contextMenu, edges],
+  );
   // Folder path currently hovered as a drag-and-drop target ('' = root header).
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
@@ -699,19 +726,24 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onClose={() => setContextMenu(null)}
+          linkedCount={linkedPaths.length}
+          includeLinks={includeLinks}
+          onToggleIncludeLinks={() => setIncludeLinks((v) => !v)}
           terminals={windows?.listOpenTerminals() ?? []}
           onSendToTerminal={(sessionId) => {
             if (!windows) return;
-            windows.sendToSession(sessionId, quoteIfSpace(contextMenu.path));
+            const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
+            windows.sendToSession(sessionId, paths.map(quoteIfSpace).join(' '));
             success(t('files.sentToTerminal'));
           }}
           onSendToNewTerminal={() => {
             if (!windows) return;
-            windows.sendToNewTerminal(quoteIfSpace(contextMenu.path)).catch(() => { /* swallow — createSession error */ });
+            const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
+            windows.sendToNewTerminal(paths.map(quoteIfSpace).join(' ')).catch(() => { /* swallow — createSession error */ });
             success(t('files.sentToTerminal'));
           }}
           onCreateTask={onCreateTask ? async () => {
-            try { await onCreateTask(contextMenu.path); success(t('files.taskCreated')); }
+            try { await onCreateTask(contextMenu.path, includeLinks ? linkedPaths : []); success(t('files.taskCreated')); }
             catch { toastError(t('files.taskCreateFailed')); }
           } : undefined}
         />
