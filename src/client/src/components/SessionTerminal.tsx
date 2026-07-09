@@ -584,42 +584,54 @@ export default function SessionTerminal({
     // After a successful fit we force `term.refresh()` — without it, the
     // viewport scrollbar that appears when scrollback exceeds the new
     // visible area paints stale rows when dragged.
-    let fitPending = false;
+    //
+    // Fits are additionally throttled to one per 100ms (leading + trailing):
+    // term.resize() reflows the entire scrollback buffer, so fitting every
+    // frame during a window-resize drag blocks the main thread and makes the
+    // drag handle visibly lag behind the cursor. A one-off resize still fits
+    // immediately (leading edge), and the trailing fit settles the final size.
+    const FIT_THROTTLE_MS = 100;
+    let fitTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastFitAt = 0;
     let firstFitNotified = false;
     const lastFitRef = { cols: term.cols, rows: term.rows };
     const ro = new ResizeObserver(() => {
-      if (fitPending) return;
-      fitPending = true;
-      requestAnimationFrame(() => {
-        fitPending = false;
-        const rect = container.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        try {
-          fitAddon.fit();
-          if (term.cols !== lastFitRef.cols || term.rows !== lastFitRef.rows) {
-            lastFitRef.cols = term.cols;
-            lastFitRef.rows = term.rows;
-            term.refresh(0, term.rows - 1);
+      if (fitTimer !== null) return;
+      const wait = Math.max(0, FIT_THROTTLE_MS - (performance.now() - lastFitAt));
+      fitTimer = setTimeout(() => {
+        fitTimer = null;
+        requestAnimationFrame(() => {
+          lastFitAt = performance.now();
+          const rect = container.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+          try {
+            fitAddon.fit();
+            if (term.cols !== lastFitRef.cols || term.rows !== lastFitRef.rows) {
+              lastFitRef.cols = term.cols;
+              lastFitRef.rows = term.rows;
+              term.refresh(0, term.rows - 1);
+            }
+          } catch { /* ignore */ }
+          // Fire onFitted once with a stable measurement. The parent uses this
+          // to either POST /start (new session) or transition a restored
+          // running session to 'subscribed' — both paths must see the real
+          // viewport dims, not the transient values from the immediate-mount
+          // fit. Thresholds guard against the brief sub-cell-grid measurements
+          // we've observed during portal mount on workspace switch.
+          if (!firstFitNotified && term.cols >= 20 && term.rows >= 5) {
+            firstFitNotified = true;
+            onFittedRef.current?.(term.cols, term.rows);
           }
-        } catch { /* ignore */ }
-        // Fire onFitted once with a stable measurement. The parent uses this
-        // to either POST /start (new session) or transition a restored
-        // running session to 'subscribed' — both paths must see the real
-        // viewport dims, not the transient values from the immediate-mount
-        // fit. Thresholds guard against the brief sub-cell-grid measurements
-        // we've observed during portal mount on workspace switch.
-        if (!firstFitNotified && term.cols >= 20 && term.rows >= 5) {
-          firstFitNotified = true;
-          onFittedRef.current?.(term.cols, term.rows);
-        }
-        if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = setTimeout(sendResize, 150);
-      });
+          if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+          resizeTimerRef.current = setTimeout(sendResize, 150);
+        });
+      }, wait);
     });
     ro.observe(container);
 
     return () => {
       ro.disconnect();
+      if (fitTimer !== null) clearTimeout(fitTimer);
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
       container.removeEventListener('wheel', onContainerWheel);
