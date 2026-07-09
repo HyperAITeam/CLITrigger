@@ -80,6 +80,18 @@ interface SessionTerminalProps {
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
+// CLI TUIs assume a dark terminal and emit near-white/dim colors (e.g. diff
+// line numbers, often as truecolor — unfixable via the ANSI palette) that
+// vanish on light preset backgrounds. Enforce WCAG-AA contrast per cell only
+// when the background is light, so dark presets keep their exact colors.
+function minContrastFor(theme: ITheme): number {
+  const m = /^#([0-9a-f]{6})$/i.exec(theme.background ?? '');
+  if (!m) return 1;
+  const n = parseInt(m[1], 16);
+  const lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff);
+  return lum > 128 ? 4.5 : 1;
+}
+
 // Wrap multi-line paste content in DEC bracketed paste sequences so modern
 // CLI TUIs (Claude / Antigravity / Codex Ink) treat embedded LFs as paste content
 // rather than individual Enter keys, which otherwise causes multi-line paste
@@ -236,6 +248,7 @@ export default function SessionTerminal({
       convertEol: false,
       scrollback: 5000,
       theme: themeRef.current ?? TERMINAL_THEME,
+      minimumContrastRatio: minContrastFor(themeRef.current ?? TERMINAL_THEME),
       allowProposedApi: true,
       macOptionIsMeta: true,
     });
@@ -756,6 +769,7 @@ export default function SessionTerminal({
     const term = termRef.current;
     if (!term) return;
     term.options.theme = theme ?? TERMINAL_THEME;
+    term.options.minimumContrastRatio = minContrastFor(theme ?? TERMINAL_THEME);
     try { term.refresh(0, term.rows - 1); } catch { /* term disposed */ }
   }, [theme]);
 
