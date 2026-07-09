@@ -20,6 +20,10 @@ interface CalendarGridProps {
   onChipClick: (chip: CalChip) => void;
   // Right-click on a day cell. Omitted by callers that don't offer it.
   onCellContextMenu?: (key: string, e: React.MouseEvent) => void;
+  // Right-click on a chip / bar. When the handler doesn't consume the event
+  // (preventDefault + stopPropagation), it bubbles up to the cell handler.
+  onChipContextMenu?: (chip: CalChip, e: React.MouseEvent) => void;
+  onBarContextMenu?: (bar: CalBar, e: React.MouseEvent) => void;
   // Multi-day spanning bars (month view only). Drawn as an overlay per week.
   bars?: CalBar[];
   onBarClick?: (bar: CalBar) => void;
@@ -76,7 +80,8 @@ function layoutWeekBars(weekDays: Date[], bars: CalBar[]): { placed: PlacedSeg[]
 export default function CalendarGrid({
   view, gridDays, cols, dimOutOfMonth, monthIdx, todayKey, selectedDate,
   chipsByDay, maxChips, weekdayLabels, addItemLabel, bars, onBarClick,
-  onSelectDate, onQuickAdd, onChipClick, onCellContextMenu, monthCellHeight = 92,
+  onSelectDate, onQuickAdd, onChipClick, onCellContextMenu,
+  onChipContextMenu, onBarContextMenu, monthCellHeight = 92,
 }: CalendarGridProps) {
   // Hover-to-expand: when a month cell hides entries behind "+N", dwelling on
   // it pops a portal card showing the whole day, with a small scale-in.
@@ -172,6 +177,7 @@ export default function CalendarGrid({
             <span
               key={chip.key}
               onClick={(ev) => { ev.stopPropagation(); onChipClick(chip); }}
+              onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
               className="text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity"
               style={{
                 backgroundColor: chip.bg,
@@ -223,6 +229,7 @@ export default function CalendarGrid({
                   <div
                     key={bar.key}
                     onClick={(ev) => { ev.stopPropagation(); onBarClick?.(bar); }}
+                    onContextMenu={onBarContextMenu ? (ev) => onBarContextMenu(bar, ev) : undefined}
                     className="absolute text-2xs truncate px-1.5 cursor-pointer hover:opacity-80 transition-opacity flex items-center"
                     style={{
                       left: `calc(${startCol} / ${cols} * 100% + 2px)`,
@@ -283,6 +290,7 @@ export default function CalendarGrid({
                 <span
                   key={chip.key}
                   onClick={(ev) => { ev.stopPropagation(); onChipClick(chip); setExpanded(null); }}
+                  onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
                   className="text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity"
                   style={{ backgroundColor: chip.bg, color: chip.fg, textDecoration: chip.done ? 'line-through' : 'none' }}
                   title={chip.title}
