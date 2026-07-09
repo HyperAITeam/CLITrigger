@@ -340,6 +340,13 @@ ipcMain.on('window:focus-self', (event) => {
   win.show();
   win.focus();
   win.moveTop();
+  // Programmatic raise: OS focus moves to this window but Windows TSF keeps
+  // the IME context on the window where the triggering click landed, so
+  // Hangul composition never starts (ime-debug 2026-07-09). The focus-bridge
+  // skips webContents.focus() because isFocused() is already true — force it
+  // here. Safe: no composition can be in flight in a window that wasn't focused.
+  event.sender.focus();
+  imeDebugLog('window:focus-self', { event: 'ime-rebind' });
 });
 
 ipcMain.on('ime:reset', (event) => {
