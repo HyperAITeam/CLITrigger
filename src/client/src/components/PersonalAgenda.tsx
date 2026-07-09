@@ -9,7 +9,7 @@ import ImageLightbox from './ImageLightbox';
 import MoveToPlannerButton from './MoveToPlannerButton';
 import { useI18n } from '../i18n';
 import CalendarGrid from './calendar/CalendarGrid';
-import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
+import CursorContextMenu, { ctxMenuItemClass, ctxMenuDangerItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import {
   ymd, dayKeyLocalIso,
   useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
@@ -91,8 +91,9 @@ export default function PersonalAgenda() {
   const [sources, setSources] = useState({ personal: true, schedule: true, planner: true, jira: true });
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
-  // Right-click → "new memo". dateKey '' means an undated (backlog) memo.
-  const [cellMenu, setCellMenu] = useState<{ x: number; y: number; dateKey: string } | null>(null);
+  // Right-click → "new memo" on empty space, "delete" on a personal entry.
+  // dateKey '' means an undated (backlog) memo.
+  const [cellMenu, setCellMenu] = useState<{ x: number; y: number; dateKey: string; item?: PersonalItem } | null>(null);
 
   // form state (add / edit personal item)
   const [showForm, setShowForm] = useState(false);
@@ -510,9 +511,17 @@ export default function PersonalAgenda() {
     load();
   };
   const remove = async (p: PersonalItem) => {
-    if (!window.confirm(t('agenda.confirmDelete') || 'Delete this item?')) return;
+    if (!window.confirm(t('agenda.confirmDelete') || 'Delete this item?')) return false;
     await personalApi.deletePersonalItem(p.id);
     load();
+    return true;
+  };
+
+  // Right-click on a personal entry anywhere (chip, bar, table row, side panel).
+  const openItemMenu = (item: PersonalItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCellMenu({ x: e.clientX, y: e.clientY, dateKey: '', item });
   };
 
   // Open a calendar entry the same way the side panel does: personal → edit
@@ -677,8 +686,15 @@ export default function PersonalAgenda() {
               onQuickAdd={openAdd}
               onChipClick={(chip) => openEntry(chip.payload as DayEntry)}
               onCellContextMenu={(key, e) => { e.preventDefault(); setCellMenu({ x: e.clientX, y: e.clientY, dateKey: key }); }}
+              onChipContextMenu={(chip, e) => {
+                const d = chip.payload as DayEntry;
+                if (d.kind !== 'personal') return; // bubble up to the cell menu
+                const item = items.find((i) => i.id === d.id);
+                if (item) openItemMenu(item, e);
+              }}
               bars={monthBars}
               onBarClick={(bar) => openEdit(bar.payload as PersonalItem)}
+              onBarContextMenu={(bar, e) => openItemMenu(bar.payload as PersonalItem, e)}
               monthCellHeight={monthCellH}
             />
           )}
@@ -744,6 +760,7 @@ export default function PersonalAgenda() {
                   <div
                     key={`${r.kind}-${r.id}`}
                     onClick={onRowClick}
+                    onContextMenu={r.item ? (e) => openItemMenu(r.item!, e) : undefined}
                     className="grid items-center px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-theme-hover"
                     style={{ gridTemplateColumns: '1fr 150px 96px 72px', borderTop: '1px solid var(--color-border)' }}
                   >
@@ -811,7 +828,7 @@ export default function PersonalAgenda() {
               if (e.kind === 'personal') {
                 const item = items.find((i) => i.id === e.id)!;
                 return (
-                  <div key={e.id} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                  <div key={e.id} onContextMenu={(ev) => openItemMenu(item, ev)} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                     <button onClick={() => toggleDone(item)} className="mt-0.5 flex-shrink-0" title={t('agenda.toggleDone')}>
                       <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
                         {item.status === 'done' && <Check size={11} />}
@@ -906,7 +923,7 @@ export default function PersonalAgenda() {
                 <p className="text-xs py-1" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.backlogEmpty')}</p>
               )}
               {backlog.map((item) => (
-                <div key={item.id} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div key={item.id} onContextMenu={(e) => openItemMenu(item, e)} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                   <button onClick={() => toggleDone(item)} className="mt-0.5 flex-shrink-0">
                     <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
                       {item.status === 'done' && <Check size={11} />}
@@ -988,10 +1005,17 @@ export default function PersonalAgenda() {
 
       {cellMenu && (
         <CursorContextMenu x={cellMenu.x} y={cellMenu.y} onClose={() => setCellMenu(null)}>
-          <button type="button" className={ctxMenuItemClass} onClick={() => openAdd(cellMenu.dateKey)}>
-            <Plus size={14} />
-            {t('agenda.memo')}
-          </button>
+          {cellMenu.item ? (
+            <button type="button" className={ctxMenuDangerItemClass} onClick={() => remove(cellMenu.item!)}>
+              <Trash2 size={14} />
+              {t('agenda.delete')}
+            </button>
+          ) : (
+            <button type="button" className={ctxMenuItemClass} onClick={() => openAdd(cellMenu.dateKey)}>
+              <Plus size={14} />
+              {t('agenda.memo')}
+            </button>
+          )}
         </CursorContextMenu>
       )}
 
@@ -1151,6 +1175,15 @@ export default function PersonalAgenda() {
 
             {/* Footer */}
             <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              {editing && (
+                <button
+                  onClick={async () => { if (await remove(editing)) closeForm(); }}
+                  className="btn-ghost text-sm mr-auto flex items-center gap-1.5"
+                  style={{ color: 'var(--color-status-error, #f87171)' }}
+                >
+                  <Trash2 size={14} />{t('agenda.delete')}
+                </button>
+              )}
               <button onClick={closeForm} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
               <button onClick={submitForm} disabled={!canSave} className="btn-primary text-sm disabled:opacity-40">{t('agenda.save')}</button>
             </div>
