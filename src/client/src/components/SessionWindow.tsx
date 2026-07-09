@@ -29,6 +29,11 @@ interface SessionWindowProps {
   // True for the visible group with the highest z (the one the user just
   // interacted with). Drives the active-window visual indicator.
   isTopmost?: boolean;
+  // Compact stacking rank (1..n) among visible groups, computed by the host.
+  // group.z is a persisted ever-growing counter — using it as CSS z-index
+  // eventually climbs past the overlay layers (mobile fullscreen 110,
+  // z-tooltip 200) and portal popovers render behind the window.
+  zIndex: number;
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -108,6 +113,7 @@ export default function SessionWindow({
   sessionsById,
   neighbors,
   isTopmost,
+  zIndex,
   sendMessage,
   subscribeBinary,
   onEvent,
@@ -506,7 +512,7 @@ export default function SessionWindow({
       style={{
         position: 'fixed',
         left: group.x, top: group.y, width: group.w, height: group.h,
-        zIndex: group.z,
+        zIndex,
         background: CMD.bg,
         border: `1px solid ${isTopmost ? CMD.info : CMD.separator}`,
         borderRadius: 8,

@@ -1612,23 +1612,33 @@ export default function SessionWindowsHost({
     <SessionWindowsContext.Provider value={api}>
       <SessionWindowStateContext.Provider value={windowStates}>
       {children}
-      {visibleGroups.map((g) => {
-        const neighborGeoms = visibleGroups
-          .filter(v => v.id !== g.id)
-          .map(({ x, y, w, h }) => ({ x, y, w, h }));
-        return (
-          <SessionWindow
-            key={g.id}
-            group={g}
-            sessionsById={sessionsById}
-            neighbors={neighborGeoms}
-            isTopmost={g.id === topmostGroupId}
-            sendMessage={sendMessage}
-            subscribeBinary={subscribeBinary}
-            onEvent={onEvent}
-          />
+      {(() => {
+        // Compact CSS stacking rank (1..n) from the logical z order. group.z
+        // itself is a persisted ever-growing counter — passing it straight to
+        // CSS eventually exceeds the overlay layers (z-tooltip = 200) and
+        // portal popovers (theme picker etc.) render behind the windows.
+        const zRank = new Map(
+          visibleGroups.slice().sort((a, b) => a.z - b.z).map((g, i) => [g.id, i + 1]),
         );
-      })}
+        return visibleGroups.map((g) => {
+          const neighborGeoms = visibleGroups
+            .filter(v => v.id !== g.id)
+            .map(({ x, y, w, h }) => ({ x, y, w, h }));
+          return (
+            <SessionWindow
+              key={g.id}
+              group={g}
+              sessionsById={sessionsById}
+              neighbors={neighborGeoms}
+              isTopmost={g.id === topmostGroupId}
+              zIndex={zRank.get(g.id) ?? 1}
+              sendMessage={sendMessage}
+              subscribeBinary={subscribeBinary}
+              onEvent={onEvent}
+            />
+          );
+        });
+      })()}
       {/* Tab drag visual: dock overlay over hovered stack */}
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
