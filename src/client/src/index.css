@@ -272,8 +272,10 @@
     border: 1px solid var(--color-border-strong);
     color: var(--color-text-primary);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    /* Not transition-all: `all` includes height, which animates the native
+       resize-grip drag on textareas and makes it lag behind the cursor. */
+    transition: background-color 300ms, border-color 300ms, box-shadow 300ms, transform 300ms;
     @apply w-full rounded-xl px-4 py-3 text-sm
-           transition-all duration-300
            focus:outline-none focus:ring-4 focus:bg-white dark:focus:bg-black/20;
   }
   select {
@@ -305,8 +307,9 @@
     border: 1px solid #333333;
     caret-color: #f2f2f2;
     font-family: 'Cascadia Code', 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
-    @apply w-full rounded-xl px-4 py-3 text-sm leading-relaxed
-           transition-all duration-200 focus:outline-none;
+    /* Not transition-all — see .input-field. */
+    transition: border-color 200ms, box-shadow 200ms;
+    @apply w-full rounded-xl px-4 py-3 text-sm leading-relaxed focus:outline-none;
   }
   .prompt-field::placeholder {
     color: #666666;
