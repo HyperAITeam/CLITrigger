@@ -17,12 +17,16 @@ export type TerminalPresetId =
   | 'stripe'
   | 'spotify'
   | 'ferrari'
-  | 'nvidia';
+  | 'nvidia'
+  | 'apple'
+  | 'notion'
+  | 'starbucks';
 
 export interface TerminalPreset {
   id: TerminalPresetId;
   name: string;
   accent: string; // signature brand color, used for swatch dot
+  light?: boolean; // light-background preset — grouped separately in the picker
   theme: ITheme;
 }
 
@@ -253,10 +257,98 @@ export const TERMINAL_PRESETS: Record<TerminalPresetId, TerminalPreset> = {
       brightWhite: '#ffffff',
     },
   },
+  apple: {
+    id: 'apple',
+    name: 'Apple',
+    accent: '#0071e3',
+    light: true,
+    theme: {
+      background: '#ffffff',
+      foreground: '#1d1d1f',
+      cursor: '#0071e3',
+      cursorAccent: '#ffffff',
+      selectionBackground: '#b3d7ff',
+      black: '#1d1d1f',
+      red: '#d70015',
+      green: '#248a3d',
+      yellow: '#9a6b00',
+      blue: '#0071e3',
+      magenta: '#8944ab',
+      cyan: '#008575',
+      white: '#86868b',
+      brightBlack: '#6e6e73',
+      brightRed: '#ff3b30',
+      brightGreen: '#2fa04c',
+      brightYellow: '#bf8700',
+      brightBlue: '#2b8fff',
+      brightMagenta: '#af52de',
+      brightCyan: '#00a3b4',
+      brightWhite: '#f5f5f7',
+    },
+  },
+  notion: {
+    id: 'notion',
+    name: 'Notion',
+    accent: '#eb5757',
+    light: true,
+    theme: {
+      background: '#f7f6f3',
+      foreground: '#37352f',
+      cursor: '#37352f',
+      cursorAccent: '#f7f6f3',
+      selectionBackground: '#d3e5ef',
+      black: '#37352f',
+      red: '#d44c47',
+      green: '#448361',
+      yellow: '#cb912f',
+      blue: '#337ea9',
+      magenta: '#9065b0',
+      cyan: '#0f7b6c',
+      white: '#9b9a97',
+      brightBlack: '#787774',
+      brightRed: '#eb5757',
+      brightGreen: '#4f9768',
+      brightYellow: '#d9730d',
+      brightBlue: '#4a94bf',
+      brightMagenta: '#a97cc9',
+      brightCyan: '#339588',
+      brightWhite: '#ffffff',
+    },
+  },
+  starbucks: {
+    id: 'starbucks',
+    name: 'Starbucks',
+    accent: '#00754a',
+    light: true,
+    theme: {
+      background: '#f2f0eb',
+      foreground: '#1e3932',
+      cursor: '#00754a',
+      cursorAccent: '#f2f0eb',
+      selectionBackground: '#d4e9e2',
+      black: '#1e3932',
+      red: '#b3423a',
+      green: '#00754a',
+      yellow: '#a1721c',
+      blue: '#3a6c8c',
+      magenta: '#7d4a78',
+      cyan: '#1f7a70',
+      white: '#8a857c',
+      brightBlack: '#5c5a54',
+      brightRed: '#d05b4c',
+      brightGreen: '#008248',
+      brightYellow: '#bf8b2e',
+      brightBlue: '#4d86a8',
+      brightMagenta: '#9a6394',
+      brightCyan: '#349b8f',
+      brightWhite: '#fbf9f4',
+    },
+  },
 };
 
 export const PRESET_IDS: TerminalPresetId[] = [
   'default', 'claude', 'vercel', 'supabase', 'stripe', 'spotify', 'ferrari', 'nvidia',
+  'apple', 'notion', 'starbucks',
 ];
 
 export const DEFAULT_PRESET_ID: TerminalPresetId = 'default';
