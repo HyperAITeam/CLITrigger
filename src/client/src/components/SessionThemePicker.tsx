@@ -144,7 +144,7 @@ export default function SessionThemePicker({ sessionId }: SessionThemePickerProp
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div style={{ fontSize: 10, color: CMD.dim, marginBottom: 6, letterSpacing: 0.5 }}>
-            PRESETS
+            DARK
           </div>
           <div
             style={{
@@ -154,7 +154,27 @@ export default function SessionThemePicker({ sessionId }: SessionThemePickerProp
               marginBottom: 10,
             }}
           >
-            {PRESET_IDS.map((id) => (
+            {PRESET_IDS.filter((id) => !TERMINAL_PRESETS[id].light).map((id) => (
+              <PresetCard
+                key={id}
+                preset={TERMINAL_PRESETS[id]}
+                selected={state.presetId === id}
+                onClick={() => selectPreset(id)}
+              />
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: CMD.dim, marginBottom: 6, letterSpacing: 0.5 }}>
+            LIGHT
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 6,
+              marginBottom: 10,
+            }}
+          >
+            {PRESET_IDS.filter((id) => TERMINAL_PRESETS[id].light).map((id) => (
               <PresetCard
                 key={id}
                 preset={TERMINAL_PRESETS[id]}
@@ -322,6 +342,19 @@ function ColorRow({
   value: string;
   onChange: (v: string) => void;
 }) {
+  // Draft holds in-progress typing; only valid hex is committed so a
+  // half-typed value never reaches xterm. Blur snaps back to the real value.
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const onType = (raw: string) => {
+    setDraft(raw);
+    const hex = raw.startsWith('#') ? raw : `#${raw}`;
+    if (/^#[0-9a-fA-F]{6}$/.test(hex) || /^#[0-9a-fA-F]{3}$/.test(hex)) {
+      onChange(normalizeHex(hex));
+    }
+  };
+
   return (
     <label
       style={{
@@ -334,7 +367,23 @@ function ColorRow({
       }}
     >
       <span style={{ flex: 1 }}>{label}</span>
-      <span style={{ color: CMD.dim, fontSize: 10, fontFamily: CMD_FONT }}>{value}</span>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => onType(e.target.value)}
+        onBlur={() => setDraft(value)}
+        spellCheck={false}
+        style={{
+          width: 64,
+          padding: '2px 4px',
+          fontSize: 10,
+          fontFamily: CMD_FONT,
+          color: CMD.text,
+          background: 'transparent',
+          border: `1px solid ${CMD.separator}`,
+          borderRadius: 3,
+        }}
+      />
       <input
         type="color"
         value={normalizeHex(value)}

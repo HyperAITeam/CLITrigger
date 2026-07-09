@@ -56,6 +56,14 @@ interface SessionTerminalProps {
    */
   autoFocusOnMount?: boolean;
   /**
+   * Debounced request for the host to remount this terminal (same effect as
+   * the header refresh button). Fired after font-size changes settle while
+   * the alt-screen guard skips fit() — glyphs change size but cols/rows stay
+   * pinned, so the TUI's bottom rows (input box, statusline) can fall outside
+   * the viewport until a rebuild re-fits and SIGWINCHes the PTY.
+   */
+  onRequestRefresh?: () => void;
+  /**
    * When true, skip the image-paste branch (clipboard.read() image MIME +
    * `paste-image` upload + server-side ESC+v). Text paste still works via
    * the normal readText / clipboardData fallback. Set by raw-shell sessions
@@ -101,6 +109,7 @@ export default function SessionTerminal({
   theme,
   inputBlocked = false,
   autoFocusOnMount = false,
+  onRequestRefresh,
   disableImagePaste = false,
   onCycleTab,
 }: SessionTerminalProps) {
@@ -119,6 +128,10 @@ export default function SessionTerminal({
   // changes, but the handler is registered once per session mount).
   const onCycleTabRef = useRef(onCycleTab);
   onCycleTabRef.current = onCycleTab;
+  // Ref'd so the debounced alt-screen refresh timer always calls the latest
+  // host callback (the timer outlives the render that scheduled it).
+  const onRequestRefreshRef = useRef(onRequestRefresh);
+  onRequestRefreshRef.current = onRequestRefresh;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -421,16 +434,36 @@ export default function SessionTerminal({
     }
 
 
-    // Ctrl/Cmd + wheel → font zoom. React onWheel is passive by default so we
-    // attach natively with passive:false to be able to preventDefault and stop
-    // the browser from triggering page zoom. Non-zoom wheel events still get
-    // their bubble stopped (page scroll guard) and pass through to xterm's own
-    // scrollback handler.
+    // Ctrl/Cmd + wheel → font zoom.
+    //
+    // TUI apps (Claude CLI etc.) enable mouse-tracking / alt-screen modes
+    // where xterm reports wheel events to the PTY (or converts them to arrow
+    // keys) and cancels them with stopPropagation — so they never bubble to
+    // the container listener below and zoom went dead exactly in those modes.
+    // attachCustomWheelEventHandler is consulted FIRST by every xterm wheel
+    // path; handle zoom there and return false so the gesture is neither
+    // reported to the PTY nor scrolled. In normal-buffer mode the event still
+    // bubbles afterwards, so mark it to keep the container fallback from
+    // double-bumping.
+    type ZoomWheelEvent = WheelEvent & { __zoomHandled?: boolean };
+    term.attachCustomWheelEventHandler((e) => {
+      if (!e.ctrlKey && !e.metaKey) return true;
+      e.preventDefault();
+      (e as ZoomWheelEvent).__zoomHandled = true;
+      if (e.deltaY !== 0) bumpSessionFontSize(sessionId, e.deltaY < 0 ? +1 : -1);
+      return false;
+    });
+
+    // Container fallback: catches Ctrl+wheel outside xterm's screen element
+    // (scrollbar strip) and guards page zoom/scroll. React onWheel is passive
+    // by default so we attach natively with passive:false to be able to
+    // preventDefault. Non-zoom wheel events still get their bubble stopped
+    // (page scroll guard) and pass through to xterm's own scrollback handler.
     const onContainerWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        if (e.deltaY === 0) return;
+        if (e.deltaY === 0 || (e as ZoomWheelEvent).__zoomHandled) return;
         bumpSessionFontSize(sessionId, e.deltaY < 0 ? +1 : -1);
         return;
       }
@@ -440,13 +473,26 @@ export default function SessionTerminal({
 
     // In the Electron exe, Chromium eats Ctrl+wheel as a page-zoom gesture and
     // never dispatches the DOM `wheel` event above, so main forwards the
-    // gesture over IPC instead. Only the focused terminal (its helper textarea
-    // holds focus) reacts, so multiple panes don't all zoom at once.
+    // gesture over IPC instead. Wheel is a pointer gesture, so target the
+    // hovered terminal first (matches the DOM path; works in popouts where
+    // the helper textarea may never have received focus). Fall back to the
+    // focused terminal only when no terminal in this window is hovered
+    // (cursor over sidebar etc.) — the two checks together still pick at
+    // most one pane, so multiple panes can't all zoom at once.
     const zoomApi = (window as unknown as {
-      electronAPI?: { onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void };
+      electronAPI?: {
+        onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void;
+        imeLog?: (p: unknown) => void;
+      };
     }).electronAPI;
     const offZoom = zoomApi?.onTerminalZoom?.((dir) => {
-      if (term.textarea && document.activeElement === term.textarea) {
+      const hovered = container.matches(':hover');
+      const anyTermHovered = document.querySelector('[data-term-container]:hover') !== null;
+      const focused = !!term.textarea && document.activeElement === term.textarea;
+      // Rides the IME debug channel (gated main-side) — diagnoses which link
+      // of the Ctrl+wheel chain breaks per window without DevTools.
+      zoomApi.imeLog?.({ reason: 'zoom:recv', dir, hovered, anyTermHovered, focused, path: window.location.pathname });
+      if (hovered || (!anyTermHovered && focused)) {
         bumpSessionFontSize(sessionId, dir === 'in' ? +1 : -1);
       }
     });
@@ -661,6 +707,15 @@ export default function SessionTerminal({
           `[session-fontsize] sessionId=${sessionId} type=alternate cols=${term.cols} rows=${term.rows} length=${term.buffer.active.length} cursorY=${term.buffer.active.cursorY} action=skip-alternate`,
         );
       }
+      // Cols/rows stay pinned here, so after a zoom-in the TUI's bottom rows
+      // (input box, statusline) sit below the visible viewport. Once the zoom
+      // gesture settles, ask the host to remount us — the rebuild re-fits at
+      // the new font size and the subscribe replay + SIGWINCH make the CLI
+      // repaint a correct full-screen layout.
+      if (fontSizeResizeTimerRef.current) clearTimeout(fontSizeResizeTimerRef.current);
+      fontSizeResizeTimerRef.current = setTimeout(() => {
+        onRequestRefreshRef.current?.();
+      }, 500);
       return;
     }
     try {
@@ -725,6 +780,7 @@ export default function SessionTerminal({
       )}
       <div
         ref={containerRef}
+        data-term-container
         style={{ height: '100%', width: '100%' }}
       />
       {(composingText || pastedImage) && (
