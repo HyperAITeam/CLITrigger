@@ -170,14 +170,14 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={t('session.title')}
-        className="input w-full text-sm"
+        className="input-field text-sm"
       />
       {!isRawShell && (
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t('session.description')}
-          className="input w-full text-sm min-h-[60px] max-h-[280px] resize-y [field-sizing:content]"
+          className="input-field text-sm min-h-[60px] max-h-[280px] resize-y [field-sizing:content]"
           rows={2}
         />
       )}
@@ -185,7 +185,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
         <select
           value={cliTool}
           onChange={(e) => setCliTool(e.target.value)}
-          className="input text-xs flex-1"
+          className="input-field text-xs flex-1"
         >
           <option value="">{t('session.cliTool')} (Default)</option>
           {interactiveTools.map((tool) => (
@@ -204,7 +204,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
           <select
             value={tagId ?? ''}
             onChange={(e) => setTagId(e.target.value || null)}
-            className="input text-xs flex-1"
+            className="input-field text-xs flex-1"
           >
             <option value="">{t('session.tag.none')}</option>
             {tags.map((tag) => (
