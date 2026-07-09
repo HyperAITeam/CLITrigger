@@ -379,6 +379,15 @@ export default function SessionTerminal({
         return false;
       }
 
+      // Ctrl+Shift+R (Cmd+Shift+R on Mac) → refresh terminal rendering.
+      // Handled by StackView's keydown as the event bubbles; swallow here so
+      // the PTY doesn't receive it and the browser doesn't hard-reload.
+      // Plain Ctrl+R stays untouched — shells use it for history search.
+      if (key === 'r' && modWithShift) {
+        ev.preventDefault();
+        return false;
+      }
+
       // Ctrl+C (Cmd+C on Mac) → copy when there's a selection, mirroring
       // Windows Terminal / VS Code. With no selection it falls through: on
       // Windows/Linux the PTY still gets ^C (SIGINT); on Mac Cmd+C is a no-op

@@ -105,8 +105,24 @@ export default function StackView({
       }
     : undefined;
 
+  // Ctrl+Shift+R (Cmd+Shift+R on Mac) → refresh the active tab's rendering,
+  // same as the header button. Bound on the stack root so only the stack
+  // holding DOM focus reacts (splits / multiple windows stay independent),
+  // and it works in popouts too. SessionTerminal swallows the same combo so
+  // the PTY never receives it; the keydown still bubbles up to here.
+  const onStackKeyDown = (e: React.KeyboardEvent) => {
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    const otherMod = isMac ? e.ctrlKey : e.metaKey;
+    if (!mod || otherMod || e.altKey || !e.shiftKey) return;
+    if (e.key.toLowerCase() !== 'r') return;
+    e.preventDefault();
+    refreshActiveTab();
+  };
+
   return (
     <div
+      onKeyDown={onStackKeyDown}
       style={{
         flex: 1,
         display: 'flex',
@@ -249,7 +265,7 @@ export default function StackView({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={refreshActiveTab}
           aria-label="refresh-terminal"
-          title={`${t('session.refresh') || 'Refresh rendering'} — ${t('session.refresh.hint') || 'Rebuild the terminal view (PTY stays running)'}`}
+          title={`${t('session.refresh') || 'Refresh rendering'} (Ctrl+Shift+R) — ${t('session.refresh.hint') || 'Rebuild the terminal view (PTY stays running)'}`}
           style={groupBtnStyle}
         >
           <RotateCw size={12} />
