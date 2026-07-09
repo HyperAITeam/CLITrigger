@@ -379,11 +379,13 @@ export default function SessionTerminal({
         return false;
       }
 
-      // Ctrl+Shift+R (Cmd+Shift+R on Mac) → refresh terminal rendering.
+      // F5 / Ctrl+Shift+R (Cmd+Shift+R on Mac) → refresh terminal rendering.
       // Handled by StackView's keydown as the event bubbles; swallow here so
-      // the PTY doesn't receive it and the browser doesn't hard-reload.
-      // Plain Ctrl+R stays untouched — shells use it for history search.
-      if (key === 'r' && modWithShift) {
+      // the PTY doesn't receive it (F5 would send \x1b[15~) and the browser
+      // doesn't reload. Plain Ctrl+R stays untouched — shells use it for
+      // history search.
+      if ((key === 'r' && modWithShift)
+        || (key === 'f5' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey)) {
         ev.preventDefault();
         return false;
       }
