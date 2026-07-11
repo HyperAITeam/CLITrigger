@@ -28,6 +28,7 @@ export function CenterEditor({ projectId, activeFile, onSelectFile, onSaved }: P
       entry={entry}
       onNavigateFile={onSelectFile}
       onSaved={onSaved}
+      trackEdits
     />
   );
 }

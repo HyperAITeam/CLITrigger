@@ -22,10 +22,16 @@ import { useToast } from '../../hooks/useToast';
 import { useVaultZoom, DEFAULT_VAULT_FONT_SIZE } from '../../hooks/useVaultZoom';
 import MarkdownContent from '../MarkdownContent';
 import ToastContainer from '../Toast';
+import { editBuffer } from './vault-edit-buffer';
+import { getDraft, saveDraft, clearDraft } from './vault-draft';
 import {
   IMAGE_EXT, PDF_EXT, VIDEO_EXT, AUDIO_EXT, MARKDOWN_EXT, HTML_EXT,
   extOf, formatSize, iconFor, languageExtensionFor,
 } from './files-utils';
+
+// Pen/highlighter palette — red first (previous hardcoded default). Mid-tone
+// hues so strokes stay visible on both light and dark document backgrounds.
+const ANNOTATE_COLORS = ['#dc2626', '#f59e0b', '#16a34a', '#2563eb', '#db2777'];
 
 class RenderErrorBoundary extends Component<
   { fallback: ReactNode; children: ReactNode },
@@ -49,10 +55,13 @@ export interface PreviewPanelProps {
   onDirtyChange?: (dirty: boolean) => void;
   onNavigateFile?: (filePath: string) => void;
   onSaved?: () => void;
+  // Push the in-progress markdown edit buffer to the shared store so the
+  // right-rail "미리보기" tab can render it live. Opt-in — only the Vault editor sets it.
+  trackEdits?: boolean;
 }
 
 export function PreviewPanel({
-  projectId, path, entry, onDirtyChange, onNavigateFile, onSaved,
+  projectId, path, entry, onDirtyChange, onNavigateFile, onSaved, trackEdits,
 }: PreviewPanelProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -67,6 +76,11 @@ export function PreviewPanel({
   const [editorValue, setEditorValue] = useState('');
   const [savedValue, setSavedValue] = useState('');
   const [savedMtime, setSavedMtime] = useState<number | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  // Path that editorValue currently belongs to — gates draft persistence so a
+  // pending file-switch (path changed, content not yet loaded) can't write the
+  // old file's buffer under the new file's key.
+  const loadedPathRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,6 +96,7 @@ export function PreviewPanel({
   const previewMatchesRef = useRef<HTMLElement[]>([]);
   const [annotateMode, setAnnotateMode] = useState(false);
   const [annotateTool, setAnnotateTool] = useState<AnnotationTool>('pen');
+  const [annotateColor, setAnnotateColor] = useState(ANNOTATE_COLORS[0]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const overlayRef = useRef<AnnotationOverlayHandle>(null);
@@ -100,6 +115,8 @@ export function PreviewPanel({
   }, [dirty, onDirtyChange]);
 
   useEffect(() => {
+    loadedPathRef.current = null;
+    setDraftRestored(false);
     if (!path || !entry || entry.type !== 'file') {
       setTextContent(null);
       setBinaryMime(null);
@@ -129,9 +146,20 @@ export function PreviewPanel({
           setBinaryMime(res.mime);
         } else {
           setTextContent(res.content);
-          setEditorValue(res.content);
           setSavedValue(res.content);
           setSavedMtime(res.mtime);
+          // Restore an unsaved draft if it diverges from the saved content;
+          // otherwise drop any stale (equal) draft.
+          const draft = getDraft(projectId, path);
+          if (draft !== null && draft !== res.content) {
+            setEditorValue(draft);
+            setEditMode(true);
+            setDraftRestored(true);
+          } else {
+            setEditorValue(res.content);
+            if (draft !== null) clearDraft(projectId, path);
+          }
+          loadedPathRef.current = path;
         }
       })
       .catch((err) => {
@@ -156,6 +184,25 @@ export function PreviewPanel({
   const editable = !loading && !error && textContent !== null && !binaryMime;
   const cmExtensions = useMemo(() => [...languageExtensionFor(ext), search({ top: false })], [ext]);
 
+  // Feed the shared edit buffer for the right-rail live preview. `active` gates
+  // the tab: only while editing a markdown file. Cleared on unmount.
+  useEffect(() => {
+    if (!trackEdits) return;
+    editBuffer.set({ active: editMode && isMarkdown, path, content: editorValue });
+  }, [trackEdits, editMode, isMarkdown, path, editorValue]);
+  useEffect(() => () => { if (trackEdits) editBuffer.clear(); }, [trackEdits]);
+
+  // Persist the in-progress edit as a per-file draft (survives unmount on
+  // project/tab switch, file switch, and page reload). Gated on loadedPathRef
+  // so a pending file-switch can't cross-write. Cleared when back in sync.
+  // ponytail: writes localStorage per keystroke — negligible for docs; add a
+  // debounce if huge files ever lag.
+  useEffect(() => {
+    if (!path || !editMode || loadedPathRef.current !== path) return;
+    if (editorValue !== savedValue) saveDraft(projectId, path, editorValue);
+    else clearDraft(projectId, path);
+  }, [editMode, editorValue, savedValue, path, projectId]);
+
   const handleSave = useCallback(async () => {
     if (!path || savedMtime == null || saving) return;
     setSaving(true);
@@ -165,6 +212,7 @@ export function PreviewPanel({
       setSavedMtime(res.mtime);
       setTextContent(editorValue);
       setMeta({ size: res.size, mtime: res.mtime });
+      setDraftRestored(false);
       setSavedFlash(true);
       if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current);
       savedFlashTimer.current = setTimeout(() => setSavedFlash(false), 800);
@@ -191,7 +239,9 @@ export function PreviewPanel({
     if (dirty && !window.confirm(t('files.editor.discardConfirm'))) return;
     setEditorValue(savedValue);
     setEditMode(false);
-  }, [dirty, savedValue, t]);
+    setDraftRestored(false);
+    if (path) clearDraft(projectId, path);
+  }, [dirty, savedValue, t, path, projectId]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (!editable) return;
@@ -441,6 +491,11 @@ export function PreviewPanel({
             • {t('files.editor.dirty')}
           </span>
         )}
+        {draftRestored && editMode && (
+          <span className="text-sky-600 shrink-0 text-[10px]" title={t('files.editor.draftRestored')}>
+            ↻ {t('files.editor.draftRestored')}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           {editMode ? (
             <>
@@ -559,6 +614,20 @@ export function PreviewPanel({
             <span>{t('annotate.eraser')}</span>
           </button>
           <span className="mx-1 text-warm-300">|</span>
+          {ANNOTATE_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setAnnotateColor(c)}
+              title={t('annotate.color')}
+              aria-pressed={annotateColor === c}
+              className={`w-4 h-4 rounded-full shrink-0 ${
+                annotateColor === c ? 'ring-2 ring-offset-1 ring-warm-500' : 'hover:ring-1 hover:ring-warm-300'
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+          <span className="mx-1 text-warm-300">|</span>
           <button
             type="button"
             onClick={() => overlayRef.current?.undo()}
@@ -648,7 +717,7 @@ export function PreviewPanel({
             fallback={<pre className="text-xs font-mono text-warm-800 whitespace-pre p-3 leading-relaxed">{textContent}</pre>}
           >
             <div className="p-4 vault-md-zoom relative" style={{ fontSize: `${zoom}px` }}>
-              <AnnotationOverlay ref={overlayRef} enabled={annotateMode} tool={annotateTool} onStateChange={handleOverlayState} />
+              <AnnotationOverlay ref={overlayRef} enabled={annotateMode} tool={annotateTool} color={annotateColor} onStateChange={handleOverlayState} />
               <MarkdownContent
                 content={textContent}
                 onCheckboxToggle={handleCheckboxToggle}

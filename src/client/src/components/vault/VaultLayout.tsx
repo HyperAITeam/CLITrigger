@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight, Settings, HelpCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { FileText, Search, Tag, GitBranch, List, ArrowLeftRight, ArrowRight, Settings, HelpCircle, Eye } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useVaultState, type LeftPanelId, type RightPanelId } from './vault-state';
 import { Resizer } from './Resizer';
@@ -12,6 +12,8 @@ import { GraphPanel } from './panels/GraphPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { BacklinksPanel } from './panels/BacklinksPanel';
 import { OutgoingLinksPanel } from './panels/OutgoingLinksPanel';
+import { PreviewViewPanel } from './panels/PreviewViewPanel';
+import { editBuffer } from './vault-edit-buffer';
 import { CenterEditor } from './CenterEditor';
 import { VaultIgnoreModal, VaultIgnoreHelpModal } from './VaultIgnoreModal';
 import { VaultOnboardingModal } from './VaultOnboardingModal';
@@ -44,6 +46,21 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
   const [allHidden, setAllHidden] = useState(false);
   const [ignoreModalOpen, setIgnoreModalOpen] = useState(false);
   const [ignoreHelpOpen, setIgnoreHelpOpen] = useState(false);
+
+  // True only while editing a markdown file (see vault-edit-buffer). Boolean
+  // snapshot → VaultLayout re-renders on edit enter/exit, not on every keystroke.
+  const editing = useSyncExternalStore(editBuffer.subscribe, editBuffer.getActive, () => false);
+  // Auto-open the preview tab on entering edit, restore the prior tab on exit.
+  const prevRight = useRef<RightPanelId | null>(null);
+  useEffect(() => {
+    if (editing && state.panels.rightPanelId !== 'preview') {
+      prevRight.current = state.panels.rightPanelId;
+      state.setRightPanelId('preview');
+    } else if (!editing && state.panels.rightPanelId === 'preview') {
+      state.setRightPanelId(prevRight.current ?? 'graph');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
 
   const reloadVault = useCallback(() => {
     setVaultLoading(true);
@@ -239,7 +256,14 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, vaultError, allHidden, reloadVault]);
+    // Live preview — only present while editing a markdown file.
+    ...(editing ? [{
+      id: 'preview' as RightPanelId,
+      label: t('vault.panel.preview'),
+      Icon: Eye,
+      render: () => <PreviewViewPanel projectId={projectId} />,
+    }] : []),
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, vaultError, allHidden, reloadVault, editing]);
 
   // Hold off the entire vault (scan + panels + graph) until the onboarding
   // choice — that's the whole point: nothing heavy runs before the user has
@@ -308,7 +332,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         side="right"
         collapsed={state.layout.rightCollapsed}
         onToggleCollapsed={state.toggleRightCollapsed}
-        activeId={state.panels.rightPanelId}
+        activeId={!editing && state.panels.rightPanelId === 'preview' ? 'graph' : state.panels.rightPanelId}
         onActivate={state.setRightPanelId}
         panels={rightPanels}
         width={state.layout.rightWidth}
