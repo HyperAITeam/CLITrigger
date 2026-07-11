@@ -279,12 +279,21 @@ function createWindow(port) {
   mainWindow.webContents.on('did-create-window', (childWin) => {
     blockOffOriginNav(childWin.webContents);
     wireTerminalZoom(childWin.webContents, 'popout');
+    // A focus that FOLLOWS a real OS blur (lock screen, alt-tab) leaves the
+    // Windows TSF IME context stranded, so composition breaks — Hangul commits
+    // as detached jamo and the candidate window jumps to the corner — even
+    // though webContents.isFocused() still reads stale-true (ime-debug
+    // 2026-07-11). Force a rebind on post-blur refocus; keep skipping the
+    // blur-less redundant focus, whose focus() would instead reset a healthy
+    // TSF context (the original corner-jump this guard was added to prevent).
+    let wasBlurred = false;
+    childWin.on('blur', () => { wasBlurred = true; });
     childWin.on('focus', () => {
-      // Skip when webContents already holds focus — a redundant programmatic
-      // focus() resets the Windows IME (TSF) caret context, which is the
-      // prime suspect for the candidate window jumping to the screen corner.
-      if (childWin.isDestroyed() || childWin.webContents.isFocused()) return;
-      imeDebugLog('popout', { event: 'focus-bridge' });
+      if (childWin.isDestroyed()) return;
+      const rebind = wasBlurred;
+      wasBlurred = false;
+      if (!rebind && childWin.webContents.isFocused()) return;
+      imeDebugLog('popout', { event: 'focus-bridge', rebind });
       childWin.webContents.focus();
     });
     attachImeWindowLogging(childWin, 'popout');
@@ -303,13 +312,20 @@ function createWindow(port) {
   // Windows lock-screen / screensaver hands the native HWND keyboard focus
   // off to the lock UI; on resume it doesn't always return to webContents,
   // leaving every input (SessionForm, SessionTerminal) dead until the user
-  // minimizes and restores. Re-focus webContents on window focus — but only
-  // when it doesn't already hold focus: a redundant programmatic focus()
-  // resets the Windows IME (TSF) caret context (candidate window jumps to
-  // the screen corner).
+  // minimizes and restores. Re-focus webContents on window focus — but a
+  // redundant programmatic focus() (no preceding blur) resets the Windows IME
+  // (TSF) caret context (candidate window jumps to the corner), so gate the
+  // rebind on an actual blur having happened first: after a real blur→focus
+  // cycle the TSF context is stranded and needs the rebind even though
+  // isFocused() reads stale-true (ime-debug 2026-07-11).
+  let mainWasBlurred = false;
+  mainWindow.on('blur', () => { mainWasBlurred = true; });
   mainWindow.on('focus', () => {
-    if (mainWindow.isDestroyed() || mainWindow.webContents.isFocused()) return;
-    imeDebugLog('mainWindow', { event: 'focus-bridge' });
+    if (mainWindow.isDestroyed()) return;
+    const rebind = mainWasBlurred;
+    mainWasBlurred = false;
+    if (!rebind && mainWindow.webContents.isFocused()) return;
+    imeDebugLog('mainWindow', { event: 'focus-bridge', rebind });
     mainWindow.webContents.focus();
   });
 }
