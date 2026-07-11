@@ -15,15 +15,16 @@ export interface AnnotationOverlayHandle {
 }
 
 interface Point { x: number; y: number }
-interface Stroke { id: string; tool: 'pen' | 'highlighter'; points: Point[] }
+interface Stroke { id: string; tool: 'pen' | 'highlighter'; color: string; points: Point[] }
 
 interface Props {
   enabled: boolean;
   tool: AnnotationTool;
+  color?: string;
   onStateChange?: (state: AnnotationOverlayState) => void;
 }
 
-const STROKE_COLOR = '#dc2626';
+const DEFAULT_STROKE_COLOR = '#dc2626';
 const ERASER_RADIUS = 8;
 
 function pointsToPath(points: Point[]): string {
@@ -45,7 +46,7 @@ function strokeHitsPoint(stroke: Stroke, p: Point, radiusSq: number): boolean {
 }
 
 export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
-  function AnnotationOverlay({ enabled, tool, onStateChange }, ref) {
+  function AnnotationOverlay({ enabled, tool, color = DEFAULT_STROKE_COLOR, onStateChange }, ref) {
     const [strokes, setStrokes] = useState<Stroke[]>([]);
     const [past, setPast] = useState<Stroke[][]>([]);
     const [future, setFuture] = useState<Stroke[][]>([]);
@@ -154,13 +155,14 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
       const stroke: Stroke = {
         id: `s${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         tool,
+        color,
         points: current,
       };
       setPast(p => [...p, strokesRef.current]);
       setStrokes(prev => [...prev, stroke]);
       setFuture([]);
       setCurrent(null);
-    }, [current, tool]);
+    }, [current, tool, color]);
 
     const onPointerUp = useCallback(() => { finishStroke(); }, [finishStroke]);
     const onPointerCancel = useCallback(() => {
@@ -190,7 +192,7 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
           <path
             key={s.id}
             d={pointsToPath(s.points)}
-            stroke={STROKE_COLOR}
+            stroke={s.color}
             strokeWidth={s.tool === 'highlighter' ? 14 : 2}
             opacity={s.tool === 'highlighter' ? 0.4 : 1}
             fill="none"
@@ -201,7 +203,7 @@ export const AnnotationOverlay = forwardRef<AnnotationOverlayHandle, Props>(
         {current && current.length > 0 && tool !== 'eraser' && (
           <path
             d={pointsToPath(current)}
-            stroke={STROKE_COLOR}
+            stroke={color}
             strokeWidth={tool === 'highlighter' ? 14 : 2}
             opacity={tool === 'highlighter' ? 0.4 : 1}
             fill="none"

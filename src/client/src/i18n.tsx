@@ -846,6 +846,7 @@ const translations = {
     'files.editor.conflict': 'File changed on disk — reopen it to see the new content.',
     'files.editor.discardConfirm': 'Discard unsaved changes?',
     'files.editor.dirty': 'Modified',
+    'files.editor.draftRestored': 'Recovered unsaved edits',
 
     // Find / Replace
     'find.openFind': 'Find',
@@ -869,6 +870,7 @@ const translations = {
     'annotate.pen': 'Pen',
     'annotate.highlighter': 'Highlighter',
     'annotate.eraser': 'Eraser',
+    'annotate.color': 'Color',
     'annotate.undo': 'Undo',
     'annotate.redo': 'Redo',
     'annotate.clear': 'Clear all',
@@ -950,6 +952,7 @@ const translations = {
     'vault.panel.outline': 'Outline',
     'vault.panel.backlinks': 'Backlinks',
     'vault.panel.outgoing': 'Outgoing Links',
+    'vault.panel.preview': 'Preview',
     'vault.outline.empty': 'No headings in this note',
     'vault.outgoing.empty': 'No outgoing wikilinks',
     'vault.backlinks.empty': 'No backlinks',
@@ -2284,6 +2287,7 @@ const translations = {
     'files.editor.conflict': '파일이 디스크에서 변경되었습니다 — 다시 열어주세요.',
     'files.editor.discardConfirm': '변경사항을 폐기하시겠습니까?',
     'files.editor.dirty': '변경됨',
+    'files.editor.draftRestored': '저장 안 된 편집 내용 복구됨',
 
     // 찾기/바꾸기
     'find.openFind': '찾기',
@@ -2307,6 +2311,7 @@ const translations = {
     'annotate.pen': '펜',
     'annotate.highlighter': '형광펜',
     'annotate.eraser': '지우개',
+    'annotate.color': '색상',
     'annotate.undo': '되돌리기',
     'annotate.redo': '다시 실행',
     'annotate.clear': '모두 지우기',
@@ -2388,6 +2393,7 @@ const translations = {
     'vault.panel.outline': '개요',
     'vault.panel.backlinks': '백링크',
     'vault.panel.outgoing': '아웃고잉 링크',
+    'vault.panel.preview': '미리보기',
     'vault.outline.empty': '이 노트에 헤딩이 없습니다',
     'vault.outgoing.empty': '아웃고잉 위키링크 없음',
     'vault.backlinks.empty': '백링크 없음',

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 export type LeftPanelId = 'files' | 'search' | 'tags';
-export type RightPanelId = 'graph' | 'outline' | 'backlinks' | 'outgoing';
+// 'preview' is a transient, edit-mode-only tab — intentionally excluded from
+// RIGHT_PANEL_IDS below so it's never persisted/restored from localStorage.
+export type RightPanelId = 'graph' | 'outline' | 'backlinks' | 'outgoing' | 'preview';
 
 const LEFT_PANEL_IDS: readonly LeftPanelId[] = ['files', 'search', 'tags'];
 const RIGHT_PANEL_IDS: readonly RightPanelId[] = ['graph', 'outline', 'backlinks', 'outgoing'];
