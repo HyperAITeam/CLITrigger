@@ -55,6 +55,15 @@ function attachImeWindowLogging(win, label) {
       imeDebugLog(label, { event: ev, visible: win.isVisible(), focused: win.isFocused() });
     });
   }
+  // Key arrival at the Chromium layer, before renderer dispatch. Composition
+  // events are the first renderer-side log point, so when TSF is stranded the
+  // log goes silent — this line distinguishes "key never reached webContents"
+  // from "key arrived but composition never started".
+  win.webContents.on('before-input-event', (_e, input) => {
+    if (!imeDebugEnabled) return;
+    if (input.type !== 'keyDown' || input.isAutoRepeat) return;
+    imeDebugLog(label, { event: 'key', key: input.key, code: input.code });
+  });
 }
 
 function readOrInitConfig() {

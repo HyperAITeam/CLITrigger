@@ -1290,6 +1290,22 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       console.debug('[paste-fallback] paste event had no usable text/image');
     }
   };
+  // Key arrival at the DOM layer. `key === 'Process'` means the OS IME is
+  // handling the keystroke; a raw letter on a Hangul-mode key means the TSF
+  // context is detached from the HWND. Together with main's before-input-event
+  // ('key') and compositionstart this pinpoints which layer drops the input
+  // when the packaged-exe IME bug strikes (ime-debug 2026-07-13: log was
+  // silent because composition events were the first log point).
+  const handleKeydownLog = (e: KeyboardEvent) => {
+    imeLog('keydown', {
+      key: e.key,
+      composing,
+      activeIsHelper: !!(document.activeElement as HTMLElement | null)
+        ?.classList?.contains('xterm-helper-textarea'),
+      hasFocus: document.hasFocus(),
+    });
+  };
+  container.addEventListener('keydown', handleKeydownLog, true);
   container.addEventListener('compositionstart', handleCompStart, true);
   container.addEventListener('compositionupdate', handleCompUpdate, true);
   container.addEventListener('compositionend', handleCompEnd, true);
@@ -1307,6 +1323,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     onDataDisposable.dispose();
     cursorMoveDisposable.dispose();
     if (posRaf) cancelAnimationFrame(posRaf);
+    container.removeEventListener('keydown', handleKeydownLog, true);
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
