@@ -34,6 +34,8 @@ interface Props {
   // Vault wikilink graph edges (relativePath from→to), used to optionally
   // include a document's linked docs when sending to a terminal/task.
   edges: VaultEdge[];
+  // Bumped by VaultLayout on a server-pushed vault:changed event — reloads the tree.
+  refreshToken?: number;
 }
 
 // Custom drag type carrying the dragged item's project-relative path.
@@ -486,7 +488,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   );
 }
 
-export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask, edges }: Props) {
+export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask, edges, refreshToken }: Props) {
   const { t } = useI18n();
   const windows = useSessionWindowsOptional();
   const { toasts, success, error: toastError, dismiss } = useToast();
@@ -599,6 +601,12 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
   }, [projectId, showHidden, lsKey]);
 
   useEffect(() => { loadRoot(); }, [loadRoot]);
+
+  // External change pushed over WS — the mount effect above already covers token 0.
+  useEffect(() => {
+    if ((refreshToken ?? 0) > 0) loadRoot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const handleSelect = useCallback((path: string, entry: FileEntry) => {
     if (entry.type === 'file') onSelectFile(path);

@@ -5,6 +5,7 @@ import { broadcaster, encodeSessionFrame } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
 import { sessionManager } from '../services/session-manager.js';
+import { vaultWatcher } from '../services/vault-watcher.js';
 import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
 import { getSetting } from '../db/app-settings.js';
 
@@ -77,11 +78,13 @@ export function initWebSocket(server: Server): void {
 
     ws.on('close', () => {
       broadcaster.removeClient(ws);
+      vaultWatcher.removeClient(ws);
     });
 
     ws.on('error', (err) => {
       console.error('WebSocket error:', err);
       broadcaster.removeClient(ws);
+      vaultWatcher.removeClient(ws);
     });
 
     // Handle incoming messages (stdin for interactive mode)
@@ -161,6 +164,16 @@ export function initWebSocket(server: Server): void {
 
         if (msg.type === 'session:unsubscribe' && typeof msg.sessionId === 'string') {
           broadcaster.unsubscribe(ws, msg.sessionId);
+        }
+
+        // Vault (docs tab) file watching — the project root is only watched
+        // while at least one client keeps the tab open.
+        if (msg.type === 'vault:watch' && typeof msg.projectId === 'string') {
+          vaultWatcher.watch(msg.projectId, ws);
+        }
+
+        if (msg.type === 'vault:unwatch' && typeof msg.projectId === 'string') {
+          vaultWatcher.unwatch(msg.projectId, ws);
         }
 
         // Raw keystrokes from xterm.js (CR, arrow keys, Ctrl+C, etc).

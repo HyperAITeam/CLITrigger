@@ -15,6 +15,7 @@ export type WSEvent =
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }
   | { type: 'rate-limit:updated'; resetsAt: number; status: string | null }
+  | { type: 'vault:changed'; projectId: string }
   | {
       type: 'memory:ingest-finished';
       projectId: string;
