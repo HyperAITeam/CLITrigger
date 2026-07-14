@@ -177,6 +177,39 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
     return () => container.removeEventListener('wheel', onWheel);
   }, [projectId]);
 
+  // Panel/sidebar shortcuts: Alt+1~8 activates a panel (expanding a collapsed
+  // rail), Ctrl+B / Ctrl+Alt+B toggles the left/right rail.
+  useEffect(() => {
+    const LEFT_KEYS: Record<string, LeftPanelId> = { '1': 'files', '2': 'search', '3': 'tags' };
+    const RIGHT_KEYS: Record<string, RightPanelId> = { '4': 'graph', '5': 'outline', '6': 'backlinks', '7': 'outgoing', '8': 'preview' };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (e.altKey) state.toggleRightCollapsed(); else state.toggleLeftCollapsed();
+        return;
+      }
+      if (!e.altKey || mod || e.shiftKey) return;
+      const left = LEFT_KEYS[e.key];
+      if (left) {
+        e.preventDefault();
+        if (state.layout.leftCollapsed) state.toggleLeftCollapsed();
+        state.setLeftPanelId(left);
+        return;
+      }
+      const right = RIGHT_KEYS[e.key];
+      if (right) {
+        if (right === 'preview' && !editing) return; // tab only exists while editing
+        e.preventDefault();
+        if (state.layout.rightCollapsed) state.toggleRightCollapsed();
+        state.setRightPanelId(right);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.layout.leftCollapsed, state.layout.rightCollapsed, state.setLeftPanelId, state.setRightPanelId, state.toggleLeftCollapsed, state.toggleRightCollapsed, editing]);
+
   const onLeftResize = useCallback((clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -193,6 +226,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'files',
       label: t('vault.panel.fileExplorer'),
       Icon: FileText,
+      shortcut: 'Alt+1',
       render: () => (
         <FileExplorerPanel
           projectId={projectId}
@@ -209,6 +243,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'search',
       label: t('vault.panel.search'),
       Icon: Search,
+      shortcut: 'Alt+2',
       render: () => (
         <SearchPanel
           files={vaultFiles}
@@ -221,6 +256,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'tags',
       label: t('vault.panel.tags'),
       Icon: Tag,
+      shortcut: 'Alt+3',
       render: () => (
         <TagsPanel
           files={vaultFiles}
@@ -236,6 +272,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'graph',
       label: t('vault.panel.graph'),
       Icon: GitBranch,
+      shortcut: 'Alt+4',
       render: () => (
         <GraphPanel
           files={vaultFiles}
@@ -254,6 +291,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'outline',
       label: t('vault.panel.outline'),
       Icon: List,
+      shortcut: 'Alt+5',
       render: () => (
         <OutlinePanel projectId={projectId} activeFile={state.activeFile} />
       ),
@@ -262,6 +300,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'backlinks',
       label: t('vault.panel.backlinks'),
       Icon: ArrowLeftRight,
+      shortcut: 'Alt+6',
       render: () => (
         <BacklinksPanel
           files={vaultFiles}
@@ -274,6 +313,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'outgoing',
       label: t('vault.panel.outgoing'),
       Icon: ArrowRight,
+      shortcut: 'Alt+7',
       render: () => (
         <OutgoingLinksPanel
           files={vaultFiles}
@@ -287,6 +327,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
       id: 'preview' as RightPanelId,
       label: t('vault.panel.preview'),
       Icon: Eye,
+      shortcut: 'Alt+8',
       render: () => <PreviewViewPanel projectId={projectId} />,
     }] : []),
   ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, vaultLoading, vaultError, allHidden, reloadVault, editing]);
@@ -319,6 +360,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
         side="left"
         collapsed={state.layout.leftCollapsed}
         onToggleCollapsed={state.toggleLeftCollapsed}
+        collapseShortcut="Ctrl+B"
         activeId={state.panels.leftPanelId}
         onActivate={state.setLeftPanelId}
         panels={leftPanels}
@@ -358,6 +400,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
         side="right"
         collapsed={state.layout.rightCollapsed}
         onToggleCollapsed={state.toggleRightCollapsed}
+        collapseShortcut="Ctrl+Alt+B"
         activeId={!editing && state.panels.rightPanelId === 'preview' ? 'graph' : state.panels.rightPanelId}
         onActivate={state.setRightPanelId}
         panels={rightPanels}
