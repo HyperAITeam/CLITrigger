@@ -160,7 +160,7 @@ export default function SessionAliasInserter({ sessionId, sendMessage }: Session
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => setOpen((v) => !v)}
         aria-label="alias-inserter"
-        title="Insert saved command (alias)"
+        title="Insert saved command (alias) (Ctrl+Shift+A)"
         style={btnStyle}
       >
         <Command size={13} />

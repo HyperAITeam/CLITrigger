@@ -105,22 +105,33 @@ export default function StackView({
       }
     : undefined;
 
-  // F5 / Ctrl+Shift+R (Cmd+Shift+R on Mac) → refresh the active tab's
-  // rendering, same as the header button. Bound on the stack root so only the
-  // stack holding DOM focus reacts (splits / multiple windows stay
-  // independent), and it works in popouts too. SessionTerminal swallows the
-  // same keys so the PTY never receives them; the keydown still bubbles up
-  // to here. Note: claiming F5 means TUI apps that bind it (htop, mc) can't
-  // see it while the terminal is focused.
+  // Header shortcuts, bound on the stack root so only the stack holding DOM
+  // focus reacts (splits / multiple windows stay independent), and they work
+  // in popouts too. SessionTerminal swallows the same keys so the PTY never
+  // receives them; the keydown still bubbles up to here.
+  // F5 / Ctrl+Shift+R → refresh · Ctrl+Shift+A → alias inserter ·
+  // Ctrl+Shift+P → theme picker (Cmd+Shift on Mac). Group-level combos
+  // (O/M/X) bubble further up to SessionWindow. Note: claiming F5 means TUI
+  // apps that bind it (htop, mc) can't see it while the terminal is focused.
   const onStackKeyDown = (e: React.KeyboardEvent) => {
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const mod = isMac ? e.metaKey : e.ctrlKey;
     const otherMod = isMac ? e.ctrlKey : e.metaKey;
+    const modShift = mod && !otherMod && !e.altKey && e.shiftKey;
+    const key = e.key.toLowerCase();
     const plainF5 = e.key === 'F5' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
-    const modShiftR = mod && !otherMod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'r';
-    if (!plainF5 && !modShiftR) return;
+    if (plainF5 || (modShift && key === 'r')) {
+      e.preventDefault();
+      refreshActiveTab();
+      return;
+    }
+    if (!modShift || (key !== 'a' && key !== 'p')) return;
     e.preventDefault();
-    refreshActiveTab();
+    // Alias inserter / theme picker manage their popovers internally —
+    // toggle by clicking this stack's header button instead of threading
+    // open-state props through.
+    const label = key === 'a' ? 'alias-inserter' : 'terminal-theme';
+    (e.currentTarget.querySelector(`[aria-label="${label}"]`) as HTMLElement | null)?.click();
   };
 
   return (
@@ -278,7 +289,7 @@ export default function StackView({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => bumpActiveFontSize(-1)}
           aria-label="decrease-font"
-          title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px) · Ctrl+wheel`}
+          title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px) · Ctrl+- · Ctrl+wheel`}
           style={groupBtnStyle}
         >
           <ZoomOut size={13} />
@@ -288,7 +299,7 @@ export default function StackView({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => bumpActiveFontSize(+1)}
           aria-label="increase-font"
-          title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px) · Ctrl+wheel`}
+          title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px) · Ctrl+= · Ctrl+wheel`}
           style={groupBtnStyle}
         >
           <ZoomIn size={13} />
@@ -302,7 +313,7 @@ export default function StackView({
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={groupActions.onPopOutGroup}
                 aria-label="pop-out"
-                title={t('session.popOut') || 'Pop out to separate window'}
+                title={`${t('session.popOut') || 'Pop out to separate window'} (Ctrl+Shift+O)`}
                 style={groupBtnStyle}
               >
                 <ExternalLink size={13} />
@@ -313,7 +324,7 @@ export default function StackView({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={groupActions.onMinimizeGroup}
               aria-label="minimize"
-              title={t('session.minimize') || 'Minimize'}
+              title={`${t('session.minimize') || 'Minimize'} (Ctrl+Shift+M)`}
               style={groupBtnStyle}
             >
               <Minus size={13} />
@@ -323,6 +334,7 @@ export default function StackView({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={groupActions.onCloseGroup}
               aria-label="close"
+              title={`${t('session.close') || 'Close'} (Ctrl+Shift+X)`}
               style={groupBtnStyle}
             >
               <X size={13} />
