@@ -280,7 +280,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                         className="flex w-full items-center gap-2 text-xs text-theme-text-secondary hover:text-theme-text transition-colors"
                         title={session.title}
                       >
-                        <span className="h-1.5 w-1.5 rounded-full bg-status-running flex-shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: tagColor }} />
                         <Terminal size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
                         <span className="truncate">{session.title}</span>
                       </button>
@@ -296,7 +296,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                         className="flex w-full items-center gap-2 text-xs text-theme-text-secondary hover:text-theme-text transition-colors"
                         title={todo.title}
                       >
-                        <span className="h-1.5 w-1.5 rounded-full bg-status-running flex-shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: tagColor }} />
                         <ListTodo size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
                         <span className="truncate">{todo.title}</span>
                       </button>
