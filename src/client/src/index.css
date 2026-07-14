@@ -167,6 +167,15 @@
     opacity: 1;
   }
 
+  /* Workspace tag-tinted card border (home view project cards) */
+  .card-tagged {
+    border-color: color-mix(in srgb, var(--tag-color) 35%, transparent);
+  }
+
+  .card-tagged:hover {
+    border-color: color-mix(in srgb, var(--tag-color) 70%, transparent);
+  }
+
   [data-theme="dark"] .card::before {
     background: linear-gradient(90deg, transparent 10%, rgba(75, 141, 255, 0.2) 50%, transparent 90%);
   }
