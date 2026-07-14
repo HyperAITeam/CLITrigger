@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 import fs from 'fs';
-import { getTaskLogsByTodoId, getTodoById } from '../db/queries.js';
+import { getTaskLogsByTodoId, getTodoById, getSessionsByStatus, getTodosByStatus } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { getProjectStatusSummary } from '../services/project-status.js';
 
@@ -209,6 +209,19 @@ router.get('/projects/:id/status', (req: Request<{ id: string }>, res: Response)
 
     const summary = getProjectStatusSummary(req.params.id);
     res.json({ project_id: req.params.id, ...summary });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/active-work - all running sessions + todos across projects
+router.get('/active-work', (_req: Request, res: Response) => {
+  try {
+    res.json({
+      sessions: getSessionsByStatus('running'),
+      todos: getTodosByStatus('running'),
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
