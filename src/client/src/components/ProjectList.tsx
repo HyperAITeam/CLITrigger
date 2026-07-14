@@ -8,6 +8,7 @@ import ProjectForm from './ProjectForm';
 import EmptyState from './EmptyState';
 
 import { useI18n } from '../i18n';
+import { resolveProjectColor } from '../lib/projectColor';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 interface ProjectListProps {
@@ -155,6 +156,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           {filtered.map((project, index) => {
             const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
             const pathMissing = project.path_exists === false;
+            const tagColor = resolveProjectColor(project);
             const CardWrapper = pathMissing ? 'div' : Link;
             const cardProps = pathMissing
               ? {
@@ -163,17 +165,17 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },
-                  className: 'card group block p-5 opacity-50 relative cursor-pointer animate-fade-in',
+                  className: 'card card-tagged group block p-5 opacity-50 relative cursor-pointer animate-fade-in',
                 }
               : {
                   to: `/projects/${project.id}`,
-                  className: 'card group block p-5 relative hover:border-accent/30 animate-fade-in',
+                  className: 'card card-tagged group block p-5 relative animate-fade-in',
                 };
             return (
               <CardWrapper
                 key={project.id}
                 {...cardProps as any}
-                style={{ animationDelay: `${index * 50}ms` }}
+                style={{ animationDelay: `${index * 50}ms`, '--tag-color': tagColor } as React.CSSProperties}
               >
                 {/* Delete button */}
                 <button
