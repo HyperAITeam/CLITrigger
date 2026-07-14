@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Search, FolderOpen, X } from 'lucide-react';
-import type { Project } from '../types';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Search, FolderOpen, X, Terminal, ListTodo } from 'lucide-react';
+import type { Project, Session, Todo } from '../types';
 import * as projectsApi from '../api/projects';
 import { Skeleton } from './Skeleton';
 import ProjectForm from './ProjectForm';
@@ -24,9 +24,12 @@ interface ProjectStatus {
 export default function ProjectList({ onEvent }: ProjectListProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, ProjectStatus>>({});
+  const [activeWork, setActiveWork] = useState<projectsApi.ActiveWork>({ sessions: [], todos: [] });
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
   const { t } = useI18n();
 
   useEffect(() => {
@@ -43,10 +46,13 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
       })
       .catch(() => { /* ignore */ })
       .finally(() => setLoading(false));
+    projectsApi.getActiveWork()
+      .then(setActiveWork)
+      .catch(() => { /* ignore */ });
   }, []);
 
   useEffect(() => {
-    return onEvent((event) => {
+    const unsubscribe = onEvent((event) => {
       if (event.type === 'project:status-changed' && event.projectId) {
         setStatusMap((prev) => ({
           ...prev,
@@ -57,8 +63,36 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           },
         }));
       }
+      if (
+        event.type === 'session:status-changed' ||
+        event.type === 'todo:status-changed' ||
+        event.type === 'project:status-changed'
+      ) {
+        // Debounced refetch — batch project starts fire many events at once.
+        if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+        refetchTimerRef.current = setTimeout(() => {
+          projectsApi.getActiveWork()
+            .then(setActiveWork)
+            .catch(() => { /* ignore */ });
+        }, 300);
+      }
     });
+    return () => {
+      unsubscribe();
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    };
   }, [onEvent]);
+
+  const activeWorkByProject = useMemo(() => {
+    const map: Record<string, { sessions: Session[]; todos: Todo[] }> = {};
+    for (const session of activeWork.sessions) {
+      (map[session.project_id] ??= { sessions: [], todos: [] }).sessions.push(session);
+    }
+    for (const todo of activeWork.todos) {
+      (map[todo.project_id] ??= { sessions: [], todos: [] }).todos.push(todo);
+    }
+    return map;
+  }, [activeWork]);
 
   const handleAddProject = async (name: string, path: string) => {
     try {
@@ -157,6 +191,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
             const counts = statusMap[project.id] || { total: 0, completed: 0, running: 0 };
             const pathMissing = project.path_exists === false;
             const tagColor = resolveProjectColor(project);
+            const work = activeWorkByProject[project.id];
             const CardWrapper = pathMissing ? 'div' : Link;
             const cardProps = pathMissing
               ? {
@@ -228,6 +263,44 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                       className="h-full rounded-full transition-all duration-500 bg-accent"
                       style={{ width: `${(counts.completed / counts.total) * 100}%` }}
                     />
+                  </div>
+                )}
+
+                {/* Running work items (terminal sessions + todo executions) */}
+                {work && (
+                  <div className="mt-3 pt-3 border-t border-theme-border space-y-1.5">
+                    {work.sessions.map((session) => (
+                      <button
+                        key={session.id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}?tab=sessions`);
+                        }}
+                        className="flex w-full items-center gap-2 text-xs text-theme-text-secondary hover:text-theme-text transition-colors"
+                        title={session.title}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-running flex-shrink-0" />
+                        <Terminal size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
+                        <span className="truncate">{session.title}</span>
+                      </button>
+                    ))}
+                    {work.todos.map((todo) => (
+                      <button
+                        key={todo.id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}`);
+                        }}
+                        className="flex w-full items-center gap-2 text-xs text-theme-text-secondary hover:text-theme-text transition-colors"
+                        title={todo.title}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-running flex-shrink-0" />
+                        <ListTodo size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
+                        <span className="truncate">{todo.title}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
               </CardWrapper>

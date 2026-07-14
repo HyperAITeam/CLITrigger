@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client';
-import type { Project } from '../types';
+import type { Project, Session, Todo } from '../types';
 
 // --- Folder Browser ---
 
@@ -77,6 +77,15 @@ export function stopProject(id: string): Promise<void> {
 
 export function getProjectStatus(id: string): Promise<{ running: number; completed: number; total: number; running_sessions: number; running_discussions: number }> {
   return get(`/api/projects/${id}/status`);
+}
+
+export interface ActiveWork {
+  sessions: Session[];
+  todos: Todo[];
+}
+
+export function getActiveWork(): Promise<ActiveWork> {
+  return get('/api/active-work');
 }
 
 export function checkGitStatus(id: string): Promise<Project> {
