@@ -4,7 +4,7 @@ import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
   Pencil, Save, Check, Search, Highlighter, Eraser, Trash2, Undo2, Redo2, MousePointer2,
 } from 'lucide-react';
-import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
 import {
   search, SearchQuery, setSearchQuery, findNext as cmFindNext,
@@ -182,7 +182,11 @@ export function PreviewPanel({
   const isMarkdown = MARKDOWN_EXT.has(ext);
   const isHtml = HTML_EXT.has(ext);
   const editable = !loading && !error && textContent !== null && !binaryMime;
-  const cmExtensions = useMemo(() => [...languageExtensionFor(ext), search({ top: false })], [ext]);
+  const cmExtensions = useMemo(() => [
+    ...languageExtensionFor(ext),
+    search({ top: false }),
+    ...(MARKDOWN_EXT.has(ext) ? [EditorView.lineWrapping] : []),
+  ], [ext]);
 
   // Feed the shared edit buffer for the right-rail live preview. `active` gates
   // the tab: only while editing a markdown file. Cleared on unmount.
@@ -457,20 +461,63 @@ export function PreviewPanel({
     }
   }, [path, textContent, savedValue, savedMtime, editMode, projectId, toastError, t, onSaved]);
 
-  const copyPath = () => {
+  const copyPath = useCallback(() => {
     if (!path) return;
     navigator.clipboard.writeText(path).catch(() => { /* swallow */ });
-  };
+  }, [path]);
 
-  const openInOS = () => {
+  const openInOS = useCallback(() => {
     if (!path) return;
     openFile(projectId, path, 'open').catch(() => { /* swallow */ });
-  };
+  }, [projectId, path]);
 
-  const revealInOS = () => {
+  const revealInOS = useCallback(() => {
     if (!path) return;
     openFile(projectId, path, 'reveal').catch(() => { /* swallow */ });
-  };
+  }, [projectId, path]);
+
+  // Toolbar/annotate shortcuts. Window-level so they work regardless of which
+  // pane has focus; single-letter tool keys are guarded against typing
+  // contexts (find bar inputs, CodeMirror contentEditable), modifier combos
+  // are not (Ctrl+E must exit edit mode from inside the editor).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && !e.shiftKey && !e.altKey && key === 'e') {
+        if (!editable) return;
+        e.preventDefault();
+        if (editMode) handleCancelEdit(); else handleEnterEdit();
+        return;
+      }
+      if (mod && e.shiftKey && !e.altKey) {
+        if (key === 'd') { if (!canAnnotate) return; e.preventDefault(); toggleAnnotate(); }
+        else if (key === 'o') { e.preventDefault(); openInOS(); }
+        else if (key === 'e') { e.preventDefault(); revealInOS(); }
+        return;
+      }
+      if (!mod && e.altKey && e.shiftKey && key === 'c') {
+        e.preventDefault();
+        copyPath();
+        return;
+      }
+      if (!annotateMode || mod || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (e.shiftKey) {
+        if (e.key === 'Delete') { e.preventDefault(); overlayRef.current?.clearAll(); }
+        return;
+      }
+      if (key === 'v') { e.preventDefault(); setAnnotateTool('select'); }
+      else if (key === 'p') { e.preventDefault(); setAnnotateTool('pen'); }
+      else if (key === 'h') { e.preventDefault(); setAnnotateTool('highlighter'); }
+      else if (key === 'e') { e.preventDefault(); setAnnotateTool('eraser'); }
+      else if (key >= '1' && key <= '5') { e.preventDefault(); setAnnotateColor(ANNOTATE_COLORS[Number(key) - 1]); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editable, editMode, canAnnotate, annotateMode, handleEnterEdit, handleCancelEdit, toggleAnnotate, openInOS, revealInOS, copyPath]);
 
   if (!path || !entry) {
     return (
@@ -503,7 +550,7 @@ export function PreviewPanel({
                 onClick={handleSave}
                 disabled={!dirty || saving}
                 className="px-1.5 py-1 rounded text-warm-700 hover:bg-warm-100 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center gap-1"
-                title={t('files.editor.save')}
+                title={`${t('files.editor.save')} (Ctrl+S)`}
               >
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{t('files.editor.save')}</span>
@@ -518,7 +565,7 @@ export function PreviewPanel({
                 onClick={handleCancelEdit}
                 disabled={saving}
                 className="px-1.5 py-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 inline-flex items-center gap-1"
-                title={t('files.editor.done')}
+                title={`${t('files.editor.done')} (Ctrl+E)`}
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{t('files.editor.done')}</span>
@@ -529,7 +576,7 @@ export function PreviewPanel({
               <button
                 onClick={handleEnterEdit}
                 className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
-                title={t('files.editor.edit')}
+                title={`${t('files.editor.edit')} (Ctrl+E)`}
               >
                 <Pencil className="w-3.5 h-3.5" />
                 <span>{t('files.editor.edit')}</span>
@@ -540,7 +587,7 @@ export function PreviewPanel({
             <button
               onClick={toggleAnnotate}
               className={`p-1 rounded inline-flex items-center ${annotateMode ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
-              title={annotateMode ? t('annotate.stop') : t('annotate.start')}
+              title={`${annotateMode ? t('annotate.stop') : t('annotate.start')} (Ctrl+Shift+D)`}
               aria-pressed={annotateMode}
             >
               <Pencil className="w-3.5 h-3.5" />
@@ -549,21 +596,21 @@ export function PreviewPanel({
           <button
             onClick={openInOS}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
-            title={t('files.openInOS')}
+            title={`${t('files.openInOS')} (Ctrl+Shift+O)`}
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={revealInOS}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
-            title={t('files.revealInExplorer')}
+            title={`${t('files.revealInExplorer')} (Ctrl+Shift+E)`}
           >
             <FolderOpen className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={copyPath}
             className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
-            title={t('files.copyPath')}
+            title={`${t('files.copyPath')} (Alt+Shift+C)`}
           >
             <Copy className="w-3.5 h-3.5" />
           </button>
@@ -575,7 +622,7 @@ export function PreviewPanel({
           <button
             type="button"
             onClick={() => setAnnotateTool('select')}
-            title={t('annotate.select')}
+            title={`${t('annotate.select')} (V)`}
             aria-pressed={annotateTool === 'select'}
             className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'select' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
@@ -586,7 +633,7 @@ export function PreviewPanel({
           <button
             type="button"
             onClick={() => setAnnotateTool('pen')}
-            title={t('annotate.pen')}
+            title={`${t('annotate.pen')} (P)`}
             aria-pressed={annotateTool === 'pen'}
             className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'pen' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
@@ -596,7 +643,7 @@ export function PreviewPanel({
           <button
             type="button"
             onClick={() => setAnnotateTool('highlighter')}
-            title={t('annotate.highlighter')}
+            title={`${t('annotate.highlighter')} (H)`}
             aria-pressed={annotateTool === 'highlighter'}
             className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'highlighter' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
@@ -606,7 +653,7 @@ export function PreviewPanel({
           <button
             type="button"
             onClick={() => setAnnotateTool('eraser')}
-            title={t('annotate.eraser')}
+            title={`${t('annotate.eraser')} (E)`}
             aria-pressed={annotateTool === 'eraser'}
             className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'eraser' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
@@ -614,12 +661,12 @@ export function PreviewPanel({
             <span>{t('annotate.eraser')}</span>
           </button>
           <span className="mx-1 text-warm-300">|</span>
-          {ANNOTATE_COLORS.map((c) => (
+          {ANNOTATE_COLORS.map((c, i) => (
             <button
               key={c}
               type="button"
               onClick={() => setAnnotateColor(c)}
-              title={t('annotate.color')}
+              title={`${t('annotate.color')} (${i + 1})`}
               aria-pressed={annotateColor === c}
               className={`w-4 h-4 rounded-full shrink-0 ${
                 annotateColor === c ? 'ring-2 ring-offset-1 ring-warm-500' : 'hover:ring-1 hover:ring-warm-300'
@@ -632,7 +679,7 @@ export function PreviewPanel({
             type="button"
             onClick={() => overlayRef.current?.undo()}
             disabled={!canUndo}
-            title={t('annotate.undo')}
+            title={`${t('annotate.undo')} (Ctrl+Z)`}
             className={`p-1 rounded inline-flex items-center gap-1 ${canUndo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
           >
             <Undo2 className="w-3 h-3" />
@@ -642,7 +689,7 @@ export function PreviewPanel({
             type="button"
             onClick={() => overlayRef.current?.redo()}
             disabled={!canRedo}
-            title={t('annotate.redo')}
+            title={`${t('annotate.redo')} (Ctrl+Shift+Z)`}
             className={`p-1 rounded inline-flex items-center gap-1 ${canRedo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
           >
             <Redo2 className="w-3 h-3" />
@@ -652,7 +699,7 @@ export function PreviewPanel({
           <button
             type="button"
             onClick={() => overlayRef.current?.clearAll()}
-            title={t('annotate.clear')}
+            title={`${t('annotate.clear')} (Shift+Delete)`}
             className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 inline-flex items-center gap-1"
           >
             <Trash2 className="w-3 h-3" />

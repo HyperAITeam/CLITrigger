@@ -7,6 +7,7 @@ export interface PanelDef<TId extends string> {
   label: string;
   Icon: LucideIcon;
   render: () => ReactNode;
+  shortcut?: string;
 }
 
 interface Props<TId extends string> {
@@ -18,10 +19,11 @@ interface Props<TId extends string> {
   panels: readonly PanelDef<TId>[];
   width: number;
   actions?: ReactNode;
+  collapseShortcut?: string;
 }
 
 export function SidebarRail<TId extends string>({
-  side, collapsed, onToggleCollapsed, activeId, onActivate, panels, width, actions,
+  side, collapsed, onToggleCollapsed, activeId, onActivate, panels, width, actions, collapseShortcut,
 }: Props<TId>) {
   const { t } = useI18n();
   const active = panels.find((p) => p.id === activeId);
@@ -38,7 +40,7 @@ export function SidebarRail<TId extends string>({
         type="button"
         onClick={onToggleCollapsed}
         className="p-1.5 rounded hover:bg-warm-200 text-warm-500 hover:text-warm-700"
-        title={collapsed ? t('vault.sidebar.expand') : t('vault.sidebar.collapse')}
+        title={`${collapsed ? t('vault.sidebar.expand') : t('vault.sidebar.collapse')}${collapseShortcut ? ` (${collapseShortcut})` : ''}`}
       >
         {(isLeft && collapsed) || (!isLeft && !collapsed)
           ? <ChevronRight className="w-3.5 h-3.5" />
@@ -61,7 +63,7 @@ export function SidebarRail<TId extends string>({
                 ? 'bg-warm-200 text-warm-800'
                 : 'text-warm-500 hover:bg-warm-200 hover:text-warm-700'
             }`}
-            title={p.label}
+            title={p.shortcut ? `${p.label} (${p.shortcut})` : p.label}
           >
             <IconCmp className="w-3.5 h-3.5" />
           </button>
