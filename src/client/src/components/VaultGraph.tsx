@@ -318,11 +318,19 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [firstTagByPath]);
 
+  // Re-run the layout only when the node/edge *set* changes (add/remove/rename).
+  // Content-only reloads (new array identity, same paths) keep the current layout.
+  const layoutKey = useMemo(() => {
+    const ids = files.map(f => f.relativePath).sort().join('\n');
+    const links = edges.map(e => `${e.from}\t${e.to}`).sort().join('\n');
+    return `${ids}\0${links}`;
+  }, [files, edges]);
+
   const positions = useMemo(() => {
     const ids = files.map(f => f.relativePath);
     const links = edges.map(e => [e.from, e.to] as [string, string]);
     return runForceLayout(ids, links);
-  }, [files.length, edges.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback((p: string) => {
     if (linkSource) {
