@@ -27,7 +27,7 @@ export interface VaultGraph {
   edges: VaultEdge[];
 }
 
-const DEFAULT_EXCLUDES = [
+export const DEFAULT_EXCLUDES = [
   'node_modules',
   '.git',
   'dist',

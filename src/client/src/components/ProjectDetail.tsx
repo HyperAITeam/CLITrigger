@@ -914,7 +914,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       ) : null}
       {activeTab === 'files' && id && (
         <Suspense fallback={null}>
-          <VaultLayout projectId={id} onCreateTask={handleCreateTaskFromFile} />
+          <VaultLayout projectId={id} onCreateTask={handleCreateTaskFromFile} onEvent={onEvent} sendMessage={sendMessage} connected={connected} />
         </Suspense>
       )}
       {activeTab === 'automation' && automationSub === 'schedules' && (

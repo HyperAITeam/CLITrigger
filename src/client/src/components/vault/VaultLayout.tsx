@@ -18,11 +18,15 @@ import { CenterEditor } from './CenterEditor';
 import { VaultIgnoreModal, VaultIgnoreHelpModal } from './VaultIgnoreModal';
 import { VaultOnboardingModal } from './VaultOnboardingModal';
 import { bumpVaultZoom } from '../../hooks/useVaultZoom';
+import type { WsEvent } from '../../hooks/useWebSocket';
 
 interface Props {
   projectId: string;
   // Create an automation task from a file (file explorer right-click menu).
   onCreateTask?: (path: string, linkedPaths?: string[]) => void | Promise<void>;
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
+  sendMessage: (event: object) => void;
+  connected: boolean;
 }
 
 // Written by the onboarding "ignore everything" choice. The unhide flow
@@ -33,7 +37,7 @@ const IGNORE_ALL_TEMPLATE = `# CLITrigger Vault — 전부 숨김으로 시작
 *
 `;
 
-export default function VaultLayout({ projectId, onCreateTask }: Props) {
+export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMessage, connected }: Props) {
   const { t } = useI18n();
   const state = useVaultState(projectId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,6 +120,27 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
     return () => { cancelled = true; };
   }, [ready, projectId, reloadVault, markOnboarded]);
 
+  // ── External file-change push ─────────────────────────────────────────────
+  // Ask the server to fs.watch the project root while the docs tab is open.
+  // `connected` in deps re-subscribes after a WS reconnect (the new socket
+  // starts with no server-side watch state).
+  useEffect(() => {
+    if (!connected || !ready) return;
+    sendMessage({ type: 'vault:watch', projectId });
+    return () => sendMessage({ type: 'vault:unwatch', projectId });
+  }, [connected, ready, projectId, sendMessage]);
+
+  // Bumped on every vault:changed — FileExplorerPanel reloads its tree on it.
+  const [fsRefreshToken, setFsRefreshToken] = useState(0);
+  useEffect(() => {
+    return onEvent((event) => {
+      if (event.type === 'vault:changed' && event.projectId === projectId) {
+        reloadVault();
+        setFsRefreshToken((token) => token + 1);
+      }
+    });
+  }, [onEvent, projectId, reloadVault]);
+
   const finishOnboarding = useCallback(() => {
     markOnboarded();
     setShowOnboarding(false);
@@ -176,6 +201,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
           onVaultIgnoreChanged={reloadVault}
           onCreateTask={onCreateTask}
           edges={vaultEdges}
+          refreshToken={fsRefreshToken}
         />
       ),
     },
@@ -203,7 +229,7 @@ export default function VaultLayout({ projectId, onCreateTask }: Props) {
         />
       ),
     },
-  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, reloadVault, onCreateTask]);
+  ], [t, projectId, state.activeFile, state.setActiveFile, vaultFiles, vaultEdges, reloadVault, onCreateTask, fsRefreshToken]);
 
   const rightPanels = useMemo<readonly PanelDef<RightPanelId>[]>(() => [
     {
