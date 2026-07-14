@@ -753,6 +753,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       <ProjectHeader
         project={project}
         todos={todos}
+        sessions={sessions}
         onProjectUpdate={(updated) => setProject(updated)}
       />
 
