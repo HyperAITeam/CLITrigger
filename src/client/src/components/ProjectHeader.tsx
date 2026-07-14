@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Modal from './Modal';
-import type { Project, Todo } from '../types';
+import type { Project, Todo, Session } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
 import { getCliStatus, refreshCliStatus, type CliToolStatus } from '../api/cli-status';
@@ -8,15 +8,16 @@ import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
-import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal } from 'lucide-react';
 
 interface ProjectHeaderProps {
   project: Project;
   todos: Todo[];
+  sessions: Session[];
   onProjectUpdate: (project: Project) => void;
 }
 
-export default function ProjectHeader({ project, todos, onProjectUpdate }: ProjectHeaderProps) {
+export default function ProjectHeader({ project, todos, sessions, onProjectUpdate }: ProjectHeaderProps) {
   const { t } = useI18n();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -190,6 +191,7 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
   const totalTodos = todos.length;
   const completedTodos = todos.filter(t => t.status === 'completed' || t.status === 'merged').length;
   const runningTodos = todos.filter(t => t.status === 'running').length;
+  const runningSessions = sessions.filter(s => s.status === 'running').length;
   const progressPct = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0;
 
   return (
@@ -271,6 +273,12 @@ export default function ProjectHeader({ project, todos, onProjectUpdate }: Proje
 
           {/* Compact progress */}
           <div className="flex items-center gap-3 flex-shrink-0">
+            {runningSessions > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-status-running font-medium">
+                <Terminal size={12} strokeWidth={2} className="flex-shrink-0" />
+                {runningSessions}
+              </span>
+            )}
             {runningTodos > 0 && (
               <span className="inline-flex items-center gap-1.5 text-xs text-status-running font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-status-running animate-pulse" />
