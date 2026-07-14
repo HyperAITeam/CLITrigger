@@ -26,7 +26,7 @@ import { editBuffer } from './vault-edit-buffer';
 import { getDraft, saveDraft, clearDraft } from './vault-draft';
 import {
   IMAGE_EXT, PDF_EXT, VIDEO_EXT, AUDIO_EXT, MARKDOWN_EXT, HTML_EXT,
-  extOf, formatSize, iconFor, languageExtensionFor,
+  extOf, formatSize, iconFor, languageExtensionFor, resolveVaultRelative,
 } from './files-utils';
 
 // Pen/highlighter palette — red first (previous hardcoded default). Mid-tone
@@ -769,18 +769,13 @@ export function PreviewPanel({
                 content={textContent}
                 onCheckboxToggle={handleCheckboxToggle}
                 onLinkClick={onNavigateFile ? (href) => {
-                  const clean = decodeURIComponent(href.split('#')[0].split('?')[0]);
-                  if (!clean) return;
-                  const dir = path!.includes('/') ? path!.slice(0, path!.lastIndexOf('/')) : '';
-                  const parts = (dir ? `${dir}/${clean}` : clean).replace(/\\/g, '/').split('/');
-                  const resolved: string[] = [];
-                  for (const p of parts) {
-                    if (p === '.' || p === '') continue;
-                    if (p === '..') { resolved.pop(); continue; }
-                    resolved.push(p);
-                  }
-                  onNavigateFile(resolved.join('/'));
+                  const resolved = resolveVaultRelative(path, href);
+                  if (resolved) onNavigateFile(resolved);
                 } : undefined}
+                resolveImageSrc={(src) => {
+                  const resolved = resolveVaultRelative(path, src);
+                  return resolved ? getBinaryFileUrl(projectId, resolved) : src;
+                }}
               />
             </div>
           </RenderErrorBoundary>

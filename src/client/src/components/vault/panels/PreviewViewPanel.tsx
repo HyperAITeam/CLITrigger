@@ -1,6 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { editBuffer, type EditBufferSnapshot } from '../vault-edit-buffer';
 import { useVaultZoom } from '../../../hooks/useVaultZoom';
+import { getBinaryFileUrl } from '../../../api/files';
+import { resolveVaultRelative } from '../files-utils';
 import MarkdownContent from '../../MarkdownContent';
 
 const EMPTY: EditBufferSnapshot = { active: false, path: null, content: '' };
@@ -22,7 +24,13 @@ export function PreviewViewPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="p-4 vault-md-zoom" style={{ fontSize: `${zoom}px` }}>
-      <MarkdownContent content={debounced} />
+      <MarkdownContent
+        content={debounced}
+        resolveImageSrc={(src) => {
+          const resolved = resolveVaultRelative(snap.path, src);
+          return resolved ? getBinaryFileUrl(projectId, resolved) : src;
+        }}
+      />
     </div>
   );
 }
