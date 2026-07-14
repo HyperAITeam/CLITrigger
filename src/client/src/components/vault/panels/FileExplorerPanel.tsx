@@ -747,7 +747,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onSendToNewTerminal={() => {
             if (!windows) return;
             const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
-            windows.sendToNewTerminal(paths.map(quoteIfSpace).join(' ')).catch(() => { /* swallow — createSession error */ });
+            windows.sendToNewTerminal(paths.map(quoteIfSpace).join(' '), contextMenu.entry.name).catch(() => { /* swallow — createSession error */ });
             success(t('files.sentToTerminal'));
           }}
           onCreateTask={onCreateTask ? async () => {

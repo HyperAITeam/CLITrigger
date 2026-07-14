@@ -137,8 +137,9 @@ export interface SessionWindowsAPI {
   // Currently-open terminals (main-owned groups), topmost first, with a
   // display label. Used to populate a "send to which terminal?" list.
   listOpenTerminals: () => { sessionId: string; label: string }[];
-  // Open a new raw-shell terminal and inject text into it once it's running.
-  sendToNewTerminal: (text: string) => Promise<void>;
+  // Open a new CLI terminal holding the text as its pending initial prompt
+  // (Send/Skip banner — nothing executes until the user confirms).
+  sendToNewTerminal: (text: string, title?: string) => Promise<void>;
 }
 
 const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
@@ -1192,21 +1193,10 @@ export default function SessionWindowsHost({
     return [0, ...firstStackPath(node.children[0])];
   }, []);
 
-  const createRawShellTab = useCallback(async (targetGroupId: string | null, targetPath?: Path) => {
-    // Title needs to be unique-ish so the sidebar / session list doesn't
-    // show a wall of identical "Shell" rows. Time-of-day is enough.
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    const session = await sessionsApi.createSession(projectId, {
-      title: `Shell ${hh}:${mm}:${ss}`,
-      cli_tool: 'raw-shell',
-      use_worktree: false,
-      memory_inject_mode: 'none',
-    });
-    onAddSession?.(session);
-
+  // Attach a freshly-created session as a tab in the target group's stack
+  // (when it resolves to a visible main-owned group) or open it as a new
+  // floating window. Intent 'start' triggers auto-start in SessionPane.
+  const openSessionTab = useCallback((sessionId: string, targetGroupId: string | null, targetPath?: Path) => {
     const target = targetGroupId
       ? groupsRef.current.find(g => g.id === targetGroupId)
       : null;
@@ -1214,9 +1204,9 @@ export default function SessionWindowsHost({
 
     if (!target || !targetIsMainOwned) {
       // No host group to attach to (or popout owns it) — spawn a new
-      // floating window. Intent 'start' triggers auto-start in SessionPane.
-      openOrFocus(session.id, 'start');
-      return session.id;
+      // floating window.
+      openOrFocus(sessionId, 'start');
+      return;
     }
 
     // Insert into the target stack. Falls back to the first stack in DFS
@@ -1234,18 +1224,35 @@ export default function SessionWindowsHost({
     const z = zCounterRef.current;
     setGroups((prev) => prev.map(g => {
       if (g.id !== target.id) return g;
-      const newRoot = treeSetActiveTab(insertIntoStack(g.root, resolvedPath, session.id), session.id);
+      const newRoot = treeSetActiveTab(insertIntoStack(g.root, resolvedPath, sessionId), sessionId);
       return {
         ...g,
         root: newRoot,
         z,
         minimized: false,
-        colors: { ...g.colors, [session.id]: assignColor(Object.values(g.colors)) },
-        intents: { ...g.intents, [session.id]: { intent: 'start' as WindowIntent, nonce: 0 } },
+        colors: { ...g.colors, [sessionId]: assignColor(Object.values(g.colors)) },
+        intents: { ...g.intents, [sessionId]: { intent: 'start' as WindowIntent, nonce: 0 } },
       };
     }));
+  }, [openOrFocus, firstStackPath]);
+
+  const createRawShellTab = useCallback(async (targetGroupId: string | null, targetPath?: Path) => {
+    // Title needs to be unique-ish so the sidebar / session list doesn't
+    // show a wall of identical "Shell" rows. Time-of-day is enough.
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const session = await sessionsApi.createSession(projectId, {
+      title: `Shell ${hh}:${mm}:${ss}`,
+      cli_tool: 'raw-shell',
+      use_worktree: false,
+      memory_inject_mode: 'none',
+    });
+    onAddSession?.(session);
+    openSessionTab(session.id, targetGroupId, targetPath);
     return session.id;
-  }, [projectId, onAddSession, openOrFocus, firstStackPath]);
+  }, [projectId, onAddSession, openSessionTab]);
 
   // Bus subscription: handle messages from popout children. Lives in the
   // host so we can mutate the React `groups` state directly. Survives the
@@ -1500,11 +1507,12 @@ export default function SessionWindowsHost({
     return out;
   }, []);
 
-  // New raw-shell terminal + deferred path injection. The shell takes time to
-  // spawn and writeTerminalInput drops input for a not-yet-running session, so
-  // we stash the text and flush it from the effect below once status is running.
-  const pendingInjectRef = useRef<Map<string, string>>(new Map());
-  const sendToNewTerminal = useCallback(async (text: string) => {
+  // New CLI session with the text held as its initial prompt (session
+  // description). cli_tool omitted → project default CLI. On start the
+  // prompt is held for the Send/Skip banner in SessionPane, so nothing
+  // executes until the user confirms. No worktree: the injected doc paths
+  // are project-root-relative.
+  const sendToNewTerminal = useCallback(async (text: string, title?: string) => {
     const visible = groupsRef.current.filter(g =>
       !g.minimized && (g.ownerWindowId || MAIN_WINDOW_ID) === MAIN_WINDOW_ID,
     );
@@ -1512,9 +1520,15 @@ export default function SessionWindowsHost({
       (acc, g) => (acc && acc.z >= g.z ? acc : g),
       null,
     );
-    const id = await createRawShellTab(topmost?.id ?? null);
-    pendingInjectRef.current.set(id, text);
-  }, [createRawShellTab]);
+    const session = await sessionsApi.createSession(projectId, {
+      title: title || '',
+      description: text,
+      use_worktree: false,
+      memory_inject_mode: 'none',
+    });
+    onAddSession?.(session);
+    openSessionTab(session.id, topmost?.id ?? null);
+  }, [projectId, onAddSession, openSessionTab]);
 
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
@@ -1526,22 +1540,6 @@ export default function SessionWindowsHost({
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
        setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
        sendToSession, listOpenTerminals, sendToNewTerminal]);
-
-  // Flush pending injections when their session reaches 'running'; drop on
-  // terminal states so the map doesn't leak.
-  useEffect(() => {
-    if (pendingInjectRef.current.size === 0) return;
-    for (const [id, text] of pendingInjectRef.current) {
-      const s = sessions.find(x => x.id === id) || foreignSessions[id];
-      if (!s) continue;
-      if (s.status === 'running') {
-        sendMessage({ type: 'session:terminal-input', sessionId: id, input: text });
-        pendingInjectRef.current.delete(id);
-      } else if (s.status === 'failed' || s.status === 'stopped') {
-        pendingInjectRef.current.delete(id);
-      }
-    }
-  }, [sessions, foreignSessions, sendMessage]);
 
   // Per-session placement, derived from the live groups. Drives the session
   // list badges + actions; recomputed on every groups change.
