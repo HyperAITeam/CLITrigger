@@ -426,6 +426,16 @@ export default function SessionTerminal({
         return false;
       }
 
+      // Ctrl+Shift+A/P/O/M/X (Cmd+Shift on Mac) → stack/group chrome
+      // shortcuts: alias inserter, theme picker, pop out, minimize, close.
+      // Handled by StackView / SessionWindow as the keydown bubbles up;
+      // swallowed here so the PTY never receives them. Plain Ctrl+letter
+      // (^A ^P ^O ^M ^X) stays untouched for shells/TUIs.
+      if (modWithShift && ['a', 'p', 'o', 'm', 'x'].includes(key)) {
+        ev.preventDefault();
+        return false;
+      }
+
       // Ctrl+C (Cmd+C on Mac) → copy when there's a selection, mirroring
       // Windows Terminal / VS Code. With no selection it falls through: on
       // Windows/Linux the PTY still gets ^C (SIGINT); on Mac Cmd+C is a no-op
