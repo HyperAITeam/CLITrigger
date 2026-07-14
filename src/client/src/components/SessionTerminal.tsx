@@ -46,6 +46,20 @@ if (typeof document !== 'undefined') {
   document.addEventListener('focusin', (e) => {
     globalImeLog('focusin', { target: describeEl(e.target) });
   }, true);
+  // Composition outside terminals (form inputs, e.g. the new-session title).
+  // keydown:outside shows 'Process' keys arriving there but not whether TSF
+  // actually opened a composition — ime-debug 2026-07-14: raw d/KeyD runs on
+  // Hangul-intent typing right before session-form submits left that unknown.
+  for (const ev of ['compositionstart', 'compositionend']) {
+    document.addEventListener(ev, (e) => {
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (t?.closest('[data-term-container]')) return; // container log covers it
+      globalImeLog(`${ev}:outside`, {
+        target: describeEl(t),
+        data: (e as CompositionEvent).data ?? '',
+      });
+    }, true);
+  }
 }
 
 interface SessionTerminalProps {
