@@ -430,6 +430,21 @@ export default function SessionWindow({
   const activeIds = activeSessionIds(group.root);
   const allIds = allSessionIds(group.root);
 
+  // Group-chrome shortcuts (Ctrl+Shift, Cmd+Shift on Mac): O → pop out,
+  // M → minimize, X → close. Bound on the wrapper so keydowns bubbling out
+  // of any stack (single or split) reach it; SessionTerminal swallows the
+  // same combos so the PTY never sees them.
+  const onWrapperKeyDown = (e: React.KeyboardEvent) => {
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    const otherMod = isMac ? e.ctrlKey : e.metaKey;
+    if (!mod || otherMod || e.altKey || !e.shiftKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 'o') { e.preventDefault(); api.popOutGroup(group.id); }
+    else if (key === 'm') { e.preventDefault(); api.minimizeGroup(group.id); }
+    else if (key === 'x') { e.preventDefault(); api.closeGroup(group.id); }
+  };
+
   // ── Mobile: fullscreen single active session, no chrome interactions ─────
   if (isMobile) {
     const activeId = activeIds[0];
@@ -508,6 +523,7 @@ export default function SessionWindow({
   const desktopWindow = createPortal(
     <div
       ref={wrapperRef}
+      onKeyDown={onWrapperKeyDown}
       onMouseDown={isSplitRoot ? () => api.focus(allIds[0] || '') : onChromeWithDockMouseDown}
       style={{
         position: 'fixed',
@@ -558,7 +574,7 @@ export default function SessionWindow({
               onClick={() => api.popOutGroup(group.id)}
               style={closeBtnStyle}
               aria-label="pop-out"
-              title={t('session.popOut') || 'Pop out to separate window'}
+              title={`${t('session.popOut') || 'Pop out to separate window'} (Ctrl+Shift+O)`}
             >
               <ExternalLink size={14} />
             </button>
@@ -567,7 +583,7 @@ export default function SessionWindow({
               onClick={() => api.minimizeGroup(group.id)}
               style={closeBtnStyle}
               aria-label="minimize"
-              title={t('session.minimize') || 'Minimize'}
+              title={`${t('session.minimize') || 'Minimize'} (Ctrl+Shift+M)`}
             >
               <Minus size={14} />
             </button>
@@ -576,6 +592,7 @@ export default function SessionWindow({
               onClick={() => api.closeGroup(group.id)}
               style={closeBtnStyle}
               aria-label="close"
+              title={`${t('session.close') || 'Close'} (Ctrl+Shift+X)`}
             >
               <X size={14} />
             </button>

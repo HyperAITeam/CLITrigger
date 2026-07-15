@@ -42,6 +42,23 @@ export function extOf(name: string): string {
   return i < 0 ? '' : name.slice(i).toLowerCase();
 }
 
+// Resolve a markdown-relative href (`./img.png`, `../a/b.md`) against the
+// directory of the document at `basePath`. Strips #fragment/?query and
+// normalizes `.`/`..`. Returns a root-relative vault path ('' if empty).
+export function resolveVaultRelative(basePath: string | null, href: string): string {
+  const clean = decodeURIComponent(href.split('#')[0].split('?')[0]);
+  if (!clean) return '';
+  const dir = basePath && basePath.includes('/') ? basePath.slice(0, basePath.lastIndexOf('/')) : '';
+  const parts = (dir ? `${dir}/${clean}` : clean).replace(/\\/g, '/').split('/');
+  const resolved: string[] = [];
+  for (const p of parts) {
+    if (p === '.' || p === '') continue;
+    if (p === '..') { resolved.pop(); continue; }
+    resolved.push(p);
+  }
+  return resolved.join('/');
+}
+
 export function formatSize(n: number | null): string {
   if (n == null) return '';
   if (n < 1024) return `${n} B`;
