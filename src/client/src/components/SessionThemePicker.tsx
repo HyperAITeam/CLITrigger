@@ -89,6 +89,9 @@ export default function SessionThemePicker({ sessionId }: SessionThemePickerProp
       setState({ presetId: 'custom', custom: seedCustom });
     } else {
       setState({ presetId: id, custom: state.custom });
+      // Single-pick done — close like a normal menu. Custom stays open so
+      // the color editor below remains usable.
+      setOpen(false);
     }
   };
 
@@ -105,7 +108,7 @@ export default function SessionThemePicker({ sessionId }: SessionThemePickerProp
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => setOpen((v) => !v)}
         aria-label="terminal-theme"
-        title="Terminal theme"
+        title="Terminal theme (Ctrl+Shift+P)"
         style={{
           background: 'transparent',
           border: 'none',

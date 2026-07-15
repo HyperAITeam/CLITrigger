@@ -12,6 +12,56 @@ import { useToast } from '../hooks/useToast';
 import ToastContainer from './Toast';
 import type { WsEvent } from '../hooks/useWebSocket';
 
+// Temporary IME diagnostics (document-level, registered once per window).
+// The per-container 'keydown' log below is capture-scoped to each terminal,
+// so when DOM focus has left every terminal it goes silent — ime-debug
+// 2026-07-14: main logged 'Process' keys but no renderer keydown, leaving
+// WHERE the keys landed unknown. These two points close that gap:
+//   keydown:outside — a key whose target is outside every [data-term-container];
+//                     names the element that swallowed the dead keystrokes.
+//   focusin         — every DOM focus move; names what stole focus and when.
+// Gated main-side like all imeLog traffic (persisted only when IME debug on).
+const globalImeLog = (reason: string, extra: Record<string, unknown>) => {
+  try {
+    (window as unknown as { electronAPI?: { imeLog?: (p: unknown) => void } })
+      .electronAPI?.imeLog?.({ reason, path: window.location.pathname, ...extra });
+  } catch { /* best-effort diagnostics */ }
+};
+const describeEl = (el: unknown) => {
+  const e = el instanceof HTMLElement ? el : null;
+  if (!e) return null;
+  const cls = typeof e.className === 'string' ? e.className.slice(0, 60) : '';
+  return `${e.tagName}${e.id ? `#${e.id}` : ''}${cls ? `.${cls}` : ''}`;
+};
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (e) => {
+    const t = e.target instanceof HTMLElement ? e.target : null;
+    if (t?.closest('[data-term-container]')) return; // container log covers it
+    globalImeLog('keydown:outside', {
+      key: e.key,
+      target: describeEl(t),
+      active: describeEl(document.activeElement),
+    });
+  }, true);
+  document.addEventListener('focusin', (e) => {
+    globalImeLog('focusin', { target: describeEl(e.target) });
+  }, true);
+  // Composition outside terminals (form inputs, e.g. the new-session title).
+  // keydown:outside shows 'Process' keys arriving there but not whether TSF
+  // actually opened a composition — ime-debug 2026-07-14: raw d/KeyD runs on
+  // Hangul-intent typing right before session-form submits left that unknown.
+  for (const ev of ['compositionstart', 'compositionend']) {
+    document.addEventListener(ev, (e) => {
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (t?.closest('[data-term-container]')) return; // container log covers it
+      globalImeLog(`${ev}:outside`, {
+        target: describeEl(t),
+        data: (e as CompositionEvent).data ?? '',
+      });
+    }, true);
+  }
+}
+
 interface SessionTerminalProps {
   sessionId: string;
   isRunning: boolean;
@@ -386,6 +436,16 @@ export default function SessionTerminal({
       // history search.
       if ((key === 'r' && modWithShift)
         || (key === 'f5' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey)) {
+        ev.preventDefault();
+        return false;
+      }
+
+      // Ctrl+Shift+A/P/O/M/X (Cmd+Shift on Mac) → stack/group chrome
+      // shortcuts: alias inserter, theme picker, pop out, minimize, close.
+      // Handled by StackView / SessionWindow as the keydown bubbles up;
+      // swallowed here so the PTY never receives them. Plain Ctrl+letter
+      // (^A ^P ^O ^M ^X) stays untouched for shells/TUIs.
+      if (modWithShift && ['a', 'p', 'o', 'm', 'x'].includes(key)) {
         ev.preventDefault();
         return false;
       }

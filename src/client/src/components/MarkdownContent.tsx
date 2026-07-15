@@ -12,6 +12,8 @@ interface MarkdownContentProps {
   onCreateMemoryNode?: (title: string) => void;
   /** Intercept relative file links (e.g. `[label](./foo.md)`). Receives the raw href. */
   onLinkClick?: (href: string) => void;
+  /** Rewrite relative image srcs (e.g. `![](./img.png)`) to a fetchable URL. */
+  resolveImageSrc?: (src: string) => string;
   /** Enable interactive task list checkboxes. Receives the 0-based index of the
    *  clicked checkbox (in document order) and the new checked state. */
   onCheckboxToggle?: (index: number, checked: boolean) => void;
@@ -128,6 +130,7 @@ export default function MarkdownContent({
   onSelectMemoryNode,
   onCreateMemoryNode,
   onLinkClick,
+  resolveImageSrc,
   onCheckboxToggle,
 }: MarkdownContentProps) {
   const titleIndex = new Map<string, string>();
@@ -153,6 +156,14 @@ export default function MarkdownContent({
             }
             return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
           },
+          ...(resolveImageSrc ? {
+            img: (props: ComponentProps<'img'>) => {
+              const src = typeof props.src === 'string' && isRelativeLink(props.src)
+                ? resolveImageSrc(props.src)
+                : props.src;
+              return <img {...props} src={src} className="max-w-full" />;
+            },
+          } : {}),
           ...(onCheckboxToggle ? {
             input: (props: ComponentProps<'input'>) => {
               if (props.type !== 'checkbox') return <input {...props} />;
