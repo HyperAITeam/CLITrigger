@@ -40,7 +40,7 @@ interface PlannerCalendarProps {
 export default function PlannerCalendar({
   view, items, tagColors, onQuickAdd, onEditItem, onConvert, onDeleteItem,
 }: PlannerCalendarProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
   // Right-click on a day cell → "new item" pre-filled with that date.
@@ -54,7 +54,7 @@ export default function PlannerCalendar({
 
   const step = (dir: number) => setCursor((c) => stepCursor(c, view, dir));
   const goToday = () => { setCursor(new Date()); setSelectedDate(ymd(new Date())); };
-  const rangeTitle = formatRangeTitle(cursor, view);
+  const rangeTitle = formatRangeTitle(cursor, view, lang);
 
   // In day view the side panel mirrors the cursor day.
   useEffect(() => { if (view === 'day') setSelectedDate(ymd(cursor)); }, [view, cursor]);
@@ -155,7 +155,7 @@ export default function PlannerCalendar({
       <div className="flex-shrink-0 flex flex-col overflow-hidden" style={{ width: panelWidth }}>
         <div className="px-4 pt-3 pb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {new Date(selectedDate + 'T00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', weekday: 'short' })}
+            {new Date(selectedDate + 'T00:00').toLocaleDateString(lang, { month: 'long', day: 'numeric', weekday: 'short' })}
           </h3>
           <button onClick={() => onQuickAdd(selectedDate)} className="btn-ghost text-xs px-2 py-1 flex items-center gap-1">
             <Plus size={13} />{t('agenda.add')}

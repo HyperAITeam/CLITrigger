@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useI18n } from '../../i18n';
 
 // Shared calendar primitives used by both "My Schedule" (PersonalAgenda) and a
 // project's Planner calendar. Keeping the date math + range computation here
@@ -94,20 +95,23 @@ export function stepCursor(cursor: Date, view: CalView, dir: number): Date {
   return d;
 }
 
-export function formatRangeTitle(cursor: Date, view: CalView): string {
+// Date labels follow the app language, not the OS locale — pass the i18n lang
+// ('en' | 'ko', valid BCP47 tags) as the locale.
+export function formatRangeTitle(cursor: Date, view: CalView, locale: string): string {
   if (view === 'month' || view === 'table') {
-    return cursor.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+    return cursor.toLocaleDateString(locale, { year: 'numeric', month: 'long' });
   }
   if (view === 'week') {
     const s = startOfWeek(cursor);
-    return `${s.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${addDays(s, 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    return `${s.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${addDays(s, 6).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
   }
-  return cursor.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  return cursor.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
 }
 
 export function useWeekdayLabels(): string[] {
+  const { lang } = useI18n();
   return useMemo(() => {
     const base = new Date(2024, 5, 2); // a Sunday
-    return Array.from({ length: 7 }, (_, i) => addDays(base, i).toLocaleDateString(undefined, { weekday: 'short' }));
-  }, []);
+    return Array.from({ length: 7 }, (_, i) => addDays(base, i).toLocaleDateString(lang, { weekday: 'short' }));
+  }, [lang]);
 }

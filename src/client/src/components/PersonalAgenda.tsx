@@ -73,7 +73,7 @@ interface PendingImage {
 let imageCounter = 0;
 
 export default function PersonalAgenda() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [view, setView] = useState<CalView>('month');
   const [sort, setSort] = useState<{ key: 'date' | 'kind' | 'status'; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'asc' });
@@ -402,7 +402,7 @@ export default function PersonalAgenda() {
   const step = (dir: number) => setCursor((c) => stepCursor(c, view, dir));
   const goToday = () => { setCursor(new Date()); setSelectedDate(ymd(new Date())); };
 
-  const rangeTitle = formatRangeTitle(cursor, view);
+  const rangeTitle = formatRangeTitle(cursor, view, lang);
 
   // ── form ───────────────────────────────────────────────────────────────
   const openAdd = (dateKey?: string) => {
@@ -747,7 +747,7 @@ export default function PersonalAgenda() {
                 <div className="px-3 py-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.dayEmpty')}</div>
               )}
               {tableRows.map((r) => {
-                const fmtDay = (k: string) => new Date(k + 'T00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                const fmtDay = (k: string) => new Date(k + 'T00:00').toLocaleDateString(lang, { year: 'numeric', month: 'short', day: 'numeric' });
                 const dateLabel = r.dateKey
                   ? fmtDay(r.dateKey) + (r.endKey ? ` ~ ${fmtDay(r.endKey)}` : (r.time ? ` ${r.time}` : ''))
                   : '—';
@@ -811,7 +811,7 @@ export default function PersonalAgenda() {
       <div className="flex-shrink-0 flex flex-col overflow-hidden" style={{ width: panelWidth }}>
         <div className="px-4 pt-5 pb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {new Date(selectedDate + 'T00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', weekday: 'short' })}
+            {new Date(selectedDate + 'T00:00').toLocaleDateString(lang, { month: 'long', day: 'numeric', weekday: 'short' })}
           </h2>
           <button onClick={() => openAdd(selectedDate)} className="btn-ghost text-xs px-2 py-1 flex items-center gap-1">
             <Plus size={13} />{t('agenda.add')}
