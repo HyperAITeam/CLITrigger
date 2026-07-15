@@ -785,13 +785,24 @@ export function PreviewPanel({
             <div className="px-3 py-1.5 text-xs text-warm-500 bg-warm-50 border-b border-warm-200 shrink-0">
               {t('files.html.sandboxNotice')}
             </div>
-            <iframe
-              srcDoc={textContent}
-              sandbox=""
-              title={entry.name}
-              className="flex-1 w-full border-0 bg-white min-h-[60vh]"
-              style={{ zoom: zoom / DEFAULT_VAULT_FONT_SIZE, pointerEvents: zoomKeyHeld ? 'none' : 'auto' }}
-            />
+            {/* CSS zoom doesn't reach into the iframe's document — scale the
+                composited frame with transform instead, sized inversely so the
+                scaled result still fills the panel exactly. */}
+            <div className="flex-1 min-h-[60vh] overflow-hidden">
+              <iframe
+                srcDoc={textContent}
+                sandbox=""
+                title={entry.name}
+                className="border-0 bg-white"
+                style={{
+                  pointerEvents: zoomKeyHeld ? 'none' : 'auto',
+                  width: `${(100 * DEFAULT_VAULT_FONT_SIZE) / zoom}%`,
+                  height: `${(100 * DEFAULT_VAULT_FONT_SIZE) / zoom}%`,
+                  transform: `scale(${zoom / DEFAULT_VAULT_FONT_SIZE})`,
+                  transformOrigin: '0 0',
+                }}
+              />
+            </div>
           </div>
         )}
         {!loading && !error && !editMode && textContent !== null && !isMarkdown && !isHtml && (
