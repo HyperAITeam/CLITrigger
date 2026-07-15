@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ymd, type CalView, type CalChip, type CalBar } from './calendarShared';
+import { useI18n } from '../../i18n';
 
 interface CalendarGridProps {
   view: CalView; // 'month' | 'week' | 'day' — callers guard 'table' themselves
@@ -83,6 +84,7 @@ export default function CalendarGrid({
   onSelectDate, onQuickAdd, onChipClick, onCellContextMenu,
   onChipContextMenu, onBarContextMenu, monthCellHeight = 92,
 }: CalendarGridProps) {
+  const { lang } = useI18n();
   // Hover-to-expand: when a month cell hides entries behind "+N", dwelling on
   // it pops a portal card showing the whole day, with a small scale-in.
   const [expanded, setExpanded] = useState<{ key: string; rect: DOMRect } | null>(null);
@@ -150,7 +152,7 @@ export default function CalendarGrid({
         <span className="flex items-center gap-1.5">
           {view !== 'month' && (
             <span className="text-2xs uppercase" style={{ color: 'var(--color-text-muted)' }}>
-              {d.toLocaleDateString(undefined, { weekday: 'short' })}
+              {d.toLocaleDateString(lang, { weekday: 'short' })}
             </span>
           )}
           <span
