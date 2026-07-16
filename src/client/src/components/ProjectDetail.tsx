@@ -781,14 +781,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
               onClick={() => setActiveTab(tab.key)}
               className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
                 activeTab === tab.key
-                  ? 'text-warm-800 font-semibold shadow-soft'
-                  : 'text-warm-500 font-normal hover:text-warm-600'
+                  ? 'text-theme-text font-semibold shadow-soft'
+                  : 'text-theme-text-secondary font-medium hover:text-theme-text'
               }`}
               style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
             >
               {tab.label}
               {'count' in tab && typeof tab.count === 'number' && (
-                <span className={`ml-1 ${activeTab === tab.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                <span className={`ml-1 ${activeTab === tab.key ? 'text-theme-text-tertiary' : 'text-theme-muted'}`}>
                   {tab.count}
                 </span>
               )}
@@ -811,14 +811,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
                 onClick={() => setAutomationSub(s.key)}
                 className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
                   automationSub === s.key
-                    ? 'text-warm-800 font-semibold shadow-soft'
-                    : 'text-warm-500 font-normal hover:text-warm-600'
+                    ? 'text-theme-text font-semibold shadow-soft'
+                    : 'text-theme-text-secondary font-medium hover:text-theme-text'
                 }`}
                 style={automationSub === s.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
               >
                 {s.label}
                 {'count' in s && typeof s.count === 'number' && (
-                  <span className={`ml-1 ${automationSub === s.key ? 'text-warm-500' : 'text-warm-400'}`}>
+                  <span className={`ml-1 ${automationSub === s.key ? 'text-theme-text-tertiary' : 'text-theme-muted'}`}>
                     {s.count}
                   </span>
                 )}
