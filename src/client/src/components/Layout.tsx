@@ -4,6 +4,8 @@ import ParticleBackground from './ParticleBackground';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import IconButton from './IconButton';
+import { useI18n } from '../i18n';
 
 interface LayoutProps {
   children: ReactNode;
@@ -16,6 +18,7 @@ interface LayoutProps {
 export default function Layout({ children, onLogout, authRequired, connected, onEvent }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { t } = useI18n();
   // Desktop-only collapse to a 56px icon rail. Hydrated synchronously so the
   // first paint matches the persisted width (no expand→collapse flash).
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
@@ -63,12 +66,13 @@ export default function Layout({ children, onLogout, authRequired, connected, on
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger */}
         <div className="md:hidden flex items-center px-4 py-3 border-b border-theme-border glass z-20">
-          <button
+          <IconButton
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-theme-hover transition-colors text-theme-text-secondary"
+            label={t('sidebar.expand')}
+            size="md"
           >
             <Menu size={20} />
-          </button>
+          </IconButton>
           <span className="ml-3 text-sm font-semibold text-theme-text">CLITrigger</span>
         </div>
 

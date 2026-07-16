@@ -10,6 +10,7 @@ import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import { List, LayoutGrid, Plus, Link, ArrowLeftRight, Unlink, ClipboardList, Layers, ChevronsUp, Play, Square } from 'lucide-react';
 import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
+import IconButton from './IconButton';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -373,20 +374,22 @@ export default function TodoList({
           <div className="flex items-center gap-2">
             {/* View mode toggle */}
             <div className="flex items-center bg-warm-100 rounded-lg p-0.5">
-              <button
+              <IconButton
                 onClick={() => handleViewModeChange('list')}
-                className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
-                title={t('graph.listView')}
+                label={t('graph.listView')}
+                size="sm"
               >
                 <List size={14} />
-              </button>
-              <button
+              </IconButton>
+              <IconButton
                 onClick={() => handleViewModeChange('graph')}
-                className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent"
-                title={t('graph.graphView')}
+                label={t('graph.graphView')}
+                size="sm"
+                variant="active"
+                pressed
               >
                 <LayoutGrid size={14} />
-              </button>
+              </IconButton>
             </div>
             {runStopButtons}
           </div>
@@ -441,40 +444,40 @@ export default function TodoList({
         <div className="flex items-center gap-2">
           {/* View mode toggle */}
           <div className="flex items-center bg-warm-100 rounded-lg p-0.5">
-            <button
+            <IconButton
               onClick={() => handleViewModeChange('list')}
-              className="p-1.5 rounded-md transition-colors bg-theme-card shadow-sm text-accent"
-              title={t('graph.listView')}
+              label={t('graph.listView')}
+              size="sm"
+              variant="active"
+              pressed
             >
               <List size={14} />
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               onClick={() => handleViewModeChange('graph')}
-              className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600"
-              title={t('graph.graphView')}
+              label={t('graph.graphView')}
+              size="sm"
             >
               <LayoutGrid size={14} />
-            </button>
+            </IconButton>
           </div>
-          <button
+          <IconButton
             onClick={handleStackModeToggle}
-            className={`p-1.5 rounded-md transition-colors ${
-              stackModeEnabled
-                ? 'bg-accent/10 text-accent'
-                : 'text-warm-400 hover:text-warm-600 hover:bg-warm-100'
-            }`}
-            title={stackModeEnabled ? t('todos.stackModeOn') : t('todos.stackModeOff')}
+            label={stackModeEnabled ? t('todos.stackModeOn') : t('todos.stackModeOff')}
+            size="sm"
+            variant={stackModeEnabled ? 'active' : 'default'}
+            pressed={stackModeEnabled}
           >
             <Layers size={14} />
-          </button>
+          </IconButton>
           {stackModeEnabled && !stackCollapsed && viewMode === 'list' && sortedTodos.length > 0 && (
-            <button
+            <IconButton
               onClick={handleStackToggle}
-              className="p-1.5 rounded-md transition-colors text-warm-400 hover:text-warm-600 hover:bg-warm-100"
-              title={t('todos.collapseStack')}
+              label={t('todos.collapseStack')}
+              size="sm"
             >
               <ChevronsUp size={14} />
-            </button>
+            </IconButton>
           )}
           {runStopButtons}
           {!showForm && (

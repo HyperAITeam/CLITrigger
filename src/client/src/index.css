@@ -280,6 +280,19 @@
   .btn-icon:hover { color: var(--color-text-primary); }
   .btn-icon-sm { @apply w-7 h-7; }
   .btn-icon-md { @apply w-8 h-8; }
+  .btn-icon-lg { @apply w-9 h-9; }
+  .btn-icon-active {
+    background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+  }
+  .btn-icon-active:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+  }
+  .btn-icon-danger:hover {
+    background-color: color-mix(in srgb, #ff3b30 12%, transparent);
+    color: #ff3b30;
+  }
 
   .input-field {
     background-color: var(--color-bg-input);

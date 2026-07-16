@@ -19,6 +19,7 @@ import SettingsModal from './SettingsModal';
 import ProjectColorPicker from './ProjectColorPicker';
 import { resolveProjectColor } from '../lib/projectColor';
 import { getErrorMessage } from '../lib/errors';
+import IconButton from './IconButton';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -402,14 +403,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     const railDivider = <div className="w-7 border-t my-1.5" style={{ borderColor: 'var(--color-border)' }} />;
     return (
       <div className="flex flex-col items-center h-full glass border-none py-3">
-        <button
+        <IconButton
           onClick={onToggleCollapsed}
-          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
-          style={{ color: 'var(--color-text-tertiary)' }}
-          title={t('sidebar.expand')}
+          label={t('sidebar.expand')}
+          size="lg"
         >
           <PanelLeftOpen size={18} />
-        </button>
+        </IconButton>
         {railDivider}
         <Link
           to="/"
@@ -484,22 +484,20 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         </div>
         {railDivider}
         <span className={`w-1.5 h-1.5 rounded-full my-1 ${connected ? 'bg-status-success' : 'bg-status-error'}`} title={connected ? t('detail.live') : 'Disconnected'} />
-        <button
+        <IconButton
           onClick={toggleTheme}
-          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
-          style={{ color: 'var(--color-text-tertiary)' }}
-          title={theme === 'light' ? t('theme.dark') : t('theme.light')}
+          label={theme === 'light' ? t('theme.dark') : t('theme.light')}
+          size="lg"
         >
           {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
-        <button
+        </IconButton>
+        <IconButton
           onClick={() => setShowSettings(true)}
-          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-theme-hover"
-          style={{ color: 'var(--color-text-tertiary)' }}
-          title={t('settings.title')}
+          label={t('settings.title')}
+          size="lg"
         >
           <Settings size={16} />
-        </button>
+        </IconButton>
         <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
       </div>
     );
@@ -526,14 +524,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             <text x="96" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-text-primary)">Trigger</text>
           </svg>
         </Link>
-        <button
+        <IconButton
           onClick={onToggleCollapsed}
-          className="hidden md:flex items-center justify-center w-7 h-7 rounded-md transition-colors hover:bg-theme-hover flex-shrink-0"
-          style={{ color: 'var(--color-text-tertiary)' }}
-          title={t('sidebar.collapse')}
+          label={t('sidebar.collapse')}
+          size="sm"
+          className="hidden md:inline-flex flex-shrink-0"
         >
           <PanelLeftClose size={16} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Navigation */}
@@ -602,14 +600,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           <span className="text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
             {t('sidebar.workspaces')}
           </span>
-          <button
+          <IconButton
             onClick={() => setShowForm(true)}
-            className="flex items-center justify-center w-5 h-5 rounded-md transition-colors hover:bg-theme-hover"
-            style={{ color: 'var(--color-text-tertiary)' }}
-            title={t('projects.new')}
+            label={t('projects.new')}
+            size="sm"
           >
             <Plus size={14} strokeWidth={2} />
-          </button>
+          </IconButton>
         </div>
         <div className="space-y-0.5">
           {projects.map((project, index) => {
@@ -661,14 +658,15 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                       : project.name}
                   />
                   <span className="truncate flex-1">{project.name}</span>
-                  <button
+                  <IconButton
                     onClick={(e) => handleDeleteProject(project.id, e)}
-                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10"
-                    style={{ color: 'var(--color-text-muted)' }}
-                    title={t('projects.delete')}
+                    label={t('projects.delete')}
+                    size="sm"
+                    variant="danger"
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <X size={12} strokeWidth={2} />
-                  </button>
+                  </IconButton>
                 </Link>
                 {showBelow && renderDropIndicator('below')}
               </div>
@@ -690,14 +688,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             <span className="text-2xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
               {t('sidebar.favorites')}
             </span>
-            <button
+            <IconButton
               onClick={() => { setEditingFavorite(null); setShowFavoriteForm(true); }}
-              className="flex items-center justify-center w-5 h-5 rounded-md transition-colors hover:bg-theme-hover"
-              style={{ color: 'var(--color-text-tertiary)' }}
-              title={t('favorites.add')}
+              label={t('favorites.add')}
+              size="sm"
             >
               <Plus size={14} strokeWidth={2} />
-            </button>
+            </IconButton>
           </div>
           <div className="space-y-0.5 max-h-48 overflow-y-auto">
             {favorites.map((favorite) => {
@@ -768,67 +765,64 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         {/* Controls row with connection status */}
         <div className="flex items-center gap-1 px-1">
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1 ${connected ? 'bg-status-success' : 'bg-status-error'}`} title={connected ? t('detail.live') : 'Disconnected'} />
-          <button
+          <IconButton
             onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-            style={{ color: 'var(--color-text-tertiary)' }}
-            title={theme === 'light' ? t('theme.dark') : t('theme.light')}
+            label={theme === 'light' ? t('theme.dark') : t('theme.light')}
           >
             {theme === 'light' ? (
               <Moon size={16} />
             ) : (
               <Sun size={16} />
             )}
-          </button>
-          <button
+          </IconButton>
+          <IconButton
             onClick={toggleLang}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-xs font-medium"
-            style={{ color: 'var(--color-text-tertiary)' }}
+            label={t('lang.toggle')}
+            className="text-xs font-medium"
           >
             {t('lang.toggle')}
-          </button>
+          </IconButton>
           {notifSupported && (
-            <button
+            <IconButton
               onClick={toggleNotification}
-              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-              style={{ color: notifEnabled ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
-              title={'Notification' in window && Notification.permission === 'denied' ? t('notification.blocked') : t('notification.toggle')}
+              label={'Notification' in window && Notification.permission === 'denied' ? t('notification.blocked') : t('notification.toggle')}
+              variant={notifEnabled ? 'active' : 'default'}
+              pressed={notifEnabled}
             >
               {notifEnabled ? (
                 <Bell size={16} />
               ) : (
                 <BellOff size={16} />
               )}
-            </button>
+            </IconButton>
           )}
-          <button
+          <IconButton
             onClick={handleTunnelClick}
             disabled={tunnelBusy}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors disabled:opacity-50"
-            style={{ color: tunnelStatus?.status === 'running' ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+            label={t('tunnel.start')}
+            variant={tunnelStatus?.status === 'running' ? 'active' : 'default'}
+            pressed={tunnelStatus?.status === 'running'}
             title={tunnelStatus?.status === 'running' && tunnelStatus.url
               ? `${tunnelStatus.url} — ${t('tunnel.urlCopied')}`
               : tunnelBusy ? t('tunnel.starting') : t('tunnel.start')}
           >
             <Cloud size={16} />
-          </button>
-          <button
+          </IconButton>
+          <IconButton
             onClick={() => setShowSettings(true)}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-            style={{ color: 'var(--color-text-tertiary)' }}
-            title={t('settings.title')}
+            label={t('settings.title')}
           >
             <Settings size={16} />
-          </button>
+          </IconButton>
           {authRequired && (
-            <button
+            <IconButton
               onClick={onLogout}
-              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors ml-auto"
-              style={{ color: 'var(--color-text-tertiary)' }}
-              title={t('projects.logout')}
+              label={t('projects.logout')}
+              variant="danger"
+              className="ml-auto"
             >
               <LogOut size={16} />
-            </button>
+            </IconButton>
           )}
         </div>
       </div>
