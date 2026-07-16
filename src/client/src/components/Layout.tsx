@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import ParticleBackground from './ParticleBackground';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { Menu } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface LayoutProps {
 
 export default function Layout({ children, onLogout, authRequired, connected, onEvent }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
   // Desktop-only collapse to a 56px icon rail. Hydrated synchronously so the
   // first paint matches the persisted width (no expand→collapse flash).
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
@@ -72,7 +74,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
 
         {/* Scrollable content area */}
         <main className="flex-1 overflow-y-auto relative">
-          <ParticleBackground />
+          {location.pathname === '/' && <ParticleBackground />}
           <div className="relative" style={{ zIndex: 1 }}>
             {children}
           </div>
