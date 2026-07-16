@@ -575,12 +575,21 @@ export class WorktreeManager {
   /**
    * Conclude an in-progress merge/rebase. Merge uses `commit --no-edit`
    * (keeps MERGE_MSG, never opens an editor); rebase blocks the editor via
-   * GIT_EDITOR=true. A rebase may hit a new conflict on the next commit —
+   * `-c core.editor=true`. A rebase may hit a new conflict on the next commit —
    * that returns { conflict: true } in the same shape as gitMerge.
+   *
+   * Not done via `.env({ ...process.env, GIT_EDITOR: 'true' })`: simple-git
+   * >=3.34 audits every env var passed through `.env()` and rejects any risky
+   * key the host machine happens to export (EDITOR, SSH_ASKPASS, GIT_PAGER, …).
+   * core.editor loses only to an explicitly exported GIT_EDITOR, which a server
+   * process realistically never has.
    */
   async gitConflictContinue(dirPath: string): Promise<{ conflict: boolean; conflictFiles: string[] }> {
     const { merging, rebasing } = await this.getGitOpState(dirPath);
-    const git = createGit(dirPath).env({ ...process.env, GIT_EDITOR: 'true' });
+    const git = createGit(dirPath, {
+      config: ['core.editor=true'],
+      unsafe: { allowUnsafeEditor: true },
+    });
     if (merging) {
       await git.raw(['commit', '--no-edit']);
       return { conflict: false, conflictFiles: [] };
