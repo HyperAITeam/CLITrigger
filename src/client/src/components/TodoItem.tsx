@@ -422,7 +422,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
     M: { label: 'Modified', color: 'text-amber-500' },
     D: { label: 'Deleted', color: 'text-red-500' },
     R: { label: 'Renamed', color: 'text-blue-500' },
-    C: { label: 'Copied', color: 'text-purple-500' },
+    C: { label: 'Copied', color: 'text-theme-text-secondary' },
   };
 
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
@@ -469,7 +469,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
     completed: 'border-l-status-success',
     failed: 'border-l-status-error',
     stopped: 'border-l-status-warning',
-    merged: 'border-l-status-merged',
+    merged: 'border-l-theme-border-strong',
   }[todo.status];
 
   const handleItemDragStart = (e: React.DragEvent) => {
@@ -518,7 +518,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         setCtxMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
+      <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-accent/50 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-status-error/50 ring-offset-1' : ''}`}>
       {/* Header row */}
       <div
         className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap md:gap-3 px-3 md:px-4 py-3 md:py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
@@ -558,7 +558,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-cyan-500/10 text-cyan-600 flex-shrink-0 group/dep"
+            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-theme-bg-tertiary text-theme-text-secondary flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <Link size={12} />
@@ -566,7 +566,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             {onRemoveDependency && (
               <button
                 onClick={(e) => { e.stopPropagation(); onRemoveDependency(todo.id); }}
-                className="ml-0.5 h-3.5 w-3.5 rounded-full hover:bg-cyan-500/20 inline-flex items-center justify-center opacity-0 group-hover/dep:opacity-100 transition-opacity"
+                className="ml-0.5 h-3.5 w-3.5 rounded-full hover:bg-theme-hover inline-flex items-center justify-center opacity-0 group-hover/dep:opacity-100 transition-opacity"
                 title={t('dnd.removeDep')}
               >
                 <X size={10} />
@@ -577,7 +577,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
         {/* CLI Tool Badge */}
         {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-status-merged/10 text-status-merged flex-shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-theme-bg-tertiary text-theme-muted flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
           </span>
         )}
@@ -590,7 +590,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
           {canStart && (
             <button
               onClick={() => onStart(todo.id, 'headless')}
-              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors"
+              className="p-1.5 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-lg transition-colors"
               title={t('todo.startHeadless')}
             >
               <Play size={14} />
@@ -609,7 +609,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             <button
               onClick={handleMerge}
               disabled={merging}
-              className="p-1.5 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.merge')}
             >
               <GitMerge size={14} />
@@ -619,7 +619,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             <button
               onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
               disabled={continuing}
-              className="p-1.5 text-status-success/60 hover:text-status-success hover:bg-status-success/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.continue')}
             >
               <ChevronsRight size={14} />
@@ -629,7 +629,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             <button
               onClick={() => handleRetry('headless')}
               disabled={retrying}
-              className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors disabled:opacity-30"
+              className="p-1.5 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-lg transition-colors disabled:opacity-30"
               title={t('todo.retry')}
             >
               <RotateCcw size={14} />
@@ -765,12 +765,12 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Continue Input (inline, below header) */}
       {showContinueInput && (
-        <div className="border-t border-emerald-200 px-5 py-3 bg-emerald-50/50 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium text-emerald-600">
+            <label className="text-xs font-medium text-theme-text-secondary">
               {t('todo.continuePromptLabel')}
               {(todo.round_count ?? 1) > 1 && (
-                <span className="ml-2 text-emerald-500/70">({t('todo.roundLabel')} {todo.round_count})</span>
+                <span className="ml-2 text-theme-muted">({t('todo.roundLabel')} {todo.round_count})</span>
               )}
             </label>
             <textarea
@@ -778,7 +778,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
               onChange={(e) => setContinuePrompt(e.target.value)}
               placeholder={t('todo.continuePromptPlaceholder')}
               rows={3}
-              className="w-full bg-theme-card border border-emerald-200 rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 resize-y"
+              className="w-full bg-theme-card border border-theme-border-strong rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 resize-y"
               disabled={continuing}
             />
             {continueError && (
@@ -788,7 +788,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
               <button
                 onClick={() => handleContinue('headless')}
                 disabled={continuing || !continuePrompt.trim()}
-                className="btn-primary text-xs py-1.5 !bg-emerald-500 hover:!bg-emerald-600 disabled:opacity-30"
+                className="btn-primary text-xs py-1.5 disabled:opacity-30"
               >
                 {continuing ? t('todo.continuing') : t('todo.confirmContinue')}
               </button>
@@ -907,7 +907,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                   {todo.merged_from_branch && (
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-warm-400 w-24 flex-shrink-0">{t('todo.mergedFrom')}</span>
-                      <code className="font-mono text-xs text-status-merged break-all">{todo.merged_from_branch}</code>
+                      <code className="font-mono text-xs text-theme-text-secondary break-all">{todo.merged_from_branch}</code>
                     </div>
                   )}
                   {!todo.worktree_path && childTodo && (
@@ -1118,9 +1118,9 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Drop zone indicator */}
       {dropZoneActive && (
-        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-cyan-400 bg-cyan-50/50 animate-fade-in">
-          <Link size={14} className="text-cyan-500 flex-shrink-0" />
-          <span className="text-xs font-medium text-cyan-600">{t('dnd.dropHint')}</span>
+        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-accent/50 bg-accent/5 animate-fade-in">
+          <Link size={14} className="text-accent flex-shrink-0" />
+          <span className="text-xs font-medium text-accent">{t('dnd.dropHint')}</span>
         </div>
       )}
       {dropZoneInvalid && (

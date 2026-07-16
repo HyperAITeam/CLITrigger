@@ -219,7 +219,7 @@ export default function TaskNodeDetail({
         <div className="flex flex-wrap gap-1.5">
           {canStart && (
             <>
-              <button onClick={() => onStart(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-status-success" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}>
+              <button onClick={() => onStart(todo.id, 'headless')} className="btn-ghost text-xs py-1.5" title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}>
                 {t('todo.startHeadless')}
               </button>
             </>
@@ -240,12 +240,12 @@ export default function TaskNodeDetail({
             </button>
           )}
           {canMerge && (
-            <button onClick={() => onMerge(todo.id)} className="btn-ghost text-xs py-1.5 text-status-merged">
+            <button onClick={() => onMerge(todo.id)} className="btn-ghost text-xs py-1.5">
               {t('todo.merge')}
             </button>
           )}
           {canCleanup && (
-            <button onClick={() => onCleanup(todo.id)} className="btn-ghost text-xs py-1.5 text-orange-500">
+            <button onClick={() => onCleanup(todo.id)} className="btn-ghost text-xs py-1.5">
               {t('todo.cleanup')}
             </button>
           )}
@@ -253,24 +253,24 @@ export default function TaskNodeDetail({
             <button
               onClick={() => { setShowContinueInput(v => !v); setContinueError(null); }}
               disabled={continuing}
-              className="btn-ghost text-xs py-1.5 text-emerald-500"
+              className="btn-ghost text-xs py-1.5"
             >
               {t('todo.continue')}
             </button>
           )}
           {canRetry && (
-            <button onClick={() => onRetry(todo.id, 'headless')} className="btn-ghost text-xs py-1.5 text-cyan-500">
+            <button onClick={() => onRetry(todo.id, 'headless')} className="btn-ghost text-xs py-1.5">
               {t('todo.retry')}
             </button>
           )}
         </div>
 
         {showContinueInput && onContinue && (
-          <div className="border border-emerald-200 rounded-lg px-3 py-2 bg-emerald-50/50 space-y-2">
-            <label className="text-xs font-medium text-emerald-600">
+          <div className="border border-theme-border rounded-lg px-3 py-2 bg-theme-bg-secondary/50 space-y-2">
+            <label className="text-xs font-medium text-theme-text-secondary">
               {t('todo.continuePromptLabel')}
               {(todo.round_count ?? 1) > 1 && (
-                <span className="ml-2 text-emerald-500/70">({t('todo.roundLabel')} {todo.round_count})</span>
+                <span className="ml-2 text-theme-muted">({t('todo.roundLabel')} {todo.round_count})</span>
               )}
             </label>
             <textarea
@@ -279,7 +279,7 @@ export default function TaskNodeDetail({
               placeholder={t('todo.continuePromptPlaceholder')}
               rows={3}
               disabled={continuing}
-              className="w-full bg-theme-card border border-emerald-200 rounded-lg px-2 py-1.5 text-xs text-warm-800 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 resize-y"
+              className="w-full bg-theme-card border border-theme-border-strong rounded-lg px-2 py-1.5 text-xs text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 resize-y"
             />
             {continueError && <p className="text-xs text-status-error">{continueError}</p>}
             <div className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export default function TaskNodeDetail({
                   } finally { setContinuing(false); }
                 }}
                 disabled={continuing || !continuePrompt.trim()}
-                className="btn-primary text-xs py-1.5 !bg-emerald-500 hover:!bg-emerald-600 disabled:opacity-30"
+                className="btn-primary text-xs py-1.5 disabled:opacity-30"
               >
                 {continuing ? t('todo.continuing') : t('todo.confirmContinue')}
               </button>

@@ -17,14 +17,14 @@ interface GitStatusPanelProps {
 // --- Lane assignment algorithm ---
 
 const LANE_COLORS = [
-  '#D4A843', // gold
-  '#2196F3', // blue
-  '#4CAF50', // green
-  '#E53935', // red
-  '#9C27B0', // purple
-  '#FF9800', // orange
-  '#00BCD4', // cyan
-  '#795548', // brown
+  '#B08A3E', // muted gold
+  '#4B8DFF', // action blue
+  '#7A8797', // slate
+  '#5E748A', // steel
+  '#8B8178', // warm gray
+  '#667085', // cool gray
+  '#78909C', // blue gray
+  '#9A8F7F', // stone
 ];
 
 interface GraphNode {
@@ -113,14 +113,14 @@ function RefBadge({ refStr }: { refStr: string }) {
 
   if (isTag) {
     label = refStr.replace('tag: ', '');
-    classes = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+    classes = 'bg-violet-500/10 text-violet-600 dark:text-violet-400';
   } else if (isHead) {
     label = refStr.replace('HEAD -> ', '');
-    classes = 'bg-status-success/15 text-status-success font-semibold';
+    classes = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold';
   } else if (isRemote) {
-    classes = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    classes = 'bg-sky-500/10 text-sky-700 dark:text-sky-400';
   } else {
-    classes = 'bg-accent/15 text-accent';
+    classes = 'bg-amber-500/10 text-amber-700 dark:text-amber-400';
   }
 
   return (
@@ -539,7 +539,7 @@ function fileStatusName(index: string, working_dir: string): { label: string; co
   let label = ch;
   if (ch === 'A') color = 'text-status-success';
   else if (ch === 'D') color = 'text-status-error';
-  else if (ch === 'R') color = 'text-purple-500';
+  else if (ch === 'R') color = 'text-violet-600 dark:text-violet-400';
   else if (ch === 'C') color = 'text-blue-500';
   else { color = 'text-accent'; label = 'M'; }
   return { label, color, type: staged ? 'staged' : 'unstaged' };
@@ -583,7 +583,7 @@ function ChangedFileRow({
         aria-label={file.path}
       />
       <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold ${
-        pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-200'
+        pane === 'staged' ? 'bg-emerald-500/15' : 'bg-warm-200'
       } ${finalStatus.color}`}>
         {pane === 'staged' ? '+' : finalStatus.label === 'U' ? '+' : '−'}
       </span>
@@ -1131,7 +1131,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
             <div
               key={b.name}
               className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate cursor-context-menu select-none ${
-                b.current ? 'text-accent font-semibold bg-accent/10' : 'text-warm-600 hover:bg-warm-50'
+                b.current ? 'text-sky-700 dark:text-sky-300 font-semibold bg-sky-500/10' : 'text-warm-600 hover:bg-warm-50'
               }`}
               onContextMenu={e => handleContextMenu(e, b.name, false, !!b.current)}
             >
@@ -1144,10 +1144,10 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
               {(!!b.ahead || !!b.behind) && (
                 <span className="ml-auto shrink-0 flex items-center gap-1 px-1.5 rounded-full border border-warm-300 dark:border-warm-600 text-[10px] font-semibold leading-tight">
                   {!!b.ahead && (
-                    <span className="text-emerald-500" title={`${b.ahead} ${t('git.ahead')}`}>{b.ahead}↑</span>
+                    <span className="text-emerald-700 dark:text-emerald-400" title={`${b.ahead} ${t('git.ahead')}`}>{b.ahead}↑</span>
                   )}
                   {!!b.behind && (
-                    <span className="text-amber-500" title={`${b.behind} ${t('git.behind')}`}>{b.behind}↓</span>
+                    <span className="text-amber-700 dark:text-amber-400" title={`${b.behind} ${t('git.behind')}`}>{b.behind}↓</span>
                   )}
                 </span>
               )}
@@ -1182,7 +1182,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
             <div className="pl-1 space-y-px">
               {tags.map(tag => (
                 <div key={tag} className="flex items-center gap-1.5 px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded">
-                  <svg className="h-3 w-3 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-3 w-3 text-violet-600/80 dark:text-violet-400/80 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
                   </svg>
@@ -1457,14 +1457,14 @@ function WorkspaceMenu({
           horizontal ? 'flex-1 justify-center' : 'w-full'
         } ${
           active
-            ? 'bg-accent text-white'
+            ? 'bg-accent/10 text-accent shadow-soft ring-1 ring-inset ring-accent/20'
             : 'text-warm-600 hover:bg-warm-200/60'
         }`}
       >
         <span className={`${horizontal ? '' : 'flex-1 text-left'} truncate`}>{label}</span>
         {badge !== undefined && badge > 0 && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-            active ? 'bg-white/20 text-white' : 'bg-warm-200 text-warm-600'
+            active ? 'bg-accent/10 text-accent' : 'bg-warm-200 text-warm-600'
           }`}>
             {badge}
           </span>

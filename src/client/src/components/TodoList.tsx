@@ -606,9 +606,9 @@ export default function TodoList({
               >
                 {/* Chain merge header for completed chain roots */}
                 {!isStacked && isCompletedChainRoot && (
-                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-status-merged/5 border border-status-merged/20 animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
-                    <Link size={16} className="text-status-merged flex-shrink-0" />
-                    <span className="text-xs font-semibold text-status-merged">
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-theme-bg-secondary/60 border border-theme-border animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+                    <Link size={16} className="text-theme-muted flex-shrink-0" />
+                    <span className="text-xs font-semibold text-theme-text-secondary">
                       {t('todo.chainComplete')}
                     </span>
                     <span className="text-2xs font-mono text-warm-400">
@@ -621,7 +621,7 @@ export default function TodoList({
                       <button
                         onClick={() => handleMergeChain(todo.id)}
                         disabled={mergingChain === todo.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-status-merged/15 text-status-merged hover:bg-status-merged/25 border border-status-merged/30 transition-colors disabled:opacity-50"
+                        className="btn-secondary text-xs py-1.5 disabled:opacity-50"
                         title={t('todo.mergeChainDesc')}
                       >
                         <ArrowLeftRight size={14} />

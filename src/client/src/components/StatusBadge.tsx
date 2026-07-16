@@ -38,7 +38,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     },
     merged: {
       labelKey: 'status.merged',
-      classes: 'bg-status-merged/10 text-status-merged',
+      classes: 'bg-theme-bg-tertiary text-theme-text-secondary',
       icon: <GitMerge size={10} />,
     },
   };

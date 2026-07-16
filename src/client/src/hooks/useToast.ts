@@ -36,9 +36,14 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const activeToastKeys = useRef<Map<string, string>>(new Map());
+  const toastKeysById = useRef<Map<string, string>>(new Map());
 
   const dismiss = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
+    const key = toastKeysById.current.get(id);
+    if (key && activeToastKeys.current.get(key) === id) activeToastKeys.current.delete(key);
+    toastKeysById.current.delete(id);
     const timer = timers.current.get(id);
     if (timer) {
       clearTimeout(timer);
@@ -47,7 +52,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const show = useCallback((message: string, type: ToastType = 'info', duration = 3500) => {
+    const key = `${type}:${message}`;
+    const existingId = activeToastKeys.current.get(key);
+    if (existingId) return existingId;
+
     const id = `toast-${++toastCounter}`;
+    activeToastKeys.current.set(key, id);
+    toastKeysById.current.set(id, key);
     setToasts(prev => [...prev, { id, message, type, duration }]);
     const timer = setTimeout(() => dismiss(id), duration);
     timers.current.set(id, timer);
@@ -62,6 +73,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => {
     timers.current.forEach(clearTimeout);
     timers.current.clear();
+    activeToastKeys.current.clear();
+    toastKeysById.current.clear();
   }, []);
 
   const value = useMemo(

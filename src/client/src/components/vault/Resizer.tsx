@@ -17,17 +17,33 @@ export function Resizer({ onResize }: Props) {
         el.setPointerCapture(e.pointerId);
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
-        const onMove = (ev: PointerEvent) => onResize(ev.clientX);
-        const onUp = () => {
+        let frameId: number | null = null;
+        let pendingClientX: number | null = null;
+        const flush = () => {
+          frameId = null;
+          if (pendingClientX === null) return;
+          const clientX = pendingClientX;
+          pendingClientX = null;
+          onResize(clientX);
+        };
+        const onMove = (ev: PointerEvent) => {
+          pendingClientX = ev.clientX;
+          if (frameId === null) frameId = requestAnimationFrame(flush);
+        };
+        const onEnd = (ev: PointerEvent) => {
+          if (frameId !== null) cancelAnimationFrame(frameId);
+          frameId = null;
+          if (ev.type === 'pointerup' && pendingClientX !== null) flush();
+          pendingClientX = null;
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           el.removeEventListener('pointermove', onMove);
-          el.removeEventListener('pointerup', onUp);
-          el.removeEventListener('pointercancel', onUp);
+          el.removeEventListener('pointerup', onEnd);
+          el.removeEventListener('pointercancel', onEnd);
         };
         el.addEventListener('pointermove', onMove);
-        el.addEventListener('pointerup', onUp);
-        el.addEventListener('pointercancel', onUp);
+        el.addEventListener('pointerup', onEnd);
+        el.addEventListener('pointercancel', onEnd);
       }}
       className="w-1.5 shrink-0 cursor-col-resize bg-warm-300 hover:bg-accent active:bg-accent transition-colors"
     />
