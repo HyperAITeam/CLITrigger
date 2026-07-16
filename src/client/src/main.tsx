@@ -8,7 +8,7 @@ import { initPlugins } from './plugins/init';
 import { ToastProvider, useToast } from './hooks/useToast';
 import ToastContainer from './components/Toast';
 import AppErrorBoundary from './components/AppErrorBoundary';
-import { getErrorMessage } from './lib/errors';
+import { getErrorMessage, isResizeObserverLoopError } from './lib/errors';
 import './index.css';
 
 initPlugins();
@@ -21,7 +21,14 @@ function GlobalToasts() {
     const report = (reason: unknown) => {
       error(getErrorMessage(reason, t('errors.unexpected')), 7000);
     };
-    const onError = (event: ErrorEvent) => report(event.error ?? event.message);
+    const onError = (event: ErrorEvent) => {
+      const reason = event.error ?? event.message;
+      if (isResizeObserverLoopError(reason)) {
+        event.preventDefault();
+        return;
+      }
+      report(reason);
+    };
     const onRejection = (event: PromiseRejectionEvent) => report(event.reason);
     const onRenderError = (event: Event) => report((event as CustomEvent).detail);
 
