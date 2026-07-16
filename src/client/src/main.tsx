@@ -19,7 +19,19 @@ function GlobalToasts() {
 
   useEffect(() => {
     const report = (reason: unknown) => {
-      error(getErrorMessage(reason, t('errors.unexpected')), 7000);
+      // xterm's WriteBuffer/Viewport schedule bare setTimeout/rAF callbacks
+      // that can fire after Terminal.dispose() and read RenderService's
+      // `dimensions` getter off the already-cleared renderer, throwing
+      // "Cannot read properties of undefined (reading 'dimensions')" as an
+      // uncaught error on terminal mount/unmount/popout. Harmless teardown
+      // race inside xterm (nothing in our code reads `.dimensions`), so keep
+      // it out of the failure toast.
+      const msg = getErrorMessage(reason, '');
+      if (msg.includes("(reading 'dimensions')")) {
+        console.debug('[global-error] suppressed xterm teardown error:', reason);
+        return;
+      }
+      error(msg || t('errors.unexpected'), 7000);
     };
     const onError = (event: ErrorEvent) => {
       const reason = event.error ?? event.message;
