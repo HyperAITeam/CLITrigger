@@ -227,6 +227,11 @@ interface PersistShape {
   // groups across all projects without loading each project's sessions
   // list, so it has no other way to render real labels.
   titles?: Record<string, string>;
+  // Snapshot of session.project_id, same consumer as `titles`: cross-project
+  // adoption stores a group's record under whichever project was open at the
+  // time, so the record's storage key alone misattributes the workspace —
+  // the dock tray needs this to color chips by the session's real workspace.
+  sessionProjects?: Record<string, string>;
 }
 
 function readPersisted(projectId: string): PersistShape | null {
@@ -351,6 +356,12 @@ export default function SessionWindowsHost({
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   dragStateRef.current = dragState;
+  // Sessions docked in from OTHER projects, resolved by id. Declared here
+  // (above the persist effect that lists it as a dep); the lookup that fills
+  // it lives in the "Foreign / missing session resolution" section below.
+  const [foreignSessions, setForeignSessions] = useState<Record<string, Session>>({});
+  const foreignSessionsRef = useRef(foreignSessions);
+  foreignSessionsRef.current = foreignSessions;
 
   // Persist on every change. Also snapshot session titles (so the global
   // dock tray can render real labels for chips from other projects without
@@ -358,15 +369,26 @@ export default function SessionWindowsHost({
   // re-read (the `storage` event doesn't fire on same-tab writes).
   useEffect(() => {
     const titles: Record<string, string> = {};
+    // Ids that resolve neither from the own-project list (still loading) nor
+    // from foreign lookups (pending) keep their previously persisted project
+    // mapping instead of dropping it, so a mount/navigation blip can't wipe
+    // the tray's chip colors. `foreignSessions` is a dep (not read via ref)
+    // because adopted sessions resolve asynchronously AFTER the groups
+    // change that inserted them — without a re-persist on resolve, the
+    // mapping would stay incomplete until some unrelated group update.
+    const prevProjects = readPersisted(projectId)?.sessionProjects ?? {};
+    const sessionProjects: Record<string, string> = {};
     for (const g of groups) {
       for (const sid of allSessionIds(g.root)) {
-        const title = sessions.find(x => x.id === sid)?.title || foreignSessionsRef.current[sid]?.title;
-        if (title) titles[sid] = title;
+        const s = sessions.find(x => x.id === sid) || foreignSessions[sid];
+        if (s?.title) titles[sid] = s.title;
+        const pid = s?.project_id || prevProjects[sid];
+        if (pid) sessionProjects[sid] = pid;
       }
     }
-    writePersisted(projectId, { groups, zCounter: zCounterRef.current, titles });
+    writePersisted(projectId, { groups, zCounter: zCounterRef.current, titles, sessionProjects });
     window.dispatchEvent(new CustomEvent('session-windows:changed'));
-  }, [projectId, groups, sessions]);
+  }, [projectId, groups, sessions, foreignSessions]);
 
   // Auto-minimize on host unmount (project navigation / workspace switch).
   // The host is keyed by projectId in ProjectDetail, so leaving the project
@@ -392,13 +414,17 @@ export default function SessionWindowsHost({
       });
       if (!changed) return;
       const titles: Record<string, string> = {};
+      const prevProjects = readPersisted(projectId)?.sessionProjects ?? {};
+      const sessionProjects: Record<string, string> = {};
       for (const g of next) {
         for (const sid of allSessionIds(g.root)) {
-          const title = sessionsRef.current.find(x => x.id === sid)?.title || foreignSessionsRef.current[sid]?.title;
-          if (title) titles[sid] = title;
+          const s = sessionsRef.current.find(x => x.id === sid) || foreignSessionsRef.current[sid];
+          if (s?.title) titles[sid] = s.title;
+          const pid = s?.project_id || prevProjects[sid];
+          if (pid) sessionProjects[sid] = pid;
         }
       }
-      writePersisted(projectId, { groups: next, zCounter: zCounterRef.current, titles });
+      writePersisted(projectId, { groups: next, zCounter: zCounterRef.current, titles, sessionProjects });
       window.dispatchEvent(new CustomEvent('session-windows:changed'));
     };
   }, [projectId]);
@@ -413,9 +439,7 @@ export default function SessionWindowsHost({
   // Guards: skip while sessions is empty (loading blip) or while it still
   // holds the previous project's data (ProjectDetail reuses the instance
   // during navigation).
-  const [foreignSessions, setForeignSessions] = useState<Record<string, Session>>({});
-  const foreignSessionsRef = useRef(foreignSessions);
-  foreignSessionsRef.current = foreignSessions;
+  // (`foreignSessions` state itself is declared above the persist effect.)
   const [deadIds, setDeadIds] = useState<Set<string>>(() => new Set());
   const pendingLookupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
