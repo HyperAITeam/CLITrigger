@@ -104,6 +104,9 @@ export interface GitStatusResult {
   ahead: number;
   behind: number;
   files: GitStatusFile[];
+  conflicted: string[];
+  mergeInProgress: boolean;
+  rebaseInProgress: boolean;
 }
 
 export function getGitStatusTree(id: string, worktreePath?: string): Promise<GitStatusResult> {
@@ -213,8 +216,20 @@ export function gitCheckout(id: string, branch: string): Promise<{ ok: boolean }
   return post(`/api/projects/${id}/git-checkout`, { branch });
 }
 
-export function gitMerge(id: string, branch: string): Promise<{ ok: boolean; result: string }> {
+export function gitMerge(id: string, branch: string): Promise<{ ok: boolean; result: string; conflict: boolean; conflictFiles: string[] }> {
   return post(`/api/projects/${id}/git-merge`, { branch });
+}
+
+export function gitConflictResolve(id: string, file: string, side: 'ours' | 'theirs'): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-conflict-resolve`, { file, side });
+}
+
+export function gitConflictContinue(id: string): Promise<{ ok: boolean; conflict: boolean; conflictFiles: string[] }> {
+  return post(`/api/projects/${id}/git-conflict-continue`);
+}
+
+export function gitConflictAbort(id: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-conflict-abort`);
 }
 
 export function gitStashPush(id: string, message?: string): Promise<{ ok: boolean }> {
@@ -250,7 +265,7 @@ export function gitRenameBranch(id: string, oldName: string, newName: string): P
   return post(`/api/projects/${id}/git-branch-rename`, { oldName, newName });
 }
 
-export function gitRebase(id: string, onto: string): Promise<{ ok: boolean; result: string }> {
+export function gitRebase(id: string, onto: string): Promise<{ ok: boolean; result: string; conflict: boolean; conflictFiles: string[] }> {
   return post(`/api/projects/${id}/git-rebase`, { onto });
 }
 

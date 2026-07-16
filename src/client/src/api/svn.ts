@@ -97,7 +97,7 @@ export function svnCommit(id: string, message: string, files?: string[]): Promis
   return post(`/api/projects/${id}/svn-commit`, { message, files });
 }
 
-export function svnUpdate(id: string, revision?: string): Promise<{ ok: boolean; revision: string | null; output: string }> {
+export function svnUpdate(id: string, revision?: string): Promise<{ ok: boolean; revision: string | null; output: string; conflicts: string[] }> {
   return post(`/api/projects/${id}/svn-update`, { revision });
 }
 

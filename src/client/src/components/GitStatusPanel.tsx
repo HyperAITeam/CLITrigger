@@ -645,6 +645,7 @@ function WorkingChangesView({
   projectId,
   branchName,
   files,
+  conflicted,
   busy,
   setBusy,
   onRefresh,
@@ -654,6 +655,7 @@ function WorkingChangesView({
   projectId: string;
   branchName: string;
   files: GitStatusFile[];
+  conflicted: string[];
   busy: boolean;
   setBusy: (b: boolean) => void;
   onRefresh: () => void;
@@ -661,11 +663,17 @@ function WorkingChangesView({
   isMobile?: boolean;
 }) {
   const { t } = useI18n();
-  const staged = useMemo(() => files.filter(f => f.index !== ' ' && f.index !== '?'), [files]);
+  // Conflicted (unmerged) files get their own pane — their UU/AA/DU codes
+  // would otherwise satisfy both the staged and unstaged filters below and
+  // show up duplicated in each.
+  const conflictSet = useMemo(() => new Set(conflicted), [conflicted]);
+  const conflicts = useMemo(() => files.filter(f => conflictSet.has(f.path)), [files, conflictSet]);
+  const staged = useMemo(() => files.filter(f => f.index !== ' ' && f.index !== '?' && !conflictSet.has(f.path)), [files, conflictSet]);
   const unstaged = useMemo(() =>
     files.filter(f => (f.working_dir !== ' ' && f.working_dir !== '?') || (f.index === '?' && f.working_dir === '?'))
-      .filter(f => !(f.index !== ' ' && f.index !== '?' && f.working_dir === ' ')),
-    [files]
+      .filter(f => !(f.index !== ' ' && f.index !== '?' && f.working_dir === ' '))
+      .filter(f => !conflictSet.has(f.path)),
+    [files, conflictSet]
   );
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -730,25 +738,27 @@ function WorkingChangesView({
   const selectedFile = useMemo(() => {
     if (!selectedKey) return null;
     const [pane, path] = selectedKey.split('::');
+    if (pane === 'conflict') return conflicts.find(f => f.path === path) || null;
     if (pane === 'staged') return staged.find(f => f.path === path) || null;
     return unstaged.find(f => f.path === path) || null;
-  }, [selectedKey, staged, unstaged]);
-  const selectedPane: 'staged' | 'unstaged' | null = selectedKey ? (selectedKey.split('::')[0] as 'staged' | 'unstaged') : null;
+  }, [selectedKey, conflicts, staged, unstaged]);
+  const selectedPane: 'conflict' | 'staged' | 'unstaged' | null = selectedKey ? (selectedKey.split('::')[0] as 'conflict' | 'staged' | 'unstaged') : null;
 
   // Auto-select first file when none is selected
   useEffect(() => {
     if (selectedKey) return;
-    if (staged.length > 0) setSelectedKey(`staged::${staged[0].path}`);
+    if (conflicts.length > 0) setSelectedKey(`conflict::${conflicts[0].path}`);
+    else if (staged.length > 0) setSelectedKey(`staged::${staged[0].path}`);
     else if (unstaged.length > 0) setSelectedKey(`unstaged::${unstaged[0].path}`);
-  }, [selectedKey, staged, unstaged]);
+  }, [selectedKey, conflicts, staged, unstaged]);
 
   // Clear selection if the file no longer exists
   useEffect(() => {
     if (!selectedKey) return;
     const [pane, path] = selectedKey.split('::');
-    const list = pane === 'staged' ? staged : unstaged;
+    const list = pane === 'conflict' ? conflicts : pane === 'staged' ? staged : unstaged;
     if (!list.some(f => f.path === path)) setSelectedKey(null);
-  }, [selectedKey, staged, unstaged]);
+  }, [selectedKey, conflicts, staged, unstaged]);
 
   // Fetch diff when selection changes
   useEffect(() => {
@@ -808,6 +818,51 @@ function WorkingChangesView({
         style={isMobile ? undefined : { width: `${fileListPct * 100}%`, minWidth: 360 }}
         className={`shrink-0 flex flex-col min-h-0 ${isMobile ? 'h-1/2' : ''}`}
       >
+        {/* Conflicts pane — only while unmerged paths exist */}
+        {conflicts.length > 0 && (
+          <div className="flex flex-col min-h-0 border-b border-warm-200" style={{ flex: '1 1 0' }}>
+            <div className="px-3 py-2 border-b border-warm-200 flex items-center shrink-0 bg-status-error/10">
+              <span className="text-xs font-semibold text-status-error">
+                {t('git.conflicts')} <span className="text-warm-400 font-normal">({conflicts.length})</span>
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {conflicts.map(f => (
+                <div
+                  key={`c-${f.path}`}
+                  onClick={() => setSelectedKey(`conflict::${f.path}`)}
+                  className={`flex items-center gap-2 px-3 py-1 cursor-pointer text-xs select-none transition-colors ${
+                    selectedKey === `conflict::${f.path}` ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 text-warm-700'
+                  }`}
+                >
+                  <span className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold bg-status-error/15 text-status-error">C</span>
+                  <span className="truncate flex-1" title={f.path}>{f.path}</span>
+                  <button
+                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
+                    disabled={busy}
+                    onClick={e => {
+                      e.stopPropagation();
+                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'ours'));
+                    }}
+                  >
+                    {t('git.acceptOurs')}
+                  </button>
+                  <button
+                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
+                    disabled={busy}
+                    onClick={e => {
+                      e.stopPropagation();
+                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'theirs'));
+                    }}
+                  >
+                    {t('git.acceptTheirs')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Staged pane */}
         <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
           <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
@@ -920,7 +975,7 @@ function WorkingChangesView({
             <button
               className="ml-auto btn-primary text-xs px-3 py-1.5 disabled:opacity-50"
               onClick={handleCommit}
-              disabled={committing || busy || !commitMessage.trim() || staged.length === 0}
+              disabled={committing || busy || !commitMessage.trim() || staged.length === 0 || conflicts.length > 0}
             >
               {committing ? '...' : t('git.commitButton')}
             </button>
@@ -1554,6 +1609,13 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const [stashCount, setStashCount] = useState(0);
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
   const [currentBranch, setCurrentBranch] = useState<string>('');
+  // In-progress merge/rebase + conflicted paths. Source of truth is the git
+  // repo itself (via git-status), so conflicts created in a terminal show up
+  // here too. `conflicted` can be non-empty without merging/rebasing
+  // (cherry-pick, stash pop) — the resolve buttons still work there.
+  const [opState, setOpState] = useState<{ merging: boolean; rebasing: boolean; conflicted: string[] }>({
+    merging: false, rebasing: false, conflicted: [],
+  });
   const [busy, setBusy] = useState(false);
   const [sidebarError, setSidebarError] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<GitLogEntry | null>(null);
@@ -1611,6 +1673,11 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       const result = await projectsApi.getGitStatusTree(project.id);
       setStatusFiles(result.files);
       setCurrentBranch(result.branch || '');
+      setOpState({
+        merging: !!result.mergeInProgress,
+        rebasing: !!result.rebaseInProgress,
+        conflicted: result.conflicted ?? [],
+      });
     } catch {
       // non-critical
     }
@@ -1646,6 +1713,14 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
     fetchRefs();
     fetchStatus();
   }, [fetchLog, fetchRefs, fetchStatus]);
+
+  const runConflictAction = useCallback(async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setSidebarError(null);
+    try { await fn(); } catch (err) {
+      setSidebarError(err instanceof Error ? err.message : 'Operation failed');
+    } finally { setBusy(false); refresh(); }
+  }, [refresh]);
 
   const handleCommitClick = useCallback(async (commit: GitLogEntry) => {
     if (selectedCommit?.hash === commit.hash) {
@@ -1792,6 +1867,52 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
         />
       </div>
 
+      {/* In-progress merge/rebase + conflicts */}
+      {(opState.merging || opState.rebasing || opState.conflicted.length > 0) && (
+        <div className="mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2 rounded border border-amber-200 dark:border-amber-800">
+          <span className="font-semibold shrink-0">
+            {opState.merging ? t('git.conflictMergeInProgress')
+              : opState.rebasing ? t('git.conflictRebaseInProgress')
+              : t('git.conflicts')}
+          </span>
+          <span className="flex-1 min-w-0 truncate">
+            {opState.conflicted.length > 0
+              ? t('git.conflictBanner').replace('{n}', String(opState.conflicted.length))
+              : t('git.conflictAllResolved')}
+          </span>
+          {view !== 'fileStatus' && opState.conflicted.length > 0 && (
+            <button
+              className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+              onClick={() => setView('fileStatus')}
+            >
+              {t('git.viewConflicts')}
+            </button>
+          )}
+          {(opState.merging || opState.rebasing) && (
+            <>
+              <button
+                className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40"
+                disabled={busy || opState.conflicted.length > 0}
+                onClick={() => runConflictAction(() => projectsApi.gitConflictContinue(project.id))}
+              >
+                {t('git.conflictContinue')}
+              </button>
+              <button
+                className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(t('git.confirmConflictAbort'))) {
+                    runConflictAction(() => projectsApi.gitConflictAbort(project.id));
+                  }
+                }}
+              >
+                {t('git.conflictAbort')}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Sidebar error (branch/tag actions) */}
       {sidebarError && (
         <div className="mb-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between rounded border border-red-200 dark:border-red-800">
@@ -1855,6 +1976,7 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
               projectId={project.id}
               branchName={currentBranch}
               files={statusFiles}
+              conflicted={opState.conflicted}
               busy={busy}
               setBusy={setBusy}
               onRefresh={refresh}

@@ -303,13 +303,21 @@ class SvnManager {
     return { revision: revMatch?.[1] ?? null, output: stdout };
   }
 
-  async update(dirPath: string, revision?: string): Promise<{ revision: string | null; output: string }> {
+  async update(dirPath: string, revision?: string): Promise<{ revision: string | null; output: string; conflicts: string[] }> {
     const args = ['update'];
     if (revision) args.push('-r', revision);
     args.push(dirPath);
     const { stdout } = await runSvn(args);
     const revMatch = /(?:At revision|Updated to revision) (\d+)\./.exec(stdout);
-    return { revision: revMatch?.[1] ?? null, output: stdout };
+    // Update lines are "<up to 4 status columns>   <path>"; a 'C' in any
+    // column is a text/prop/tree conflict. Summary lines ("Updated to
+    // revision N.", "Summary of conflicts:") never match the status class.
+    const conflicts: string[] = [];
+    for (const line of stdout.split(/\r?\n/)) {
+      const m = /^([ ADUCGE]{1,4})\s+(.+)$/.exec(line);
+      if (m && m[1].includes('C')) conflicts.push(relativizePath(m[2], dirPath));
+    }
+    return { revision: revMatch?.[1] ?? null, output: stdout, conflicts };
   }
 
   async cleanup(dirPath: string): Promise<void> {
