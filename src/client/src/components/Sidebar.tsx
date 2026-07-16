@@ -16,9 +16,9 @@ import type { WsEvent } from '../hooks/useWebSocket';
 import ProjectForm from './ProjectForm';
 import FavoriteForm from './FavoriteForm';
 import SettingsModal from './SettingsModal';
-import ToastContainer from './Toast';
 import ProjectColorPicker from './ProjectColorPicker';
 import { resolveProjectColor } from '../lib/projectColor';
+import { getErrorMessage } from '../lib/errors';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -63,7 +63,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const { t, toggleLang } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
-  const { toasts, error: toastError, success: toastSuccess, info: toastInfo, warning: toastWarning, dismiss } = useToast();
+  const { error: toastError, success: toastSuccess, info: toastInfo, warning: toastWarning } = useToast();
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
@@ -378,8 +378,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       if (activeProjectId === String(id)) {
         navigate('/');
       }
-    } catch {
-      // TODO: show error
+    } catch (err) {
+      toastError(getErrorMessage(err, t('errors.projectDelete')));
     }
   };
 
@@ -501,7 +501,6 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           <Settings size={16} />
         </button>
         <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
-        <ToastContainer toasts={toasts} onDismiss={dismiss} />
       </div>
     );
   }
@@ -763,8 +762,6 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       {/* Bottom section */}
       <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>

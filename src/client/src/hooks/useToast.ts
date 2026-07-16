@@ -1,4 +1,14 @@
-import { useState, useCallback, useRef } from 'react';
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -11,7 +21,19 @@ export interface Toast {
 
 let toastCounter = 0;
 
-export function useToast() {
+interface ToastContextValue {
+  toasts: Toast[];
+  show: (message: string, type?: ToastType, duration?: number) => string;
+  success: (message: string, duration?: number) => string;
+  error: (message: string, duration?: number) => string;
+  info: (message: string, duration?: number) => string;
+  warning: (message: string, duration?: number) => string;
+  dismiss: (id: string) => void;
+}
+
+const ToastContext = createContext<ToastContextValue | null>(null);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -37,5 +59,21 @@ export function useToast() {
   const info = useCallback((msg: string, d?: number) => show(msg, 'info', d), [show]);
   const warning = useCallback((msg: string, d?: number) => show(msg, 'warning', d), [show]);
 
-  return { toasts, show, success, error, info, warning, dismiss };
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    timers.current.clear();
+  }, []);
+
+  const value = useMemo(
+    () => ({ toasts, show, success, error, info, warning, dismiss }),
+    [toasts, show, success, error, info, warning, dismiss],
+  );
+
+  return createElement(ToastContext.Provider, { value }, children);
+}
+
+export function useToast(): ToastContextValue {
+  const value = useContext(ToastContext);
+  if (!value) throw new Error('useToast must be used within ToastProvider');
+  return value;
 }

@@ -11,7 +11,6 @@ import type { VaultEdge } from '../../../api/vault';
 import { collectLinkedPaths } from '../../../lib/vaultLinks';
 import { useSessionWindowsOptional } from '../../SessionWindowsHost';
 import { useToast } from '../../../hooks/useToast';
-import ToastContainer from '../../Toast';
 import { iconFor } from '../files-utils';
 
 // Shell-safe when injected into a raw terminal: quote paths containing spaces.
@@ -491,7 +490,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
 export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVaultIgnoreChanged, onCreateTask, edges, refreshToken }: Props) {
   const { t } = useI18n();
   const windows = useSessionWindowsOptional();
-  const { toasts, success, error: toastError, dismiss } = useToast();
+  const { success, error: toastError } = useToast();
   const lsKey = `vault:fileExplorer:${projectId}`;
   const [rootEntries, setRootEntries] = useState<FileEntry[] | null>(null);
   const [rootError, setRootError] = useState<string | null>(null);
@@ -756,7 +755,6 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           } : undefined}
         />
       )}
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
