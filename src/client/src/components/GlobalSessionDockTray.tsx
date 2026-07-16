@@ -47,6 +47,12 @@ interface MinimizedChip {
   groupId: string;
   sessionIds: string[];
   titles: Record<string, string>;
+  // Project the labeled (first) session actually belongs to. Falls back to
+  // the record's storage-key project for entries persisted before
+  // `sessionProjects` existed. Cross-project adoption stores a group under
+  // whichever project was open at the time, so coloring the chip by
+  // `projectId` alone would show that workspace's color, not the terminal's.
+  colorProjectId: string;
   // 'minimized' = collapsed floating window; 'popped' = torn out into a
   // separate OS window. Both get a dock chip so the user keeps a handle on it.
   kind: 'minimized' | 'popped';
@@ -110,6 +116,7 @@ function readAllMinimized(): MinimizedChip[] {
             ownerWindowId?: string;
           }>;
           titles?: Record<string, string>;
+          sessionProjects?: Record<string, string>;
         };
         if (!Array.isArray(parsed.groups)) continue;
         const titles = parsed.titles ?? {};
@@ -120,11 +127,13 @@ function readAllMinimized(): MinimizedChip[] {
           // truly-minimized main-owned groups get a chip.
           const popped = !!g.ownerWindowId && g.ownerWindowId !== MAIN_WINDOW_ID;
           if (!popped && !g.minimized) continue;
+          const sessionIds = allSessionIds(g.root);
           chips.push({
             projectId,
             groupId: g.id,
-            sessionIds: allSessionIds(g.root),
+            sessionIds,
             titles,
+            colorProjectId: parsed.sessionProjects?.[sessionIds[0]] ?? projectId,
             kind: popped ? 'popped' : 'minimized',
             ownerWindowId: popped ? g.ownerWindowId : undefined,
           });
@@ -417,9 +426,9 @@ export default function GlobalSessionDockTray() {
             <div
               style={{
                 height: 12, width: 12, borderRadius: 3, flexShrink: 0,
-                background: projectMap[chip.projectId]
-                  ? resolveProjectColor(projectMap[chip.projectId])
-                  : resolveProjectColor({ id: chip.projectId }),
+                background: projectMap[chip.colorProjectId]
+                  ? resolveProjectColor(projectMap[chip.colorProjectId])
+                  : resolveProjectColor({ id: chip.colorProjectId }),
               }}
             />
             {isPopped && <ExternalLink size={11} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
