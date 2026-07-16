@@ -12,6 +12,7 @@ import { resolveProjectColor } from '../lib/projectColor';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { useToast } from '../hooks/useToast';
 import { getErrorMessage } from '../lib/errors';
+import IconButton from './IconButton';
 
 interface ProjectListProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -216,13 +217,15 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                 style={{ animationDelay: `${index * 50}ms`, '--tag-color': tagColor } as React.CSSProperties}
               >
                 {/* Delete button */}
-                <button
+                <IconButton
                   onClick={(e) => handleDeleteProject(project.id, e)}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10 text-theme-muted"
-                  title={t('projects.delete')}
+                  label={t('projects.delete')}
+                  size="sm"
+                  variant="danger"
+                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 >
                   <X size={14} strokeWidth={2} />
-                </button>
+                </IconButton>
 
                 {/* Top row: avatar + name */}
                 <div className="flex items-center gap-3">

@@ -9,6 +9,7 @@ import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal } from 'lucide-react';
+import IconButton from './IconButton';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -267,16 +268,15 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             <span className="text-xs font-medium text-theme-text-secondary whitespace-nowrap">
               {progressPct}% <span className="text-theme-text-tertiary">{completedTodos}/{totalTodos}</span>
             </span>
-            <button
-              type="button"
+            <IconButton
               onClick={() => setShowSettings(!showSettings)}
-              className={`btn-icon btn-icon-md ${showSettings ? 'bg-theme-active text-theme-text' : ''}`}
-              title={t('header.settings')}
-              aria-label={t('header.settings')}
+              label={t('header.settings')}
+              variant={showSettings ? 'active' : 'default'}
+              pressed={showSettings}
               aria-expanded={showSettings}
             >
               <Settings size={16} />
-            </button>
+            </IconButton>
           </div>
         </div>
       </div>
