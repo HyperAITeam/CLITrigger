@@ -1350,6 +1350,32 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       console.debug('[paste-fallback] paste event had no usable text/image');
     }
   };
+  // Stranded-TSF self-heal: a keydown arriving while document.hasFocus() is
+  // false means the OS delivers keys to this window but Chromium page focus
+  // is dead (ime-debug 2026-07-16: popout teardown during recall-to-main).
+  // The Korean IME then eats every key as 'Process' without ever opening a
+  // composition. Neither existing defense reaches this state: the main-process
+  // focus-bridge only re-fires on a blur→focus cycle, and the App-level
+  // focusin→imeReset excludes the helper textarea (and focusin doesn't fire
+  // while the page is unfocused anyway). Rebind with the proven SessionForm
+  // sequence: blur → ime:reset (webContents.focus()) → two RAFs → refocus the
+  // terminal. The triggering keystroke is already lost to the dead IME;
+  // everything after it composes normally.
+  let rescueRaf = 0;
+  const rescueStrandedFocus = () => {
+    if (rescueRaf || composing) return;
+    const api = (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI;
+    if (!api?.imeReset) return; // plain browser — no HWND focus to repair
+    imeLog('focus-rescue');
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    api.imeReset();
+    rescueRaf = requestAnimationFrame(() => {
+      rescueRaf = requestAnimationFrame(() => {
+        rescueRaf = 0;
+        try { term.focus(); } catch { /* term disposed mid-rescue */ }
+      });
+    });
+  };
   // Key arrival at the DOM layer. `key === 'Process'` means the OS IME is
   // handling the keystroke; a raw letter on a Hangul-mode key means the TSF
   // context is detached from the HWND. Together with main's before-input-event
@@ -1364,6 +1390,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
         ?.classList?.contains('xterm-helper-textarea'),
       hasFocus: document.hasFocus(),
     });
+    if (!document.hasFocus()) rescueStrandedFocus();
   };
   container.addEventListener('keydown', handleKeydownLog, true);
   container.addEventListener('compositionstart', handleCompStart, true);
@@ -1383,6 +1410,7 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     onDataDisposable.dispose();
     cursorMoveDisposable.dispose();
     if (posRaf) cancelAnimationFrame(posRaf);
+    if (rescueRaf) cancelAnimationFrame(rescueRaf);
     container.removeEventListener('keydown', handleKeydownLog, true);
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
