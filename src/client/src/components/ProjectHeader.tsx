@@ -195,12 +195,11 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const progressPct = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0;
 
   return (
-    <div className="mb-6">
-      {/* Hero Header Card */}
-      <div className="card p-5 sm:p-6">
-        {/* Top row: name + actions */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+    <div className="mb-4">
+      {/* Compact project status bar */}
+      <div className="card px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="min-w-[12rem] flex-1">
             {editingName ? (
               <input
                 ref={nameInputRef}
@@ -212,12 +211,12 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                   if (e.key === 'Enter') handleNameSave();
                   if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); }
                 }}
-                className="text-lg sm:text-xl font-semibold text-warm-800 bg-transparent border-b-2 border-accent outline-none w-full max-w-md"
+                className="text-base sm:text-lg font-semibold text-warm-800 bg-transparent border-b-2 border-accent outline-none w-full max-w-md leading-tight"
                 autoFocus
               />
             ) : (
               <h1
-                className="text-lg sm:text-xl font-semibold text-warm-800 truncate cursor-pointer hover:text-accent transition-colors group flex items-center gap-2"
+                className="text-base sm:text-lg font-semibold text-warm-800 truncate cursor-pointer hover:text-accent transition-colors group flex items-center gap-2 leading-tight"
                 onClick={() => { setEditingName(true); setNameValue(project.name); }}
                 title={t('header.editName')}
               >
@@ -227,7 +226,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             )}
             <button
               type="button"
-              className="mt-0.5 text-[11px] text-warm-400 font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"
+              className="mt-1 text-[11px] text-theme-text-tertiary font-mono truncate hover:text-accent transition-colors cursor-pointer flex items-center gap-1 max-w-full"
               title={t('header.openFolder')}
               onClick={() => projectsApi.openFolder(project.path)}
             >
@@ -236,30 +235,11 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             </button>
           </div>
 
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="btn-ghost text-sm"
-              title={t('header.settings')}
-            >
-              <Settings size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="my-4 border-t" style={{ borderColor: 'var(--color-border)' }} />
-
-        {/* Bottom row: meta badges + progress */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex flex-wrap gap-1.5 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5 order-3 basis-full lg:order-none lg:basis-auto">
             {project.is_git_repo ? (
-              <>
-                <span className="badge bg-warm-200/60 text-warm-600">Git</span>
-                <span className="badge bg-warm-200/60 text-warm-600">
-                  {t('header.branch')}: {project.default_branch}
-                </span>
-              </>
+              <span className="badge bg-warm-200/60 text-warm-600">
+                Git · {project.default_branch}
+              </span>
             ) : (
               <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
             )}
@@ -271,10 +251,9 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             </span>
           </div>
 
-          {/* Compact progress */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {runningSessions > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-status-running font-medium">
+              <span className="inline-flex items-center gap-1 text-xs text-status-running font-medium" title={t('tabs.sessions')}>
                 <Terminal size={12} strokeWidth={2} className="flex-shrink-0" />
                 {runningSessions}
               </span>
@@ -285,16 +264,26 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 {runningTodos} {t('projects.active')}
               </span>
             )}
-            <span className="text-xs font-medium text-warm-500">
-              {progressPct}% <span className="text-warm-400">{completedTodos}/{totalTodos}</span>
+            <span className="text-xs font-medium text-theme-text-secondary whitespace-nowrap">
+              {progressPct}% <span className="text-theme-text-tertiary">{completedTodos}/{totalTodos}</span>
             </span>
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className={`btn-icon btn-icon-md ${showSettings ? 'bg-theme-active text-theme-text' : ''}`}
+              title={t('header.settings')}
+              aria-label={t('header.settings')}
+              aria-expanded={showSettings}
+            >
+              <Settings size={16} />
+            </button>
           </div>
         </div>
       </div>
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="mt-5 card p-6 animate-fade-in">
+        <div className="mt-3 card p-6 animate-fade-in">
           {/* Settings section tabs */}
           <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {[

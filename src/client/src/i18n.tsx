@@ -722,6 +722,10 @@ const translations = {
     // Tabs
     'tabs.automation': 'Automation',
     'tabs.automation.help': 'Tasks, Discussions, and Routines in one place.',
+    'tabs.projectNavigation': 'Project workflow',
+    'tabs.group.prepare': 'Prepare',
+    'tabs.group.execute': 'Execute',
+    'tabs.group.review': 'Review',
     'tabs.tasks': 'Auto Tasks',
     'tabs.sessions': 'Terminals',
     'tabs.discussions': 'Discussions',
@@ -2185,6 +2189,10 @@ const translations = {
     // Tabs
     'tabs.automation': '자동화',
     'tabs.automation.help': '자동 작업·토론·루틴을 한곳에서 관리합니다.',
+    'tabs.projectNavigation': '프로젝트 작업 흐름',
+    'tabs.group.prepare': '준비',
+    'tabs.group.execute': '실행',
+    'tabs.group.review': '검토',
     'tabs.tasks': '자동 작업',
     'tabs.sessions': '터미널',
     'tabs.discussions': '토론',
