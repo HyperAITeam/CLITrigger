@@ -3,7 +3,7 @@
 // toggled — so PTY live output never drops when the user switches tabs.
 
 import { useState } from 'react';
-import { X, Minus, Plus, ZoomIn, ZoomOut, ExternalLink, RotateCw } from 'lucide-react';
+import { X, Minus, Plus, ZoomIn, ZoomOut, ExternalLink, RotateCw, Square, Columns2, Grid2X2, Maximize2, Minimize2 } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import SessionPane, { type PaneIntent } from './SessionPane';
@@ -11,7 +11,7 @@ import SessionThemePicker from '../SessionThemePicker';
 import SessionAliasInserter from '../SessionAliasInserter';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import { useSessionWindowsOptional } from '../SessionWindowsHost';
-import type { LayoutStack, Path } from './groupTree';
+import type { LayoutPreset, LayoutStack, Path } from './groupTree';
 import type { Session } from '../../types';
 import type { WsEvent } from '../../hooks/useWebSocket';
 
@@ -35,6 +35,9 @@ export interface StackViewProps {
   sendMessage: (event: object) => void;
   subscribeBinary: (sessionId: string, cb: (payload: Uint8Array) => void) => () => void;
   onEvent: (cb: (event: WsEvent) => void) => () => void;
+  focusedSessionId?: string;
+  groupTopmost?: boolean;
+  onFocusStack?: (sessionId: string) => void;
   // When this stack is the entire group (no split anywhere), the unified
   // chrome is hidden and the stack's tab bar carries the group's
   // minimize/close buttons. Otherwise these are undefined.
@@ -44,6 +47,9 @@ export interface StackViewProps {
     // Optional: present only in the main app window, not inside a popout
     // (a popout can't pop itself out further).
     onPopOutGroup?: () => void;
+    onToggleMaximize?: () => void;
+    isMaximized?: boolean;
+    onApplyLayoutPreset?: (preset: LayoutPreset) => void;
   };
 }
 
@@ -64,6 +70,9 @@ export default function StackView({
   sendMessage,
   subscribeBinary,
   onEvent,
+  focusedSessionId,
+  groupTopmost,
+  onFocusStack,
   groupActions,
 }: StackViewProps) {
   const { t } = useI18n();
@@ -81,13 +90,25 @@ export default function StackView({
   // OS window (PopoutPage mounts StackView without a SessionWindowsHost
   // above it). In that case there is nothing to raise.
   const sessionWindows = useSessionWindowsOptional();
+  const isFocused = groupTopmost === undefined
+    ? true
+    : groupTopmost && (!focusedSessionId || focusedSessionId === stack.activeTab);
+  const isDimmed = groupTopmost === true && !isFocused;
+  const activeSession = sessionsById.get(stack.activeTab);
+  const activeMeta = [
+    [activeSession?.cli_tool, activeSession?.cli_model].filter(Boolean).join('/'),
+    activeSession?.branch_name,
+    activeSession?.status,
+    activeSession?.total_tokens ? `${activeSession.total_tokens.toLocaleString()} tok` : '',
+  ].filter(Boolean).join(' · ');
 
   const onPaneAreaMouseDown = (e: React.MouseEvent) => {
     // Bring the window to the front when the user clicks anywhere inside the
     // terminal viewport, but stop propagation so the group-chrome drag
     // doesn't start.
     if (e.button === 0 && stack.activeTab) {
-      sessionWindows?.focus(stack.activeTab);
+      if (onFocusStack) onFocusStack(stack.activeTab);
+      else sessionWindows?.focus(stack.activeTab);
     }
     e.stopPropagation();
   };
@@ -146,14 +167,22 @@ export default function StackView({
         minHeight: 0,
         position: 'relative',
         overflow: 'hidden',
+        opacity: isDimmed ? (groupTopmost ? 0.78 : 0.88) : 1,
+        filter: isDimmed ? 'saturate(0.78)' : 'none',
+        boxShadow: isFocused ? `inset 0 0 0 1px ${CMD.info}` : 'inset 0 0 0 1px transparent',
+        transition: 'opacity 140ms ease-out, filter 140ms ease-out, box-shadow 140ms ease-out',
       }}
     >
       {/* Tab bar */}
       <div
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest('button')) return;
+          groupActions?.onToggleMaximize?.();
+        }}
         style={{
           display: 'flex',
           height: TAB_HEIGHT,
-          background: CMD.titleBg,
+          background: isFocused ? '#323a42' : CMD.titleBg,
           borderBottom: `1px solid ${CMD.separator}`,
           flexShrink: 0,
           overflowX: 'auto',
@@ -164,6 +193,16 @@ export default function StackView({
           const session = sessionsById.get(sid);
           const isActive = sid === stack.activeTab;
           const color = colors[sid] || CMD.titleText;
+          const statusColor = session?.status === 'running'
+            ? CMD.success
+            : session?.status === 'failed'
+              ? CMD.error
+              : session?.status === 'completed'
+                ? CMD.info
+                : CMD.dim;
+          const details = [session?.status, session?.cli_tool, session?.cli_model, session?.branch_name]
+            .filter(Boolean)
+            .join(' · ');
           return (
             <div
               key={sid}
@@ -197,8 +236,12 @@ export default function StackView({
                 maxWidth: 200,
                 position: 'relative',
               }}
-              title={session?.title || sid}
+              title={`${session?.title || sid}${details ? `\n${details}` : ''}`}
             >
+              <span
+                aria-label={session?.status || 'unknown'}
+                style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }}
+              />
               <span
                 aria-hidden
                 style={{
@@ -273,6 +316,24 @@ export default function StackView({
             and the empty area between still bubbles mousedown to the parent
             for group dragging. */}
         <div style={{ flex: 1, minWidth: 8 }} />
+        {activeMeta && (
+          <span
+            title={activeMeta}
+            style={{
+              maxWidth: 260,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: CMD.dim,
+              fontFamily: CMD_FONT,
+              fontSize: 9,
+              padding: '0 7px',
+              flexShrink: 1,
+            }}
+          >
+            {activeMeta}
+          </span>
+        )}
         <SessionAliasInserter sessionId={stack.activeTab} sendMessage={sendMessage} />
         <button
           data-no-drag
@@ -307,6 +368,24 @@ export default function StackView({
         <SessionThemePicker sessionId={stack.activeTab} />
         {groupActions && (
           <>
+            {stack.tabs.length > 1 && groupActions.onApplyLayoutPreset && (
+              <>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => groupActions.onApplyLayoutPreset?.('single')} aria-label="single-pane" title={t('session.layout.single')} style={groupBtnStyle}>
+                  <Square size={12} />
+                </button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => groupActions.onApplyLayoutPreset?.('columns')} aria-label="two-columns" title={t('session.layout.columns')} style={groupBtnStyle}>
+                  <Columns2 size={13} />
+                </button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => groupActions.onApplyLayoutPreset?.('grid')} aria-label="grid-layout" title={t('session.layout.grid')} style={groupBtnStyle}>
+                  <Grid2X2 size={13} />
+                </button>
+              </>
+            )}
+            {groupActions.onToggleMaximize && (
+              <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={groupActions.onToggleMaximize} aria-label="toggle-maximize" title={`${groupActions.isMaximized ? t('session.restoreSize') : t('session.maximize')} · ${t('session.maximizeHint')}`} style={groupBtnStyle}>
+                {groupActions.isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              </button>
+            )}
             {groupActions.onPopOutGroup && (
               <button
                 data-no-drag

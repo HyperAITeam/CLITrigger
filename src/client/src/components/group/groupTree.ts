@@ -19,6 +19,7 @@ export type LayoutNode = LayoutStack | LayoutSplit;
 
 export type Path = number[];
 export type DockSide = 'left' | 'right' | 'top' | 'bottom' | 'center';
+export type LayoutPreset = 'single' | 'columns' | 'grid';
 
 export function makeStack(tabs: string[], activeTab?: string): LayoutStack {
   return { kind: 'stack', tabs: tabs.slice(), activeTab: activeTab ?? tabs[0] };
@@ -53,6 +54,40 @@ export function allSessionIds(root: LayoutNode): string[] {
 export function activeSessionIds(root: LayoutNode): string[] {
   if (root.kind === 'stack') return [root.activeTab];
   return root.children.flatMap(activeSessionIds);
+}
+
+// Rebuild a group's layout without changing its sessions. Extra sessions are
+// kept as tabs when a preset has fewer panes than the group has sessions.
+export function applyLayoutPreset(root: LayoutNode, preset: LayoutPreset): LayoutNode {
+  const ids = allSessionIds(root);
+  if (ids.length <= 1 || preset === 'single') {
+    return makeStack(ids, activeSessionIds(root)[0] || ids[0]);
+  }
+
+  const paneCount = Math.min(preset === 'columns' ? 2 : 4, ids.length);
+  const buckets = Array.from({ length: paneCount }, () => [] as string[]);
+  ids.forEach((id, index) => buckets[index % paneCount].push(id));
+  const previouslyActive = new Set(activeSessionIds(root));
+  const stacks = buckets.map((tabs) =>
+    makeStack(tabs, tabs.find((id) => previouslyActive.has(id)) || tabs[0]),
+  );
+
+  if (preset === 'columns' || stacks.length <= 2) {
+    return {
+      kind: 'split',
+      orientation: 'horizontal',
+      children: stacks,
+      sizes: stacks.map(() => 100 / stacks.length),
+    };
+  }
+
+  const top = stacks.slice(0, 2);
+  const bottom = stacks.slice(2);
+  const makeRow = (children: LayoutNode[]): LayoutNode => children.length === 1
+    ? children[0]
+    : { kind: 'split', orientation: 'horizontal', children, sizes: children.map(() => 100 / children.length) };
+  const rows = [makeRow(top), makeRow(bottom)];
+  return { kind: 'split', orientation: 'vertical', children: rows, sizes: [50, 50] };
 }
 
 // Removes a session from the tree. Returns the simplified root, or null if
