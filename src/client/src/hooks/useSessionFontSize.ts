@@ -21,6 +21,19 @@ function lsKey(sessionId: string): string {
   return `sessionFontSize:${sessionId}`;
 }
 
+// Cross-window sync: same stale-cache issue as useSessionTheme — a font size
+// changed in a popout window never reaches this window's module cache.
+window.addEventListener('storage', (e) => {
+  if (e.storageArea !== localStorage || !e.key?.startsWith('sessionFontSize:')) return;
+  const sessionId = e.key.slice('sessionFontSize:'.length);
+  cache.delete(sessionId);
+  const subs = listeners.get(sessionId);
+  if (subs) {
+    const next = load(sessionId);
+    subs.forEach((fn) => fn(next));
+  }
+});
+
 function clamp(n: number): number {
   if (!Number.isFinite(n)) return globalDefault;
   return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(n)));

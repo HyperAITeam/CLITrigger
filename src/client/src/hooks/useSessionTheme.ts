@@ -43,6 +43,21 @@ function lsKey(sessionId: string): string {
   return `sessionTheme:${sessionId}`;
 }
 
+// Cross-window sync: popout windows are separate JS contexts with their own
+// module cache, so a theme picked there never reaches this window's cache.
+// 'storage' fires here when another window writes the key — drop the stale
+// cache entry (next load() re-reads localStorage) and update live subscribers.
+window.addEventListener('storage', (e) => {
+  if (e.storageArea !== localStorage || !e.key?.startsWith('sessionTheme:')) return;
+  const sessionId = e.key.slice('sessionTheme:'.length);
+  cache.delete(sessionId);
+  const subs = listeners.get(sessionId);
+  if (subs) {
+    const next = load(sessionId);
+    subs.forEach((fn) => fn(next));
+  }
+});
+
 function isValidPresetId(id: unknown): id is SessionThemeId {
   if (typeof id !== 'string') return false;
   return id === 'custom' || id in TERMINAL_PRESETS;
