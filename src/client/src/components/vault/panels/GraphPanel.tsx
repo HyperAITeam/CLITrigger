@@ -18,7 +18,9 @@ interface Props {
 
 export function GraphPanel({ files, edges, activeFile, onSelectFile, loading, error, allHidden, projectId, onGraphChanged }: Props) {
   const { t } = useI18n();
-  if (loading && files.length === 0) {
+  // allHidden reloads always have 0 files — skip the spinner there or the
+  // "all hidden" notice blinks on every background vault:changed reload.
+  if (loading && files.length === 0 && !allHidden) {
     return (
       <div className="flex items-center justify-center h-full text-xs text-warm-400">
         <Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('files.loading')}
