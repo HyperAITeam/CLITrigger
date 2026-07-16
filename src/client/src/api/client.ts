@@ -25,12 +25,17 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    let message = text;
+    const text = await res.text().catch(() => '');
+    let message = '';
     try {
-      const json = JSON.parse(text);
-      if (json.error) message = json.error;
-    } catch { /* not JSON, use raw text */ }
+      message = JSON.parse(text).error ?? '';
+    } catch { /* not JSON */ }
+    if (!message) {
+      // Raw bodies (HTML error pages, stack traces) are not user-facing —
+      // only a server-intended { error } message may reach the toast.
+      console.error('[api]', method, url, res.status, text);
+      message = `HTTP ${res.status}`;
+    }
     throw new ApiError(res.status, message);
   }
 

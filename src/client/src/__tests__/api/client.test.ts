@@ -91,6 +91,27 @@ describe('API Client', () => {
     }
   });
 
+  it('should use server json error field as the message', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve(JSON.stringify({ error: 'task not found' })),
+    });
+
+    await expect(get('/api/test')).rejects.toThrow('task not found');
+  });
+
+  it('should not expose non-JSON error bodies in the message', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: () => Promise.resolve('<html>stack trace dump</html>'),
+    });
+
+    await expect(get('/api/test')).rejects.toThrow('HTTP 500');
+  });
+
   it('should dispatch auth:unauthorized event on 401', async () => {
     const listener = vi.fn();
     window.addEventListener('auth:unauthorized', listener);
