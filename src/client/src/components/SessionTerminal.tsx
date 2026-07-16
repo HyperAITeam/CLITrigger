@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
@@ -195,6 +196,7 @@ export default function SessionTerminal({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const canvasAddonRef = useRef<CanvasAddon | null>(null);
   const lastResizeRef = useRef<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Separate timer for fontSize-driven resizes so ResizeObserver's 150ms
@@ -497,9 +499,25 @@ export default function SessionTerminal({
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Keep xterm's default DOM renderer. The optional CanvasAddon could run
-    // after a StrictMode cleanup and read a disposed render service's
-    // `dimensions` while a terminal was starting.
+    // CanvasAddon draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
+    // cell-sized rects instead of stamping font glyphs, removing both the
+    // vertical (font leading) AND horizontal (glyph-vs-cell-width) gaps that
+    // the default DOM renderer leaves in ASCII art. Loaded after term.open()
+    // (Canvas requires the host DOM to exist). The canvases it inserts may
+    // sit above sibling overlays' default z-index — SessionPane bumps its
+    // overlay z-index high enough that the "Start" button still receives
+    // clicks. Stored in a ref so the fontSize-change effect can rebuild the
+    // glyph atlas for the new cell size. Its harmless post-dispose teardown
+    // error ("reading 'dimensions'") is suppressed globally in main.tsx —
+    // do not remove the addon over that toast again.
+    try {
+      const addon = new CanvasAddon();
+      term.loadAddon(addon);
+      canvasAddonRef.current = addon;
+    } catch {
+      canvasAddonRef.current = null;
+    }
+
     // Ctrl/Cmd + wheel → font zoom.
     //
     // TUI apps (Claude CLI etc.) enable mouse-tracking / alt-screen modes
@@ -708,6 +726,8 @@ export default function SessionTerminal({
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
+      canvasAddonRef.current?.dispose();
+      canvasAddonRef.current = null;
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
@@ -763,6 +783,19 @@ export default function SessionTerminal({
     if (!term || !fitAddon) return;
     if (term.options.fontSize === fontSize) return;
     term.options.fontSize = fontSize;
+    // CanvasAddon caches a glyph atlas sized for the old cell dimensions; after
+    // fontSize changes it keeps stamping old-size glyphs at new-size cell grid
+    // positions, producing visibly torn/misaligned ASCII art. Dispose+reload
+    // rebuilds the atlas at the new size.
+    if (canvasAddonRef.current) {
+      try { canvasAddonRef.current.dispose(); } catch { /* ignore */ }
+      canvasAddonRef.current = null;
+      try {
+        const addon = new CanvasAddon();
+        term.loadAddon(addon);
+        canvasAddonRef.current = addon;
+      } catch { /* DOM renderer fallback */ }
+    }
     const bufferType = term.buffer.active.type;
     if (bufferType === 'alternate') {
       if (import.meta.env.DEV) {
