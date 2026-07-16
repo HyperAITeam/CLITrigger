@@ -21,7 +21,6 @@ import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
 import { useVaultZoom, DEFAULT_VAULT_FONT_SIZE } from '../../hooks/useVaultZoom';
 import MarkdownContent from '../MarkdownContent';
-import ToastContainer from '../Toast';
 import { editBuffer } from './vault-edit-buffer';
 import { getDraft, saveDraft, clearDraft } from './vault-draft';
 import {
@@ -65,7 +64,7 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
-  const { toasts, error: toastError, dismiss: dismissToast } = useToast();
+  const { error: toastError } = useToast();
   const [zoom] = useVaultZoom(projectId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -861,7 +860,6 @@ export function PreviewPanel({
           onClose={() => setCtxMenu(null)}
         />
       )}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

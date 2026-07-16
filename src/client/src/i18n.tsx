@@ -28,6 +28,15 @@ const translations = {
     'setup.tunnelPaused': 'External sharing (Cloudflare tunnel) is paused until setup completes.',
     'setup.error': 'Failed to save password.',
 
+    // Global errors
+    'errors.unexpected': 'Something went wrong. Please try again.',
+    'errors.renderTitle': 'CLITrigger could not display this screen',
+    'errors.renderDescription': 'Your data is safe. Reload the app to restore the screen.',
+    'errors.reload': 'Reload app',
+    'errors.projectsLoad': 'Failed to load projects.',
+    'errors.projectCreate': 'Failed to create the project.',
+    'errors.projectDelete': 'Failed to delete the project.',
+
     // Sidebar
     'sidebar.home': 'Home',
     'sidebar.review': 'Review Queue',
@@ -1481,6 +1490,15 @@ const translations = {
     'setup.mismatch': '\uBE44\uBC00\uBC88\uD638\uAC00 \uC77C\uCE58\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.',
     'setup.tunnelPaused': '\uC14B\uC5C5\uC774 \uB05D\uB0A0 \uB54C\uAE4C\uC9C0 \uC678\uBD80 \uACF5\uC720(Cloudflare \uD130\uB110)\uB294 \uC790\uB3D9 \uC2DC\uC791\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.',
     'setup.error': '\uBE44\uBC00\uBC88\uD638 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
+
+    // Global errors
+    'errors.unexpected': '\uC608\uC0C1\uD558\uC9C0 \uBABB\uD55C \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.',
+    'errors.renderTitle': '\uD654\uBA74\uC744 \uD45C\uC2DC\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4',
+    'errors.renderDescription': '\uB370\uC774\uD130\uB294 \uC548\uC804\uD569\uB2C8\uB2E4. \uC571\uC744 \uB2E4\uC2DC \uBD88\uB7EC\uC640 \uD654\uBA74\uC744 \uBCF5\uAD6C\uD558\uC138\uC694.',
+    'errors.reload': '\uC571 \uB2E4\uC2DC \uBD88\uB7EC\uC624\uAE30',
+    'errors.projectsLoad': '\uD504\uB85C\uC81D\uD2B8\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'errors.projectCreate': '\uD504\uB85C\uC81D\uD2B8\uB97C \uC0DD\uC131\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'errors.projectDelete': '\uD504\uB85C\uC81D\uD2B8\uB97C \uC0AD\uC81C\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
 
     // Sidebar
     'sidebar.home': '홈',

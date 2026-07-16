@@ -9,7 +9,6 @@ import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
 import { pasteImage, getClipboardImagePath } from '../api/sessions';
 import { TERMINAL_PRESETS } from '../lib/terminal-presets';
 import { useToast } from '../hooks/useToast';
-import ToastContainer from './Toast';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 // Temporary IME diagnostics (document-level, registered once per window).
@@ -249,7 +248,7 @@ export default function SessionTerminal({
   // useToast must be called from the component body, but pasteFromClipboard
   // lives inside the mount-only useEffect. Stash the dispatcher in a ref so
   // the effect reads the latest reference without re-mounting xterm.
-  const { toasts, warning: toastWarning, dismiss: dismissToast } = useToast();
+  const { warning: toastWarning } = useToast();
   const toastWarningRef = useRef(toastWarning);
   toastWarningRef.current = toastWarning;
 
@@ -946,7 +945,6 @@ export default function SessionTerminal({
           )}
         </div>
       )}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {ctxMenu && createPortal((() => {
         const MENU_W = 184;
         const MENU_H = 116;

@@ -10,6 +10,8 @@ import EmptyState from './EmptyState';
 import { useI18n } from '../i18n';
 import { resolveProjectColor } from '../lib/projectColor';
 import type { WsEvent } from '../hooks/useWebSocket';
+import { useToast } from '../hooks/useToast';
+import { getErrorMessage } from '../lib/errors';
 
 interface ProjectListProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -31,6 +33,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { error: toastError } = useToast();
 
   useEffect(() => {
     projectsApi.getProjects()
@@ -44,7 +47,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
             .catch(() => { /* ignore */ });
         });
       })
-      .catch(() => { /* ignore */ })
+      .catch((err) => toastError(getErrorMessage(err, t('errors.projectsLoad'))))
       .finally(() => setLoading(false));
     projectsApi.getActiveWork()
       .then(setActiveWork)
@@ -100,8 +103,8 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
       setProjects((prev) => [...prev, newProject]);
       setShowForm(false);
       window.dispatchEvent(new Event('projects:changed'));
-    } catch {
-      // TODO: show error
+    } catch (err) {
+      toastError(getErrorMessage(err, t('errors.projectCreate')));
     }
   };
 
@@ -113,8 +116,8 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
       window.dispatchEvent(new Event('projects:changed'));
-    } catch {
-      // TODO: show error
+    } catch (err) {
+      toastError(getErrorMessage(err, t('errors.projectDelete')));
     }
   };
 

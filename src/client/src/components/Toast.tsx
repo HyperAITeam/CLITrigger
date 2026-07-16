@@ -42,6 +42,8 @@ function ToastEntry({ toast, onDismiss }: ToastItemProps) {
 
   return (
     <div
+      role={toast.type === 'error' ? 'alert' : 'status'}
+      aria-atomic="true"
       className={cn(
         'relative flex items-start gap-3 px-4 py-3 rounded-xl shadow-elevated overflow-hidden',
         'bg-theme-card border border-theme-border min-w-[280px] max-w-sm',
@@ -52,6 +54,8 @@ function ToastEntry({ toast, onDismiss }: ToastItemProps) {
       <Icon size={16} className={cn('mt-0.5 flex-shrink-0', COLORS[toast.type])} />
       <p className="text-xs text-theme-text flex-1 leading-snug">{toast.message}</p>
       <button
+        type="button"
+        aria-label="Dismiss notification"
         onClick={() => onDismiss(toast.id)}
         className="p-0.5 rounded text-theme-muted hover:text-theme-text transition-colors flex-shrink-0"
       >
@@ -77,7 +81,11 @@ export default function ToastContainer({ toasts, onDismiss }: ToastContainerProp
   if (toasts.length === 0) return null;
 
   return createPortal(
-    <div className="fixed bottom-6 right-6 z-toast flex flex-col gap-2 items-end">
+    <div
+      aria-live="polite"
+      aria-relevant="additions"
+      className="fixed bottom-6 right-6 z-toast flex flex-col gap-2 items-end"
+    >
       {toasts.map(toast => (
         <ToastEntry key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}
