@@ -475,7 +475,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                   <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r-full" style={{ backgroundColor: tagColor }} />
                 )}
                 <span
-                  className={`w-2.5 h-2.5 rounded-full ${hasActivity ? 'workspace-dot-pulse' : ''}`}
+                  className={`w-2.5 h-2.5 rounded-[3px] ${hasActivity ? 'workspace-dot-pulse' : ''}`}
                   style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
                 />
               </Link>
@@ -655,7 +655,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                     />
                   )}
                   <span
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${hasActivity ? 'workspace-dot-pulse' : ''}`}
+                    className={`w-1.5 h-3 rounded-[2px] flex-shrink-0 ${hasActivity ? 'workspace-dot-pulse' : ''}`}
                     style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
                     title={hasActivity
                       ? `${t('sidebar.workspaces')} · ${activeWork} ${t('detail.live')}`

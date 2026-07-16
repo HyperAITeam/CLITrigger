@@ -3,14 +3,14 @@
 // look distinct in the sidebar / dock tray before the user picks one.
 
 export const PROJECT_COLOR_PALETTE: ReadonlyArray<string> = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
+  '#55708F', // slate blue
+  '#4F7A68', // forest
+  '#9A783F', // ochre
+  '#A15F5A', // brick
+  '#74658A', // plum
+  '#925F73', // berry
+  '#477B7D', // mineral teal
+  '#747A50', // olive
 ];
 
 function hashStringToIndex(s: string, mod: number): number {
