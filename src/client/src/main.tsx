@@ -9,6 +9,7 @@ import { ToastProvider, useToast } from './hooks/useToast';
 import ToastContainer from './components/Toast';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { getErrorMessage, isResizeObserverLoopError } from './lib/errors';
+import { ApiError } from './api/client';
 import './index.css';
 
 initPlugins();
@@ -31,7 +32,10 @@ function GlobalToasts() {
         console.debug('[global-error] suppressed xterm teardown error:', reason);
         return;
       }
-      error(msg || t('errors.unexpected'), 7000);
+      console.error('[global-error]', reason);
+      // ApiError messages are user-safe (server `error` field or "HTTP <status>");
+      // raw internals of anything else stay in the console.
+      error(reason instanceof ApiError ? reason.message : t('errors.unexpected'), 7000);
     };
     const onError = (event: ErrorEvent) => {
       const reason = event.error ?? event.message;
