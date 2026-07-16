@@ -29,10 +29,23 @@ const INFO_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </entry>
 </info>`;
 
+const UPDATE_STDOUT = [
+  "Updating 'C:/wc':",
+  'U    C:/wc/src/plain.ts',
+  'C    C:/wc/src/충돌.c',
+  ' C   C:/wc/props-conflict.txt',
+  '   C C:/wc/tree-dir',
+  'G    C:/wc/merged.txt',
+  'Updated to revision 42.',
+  'Summary of conflicts:',
+  '  Text conflicts: 1',
+].join('\n');
+
 vi.mock('../../lib/svn.js', () => ({
   runSvn: vi.fn(async (args: string[]) => {
     if (args[0] === 'status') return { stdout: STATUS_XML, stderr: '' };
     if (args[0] === 'info') return { stdout: INFO_XML, stderr: '' };
+    if (args[0] === 'update') return { stdout: UPDATE_STDOUT, stderr: '' };
     return { stdout: '', stderr: '' };
   }),
   isSvnRepository: vi.fn(async () => true),
@@ -52,5 +65,13 @@ describe('svnManager.getStatus changelist parsing', () => {
     expect(byPath.get('src/plain.ts')?.changelist).toBeUndefined();
     expect(byPath.get('new.txt')?.working_dir).toBe('?');
     expect(byPath.get('new.txt')?.changelist).toBeUndefined();
+  });
+});
+
+describe('svnManager.update conflict parsing', () => {
+  it('collects text/prop/tree conflicts and skips clean/summary lines', async () => {
+    const result = await svnManager.update('C:/wc');
+    expect(result.revision).toBe('42');
+    expect(result.conflicts).toEqual(['src/충돌.c', 'props-conflict.txt', 'tree-dir']);
   });
 });

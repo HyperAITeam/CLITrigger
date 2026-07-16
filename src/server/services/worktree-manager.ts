@@ -516,10 +516,96 @@ export class WorktreeManager {
     await git.checkout(branchName);
   }
 
-  async gitMerge(dirPath: string, sourceBranch: string): Promise<string> {
+  /**
+   * Detect an in-progress merge/rebase by looking at the repository's actual
+   * gitdir. `rev-parse --git-dir` resolves the per-worktree gitdir
+   * (.git/worktrees/<x>) where MERGE_HEAD really lives, and may return a
+   * relative path — resolve against dirPath.
+   */
+  private async getGitOpState(dirPath: string): Promise<{ merging: boolean; rebasing: boolean }> {
     const git = createGit(dirPath);
-    const result = await git.merge([sourceBranch]);
-    return result.result ?? 'ok';
+    const gitDir = path.resolve(dirPath, (await git.raw(['rev-parse', '--git-dir'])).trim());
+    return {
+      merging: fs.existsSync(path.join(gitDir, 'MERGE_HEAD')),
+      rebasing: fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply')),
+    };
+  }
+
+  /**
+   * Distinguish "conflict left the repo in an in-progress op" from a plain
+   * failure by repository state, not error-message parsing: errors like
+   * "local changes would be overwritten" make git clean up after itself and
+   * leave no MERGE_HEAD, so they re-throw as regular errors.
+   */
+  async gitMerge(dirPath: string, sourceBranch: string): Promise<{ result: string; conflict: boolean; conflictFiles: string[] }> {
+    const git = createGit(dirPath);
+    try {
+      const result = await git.merge([sourceBranch]);
+      return { result: result.result ?? 'ok', conflict: false, conflictFiles: [] };
+    } catch (err) {
+      const { merging } = await this.getGitOpState(dirPath);
+      if (!merging) throw err;
+      const status = await git.status();
+      return { result: 'conflict', conflict: true, conflictFiles: status.conflicted };
+    }
+  }
+
+  /**
+   * Resolve one conflicted file by taking a whole side. When the chosen side
+   * deleted the file (DU/UD conflicts have no stage 2 or 3 entry),
+   * `checkout --ours/--theirs` fails — accept the deletion via `git rm`.
+   */
+  async gitResolveConflict(dirPath: string, file: string, side: 'ours' | 'theirs'): Promise<void> {
+    const git = createGit(dirPath);
+    const stages = await git.raw(['ls-files', '-u', '--', file]);
+    if (!stages.trim()) throw new Error(`Not a conflicted file: ${file}`);
+    const wantStage = side === 'ours' ? 2 : 3;
+    const hasSide = stages.split('\n').some((line) => {
+      const fields = line.split(/\s+/);
+      return fields.length >= 3 && Number(fields[2]) === wantStage;
+    });
+    if (hasSide) {
+      await git.raw(['checkout', side === 'ours' ? '--ours' : '--theirs', '--', file]);
+      await git.raw(['add', '--', file]);
+    } else {
+      await git.raw(['rm', '-f', '--', file]);
+    }
+  }
+
+  /**
+   * Conclude an in-progress merge/rebase. Merge uses `commit --no-edit`
+   * (keeps MERGE_MSG, never opens an editor); rebase blocks the editor via
+   * GIT_EDITOR=true. A rebase may hit a new conflict on the next commit —
+   * that returns { conflict: true } in the same shape as gitMerge.
+   */
+  async gitConflictContinue(dirPath: string): Promise<{ conflict: boolean; conflictFiles: string[] }> {
+    const { merging, rebasing } = await this.getGitOpState(dirPath);
+    const git = createGit(dirPath).env({ ...process.env, GIT_EDITOR: 'true' });
+    if (merging) {
+      await git.raw(['commit', '--no-edit']);
+      return { conflict: false, conflictFiles: [] };
+    }
+    if (rebasing) {
+      try {
+        await git.raw(['rebase', '--continue']);
+        return { conflict: false, conflictFiles: [] };
+      } catch (err) {
+        const after = await this.getGitOpState(dirPath);
+        if (!after.rebasing) throw err;
+        const status = await createGit(dirPath).status();
+        if (status.conflicted.length === 0) throw err;
+        return { conflict: true, conflictFiles: status.conflicted };
+      }
+    }
+    throw new Error('No merge or rebase in progress');
+  }
+
+  async gitConflictAbort(dirPath: string): Promise<void> {
+    const { merging, rebasing } = await this.getGitOpState(dirPath);
+    const git = createGit(dirPath);
+    if (merging) await git.raw(['merge', '--abort']);
+    else if (rebasing) await git.raw(['rebase', '--abort']);
+    else throw new Error('No merge or rebase in progress');
   }
 
   async gitStashPush(dirPath: string, message?: string): Promise<void> {
@@ -573,10 +659,17 @@ export class WorktreeManager {
     await git.branch(['-m', oldName, newName]);
   }
 
-  async gitRebase(dirPath: string, onto: string): Promise<string> {
+  async gitRebase(dirPath: string, onto: string): Promise<{ result: string; conflict: boolean; conflictFiles: string[] }> {
     const git = createGit(dirPath);
-    const result = await git.rebase([onto]);
-    return typeof result === 'string' ? result : 'ok';
+    try {
+      const result = await git.rebase([onto]);
+      return { result: typeof result === 'string' ? result : 'ok', conflict: false, conflictFiles: [] };
+    } catch (err) {
+      const { rebasing } = await this.getGitOpState(dirPath);
+      if (!rebasing) throw err;
+      const status = await git.status();
+      return { result: 'conflict', conflict: true, conflictFiles: status.conflicted };
+    }
   }
 
   async gitDiff(dirPath: string, file?: string, staged = false): Promise<string> {
@@ -700,9 +793,13 @@ export class WorktreeManager {
     ahead: number;
     behind: number;
     files: Array<{ path: string; index: string; working_dir: string }>;
+    conflicted: string[];
+    mergeInProgress: boolean;
+    rebaseInProgress: boolean;
   }> {
     const git = createGit(dirPath);
     const status = await git.status();
+    const op = await this.getGitOpState(dirPath);
     return {
       branch: status.current ?? '',
       tracking: status.tracking ?? null,
@@ -713,6 +810,9 @@ export class WorktreeManager {
         index: f.index ?? ' ',
         working_dir: f.working_dir ?? ' ',
       })),
+      conflicted: status.conflicted,
+      mergeInProgress: op.merging,
+      rebaseInProgress: op.rebasing,
     };
   }
 }

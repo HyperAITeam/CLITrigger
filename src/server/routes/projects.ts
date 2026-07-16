@@ -797,8 +797,10 @@ router.post('/:id/git-merge', async (req: Request<{ id: string }>, res: Response
       res.status(400).json({ error: 'branch is required' }); return;
     }
     if (hasDashArg(branch.trim())) { res.status(400).json({ error: 'invalid branch' }); return; }
+    // Conflicts respond 200 with conflict:true — the repo is now in an
+    // intentional in-progress merge the UI resolves via the routes below.
     const result = await worktreeManager.gitMerge(dirPath, branch.trim());
-    res.json({ ok: true, result });
+    res.json({ ok: true, ...result });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
@@ -829,7 +831,47 @@ router.post('/:id/git-rebase', async (req: Request<{ id: string }>, res: Respons
     }
     if (hasDashArg(onto.trim())) { res.status(400).json({ error: 'invalid onto' }); return; }
     const result = await worktreeManager.gitRebase(dirPath, onto.trim());
-    res.json({ ok: true, result });
+    res.json({ ok: true, ...result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-conflict-resolve — take one side of a conflicted file
+router.post('/:id/git-conflict-resolve', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { file, side } = req.body;
+    if (!file || typeof file !== 'string') {
+      res.status(400).json({ error: 'file is required' }); return;
+    }
+    if (side !== 'ours' && side !== 'theirs') {
+      res.status(400).json({ error: 'side must be ours or theirs' }); return;
+    }
+    await worktreeManager.gitResolveConflict(dirPath, file, side);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-conflict-continue — conclude the in-progress merge/rebase
+router.post('/:id/git-conflict-continue', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const result = await worktreeManager.gitConflictContinue(dirPath);
+    res.json({ ok: true, ...result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-conflict-abort — abort the in-progress merge/rebase
+router.post('/:id/git-conflict-abort', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    await worktreeManager.gitConflictAbort(dirPath);
+    res.json({ ok: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }

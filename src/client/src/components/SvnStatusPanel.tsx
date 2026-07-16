@@ -167,10 +167,19 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     runAction(() => svnApi.svnChangelist(project.id, name, files));
 
   // ── Global commands ───────────────────────────────────────────────────────
+  // Files `svn update` reported as conflicted ('C' in any status column) —
+  // shown as a warning banner until every 'C' row is resolved.
+  const [updateConflicts, setUpdateConflicts] = useState<string[] | null>(null);
+  const applyUpdateResult = (r: { revision: string | null; conflicts: string[] }) => {
+    if (r.conflicts.length > 0) {
+      setUpdateConflicts(r.conflicts);
+    } else {
+      setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
+    }
+  };
   const handleUpdate = () =>
     runAction(async () => {
-      const r = await svnApi.svnUpdate(project.id);
-      setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
+      applyUpdateResult(await svnApi.svnUpdate(project.id));
     });
 
   const [showRevDialog, setShowRevDialog] = useState(false);
@@ -180,8 +189,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     if (!rev) return;
     setShowRevDialog(false);
     runAction(async () => {
-      const r = await svnApi.svnUpdate(project.id, rev);
-      setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
+      applyUpdateResult(await svnApi.svnUpdate(project.id, rev));
       setRevInput('');
     });
   };
@@ -293,11 +301,28 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
 
   const busy = actionBusy || statusLoading || remoteChecking;
 
+  // Auto-dismiss the update-conflict banner once no 'C' rows remain.
+  useEffect(() => {
+    if (!updateConflicts) return;
+    if (status && !status.files.some((f) => f.working_dir === 'C')) setUpdateConflicts(null);
+  }, [status, updateConflicts]);
+
   return (
     <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
       {svnInstalled === false && (
         <div className="card mb-2 px-3 py-2 bg-status-warning/10 border border-status-warning/30 text-2xs text-status-warning">
           {t('svn.cliMissing')}
+        </div>
+      )}
+      {updateConflicts && updateConflicts.length > 0 && (
+        <div className="card mb-2 px-3 py-2 bg-status-warning/10 border border-status-warning/30 text-2xs text-status-warning flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">{t('svn.updateConflicts').replace('{n}', String(updateConflicts.length))}</div>
+            <div className="mt-0.5 truncate" title={updateConflicts.join(', ')}>
+              {updateConflicts.slice(0, 5).join(', ')}{updateConflicts.length > 5 ? ` … (+${updateConflicts.length - 5})` : ''}
+            </div>
+          </div>
+          <button onClick={() => setUpdateConflicts(null)} className="shrink-0 hover:opacity-70">&times;</button>
         </div>
       )}
       <div className="flex flex-1 min-h-0 gap-2">
@@ -595,8 +620,10 @@ interface FileRowShared {
 
 // Inline conflict resolver shown on conflicted ('C') rows — the common accept
 // modes without opening the full context menu. Base/other modes stay there.
-function ConflictResolveButton({ onResolve }: {
+function ConflictResolveButton({ onResolve, onOpen }: {
   onResolve: (accept: 'working' | 'mine-full' | 'theirs-full') => void;
+  // Activates the row so the diff pane previews the conflict before picking.
+  onOpen?: () => void;
 }) {
   const { t } = useI18n();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -617,11 +644,12 @@ function ConflictResolveButton({ onResolve }: {
 
   const open = (e: React.MouseEvent) => {
     e.stopPropagation();
+    onOpen?.();
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    // Clamp to viewport (menu ≈ 180×110).
+    // Clamp to viewport (menu ≈ 180×140).
     const x = Math.min(r.left, window.innerWidth - 188);
-    const y = Math.min(r.bottom + 2, window.innerHeight - 118);
+    const y = Math.min(r.bottom + 2, window.innerHeight - 148);
     setPos({ x: Math.max(8, x), y: Math.max(8, y) });
   };
 
@@ -647,6 +675,12 @@ function ConflictResolveButton({ onResolve }: {
           style={{ left: pos.x, top: pos.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          <button
+            className="w-full text-left px-3 py-1.5 text-xs text-warm-500 hover:bg-theme-hover transition-colors border-b border-warm-100 dark:border-warm-700"
+            onClick={(e) => { e.stopPropagation(); onOpen?.(); setPos(null); }}
+          >
+            {t('svn.previewDiff')}
+          </button>
           <button className="w-full text-left px-3 py-1.5 text-xs text-theme-text hover:bg-theme-hover transition-colors" onClick={pick('working')}>
             {t('svn.resolveWorking')}
           </button>
@@ -698,7 +732,10 @@ function FileRow({ file, indent, showDir, shared }: {
         )}
       </span>
       {ch === 'C' && (
-        <ConflictResolveButton onResolve={(accept) => shared.onResolve(file.path, accept)} />
+        <ConflictResolveButton
+          onResolve={(accept) => shared.onResolve(file.path, accept)}
+          onOpen={() => shared.onActivate(file.path)}
+        />
       )}
       <button
         onClick={(e) => shared.onContextMenu(e, file)}
