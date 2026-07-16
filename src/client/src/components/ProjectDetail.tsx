@@ -757,49 +757,84 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         onProjectUpdate={(updated) => setProject(updated)}
       />
 
-      {/* Segmented tab control */}
-      <div className="flex gap-0.5 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+      {/* Workflow-oriented primary navigation */}
+      <nav
+        aria-label={t('tabs.projectNavigation')}
+        className="flex items-stretch gap-1 mb-5 p-1 rounded-xl overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1"
+        style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
+      >
         {[
-          { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
-          { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
-          { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
-          ...getPluginsWithTabs(project).map((plugin) => {
-            const helpKey = `tabs.${plugin.id}.help`;
-            const help = t(helpKey);
-            return {
-              key: plugin.id,
-              label: t(`tabs.${plugin.id}`) || plugin.displayName,
-              help: help === helpKey ? '' : help,
-            };
-          }),
-          { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
-          ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
-          ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
-        ].map((tab) => (
-          <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
-            <button
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
-                activeTab === tab.key
-                  ? 'text-theme-text font-semibold shadow-soft'
-                  : 'text-theme-text-secondary font-medium hover:text-theme-text'
-              }`}
-              style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
-            >
-              {tab.label}
-              {'count' in tab && typeof tab.count === 'number' && (
-                <span className={`ml-1 ${activeTab === tab.key ? 'text-theme-text-tertiary' : 'text-theme-muted'}`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          </TabHoverHelp>
+          {
+            key: 'prepare',
+            label: t('tabs.group.prepare'),
+            tabs: [
+              { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
+              { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
+            ],
+          },
+          {
+            key: 'execute',
+            label: t('tabs.group.execute'),
+            tabs: [
+              { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
+              { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
+              ...getPluginsWithTabs(project).map((plugin) => {
+                const helpKey = `tabs.${plugin.id}.help`;
+                const help = t(helpKey);
+                return {
+                  key: plugin.id,
+                  label: t(`tabs.${plugin.id}`) || plugin.displayName,
+                  help: help === helpKey ? '' : help,
+                };
+              }),
+            ],
+          },
+          {
+            key: 'review',
+            label: t('tabs.group.review'),
+            tabs: [
+              ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
+              ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
+            ],
+          },
+        ].filter((group) => group.tabs.length > 0).map((group, groupIndex) => (
+          <div key={group.key} className="flex items-center gap-0.5 flex-shrink-0">
+            {groupIndex > 0 && <span aria-hidden="true" className="w-px h-5 mx-1 bg-theme-border" />}
+            <span className="hidden xl:inline px-2 text-[9px] font-semibold uppercase tracking-wider text-theme-muted">
+              {group.label}
+            </span>
+            <div role="tablist" aria-label={group.label} className="flex items-center gap-0.5">
+              {group.tabs.map((tab) => (
+                <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
+                      activeTab === tab.key
+                        ? 'text-theme-text font-semibold shadow-soft'
+                        : 'text-theme-text-secondary font-medium hover:text-theme-text'
+                    }`}
+                    style={activeTab === tab.key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+                  >
+                    {tab.label}
+                    {'count' in tab && typeof tab.count === 'number' && (
+                      <span className={`ml-1 ${activeTab === tab.key ? 'text-theme-text-tertiary' : 'text-theme-muted'}`}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                </TabHoverHelp>
+              ))}
+            </div>
+          </div>
         ))}
-      </div>
+      </nav>
 
       {/* Automation hub: inner sub-tabs for Tasks / Discussions / Schedules */}
       {activeTab === 'automation' && (
-        <div className="flex gap-0.5 mb-4 p-1 rounded-xl w-fit overflow-x-auto" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+        <div role="tablist" aria-label={t('tabs.automation')} className="flex gap-0.5 mb-4 p-1 rounded-xl w-fit overflow-x-auto" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
           {[
             { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
             { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
@@ -808,6 +843,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           ].map((s) => (
             <TabHoverHelp key={s.key} title={s.label} body={s.help}>
               <button
+                type="button"
+                role="tab"
+                aria-selected={automationSub === s.key}
                 onClick={() => setAutomationSub(s.key)}
                 className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
                   automationSub === s.key
