@@ -3,6 +3,7 @@ import {
   dockTab,
   makeStack,
   allSessionIds,
+  applyLayoutPreset,
   type LayoutNode,
   type LayoutSplit,
 } from '../../components/group/groupTree';
@@ -72,5 +73,36 @@ describe('dockTab', () => {
   it('returns null when dstPath is not a stack', () => {
     const root = makeStack(['a', 'b'], 'a');
     expect(dockTab(root, 'a', [3], 'right')).toBeNull();
+  });
+});
+
+describe('applyLayoutPreset', () => {
+  const root: LayoutNode = {
+    kind: 'split',
+    orientation: 'horizontal',
+    children: [makeStack(['a', 'b'], 'b'), makeStack(['c', 'd'], 'c')],
+    sizes: [50, 50],
+  };
+
+  it('combines every session into one tab stack', () => {
+    expect(applyLayoutPreset(root, 'single')).toMatchObject({
+      kind: 'stack',
+      tabs: ['a', 'b', 'c', 'd'],
+      activeTab: 'b',
+    });
+  });
+
+  it('creates two equal columns while preserving every session', () => {
+    const result = applyLayoutPreset(root, 'columns') as LayoutSplit;
+    expect(result.orientation).toBe('horizontal');
+    expect(result.sizes).toEqual([50, 50]);
+    expect(allSessionIds(result).sort()).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('creates a two-by-two grid while preserving every session', () => {
+    const result = applyLayoutPreset(root, 'grid') as LayoutSplit;
+    expect(result.orientation).toBe('vertical');
+    expect(result.children).toHaveLength(2);
+    expect(allSessionIds(result).sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 });

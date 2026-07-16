@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Minus, ExternalLink } from 'lucide-react';
+import { X, Minus, ExternalLink, Square, Columns2, Grid2X2, Maximize2, Minimize2 } from 'lucide-react';
 import LayoutNodeView from './group/LayoutNodeView';
 import StackView from './group/StackView';
 import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
@@ -122,6 +122,9 @@ export default function SessionWindow({
   const isMobile = useMediaQuery('(max-width: 767px)');
   const api = useSessionWindows();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const restoreGeomRef = useRef<Geometry | null>(null);
+  const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null);
 
   const geomRef = useRef<Geometry>({ x: group.x, y: group.y, w: group.w, h: group.h });
   geomRef.current = { x: group.x, y: group.y, w: group.w, h: group.h };
@@ -140,7 +143,7 @@ export default function SessionWindow({
   // `detectDock=false`: pure group move with edge-snap preview. Used for the
   //   unified chrome of split groups (which should not dock further).
   const startGroupChromeDrag = useCallback((e: React.MouseEvent<HTMLDivElement>, detectDock: boolean) => {
-    if (isMobile) return;
+    if (isMobile || isMaximized) return;
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-drag]')) return;
@@ -307,7 +310,7 @@ export default function SessionWindow({
     window.addEventListener('blur', onAbort);
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVis);
-  }, [isMobile, api, group.id, group.root]);
+  }, [isMobile, isMaximized, api, group.id, group.root]);
 
   const onChromeMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => startGroupChromeDrag(e, false),
@@ -321,7 +324,7 @@ export default function SessionWindow({
   // ── Resize (8-direction: 4 edges + 4 corners) ────────────────────────────
   const onResizeMouseDown = useCallback(
     (dir: ResizeDir) => (e: React.MouseEvent<HTMLDivElement>) => {
-      if (isMobile) return;
+      if (isMobile || isMaximized) return;
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
@@ -390,7 +393,7 @@ export default function SessionWindow({
       window.addEventListener('keydown', onKey);
       document.addEventListener('visibilitychange', onVis);
     },
-    [isMobile, api, group.id],
+    [isMobile, isMaximized, api, group.id],
   );
 
   // ── Viewport resize re-clamp ─────────────────────────────────────────────
@@ -412,8 +415,14 @@ export default function SessionWindow({
 
   // ── Tab callbacks (delegated to host) ────────────────────────────────────
   const handleTabClick = useCallback((sid: string) => {
+    setFocusedSessionId(sid);
     api.setActiveTab(group.id, sid);
+    api.focus(sid);
   }, [api, group.id]);
+  const handleFocusStack = useCallback((sid: string) => {
+    setFocusedSessionId(sid);
+    api.focus(sid);
+  }, [api]);
   const handleTabClose = useCallback((sid: string) => {
     api.close(sid);
   }, [api]);
@@ -429,6 +438,29 @@ export default function SessionWindow({
 
   const activeIds = activeSessionIds(group.root);
   const allIds = allSessionIds(group.root);
+
+  useEffect(() => {
+    if (focusedSessionId && allIds.includes(focusedSessionId)) return;
+    setFocusedSessionId(activeIds[0] || allIds[0] || null);
+  }, [focusedSessionId, activeIds, allIds]);
+
+  const toggleMaximize = useCallback(() => {
+    if (isMaximized) {
+      const restore = restoreGeomRef.current;
+      if (restore) api.setGroupGeometry(group.id, restore);
+      restoreGeomRef.current = null;
+      setIsMaximized(false);
+      return;
+    }
+    restoreGeomRef.current = { ...geomRef.current };
+    api.setGroupGeometry(group.id, {
+      x: 6,
+      y: 6,
+      w: Math.max(MIN_W, window.innerWidth - 12),
+      h: Math.max(MIN_H, window.innerHeight - 12),
+    });
+    setIsMaximized(true);
+  }, [api, group.id, isMaximized]);
 
   // Group-chrome shortcuts (Ctrl+Shift, Cmd+Shift on Mac): O → pop out,
   // M → minimize, X → close. Bound on the wrapper so keydowns bubbling out
@@ -537,7 +569,9 @@ export default function SessionWindow({
           : '0 10px 40px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
-        transition: 'box-shadow 120ms ease-out, border-color 120ms ease-out',
+        opacity: isTopmost ? 1 : 0.88,
+        filter: isTopmost ? 'none' : 'saturate(0.82)',
+        transition: 'box-shadow 120ms ease-out, border-color 120ms ease-out, opacity 140ms ease-out, filter 140ms ease-out',
       }}
     >
       {isSplitRoot && (
@@ -545,6 +579,10 @@ export default function SessionWindow({
            Shown only when the group is actually a multi-stack arrangement. */
         <div
           onMouseDown={onChromeMouseDown}
+          onDoubleClick={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            toggleMaximize();
+          }}
           style={{
             height: CHROME_HEIGHT, flexShrink: 0,
             display: 'flex', flexDirection: 'column',
@@ -568,6 +606,16 @@ export default function SessionWindow({
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {groupLabel}
             </span>
+            {allIds.length > 1 && (
+              <>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'single')} style={closeBtnStyle} aria-label="single-pane" title={t('session.layout.single')}><Square size={12} /></button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'columns')} style={closeBtnStyle} aria-label="two-columns" title={t('session.layout.columns')}><Columns2 size={13} /></button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'grid')} style={closeBtnStyle} aria-label="grid-layout" title={t('session.layout.grid')}><Grid2X2 size={13} /></button>
+              </>
+            )}
+            <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={toggleMaximize} style={closeBtnStyle} aria-label="toggle-maximize" title={`${isMaximized ? t('session.restoreSize') : t('session.maximize')} · ${t('session.maximizeHint')}`}>
+              {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
             <button
               data-no-drag
               onMouseDown={(e) => e.stopPropagation()}
@@ -618,6 +666,9 @@ export default function SessionWindow({
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}
+            focusedSessionId={focusedSessionId || undefined}
+            groupTopmost={isTopmost}
+            onFocusStack={handleFocusStack}
           />
         ) : (
           <StackView
@@ -635,10 +686,16 @@ export default function SessionWindow({
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}
+            focusedSessionId={focusedSessionId || undefined}
+            groupTopmost={isTopmost}
+            onFocusStack={handleFocusStack}
             groupActions={{
               onMinimizeGroup: () => api.minimizeGroup(group.id),
               onCloseGroup: () => api.closeGroup(group.id),
               onPopOutGroup: () => api.popOutGroup(group.id),
+              onToggleMaximize: toggleMaximize,
+              isMaximized,
+              onApplyLayoutPreset: (preset) => api.applyLayoutPreset(group.id, preset),
             }}
           />
         )}

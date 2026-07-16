@@ -25,6 +25,8 @@ import {
   pruneInvalid,
   allSessionIds,
   simplify,
+  applyLayoutPreset as treeApplyLayoutPreset,
+  type LayoutPreset,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
 import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from './group/DockOverlay';
@@ -113,6 +115,7 @@ export interface SessionWindowsAPI {
   setGroupGeometry: (groupId: string, geom: WindowGeom) => void;
   setSplitSizes: (groupId: string, path: Path, sizes: number[]) => void;
   setActiveTab: (groupId: string, sessionId: string) => void;
+  applyLayoutPreset: (groupId: string, preset: LayoutPreset) => void;
   reorderTab: (groupId: string, sessionId: string, newIndex: number) => void;
   // Tab drag interaction
   beginTabDrag: (groupId: string, sessionId: string, fromPath: Path, e: React.MouseEvent) => void;
@@ -717,6 +720,12 @@ export default function SessionWindowsHost({
 
   const setActiveTab = useCallback((groupId: string, sessionId: string) => {
     setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, root: treeSetActiveTab(g.root, sessionId) } : g));
+  }, []);
+
+  const applyLayoutPreset = useCallback((groupId: string, preset: LayoutPreset) => {
+    setGroups((prev) => prev.map((g) =>
+      g.id === groupId ? { ...g, root: treeApplyLayoutPreset(g.root, preset) } : g,
+    ));
   }, []);
 
   const reorderTab = useCallback((groupId: string, sessionId: string, newIndex: number) => {
@@ -1557,12 +1566,12 @@ export default function SessionWindowsHost({
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-    setSplitSizes, setActiveTab, reorderTab,
+    setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab,
     beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
     sendToSession, listOpenTerminals, sendToNewTerminal,
   }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
-       setSplitSizes, setActiveTab, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+       setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
        sendToSession, listOpenTerminals, sendToNewTerminal]);
 
   // Per-session placement, derived from the live groups. Drives the session
