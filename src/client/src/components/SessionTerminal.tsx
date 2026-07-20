@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CanvasAddon } from '@xterm/addon-canvas';
+import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import { CMD, CMD_FONT, DEFAULT_FONT_SIZE } from './terminal-theme';
 import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
@@ -129,6 +130,20 @@ interface SessionTerminalProps {
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
 
+// Ctrl+F search. Decorations highlight every match (bounded by scrollback:5000
+// so a full-buffer scan stays cheap) with the active match brightened; the
+// overview-ruler colors mark hits on the scrollbar strip.
+const SEARCH_OPTS: ISearchOptions = {
+  decorations: {
+    matchBackground: '#5a4a00',
+    matchBorder: '#cca700',
+    matchOverviewRuler: '#cca700',
+    activeMatchBackground: '#cca700',
+    activeMatchBorder: '#f2f2f2',
+    activeMatchColorOverviewRuler: '#f2f2f2',
+  },
+};
+
 // CLI TUIs assume a dark terminal and emit near-white/dim colors (e.g. diff
 // line numbers, often as truecolor — unfixable via the ANSI palette) that
 // vanish on light preset backgrounds. Enforce WCAG-AA contrast per cell only
@@ -222,6 +237,32 @@ export default function SessionTerminal({
   // an opaque `[Image #N]` token, so without this the user gets no visual
   // confirmation of WHAT was just pasted. Cleared via showPastePreview below.
   const [pastedImage, setPastedImage] = useState<{ dataUrl: string; bytes: number } | null>(null);
+
+  // Ctrl+F word search (xterm's SearchAddon over the visible buffer +
+  // scrollback). `searchOpen` toggles the overlay; `searchResult` mirrors the
+  // addon's onDidChangeResults for the "current/total" counter.
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResult, setSearchResult] = useState<{ index: number; count: number }>({ index: -1, count: 0 });
+  const setSearchResultRef = useRef(setSearchResult);
+  setSearchResultRef.current = setSearchResult;
+  // Opened from the mount-only keydown handler, so it reaches React state via a
+  // ref. Prefills the current single-line selection like a browser's find bar.
+  const openSearch = () => {
+    const sel = termRef.current?.getSelection() ?? '';
+    if (sel && !sel.includes('\n')) setSearchQuery(sel);
+    setSearchOpen(true);
+  };
+  const openSearchRef = useRef(openSearch);
+  openSearchRef.current = openSearch;
+  const closeSearch = () => {
+    setSearchOpen(false);
+    searchAddonRef.current?.clearDecorations();
+    setSearchResult({ index: -1, count: 0 });
+    try { termRef.current?.focus(); } catch { /* term disposed */ }
+  };
 
   // Show the thumbnail and keep it up only WHILE the paste round-trip is in
   // flight — dismissed when the `pasteImage` promise settles (clipboard write
@@ -420,6 +461,15 @@ export default function SessionTerminal({
         return false;
       }
 
+      // Ctrl+F (Cmd+F on Mac) → open the word-search overlay. Swallowed so the
+      // combo doesn't reach the PTY (readline's forward-char). Escape/close
+      // returns focus to the terminal.
+      if (key === 'f' && onlyMod) {
+        ev.preventDefault();
+        openSearchRef.current();
+        return false;
+      }
+
       // Ctrl+T (Cmd+T on Mac) → new raw-shell tab. The actual creation runs
       // off a window-level keydown handler in SessionWindowsHost; here we
       // just swallow the combo so xterm doesn't also send ^T to the PTY.
@@ -517,6 +567,13 @@ export default function SessionTerminal({
     } catch {
       canvasAddonRef.current = null;
     }
+
+    const searchAddon = new SearchAddon();
+    term.loadAddon(searchAddon);
+    searchAddonRef.current = searchAddon;
+    const offSearchResults = searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
+      setSearchResultRef.current({ index: resultIndex, count: resultCount });
+    });
 
     // Ctrl/Cmd + wheel → font zoom.
     //
@@ -726,6 +783,8 @@ export default function SessionTerminal({
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
+      offSearchResults.dispose();
+      searchAddonRef.current = null;
       canvasAddonRef.current?.dispose();
       canvasAddonRef.current = null;
       term.dispose();
@@ -844,7 +903,29 @@ export default function SessionTerminal({
     try { term.refresh(0, term.rows - 1); } catch { /* term disposed */ }
   }, [theme]);
 
+  // Incremental search: re-run on every query change (debounced 120ms) only
+  // while the overlay is open. `incremental` keeps the active match anchored
+  // near the current selection as the user types instead of jumping forward.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const addon = searchAddonRef.current;
+    if (!addon) return;
+    const t = setTimeout(() => {
+      if (searchQuery) addon.findNext(searchQuery, { ...SEARCH_OPTS, incremental: true });
+      else { addon.clearDecorations(); setSearchResult({ index: -1, count: 0 }); }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [searchQuery, searchOpen]);
+
+  // Focus + select the input when the overlay opens so the user can type (or
+  // overtype a prefilled selection) immediately.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.select();
+  }, [searchOpen]);
+
   const wrapperBg = theme?.background ?? CMD.bg;
+  const findNext = () => { if (searchQuery) searchAddonRef.current?.findNext(searchQuery, SEARCH_OPTS); };
+  const findPrev = () => { if (searchQuery) searchAddonRef.current?.findPrevious(searchQuery, SEARCH_OPTS); };
   return (
     <div
       style={{
@@ -880,6 +961,68 @@ export default function SessionTerminal({
         data-term-container
         style={{ height: '100%', width: '100%' }}
       />
+      {searchOpen && (
+        // Browser-style find bar, top-right inside the terminal. Not a portal:
+        // it belongs to (and is clipped with) this terminal, not the viewport.
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 6px',
+            background: 'rgba(0,0,0,0.85)',
+            border: `1px solid ${CMD.separator}`,
+            borderRadius: 6,
+            fontFamily: CMD_FONT,
+            fontSize: 12,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+        >
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) findPrev(); else findNext(); }
+              else if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+            }}
+            placeholder="검색"
+            spellCheck={false}
+            style={{
+              width: 160,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: CMD.bright,
+              fontFamily: CMD_FONT,
+              fontSize: 12,
+            }}
+          />
+          <span style={{ color: CMD.dim, minWidth: 44, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+            {searchQuery
+              ? (searchResult.count > 0 ? `${searchResult.index + 1}/${searchResult.count}` : '0/0')
+              : ''}
+          </span>
+          {([
+            { label: '↑', title: '이전 (Shift+Enter)', onClick: findPrev },
+            { label: '↓', title: '다음 (Enter)', onClick: findNext },
+            { label: '×', title: '닫기 (Esc)', onClick: closeSearch },
+          ] as const).map((b) => (
+            <button
+              key={b.label}
+              type="button"
+              title={b.title}
+              onClick={b.onClick}
+              className="px-1.5 rounded hover:bg-white/10"
+              style={{ color: CMD.bright, lineHeight: '18px' }}
+            >{b.label}</button>
+          ))}
+        </div>
+      )}
       {(composingText || pastedImage) && (
         // Bottom-right overlay stack: pasted-image thumbnail and the IME
         // composition mirror share the corner without overlapping.
