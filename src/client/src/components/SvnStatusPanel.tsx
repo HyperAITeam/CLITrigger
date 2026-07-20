@@ -33,6 +33,23 @@ const charColor = (ch: string) =>
     : ch === '?' ? 'text-warm-400'
     : 'text-amber-500';
 
+const SVN_COMMIT_MESSAGE_HEIGHT_KEY = 'clitrigger:svn:commit-message-h';
+const SVN_COMMIT_MESSAGE_MIN_HEIGHT = 60;
+const SVN_COMMIT_MESSAGE_MAX_HEIGHT = 280;
+const SVN_COMMIT_FILE_LIST_MIN_HEIGHT = 160;
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function readStoredNumber(key: string, fallback: number, min: number, max: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? clampNumber(value, min, max) : fallback;
+}
+
 export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPanelProps) {
   const { t } = useI18n();
 
@@ -853,7 +870,21 @@ function ModificationsView(props: {
   });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const [commitMessageHeight, setCommitMessageHeight] = useState<number>(() =>
+    readStoredNumber(
+      SVN_COMMIT_MESSAGE_HEIGHT_KEY,
+      72,
+      SVN_COMMIT_MESSAGE_MIN_HEIGHT,
+      SVN_COMMIT_MESSAGE_MAX_HEIGHT,
+    ),
+  );
   const sections = useMemo(() => partitionSections(props.statusFiles, t), [props.statusFiles, t]);
+
+  useEffect(() => {
+    try { localStorage.setItem(SVN_COMMIT_MESSAGE_HEIGHT_KEY, String(commitMessageHeight)); } catch { /* ignore */ }
+  }, [commitMessageHeight]);
+
   const toggleGroup = () => setGroupByDir((v) => {
     const next = !v;
     try { localStorage.setItem('svn.groupByDir', String(next)); } catch { /* ignore */ }
@@ -903,6 +934,64 @@ function ModificationsView(props: {
     }
   };
 
+  const commitMessageMaxHeight = useCallback(() => {
+    const paneHeight = leftPaneRef.current?.getBoundingClientRect().height;
+    if (!paneHeight) return SVN_COMMIT_MESSAGE_MAX_HEIGHT;
+    const available = paneHeight - SVN_COMMIT_FILE_LIST_MIN_HEIGHT;
+    return clampNumber(available, SVN_COMMIT_MESSAGE_MIN_HEIGHT, SVN_COMMIT_MESSAGE_MAX_HEIGHT);
+  }, []);
+
+  const handleCommitMessageResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    const startY = e.clientY;
+    const startHeight = commitMessageHeight;
+    let frameId: number | null = null;
+    let pendingClientY: number | null = null;
+
+    const applyHeight = (clientY: number) => {
+      const nextHeight = startHeight + (startY - clientY);
+      setCommitMessageHeight(clampNumber(
+        nextHeight,
+        SVN_COMMIT_MESSAGE_MIN_HEIGHT,
+        commitMessageMaxHeight(),
+      ));
+    };
+
+    const flush = () => {
+      frameId = null;
+      if (pendingClientY === null) return;
+      const clientY = pendingClientY;
+      pendingClientY = null;
+      applyHeight(clientY);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      pendingClientY = ev.clientY;
+      if (frameId === null) frameId = requestAnimationFrame(flush);
+    };
+
+    const onEnd = (ev: PointerEvent) => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = null;
+      if (ev.type === 'pointerup' && pendingClientY !== null) flush();
+      pendingClientY = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onEnd);
+      el.removeEventListener('pointercancel', onEnd);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    };
+
+    el.setPointerCapture(e.pointerId);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onEnd);
+    el.addEventListener('pointercancel', onEnd);
+  };
+
   return (
     <>
       <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0 flex-wrap">
@@ -923,7 +1012,7 @@ function ModificationsView(props: {
 
       <div className="flex-1 grid grid-cols-2 min-h-0">
         {/* Left: file list + commit area */}
-        <div className="border-r border-warm-100 flex flex-col min-h-0">
+        <div ref={leftPaneRef} className="border-r border-warm-100 flex flex-col min-h-0">
           <div className="px-3 py-2 border-b border-warm-100 flex items-center justify-between shrink-0">
             <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">{t('svn.changed')}</span>
             <div className="flex items-center gap-2">
@@ -995,22 +1084,34 @@ function ModificationsView(props: {
               })
             )}
           </div>
-          <div className="border-t border-warm-100 p-2 shrink-0">
-            <textarea
-              value={props.commitMessage}
-              onChange={(e) => props.onCommitMessageChange(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={t('svn.commitMessagePlaceholder')}
-              className="w-full text-xs p-2 border border-warm-200 rounded resize-y min-h-[60px] focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
-              rows={3}
-            />
-            <button
-              onClick={props.onCommit}
-              disabled={props.busy || !props.commitMessage.trim()}
-              className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+          <div className="border-t border-warm-100 shrink-0 bg-theme-bg">
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize commit message"
+              onPointerDown={handleCommitMessageResizeStart}
+              className="h-2 -mt-px cursor-row-resize touch-none flex items-center justify-center group"
             >
-              {props.busy ? t('svn.committing') : t('svn.commit')}
-            </button>
+              <div className="h-px w-10 bg-warm-300 group-hover:bg-accent transition-colors" />
+            </div>
+            <div className="p-2 pt-1">
+              <textarea
+                value={props.commitMessage}
+                onChange={(e) => props.onCommitMessageChange(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={t('svn.commitMessagePlaceholder')}
+                className="block w-full text-xs p-2 border border-warm-200 rounded resize-none focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
+                style={{ height: commitMessageHeight }}
+                rows={3}
+              />
+              <button
+                onClick={props.onCommit}
+                disabled={props.busy || !props.commitMessage.trim()}
+                className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+              >
+                {props.busy ? t('svn.committing') : t('svn.commit')}
+              </button>
+            </div>
           </div>
         </div>
         {/* Right: working diff */}
