@@ -82,6 +82,18 @@ export function getPlannerImageUrl(plannerItemId: string, imageId: string): stri
   return `/api/planner/${plannerItemId}/images/${imageId}`;
 }
 
+// Upload one image/video for a page (BlockNote uploadFile). Returns the serving URL.
+export async function uploadPlannerPageFile(pageId: string, file: File): Promise<string> {
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+  const res: { url: string } = await post(`/api/planner/pages/${pageId}/files`, { name: file.name, data });
+  return res.url;
+}
+
 export function convertToSchedule(
   id: string,
   data: { cron_expression?: string; schedule_type: 'recurring' | 'once'; run_at?: string; cli_tool?: string }

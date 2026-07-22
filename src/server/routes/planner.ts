@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
 import { getDatabase } from '../db/connection.js';
-import { getPlannerImagePaths, cleanupPlannerImages } from './images.js';
+import { getPlannerImagePaths, cleanupPlannerImages, cleanupPlannerPageFiles } from './images.js';
 
 const ALLOWED_IMPORT_STATUSES = new Set(['pending', 'in_progress', 'done']);
 
@@ -405,6 +405,7 @@ router.delete('/planner/pages/:pageId', (req: Request<{ pageId: string }>, res: 
       cleanupPlannerImages(item.id);
       queries.deletePlannerItem(item.id);
     }
+    cleanupPlannerPageFiles(req.params.pageId);
     queries.deletePlannerPage(req.params.pageId);
     res.status(204).send();
   } catch (err: unknown) {

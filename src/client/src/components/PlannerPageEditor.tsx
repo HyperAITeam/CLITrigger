@@ -12,6 +12,7 @@ import {
   type PartialBlock,
 } from '@blocknote/core';
 import { useI18n } from '../i18n';
+import { uploadPlannerPageFile } from '../api/planner';
 import { taskListBlock, calendarBlock } from './planner/blocks';
 import '@blocknote/mantine/style.css';
 
@@ -45,16 +46,22 @@ function parseContent(raw: string | null | undefined): PartialBlock[] | undefine
 }
 
 interface PlannerPageEditorProps {
+  pageId: string;
   initialContent: string | null | undefined;
   onChange: (contentJson: string) => void;
 }
 
 // Mount one instance per page via a `key` on the parent so initialContent
 // is applied fresh on every page switch.
-export default function PlannerPageEditor({ initialContent, onChange }: PlannerPageEditorProps) {
+export default function PlannerPageEditor({ pageId, initialContent, onChange }: PlannerPageEditorProps) {
   const { t } = useI18n();
   const theme = useThemeMode();
-  const editor = useCreateBlockNote({ schema, initialContent: parseContent(initialContent) });
+  const editor = useCreateBlockNote({
+    schema,
+    initialContent: parseContent(initialContent),
+    // Enables paste/drag-and-drop/file-picker upload for image & video blocks.
+    uploadFile: (file: File) => uploadPlannerPageFile(pageId, file),
+  });
 
   // Replace the (empty) slash-trigger block with the widget + a trailing
   // paragraph so the user can keep typing below the non-editable widget.

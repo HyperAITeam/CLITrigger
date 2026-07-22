@@ -90,6 +90,8 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
+      // Planner page video blocks: served from /api ('self') + blob previews.
+      mediaSrc: ["'self'", 'blob:'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       connectSrc: ["'self'", 'ws:', 'wss:'],
       frameSrc: ["'self'"],
