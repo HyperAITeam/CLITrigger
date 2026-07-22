@@ -250,19 +250,26 @@ export default function SessionTerminal({
   setSearchResultRef.current = setSearchResult;
   // Opened from the mount-only keydown handler, so it reaches React state via a
   // ref. Prefills the current single-line selection like a browser's find bar.
+  // `searchOpenRef` mirrors `searchOpen` synchronously for the mount-only
+  // focusin handler below.
+  const searchOpenRef = useRef(false);
   const openSearch = () => {
     const sel = termRef.current?.getSelection() ?? '';
     if (sel && !sel.includes('\n')) setSearchQuery(sel);
+    searchOpenRef.current = true;
     setSearchOpen(true);
   };
   const openSearchRef = useRef(openSearch);
   openSearchRef.current = openSearch;
   const closeSearch = () => {
+    searchOpenRef.current = false;
     setSearchOpen(false);
     searchAddonRef.current?.clearDecorations();
     setSearchResult({ index: -1, count: 0 });
     try { termRef.current?.focus(); } catch { /* term disposed */ }
   };
+  const closeSearchRef = useRef(closeSearch);
+  closeSearchRef.current = closeSearch;
 
   // Show the thumbnail and keep it up only WHILE the paste round-trip is in
   // flight — dismissed when the `pasteImage` promise settles (clipboard write
@@ -574,6 +581,19 @@ export default function SessionTerminal({
     const offSearchResults = searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
       setSearchResultRef.current({ index: resultIndex, count: resultCount });
     });
+    // Close the search overlay the moment focus returns to the terminal.
+    // While a decorated search term is cached, the addon re-scans the whole
+    // scrollback and rebuilds every highlight decoration 200ms after EVERY
+    // write (onWriteParsed → _updateMatches) — with a TUI redrawing
+    // constantly, a search bar left open makes typing (especially IME
+    // composition) visibly lag. Inside the terminal Escape goes to the PTY,
+    // so refocusing is the natural close signal. focusin bubbles from both
+    // xterm's helper textarea and the mobile IME overlay textarea; the search
+    // input lives outside `container`, so typing a query never triggers this.
+    const onTermFocusIn = () => {
+      if (searchOpenRef.current) closeSearchRef.current();
+    };
+    container.addEventListener('focusin', onTermFocusIn);
 
     // Ctrl/Cmd + wheel → font zoom.
     //
@@ -783,6 +803,7 @@ export default function SessionTerminal({
       unsubBinary();
       unsubEvent();
       try { sendMessage({ type: 'session:unsubscribe', sessionId }); } catch { /* ignore */ }
+      container.removeEventListener('focusin', onTermFocusIn);
       offSearchResults.dispose();
       searchAddonRef.current = null;
       canvasAddonRef.current?.dispose();
