@@ -95,7 +95,7 @@ export default function PlannerPageView({
         </div>
         <div className="flex-1 overflow-y-auto pb-6">
           <Suspense fallback={null}>
-            <PlannerPageEditor initialContent={page.content ?? null} onChange={handleContentChange} />
+            <PlannerPageEditor pageId={pageId} initialContent={page.content ?? null} onChange={handleContentChange} />
           </Suspense>
         </div>
       </div>

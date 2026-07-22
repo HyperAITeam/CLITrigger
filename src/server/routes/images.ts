@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { getTodoById, updateTodo, getPlannerItemById, updatePlannerItem, getTodosByProjectId, getPlannerItemsByProjectId, getPersonalItemById, updatePersonalItem } from '../db/queries.js';
+import { getTodoById, updateTodo, getPlannerItemById, updatePlannerItem, getTodosByProjectId, getPlannerItemsByProjectId, getPlannerPageById, getPlannerPagesByProjectId, getPersonalItemById, updatePersonalItem } from '../db/queries.js';
 
 const router = Router();
 
@@ -279,6 +279,97 @@ router.get('/planner/:id/images/:imageId', (req: Request<{ id: string; imageId: 
   }
 });
 
+function getPlannerPageFileDir(pageId: string): string {
+  const dir = path.join(getUploadsDir(), 'planner-pages', pageId);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+/** Mime types accepted for planner page files (BlockNote image/video blocks). */
+const PAGE_FILE_EXTENSIONS: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/ogg': 'ogv',
+};
+
+// POST /api/planner/pages/:pageId/files - Upload a single image/video for a page
+// (called by BlockNote's uploadFile, one file per request). No DB tracking —
+// the returned URL lives inside the page's BlockNote content JSON.
+router.post('/planner/pages/:pageId/files', (req: Request<{ pageId: string }>, res: Response) => {
+  try {
+    const page = getPlannerPageById(req.params.pageId);
+    if (!page) {
+      res.status(404).json({ error: 'Planner page not found' });
+      return;
+    }
+
+    const { data } = req.body as { name?: string; data?: string };
+    const match = typeof data === 'string' ? data.match(/^data:((?:image|video)\/[a-z0-9+.-]+);base64,(.+)$/) : null;
+    const ext = match ? PAGE_FILE_EXTENSIONS[match[1]] : undefined;
+    if (!match || !ext) {
+      res.status(400).json({ error: 'Unsupported file type' });
+      return;
+    }
+
+    const buffer = Buffer.from(match[2], 'base64');
+    // ponytail: 30MB video cap so the base64 body stays under the 50mb
+    // express.json limit; move to a streaming upload if larger videos matter.
+    const maxSize = match[1].startsWith('video/') ? 30 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (buffer.length > maxSize) {
+      res.status(413).json({ error: 'File too large' });
+      return;
+    }
+
+    const filename = `${uuidv4()}.${ext}`;
+    fs.writeFileSync(path.join(getPlannerPageFileDir(page.id), filename), buffer);
+
+    res.status(201).json({ url: `/api/planner/pages/${page.id}/files/${filename}` });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/planner/pages/:pageId/files/:filename - Serve a page file
+router.get('/planner/pages/:pageId/files/:filename', (req: Request<{ pageId: string; filename: string }>, res: Response) => {
+  try {
+    const page = getPlannerPageById(req.params.pageId);
+    if (!page) {
+      res.status(404).json({ error: 'Planner page not found' });
+      return;
+    }
+
+    // Filenames are server-generated (uuid.ext); reject anything else (path traversal guard).
+    if (!/^[0-9a-f-]{36}\.[a-z0-9]+$/.test(req.params.filename)) {
+      res.status(400).json({ error: 'Invalid filename' });
+      return;
+    }
+
+    const filePath = path.join(getUploadsDir(), 'planner-pages', page.id, req.params.filename);
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const ext = path.extname(req.params.filename).toLowerCase().slice(1);
+    const mimeTypes: Record<string, string> = {
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+      mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', ogv: 'video/ogg',
+    };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
+    if (ext === 'svg') res.setHeader('Content-Security-Policy', 'sandbox');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(filePath);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 function getPersonalImageDir(personalItemId: string): string {
   const dir = path.join(getUploadsDir(), 'personal', personalItemId);
   if (!fs.existsSync(dir)) {
@@ -457,6 +548,16 @@ export function cleanupPlannerImages(plannerItemId: string): void {
 }
 
 /**
+ * Delete all uploaded files for a single planner page from disk.
+ */
+export function cleanupPlannerPageFiles(pageId: string): void {
+  const dir = path.join(getUploadsDir(), 'planner-pages', pageId);
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * Delete all image files for a single personal item from disk.
  */
 export function cleanupPersonalImages(personalItemId: string): void {
@@ -485,6 +586,11 @@ export function cleanupProjectImages(projectId: string): void {
       const dir = path.join(uploadsDir, 'planner', item.id);
       if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
     }
+  }
+  const pages = getPlannerPagesByProjectId(projectId);
+  for (const page of pages) {
+    const dir = path.join(uploadsDir, 'planner-pages', page.id);
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
