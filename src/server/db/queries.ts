@@ -1280,6 +1280,7 @@ export interface PlannerItem {
   description: string | null;
   tags: string | null;
   due_date: string | null;
+  end_date: string | null; // optional range end (NULL = single-day, = due_date)
   status: string;
   priority: number;
   images: string | null;
@@ -1331,7 +1332,7 @@ export function getPlannerItemById(id: string): PlannerItem | undefined {
   return db.prepare('SELECT * FROM planner_items WHERE id = ?').get(id) as PlannerItem | undefined;
 }
 
-export function updatePlannerItem(id: string, updates: Partial<Pick<PlannerItem, 'title' | 'description' | 'tags' | 'due_date' | 'status' | 'priority' | 'images' | 'converted_type' | 'converted_id'>>): PlannerItem | undefined {
+export function updatePlannerItem(id: string, updates: Partial<Pick<PlannerItem, 'title' | 'description' | 'tags' | 'due_date' | 'end_date' | 'status' | 'priority' | 'images' | 'converted_type' | 'converted_id'>>): PlannerItem | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -1340,6 +1341,7 @@ export function updatePlannerItem(id: string, updates: Partial<Pick<PlannerItem,
   if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
   if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
   if (updates.due_date !== undefined) { fields.push('due_date = ?'); values.push(updates.due_date); }
+  if (updates.end_date !== undefined) { fields.push('end_date = ?'); values.push(updates.end_date); }
   if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
   if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority); }
   if (updates.images !== undefined) { fields.push('images = ?'); values.push(updates.images); }

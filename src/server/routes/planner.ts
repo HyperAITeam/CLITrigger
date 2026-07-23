@@ -311,9 +311,19 @@ router.put('/planner/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, tags, due_date, status, priority } = req.body;
+    const { title, description, tags, due_date, end_date, status, priority } = req.body;
+    // due_date/end_date form an inclusive range; normalize as a pair (mirror
+    // personal-items): date part only, and end is clamped to never precede start.
+    let normDue: string | null | undefined;
+    let normEnd: string | null | undefined;
+    if (due_date !== undefined) normDue = typeof due_date === 'string' && due_date ? due_date.slice(0, 10) : null;
+    if (end_date !== undefined) {
+      const start = (due_date !== undefined ? normDue : existing.due_date) ?? null;
+      const e = typeof end_date === 'string' && end_date ? end_date.slice(0, 10) : null;
+      normEnd = start && e && e >= start.slice(0, 10) ? e : start;
+    }
     const updated = queries.updatePlannerItem(req.params.id, {
-      title, description, tags, due_date, status, priority,
+      title, description, tags, status, priority, due_date: normDue, end_date: normEnd,
     });
     res.json(updated);
   } catch (err: unknown) {

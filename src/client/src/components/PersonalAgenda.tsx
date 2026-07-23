@@ -276,6 +276,8 @@ export default function PersonalAgenda() {
         fg: e.done ? 'var(--color-text-muted)' : kindStyle(e.kind).fg,
         done: e.done,
         payload: e,
+        // Only personal memos are editable here; project/Jira roll-ups deep-link out.
+        draggable: e.kind === 'personal',
       })));
     }
     return m;
@@ -510,6 +512,13 @@ export default function PersonalAgenda() {
     await personalApi.updatePersonalItem(p.id, { status: p.status === 'done' ? 'pending' : 'done' });
     load();
   };
+
+  // Calendar drag committed a new date range on a personal memo. Update optimistically
+  // (no snap-back flicker) then persist; the server clamps end<start.
+  const commitPersonalRange = (id: string, start: string, end: string) => {
+    setItems((prev) => prev.map((p) => (p.id === id ? { ...p, start_at: start, end_at: end } : p)));
+    personalApi.updatePersonalItem(id, { start_at: start, end_at: end }).then(load);
+  };
   const remove = async (p: PersonalItem) => {
     if (!window.confirm(t('agenda.confirmDelete') || 'Delete this item?')) return false;
     await personalApi.deletePersonalItem(p.id);
@@ -695,6 +704,8 @@ export default function PersonalAgenda() {
               bars={monthBars}
               onBarClick={(bar) => openEdit(bar.payload as PersonalItem)}
               onBarContextMenu={(bar, e) => openItemMenu(bar.payload as PersonalItem, e)}
+              onBarDrag={(bar, s, e) => commitPersonalRange((bar.payload as PersonalItem).id, s, e)}
+              onChipDrag={(chip, s, e) => { const d = chip.payload as DayEntry; if (d.kind === 'personal') commitPersonalRange(d.id, s, e); }}
               monthCellHeight={monthCellH}
             />
           )}

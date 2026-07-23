@@ -485,7 +485,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     return item;
   }, [id]);
 
-  const handleEditPlannerItem = useCallback(async (itemId: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => {
+  const handleEditPlannerItem = useCallback(async (itemId: string, data: { title?: string; description?: string; tags?: string; due_date?: string | null; end_date?: string | null; status?: string; priority?: number }) => {
     const updated = await plannerApi.updatePlannerItem(itemId, data);
     setPlannerItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
   }, []);

@@ -194,6 +194,7 @@ export function initDatabase(db: Database.Database): void {
       description TEXT,
       tags TEXT,
       due_date TEXT,
+      end_date TEXT,
       status TEXT DEFAULT 'pending',
       priority INTEGER DEFAULT 0,
       converted_type TEXT,
@@ -415,6 +416,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'personal_items', column: 'images', definition: 'TEXT' },
     { table: 'personal_items', column: 'start_at', definition: 'TEXT' },
     { table: 'personal_items', column: 'end_at', definition: 'TEXT' },
+    // Planner items gained an optional end date so month-view bars can span a
+    // range (NULL = single-day, = due_date). See due_date above.
+    { table: 'planner_items', column: 'end_date', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

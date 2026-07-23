@@ -20,7 +20,7 @@ export interface PlannerItemsProps {
   existingTags: PlannerTag[];
   projectCliTool?: string;
   onAddItem: (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }) => Promise<PlannerItemType>;
-  onEditItem: (id: string, data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }) => Promise<void>;
+  onEditItem: (id: string, data: { title?: string; description?: string; tags?: string; due_date?: string | null; end_date?: string | null; status?: string; priority?: number }) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
   onConvertToTodo: (id: string, data: Record<string, unknown>) => Promise<void>;
   onConvertToSchedule: (id: string, data: Record<string, unknown>) => Promise<void>;
@@ -379,6 +379,7 @@ export default function PlannerList({
           onEditItem={(item) => { setShowForm(false); setEditItem(item); }}
           onConvert={(item, mode) => { setConvertItem(item); setConvertMode(mode); }}
           onDeleteItem={onDeleteItem}
+          onUpdateRange={(id, due, end) => { void onEditItem(id, { due_date: due, end_date: end }); }}
         />
       )}
 
