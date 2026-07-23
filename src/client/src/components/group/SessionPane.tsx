@@ -353,12 +353,13 @@ export default function SessionPane({
         onRequestRefresh={handleRequestRefresh}
         disableImagePaste={session.cli_tool === 'raw-shell'}
         onCycleTab={onCycleTab}
+        onToggleDiff={() => setDiffOpen((o) => !o)}
       />
       {overlayContent}
       {!diffOpen && (
         <button
           onClick={() => setDiffOpen(true)}
-          title={t('session.diff.title') || 'Diff'}
+          title={`${t('session.diff.title') || 'Diff'} (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+Shift+D)`}
           style={{
             position: 'absolute', top: 4, right: 8, zIndex: 1002,
             display: 'inline-flex', alignItems: 'center', gap: 4,
