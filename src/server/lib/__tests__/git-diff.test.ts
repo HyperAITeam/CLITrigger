@@ -3,19 +3,20 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { listSessionDiffFiles, sessionFileDiff } from '../git-diff.js';
+import { listDiffFiles, snapshotWorkingTree } from '../git-diff.js';
+import { createGit } from '../git.js';
 
-// Integration tests against a real throwaway git repo — the session diff must
-// capture, relative to the session's start commit: (1) changes committed after
-// it, (2) uncommitted edits to tracked files, and (3) brand-new UNTRACKED files
-// (which `git diff <commit>` silently drops).
+// The session Diff must show exactly what the session changed since it started,
+// even on a shared/main checkout. A snapshot taken at start and diffed against a
+// snapshot taken "now" must: exclude files already dirty BEFORE start (the bug
+// the plain start-SHA approach had), and include committed-since, uncommitted
+// tracked edits, and brand-new untracked files created after start.
 
 function run(cwd: string, cmd: string): string {
   return execSync(cmd, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 let repo: string;
-let base: string;
 
 beforeEach(() => {
   repo = fs.mkdtempSync(path.join(os.tmpdir(), 'clitrigger-session-diff-'));
@@ -27,41 +28,46 @@ beforeEach(() => {
   fs.writeFileSync(path.join(repo, 'tracked.txt'), 'line1\n');
   run(repo, 'git add -A');
   run(repo, 'git commit -m base');
-  base = run(repo, 'git rev-parse HEAD').trim();
 });
 
 afterEach(() => {
   fs.rmSync(repo, { recursive: true, force: true, maxRetries: 3 });
 });
 
-describe('listSessionDiffFiles', () => {
-  it('captures committed-since, uncommitted tracked edits, and untracked new files', async () => {
-    // committed after base
-    fs.writeFileSync(path.join(repo, 'committed.txt'), 'c1\nc2\n');
+async function diffPaths(base: string): Promise<Map<string, string>> {
+  const now = snapshotWorkingTree(repo)!;
+  const files = await listDiffFiles(createGit(repo), `${base}..${now}`);
+  return new Map(files.map((f) => [f.path, f.status]));
+}
+
+describe('session diff via working-tree snapshots', () => {
+  it('excludes pre-existing dirt; includes committed, uncommitted, and new untracked', async () => {
+    // Dirty state that exists BEFORE the session starts.
+    fs.writeFileSync(path.join(repo, 'preexisting.txt'), 'was here first\n'); // untracked before start
+
+    const base = snapshotWorkingTree(repo)!; // <-- session start
+    expect(base).toBeTruthy();
+
+    // The session's own work:
+    fs.writeFileSync(path.join(repo, 'committed.txt'), 'c\n');
     run(repo, 'git add -A');
-    run(repo, 'git commit -m work');
-    // uncommitted edit to a tracked file
-    fs.writeFileSync(path.join(repo, 'tracked.txt'), 'line1\nline2\n');
-    // brand-new untracked file
-    fs.writeFileSync(path.join(repo, 'untracked.txt'), 'u1\nu2\nu3\n');
+    run(repo, 'git commit -m work');                              // committed after start
+    fs.writeFileSync(path.join(repo, 'tracked.txt'), 'line1\nline2\n'); // uncommitted tracked edit
+    fs.writeFileSync(path.join(repo, 'fresh.txt'), 'brand new\n');      // new untracked after start
 
-    const files = await listSessionDiffFiles(repo, base);
-    const byPath = new Map(files.map((f) => [f.path, f]));
+    const changed = await diffPaths(base);
 
-    expect(byPath.get('committed.txt')?.status).toBe('A');
-    expect(byPath.get('tracked.txt')?.status).toBe('M');
-    // The regression this guards: untracked files are invisible to `git diff <commit>`.
-    expect(byPath.get('untracked.txt')?.status).toBe('A');
-    expect(byPath.get('untracked.txt')?.insertions).toBe(3);
+    // The regression the user hit: dirt from before start must NOT appear.
+    expect(changed.has('preexisting.txt')).toBe(false);
+    // Everything the session did must appear.
+    expect(changed.get('committed.txt')).toBe('A');
+    expect(changed.get('tracked.txt')).toBe('M');
+    expect(changed.get('fresh.txt')).toBe('A');
   });
 
-  it('synthesizes a new-file diff for untracked files', async () => {
-    fs.writeFileSync(path.join(repo, 'untracked.txt'), 'hello\nworld\n');
-    const files = await listSessionDiffFiles(repo, base);
-    const match = files.find((f) => f.path === 'untracked.txt');
-    expect(match).toBeDefined();
-    const diff = await sessionFileDiff(repo, base, match!);
-    expect(diff).toContain('+hello');
-    expect(diff).toContain('+world');
+  it('reports no changes when the session touched nothing', async () => {
+    const base = snapshotWorkingTree(repo)!;
+    const changed = await diffPaths(base);
+    expect(changed.size).toBe(0);
   });
 });
