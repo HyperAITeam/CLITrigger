@@ -15,18 +15,6 @@ export interface Project {
   claude_model: string | null;
   claude_options: string | null;
   cli_tool: string;
-  jira_enabled: number;
-  jira_base_url: string | null;
-  jira_email: string | null;
-  jira_api_token: string | null;
-  jira_project_key: string | null;
-  notion_enabled: number;
-  notion_api_key: string | null;
-  notion_database_id: string | null;
-  github_enabled: number;
-  github_token: string | null;
-  github_owner: string | null;
-  github_repo: string | null;
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
   sandbox_mode: string;
@@ -78,7 +66,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -93,18 +81,6 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }
   if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
-  if (updates.jira_enabled !== undefined) { fields.push('jira_enabled = ?'); values.push(updates.jira_enabled); }
-  if (updates.jira_base_url !== undefined) { fields.push('jira_base_url = ?'); values.push(updates.jira_base_url); }
-  if (updates.jira_email !== undefined) { fields.push('jira_email = ?'); values.push(updates.jira_email); }
-  if (updates.jira_api_token !== undefined) { fields.push('jira_api_token = ?'); values.push(updates.jira_api_token); }
-  if (updates.jira_project_key !== undefined) { fields.push('jira_project_key = ?'); values.push(updates.jira_project_key); }
-  if (updates.notion_enabled !== undefined) { fields.push('notion_enabled = ?'); values.push(updates.notion_enabled); }
-  if (updates.notion_api_key !== undefined) { fields.push('notion_api_key = ?'); values.push(updates.notion_api_key); }
-  if (updates.notion_database_id !== undefined) { fields.push('notion_database_id = ?'); values.push(updates.notion_database_id); }
-  if (updates.github_enabled !== undefined) { fields.push('github_enabled = ?'); values.push(updates.github_enabled); }
-  if (updates.github_token !== undefined) { fields.push('github_token = ?'); values.push(updates.github_token); }
-  if (updates.github_owner !== undefined) { fields.push('github_owner = ?'); values.push(updates.github_owner); }
-  if (updates.github_repo !== undefined) { fields.push('github_repo = ?'); values.push(updates.github_repo); }
   if (updates.cli_fallback_chain !== undefined) { fields.push('cli_fallback_chain = ?'); values.push(updates.cli_fallback_chain); }
   if (updates.default_max_turns !== undefined) { fields.push('default_max_turns = ?'); values.push(updates.default_max_turns); }
   if (updates.sandbox_mode !== undefined) { fields.push('sandbox_mode = ?'); values.push(updates.sandbox_mode); }

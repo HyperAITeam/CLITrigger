@@ -46,9 +46,6 @@ import { debugLogger } from './services/debug-logger.js';
 import { logStreamer } from './services/log-streamer.js';
 import { checkAllTools } from './services/cli-status.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
-import { jiraPlugin } from './plugins/jira/index.js';
-import { githubPlugin } from './plugins/github/index.js';
-import { notionPlugin } from './plugins/notion/index.js';
 import { harnessPlugin } from './plugins/harness/index.js';
 
 const app = express();
@@ -222,9 +219,6 @@ initAuth(app);
 app.use('/api/auth', authRouter);
 
 // --- Plugins ---
-registerPlugin(jiraPlugin);
-registerPlugin(githubPlugin);
-registerPlugin(notionPlugin);
 registerPlugin(harnessPlugin);
 
 // --- Routes ---

@@ -10,18 +10,6 @@ export interface Project {
   claude_model: string | null;
   claude_options: string | null;
   cli_tool: string;
-  jira_enabled: number;
-  jira_base_url: string | null;
-  jira_email: string | null;
-  jira_api_token: string | null;
-  jira_project_key: string | null;
-  notion_enabled: number;
-  notion_api_key: string | null;
-  notion_database_id: string | null;
-  github_enabled: number;
-  github_token: string | null;
-  github_owner: string | null;
-  github_repo: string | null;
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
   sandbox_mode: string;
@@ -35,20 +23,6 @@ export interface Project {
   path_exists?: boolean;
   created_at: string;
   updated_at: string;
-}
-
-export interface NotionPage {
-  id: string;
-  url: string;
-  created_time: string;
-  last_edited_time: string;
-  properties: Record<string, any>;
-}
-
-export interface NotionQueryResult {
-  results: NotionPage[];
-  has_more: boolean;
-  next_cursor: string | null;
 }
 
 export interface ImageMeta {
@@ -371,27 +345,6 @@ export interface Favorite {
   sort_order: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface JiraIssue {
-  key: string;
-  fields: {
-    summary: string;
-    status: { name: string; statusCategory?: { colorName: string } };
-    assignee: { displayName: string; avatarUrls?: Record<string, string> } | null;
-    priority: { name: string; iconUrl?: string } | null;
-    issuetype: { name: string; iconUrl?: string };
-    created: string;
-    updated: string;
-    labels: string[];
-  };
-}
-
-export interface JiraSearchResult {
-  startAt: number;
-  maxResults: number;
-  total: number;
-  issues: JiraIssue[];
 }
 
 // ── Long-term Memory (LLM-Wiki) ──

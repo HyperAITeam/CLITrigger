@@ -337,18 +337,6 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'claude_options', definition: 'TEXT' },
     { table: 'projects', column: 'is_git_repo', definition: 'INTEGER DEFAULT 1' },
     { table: 'projects', column: 'cli_tool', definition: "TEXT DEFAULT 'claude'" },
-    { table: 'projects', column: 'jira_enabled', definition: 'INTEGER DEFAULT 0' },
-    { table: 'projects', column: 'jira_base_url', definition: 'TEXT' },
-    { table: 'projects', column: 'jira_email', definition: 'TEXT' },
-    { table: 'projects', column: 'jira_api_token', definition: 'TEXT' },
-    { table: 'projects', column: 'jira_project_key', definition: 'TEXT' },
-    { table: 'projects', column: 'notion_enabled', definition: 'INTEGER DEFAULT 0' },
-    { table: 'projects', column: 'notion_api_key', definition: 'TEXT' },
-    { table: 'projects', column: 'notion_database_id', definition: 'TEXT' },
-    { table: 'projects', column: 'github_enabled', definition: 'INTEGER DEFAULT 0' },
-    { table: 'projects', column: 'github_token', definition: 'TEXT' },
-    { table: 'projects', column: 'github_owner', definition: 'TEXT' },
-    { table: 'projects', column: 'github_repo', definition: 'TEXT' },
     { table: 'projects', column: 'default_max_turns', definition: 'INTEGER' },
     { table: 'todos', column: 'cli_tool', definition: 'TEXT' },
     { table: 'todos', column: 'cli_model', definition: 'TEXT' },
@@ -467,9 +455,6 @@ export function initDatabase(db: Database.Database): void {
     // ignore — sort_order column may not exist on very old DBs that failed the ALTER above
   }
 
-  // Migrate legacy integration columns to plugin_configs table
-  migratePluginConfigs(db);
-
   // Deduplicate memory_nodes titles within a project, then enforce UNIQUE
   dedupeMemoryNodeTitles(db);
   try {
@@ -529,71 +514,6 @@ function migrateGeminiToAntigravity(db: Database.Database): void {
     }
   });
   rename();
-}
-
-/**
- * Migrate legacy per-integration columns from projects table
- * to the generic plugin_configs table. Idempotent — skips if
- * plugin_configs already has data for a given project+plugin.
- */
-function migratePluginConfigs(db: Database.Database): void {
-  const projects = db.prepare('SELECT * FROM projects').all() as any[];
-  if (projects.length === 0) return;
-
-  // Check if any migration has already happened
-  const existing = db.prepare('SELECT COUNT(*) as count FROM plugin_configs').get() as { count: number };
-  if (existing.count > 0) return;
-
-  const insert = db.prepare(
-    `INSERT OR IGNORE INTO plugin_configs (id, project_id, plugin_id, config_key, config_value, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  );
-
-  const pluginMappings: Array<{ pluginId: string; columns: Array<{ from: string; to: string }> }> = [
-    {
-      pluginId: 'jira',
-      columns: [
-        { from: 'jira_enabled', to: 'enabled' },
-        { from: 'jira_base_url', to: 'base_url' },
-        { from: 'jira_email', to: 'email' },
-        { from: 'jira_api_token', to: 'api_token' },
-        { from: 'jira_project_key', to: 'project_key' },
-      ],
-    },
-    {
-      pluginId: 'github',
-      columns: [
-        { from: 'github_enabled', to: 'enabled' },
-        { from: 'github_token', to: 'token' },
-        { from: 'github_owner', to: 'owner' },
-        { from: 'github_repo', to: 'repo' },
-      ],
-    },
-    {
-      pluginId: 'notion',
-      columns: [
-        { from: 'notion_enabled', to: 'enabled' },
-        { from: 'notion_api_key', to: 'api_key' },
-        { from: 'notion_database_id', to: 'database_id' },
-      ],
-    },
-  ];
-
-  const now = new Date().toISOString();
-  const migrate = db.transaction(() => {
-    for (const project of projects) {
-      for (const mapping of pluginMappings) {
-        for (const col of mapping.columns) {
-          const value = project[col.from];
-          if (value !== undefined && value !== null) {
-            insert.run(randomUUID(), project.id, mapping.pluginId, col.to, String(value), now, now);
-          }
-        }
-      }
-    }
-  });
-
-  migrate();
 }
 
 /**
