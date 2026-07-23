@@ -126,6 +126,11 @@ interface SessionTerminalProps {
    * terminal has focus. Undefined → shortcut falls through to the PTY.
    */
   onCycleTab?: (dir: 'next' | 'prev') => void;
+  /**
+   * Toggle the session Diff panel. Invoked by Ctrl+Shift+D (Cmd+Shift+D on
+   * Mac) while the terminal has focus. Undefined → shortcut falls through.
+   */
+  onToggleDiff?: () => void;
 }
 
 const TERMINAL_THEME: ITheme = TERMINAL_PRESETS.default.theme;
@@ -197,6 +202,7 @@ export default function SessionTerminal({
   onRequestRefresh,
   disableImagePaste = false,
   onCycleTab,
+  onToggleDiff,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
   // theme by value) and then reapplied via term.options.theme in a separate
@@ -213,6 +219,8 @@ export default function SessionTerminal({
   // changes, but the handler is registered once per session mount).
   const onCycleTabRef = useRef(onCycleTab);
   onCycleTabRef.current = onCycleTab;
+  const onToggleDiffRef = useRef(onToggleDiff);
+  onToggleDiffRef.current = onToggleDiff;
   // Ref'd so the debounced alt-screen refresh timer always calls the latest
   // host callback (the timer outlives the render that scheduled it).
   const onRequestRefreshRef = useRef(onRequestRefresh);
@@ -502,6 +510,15 @@ export default function SessionTerminal({
       if ((key === 'r' && modWithShift)
         || (key === 'f5' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey)) {
         ev.preventDefault();
+        return false;
+      }
+
+      // Ctrl+Shift+D (Cmd+Shift+D on Mac) → toggle the session Diff panel.
+      // Swallowed so the combo doesn't reach the PTY. Only intercepted when a
+      // handler is bound; otherwise falls through.
+      if (key === 'd' && modWithShift && onToggleDiffRef.current) {
+        ev.preventDefault();
+        onToggleDiffRef.current();
         return false;
       }
 
