@@ -8,7 +8,8 @@ import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
 import { claudeManager } from '../services/claude-manager.js';
-import { listSessionDiffFiles, sessionFileDiff } from '../lib/git-diff.js';
+import { createGit } from '../lib/git.js';
+import { listDiffFiles, snapshotWorkingTree } from '../lib/git-diff.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -114,10 +115,12 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
-// Resolve the git dir + diff range for a session's Diff view. Range is the
-// session's start commit (base_commit); `git diff <commit>` then captures both
-// committed-since and uncommitted changes. Falls back to HEAD (uncommitted
-// only) for sessions started before base_commit existed.
+// Resolve the git dir + diff range for a session's Diff view. base_commit is a
+// working-tree snapshot taken at session start; we snapshot again now and diff
+// snapshot-to-snapshot (`base..now`) so only what the session changed shows,
+// excluding state that was already dirty before it started. Falls back to HEAD
+// (committed-vs-worktree, tracked only) for sessions started before base_commit
+// existed or when a fresh snapshot can't be taken.
 function resolveSessionDiff(id: string):
   | { ok: true; gitDir: string; range: string; base: string | null }
   | { ok: false; status: number; reason: string } {
@@ -128,7 +131,10 @@ function resolveSessionDiff(id: string):
   const gitDir = session.worktree_path && fs.existsSync(session.worktree_path)
     ? session.worktree_path
     : project.path;
-  return { ok: true, gitDir, range: session.base_commit || 'HEAD', base: session.base_commit };
+  const base = session.base_commit;
+  const now = base ? snapshotWorkingTree(gitDir) : null;
+  const range = base && now ? `${base}..${now}` : (base || 'HEAD');
+  return { ok: true, gitDir, range, base };
 }
 
 // GET /api/sessions/:id/diff — files changed since the session started
@@ -139,7 +145,7 @@ router.get('/sessions/:id/diff', async (req: Request<{ id: string }>, res: Respo
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
     }
-    const files = await listSessionDiffFiles(ctx.gitDir, ctx.range);
+    const files = await listDiffFiles(createGit(ctx.gitDir), ctx.range);
     res.json({ available: true, files, base: ctx.base });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -159,13 +165,14 @@ router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: 
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
     }
+    const git = createGit(ctx.gitDir);
     // Whitelist: only serve paths that actually appear in this session's diff.
-    const match = (await listSessionDiffFiles(ctx.gitDir, ctx.range)).find((f) => f.path === filePath);
-    if (!match) {
+    const allowed = new Set((await listDiffFiles(git, ctx.range)).map((f) => f.path));
+    if (!allowed.has(filePath)) {
       res.status(400).json({ error: 'path not in diff' });
       return;
     }
-    const diff = await sessionFileDiff(ctx.gitDir, ctx.range, match);
+    const diff = await git.diff([ctx.range, '-M0', '--', filePath]);
     res.json({ available: true, diff });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });

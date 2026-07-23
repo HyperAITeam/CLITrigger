@@ -5,7 +5,7 @@ import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcastProjectStatus } from './project-status.js';
-import { createGit } from '../lib/git.js';
+import { snapshotWorkingTree } from '../lib/git-diff.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -246,17 +246,14 @@ export class SessionManager {
       }
     }
 
-    // Capture the session's starting commit once (kept across resume) so the
-    // Diff view can show everything this session changed — committed and
-    // uncommitted — relative to it. Works whether workDir is a worktree or the
-    // project root on main.
+    // Snapshot the working tree once at first start (kept across resume) as the
+    // baseline for the Diff view. A full snapshot — not just HEAD — so that on a
+    // shared/main checkout, changes already present before the session started
+    // (e.g. a stray untracked file) are excluded; only what the session itself
+    // changes shows up. See snapshotWorkingTree().
     let baseCommit: string | null = session.base_commit ?? null;
     if (!baseCommit && project.is_git_repo) {
-      try {
-        baseCommit = (await createGit(workDir).raw(['rev-parse', 'HEAD'])).trim() || null;
-      } catch {
-        baseCommit = null;
-      }
+      baseCommit = snapshotWorkingTree(workDir);
     }
 
     let pid: number;

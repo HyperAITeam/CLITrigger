@@ -1,11 +1,11 @@
 import fs from 'fs';
+import os from 'os';
 import nodePath from 'path';
+import { execFileSync } from 'child_process';
 import { createGit } from './git.js';
 
 // Shared git-diff parsing. `range` may be a two-dot/three-dot range
-// (`base...target`) or a single commit — with a single commit,
-// `git diff <commit>` compares the working tree against it, capturing both
-// committed-since and uncommitted changes to TRACKED files.
+// (`base...target`, `A..B`) or a single commit.
 //
 // (parseNumstat/parseNameStatus/listDiffFiles mirror the private copies in
 // routes/review.ts; that file is left untouched for now.)
@@ -65,66 +65,37 @@ export async function listDiffFiles(git: ReturnType<typeof createGit>, range: st
   }));
 }
 
-// --- Session diff: tracked changes since a commit PLUS untracked new files ---
+// --- Working-tree snapshot ---
 //
-// `git diff <commit>` is blind to untracked (never-added) files, which a CLI
-// session commonly creates. We list them via `ls-files --others` and synthesize
-// a "new file" diff from their content (no index mutation, cross-platform).
-
-const MAX_UNTRACKED_BYTES = 2 * 1024 * 1024; // don't slurp huge/blob files into a diff
-
-export interface SessionDiffFile extends DiffFile {
-  untracked: boolean;
-}
-
-// Synthesize a new-file unified diff from an untracked file's content.
-function readUntracked(gitDir: string, relPath: string): { additions: number; binary: boolean; diff: string } {
-  const abs = nodePath.join(gitDir, relPath);
-  let buf: Buffer;
+// A bare HEAD SHA can only time-scope COMMITTED history — git has no timestamp
+// on working-tree state, so `git diff <sha>` for a shared/main checkout also
+// surfaces uncommitted/untracked changes that predate the session. To scope a
+// session's Diff to exactly "what changed since it started", we snapshot the
+// FULL working state (tracked + staged + untracked, honoring .gitignore) at
+// start and again at diff time, then diff snapshot-to-snapshot.
+//
+// The snapshot is a commit object built via a throwaway index — the repo's real
+// index and working tree are never touched. The resulting commit is dangling
+// (no ref) and git will GC it in due course, which is fine for a session's life.
+export function snapshotWorkingTree(gitDir: string): string | null {
+  const tmpIndex = nodePath.join(os.tmpdir(), `clitrigger-snap-${process.pid}-${Date.now()}-${Math.floor(Math.random() * 1e9)}.idx`);
+  const env = {
+    ...process.env,
+    GIT_INDEX_FILE: tmpIndex,
+    // Ensure commit-tree never fails on a repo lacking a configured identity.
+    GIT_AUTHOR_NAME: 'clitrigger', GIT_AUTHOR_EMAIL: 'clitrigger@local',
+    GIT_COMMITTER_NAME: 'clitrigger', GIT_COMMITTER_EMAIL: 'clitrigger@local',
+  };
+  const opts = { cwd: gitDir, env, encoding: 'utf8' as const, maxBuffer: 64 * 1024 * 1024 };
   try {
-    if (fs.statSync(abs).size > MAX_UNTRACKED_BYTES) {
-      return { additions: 0, binary: false, diff: `diff --git a/${relPath} b/${relPath}\nnew file (too large to display)\n` };
-    }
-    buf = fs.readFileSync(abs);
+    execFileSync('git', ['read-tree', 'HEAD'], opts);
+    execFileSync('git', ['add', '-A'], opts);
+    const tree = execFileSync('git', ['write-tree'], opts).trim();
+    const commit = execFileSync('git', ['commit-tree', tree, '-p', 'HEAD', '-m', 'clitrigger session snapshot'], opts).trim();
+    return commit || null;
   } catch {
-    return { additions: 0, binary: false, diff: '' };
+    return null;
+  } finally {
+    try { fs.rmSync(tmpIndex, { force: true }); } catch { /* best-effort */ }
   }
-  if (buf.includes(0)) {
-    return { additions: 0, binary: true, diff: `diff --git a/${relPath} b/${relPath}\nnew file (binary)\n` };
-  }
-  const text = buf.toString('utf8');
-  const lines = text.length ? text.replace(/\n$/, '').split('\n') : [];
-  const body = lines.map((l) => `+${l}`).join('\n');
-  const diff = `diff --git a/${relPath} b/${relPath}\nnew file mode 100644\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n${body}`;
-  return { additions: lines.length, binary: false, diff };
-}
-
-export async function listSessionDiffFiles(gitDir: string, range: string): Promise<SessionDiffFile[]> {
-  const git = createGit(gitDir);
-  const tracked: SessionDiffFile[] = (await listDiffFiles(git, range)).map((f) => ({ ...f, untracked: false }));
-  const trackedPaths = new Set(tracked.map((f) => f.path));
-
-  // ponytail: on the project root (no worktree) this also surfaces untracked
-  // files that predate the session — git can't date untracked files. Fresh
-  // worktrees start clean so it's exact there; on main it reads as "uncommitted
-  // new files", the standard working-changes semantic. Good enough.
-  let untrackedRaw = '';
-  try {
-    untrackedRaw = await git.raw(['ls-files', '--others', '--exclude-standard']);
-  } catch {
-    /* no untracked / not a repo */
-  }
-  const untracked: SessionDiffFile[] = [];
-  for (const line of untrackedRaw.split('\n')) {
-    const path = line.trim();
-    if (!path || trackedPaths.has(path)) continue;
-    const info = readUntracked(gitDir, path);
-    untracked.push({ path, status: 'A', insertions: info.additions, deletions: 0, binary: info.binary, untracked: true });
-  }
-  return [...tracked, ...untracked];
-}
-
-export async function sessionFileDiff(gitDir: string, range: string, file: SessionDiffFile): Promise<string> {
-  if (file.untracked) return readUntracked(gitDir, file.path).diff;
-  return await createGit(gitDir).diff([range, '-M0', '--', file.path]);
 }
