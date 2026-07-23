@@ -133,7 +133,7 @@ export function CommitDiffViewer({
               } else if (inHunk && line.startsWith('-')) {
                 className = 'text-gray-100 bg-red-500/20';
                 oldNum = oldLn++;
-              } else if (inHunk && !line.startsWith('\\')) {
+              } else if (inHunk && line.startsWith(' ')) {
                 oldNum = oldLn++;
                 newNum = newLn++;
               }
