@@ -148,7 +148,7 @@ export const taskListBlock = createReactBlockSpec(
 // ── Calendar block ────────────────────────────────────────────────────
 function CalendarBlockView() {
   const { openConvert, existingTags } = usePlannerPage();
-  const { items, reload, add, remove } = usePageTasks();
+  const { items, reload, add, update, remove } = usePageTasks();
   const tagColors = useMemo(() => new Map(existingTags.map((tg) => [tg.name, tg.color])), [existingTags]);
 
   return (
@@ -160,6 +160,7 @@ function CalendarBlockView() {
       onEditItem={() => { /* v1: no inline edit in calendar block */ }}
       onConvert={(item, mode) => openConvert(item, mode, reload)}
       onDeleteItem={(id) => remove(id)}
+      onUpdateRange={(id, due, end) => { void update(id, { due_date: due, end_date: end }); }}
     />
   );
 }

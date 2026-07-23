@@ -336,6 +336,7 @@ export interface PlannerItem {
   description: string | null;
   tags: string | null;
   due_date: string | null;
+  end_date: string | null; // optional range end (NULL = single-day, = due_date)
   status: 'pending' | 'in_progress' | 'done' | 'moved';
   priority: number;
   images: string | null;

@@ -28,7 +28,7 @@ export function createPlannerItem(
 
 export function updatePlannerItem(
   id: string,
-  data: { title?: string; description?: string; tags?: string; due_date?: string; status?: string; priority?: number }
+  data: { title?: string; description?: string; tags?: string; due_date?: string | null; end_date?: string | null; status?: string; priority?: number }
 ): Promise<PlannerItem> {
   return put(`/api/planner/${id}`, data);
 }

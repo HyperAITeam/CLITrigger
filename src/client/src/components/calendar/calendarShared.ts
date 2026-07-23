@@ -24,6 +24,33 @@ export function dayOnly(d: Date): Date { return new Date(d.getFullYear(), d.getM
 export function addDays(d: Date, n: number): Date { const x = dayOnly(d); x.setDate(x.getDate() + n); return x; }
 export function startOfWeek(d: Date): Date { return addDays(d, -d.getDay()); }
 
+// Whole-day difference between two YYYY-MM-DD keys (bKey - aKey).
+export function diffDays(aKey: string, bKey: string): number {
+  return Math.round((new Date(bKey + 'T00:00').getTime() - new Date(aKey + 'T00:00').getTime()) / 86_400_000);
+}
+
+// Given a drag gesture on a dated entry, compute its new inclusive range.
+// String comparison of YYYY-MM-DD keys is chronological, so min/max are plain
+// comparisons. resize-* clamps so end never precedes start; move shifts both
+// ends by the days between where the drag was grabbed and the hovered day.
+export type DragMode = 'resize-start' | 'resize-end' | 'move';
+export function resolveDrag(
+  mode: DragMode,
+  orig: { startKey: string; endKey: string },
+  hoverKey: string,
+  grabKey: string,
+): { startKey: string; endKey: string } {
+  if (mode === 'resize-end') {
+    return { startKey: orig.startKey, endKey: hoverKey < orig.startKey ? orig.startKey : hoverKey };
+  }
+  if (mode === 'resize-start') {
+    return { startKey: hoverKey > orig.endKey ? orig.endKey : hoverKey, endKey: orig.endKey };
+  }
+  const delta = diffDays(grabKey, hoverKey);
+  const shift = (k: string) => ymd(addDays(new Date(k + 'T00:00'), delta));
+  return { startKey: shift(orig.startKey), endKey: shift(orig.endKey) };
+}
+
 // A single chip rendered inside a calendar cell. `payload` carries the caller's
 // original entry so the click handler can map back to a domain object.
 export interface CalChip {
@@ -35,6 +62,9 @@ export interface CalChip {
   fg: string;
   done?: boolean;
   payload?: unknown;
+  // When true, the grid renders drag handles so this single-day chip can be
+  // resized into a range or moved to another day (see onChipDrag).
+  draggable?: boolean;
 }
 
 // A bar spanning a date range, drawn across cells in month view. The grid

@@ -8,7 +8,7 @@ import CalendarGrid from './calendar/CalendarGrid';
 import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
 import {
   ymd, useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
-  type CalView, type CalChip,
+  type CalView, type CalChip, type CalBar,
 } from './calendar/calendarShared';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -32,13 +32,15 @@ interface PlannerCalendarProps {
   onEditItem: (item: PlannerItemType) => void;
   onConvert: (item: PlannerItemType, mode: 'todo' | 'schedule' | 'session') => void;
   onDeleteItem: (id: string) => void;
+  // Calendar drag committed a new date range (due_date = start, end_date = end).
+  onUpdateRange: (id: string, dueDate: string, endDate: string) => void;
 }
 
 // A project's planner rendered as a My-Schedule-style calendar. The actual
 // item interactions (edit / convert / delete) are delegated back to PlannerList
 // so its existing form + convert dialog are reused.
 export default function PlannerCalendar({
-  view, items, tagColors, onQuickAdd, onEditItem, onConvert, onDeleteItem,
+  view, items, tagColors, onQuickAdd, onEditItem, onConvert, onDeleteItem, onUpdateRange,
 }: PlannerCalendarProps) {
   const { t, lang } = useI18n();
   const [cursor, setCursor] = useState<Date>(() => new Date());
@@ -86,10 +88,31 @@ export default function PlannerCalendar({
     window.addEventListener('pointerup', onUp);
   };
 
+  // Optimistic range overrides so a drag shows its new span immediately without
+  // waiting for the parent's server round-trip (no snap-back flicker). Cleared
+  // when fresh `items` arrive from the parent (which reflect the saved value).
+  const [pendingRange, setPendingRange] = useState<Map<string, { due_date: string; end_date: string }>>(new Map());
+  useEffect(() => { setPendingRange(new Map()); }, [items]);
+  const effItems = useMemo(
+    () => (pendingRange.size === 0 ? items : items.map((it) => {
+      const p = pendingRange.get(it.id);
+      return p ? { ...it, due_date: p.due_date, end_date: p.end_date } : it;
+    })),
+    [items, pendingRange],
+  );
+  const commitRange = useCallback((id: string, dueDate: string, endDate: string) => {
+    setPendingRange((m) => new Map(m).set(id, { due_date: dueDate, end_date: endDate }));
+    onUpdateRange(id, dueDate, endDate);
+  }, [onUpdateRange]);
+
+  // Multi-day items are drawn as spanning bars in month view (see monthBars),
+  // so skip them here; single-day items (and any item in week/day view) are chips.
+  const isRange = (it: PlannerItemType) => !!(it.due_date && it.end_date && it.end_date.slice(0, 10) > it.due_date.slice(0, 10));
   const chipsByDay = useMemo(() => {
     const m = new Map<string, CalChip[]>();
-    for (const it of items) {
+    for (const it of effItems) {
       if (!it.due_date) continue;
+      if (view === 'month' && isRange(it)) continue;
       const key = it.due_date.slice(0, 10);
       const done = it.status === 'done';
       const arr = m.get(key) ?? [];
@@ -100,11 +123,30 @@ export default function PlannerCalendar({
         fg: done ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
         done,
         payload: it,
+        draggable: true,
       });
       m.set(key, arr);
     }
     return m;
-  }, [items]);
+  }, [effItems, view]);
+
+  // Multi-day planner items → spanning bars (month view overlay). Mirrors PersonalAgenda.
+  const monthBars = useMemo<CalBar[]>(() => {
+    if (view !== 'month') return [];
+    return effItems.filter(isRange).map((it) => {
+      const done = it.status === 'done';
+      return {
+        key: it.id,
+        title: it.title,
+        startKey: it.due_date!.slice(0, 10),
+        endKey: it.end_date!.slice(0, 10),
+        bg: 'var(--color-bg-secondary)',
+        fg: done ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
+        done,
+        payload: it,
+      };
+    });
+  }, [effItems, view]);
 
   const selectedItems = useMemo(
     () => items.filter((it) => it.due_date && it.due_date.slice(0, 10) === selectedDate),
@@ -139,6 +181,10 @@ export default function PlannerCalendar({
             onQuickAdd={onQuickAdd}
             onChipClick={(chip) => onEditItem(chip.payload as PlannerItemType)}
             onCellContextMenu={(key, e) => { e.preventDefault(); setCellMenu({ x: e.clientX, y: e.clientY, dateKey: key }); }}
+            bars={monthBars}
+            onBarClick={(bar) => onEditItem(bar.payload as PlannerItemType)}
+            onBarDrag={(bar, s, e) => commitRange((bar.payload as PlannerItemType).id, s, e)}
+            onChipDrag={(chip, s, e) => commitRange((chip.payload as PlannerItemType).id, s, e)}
           />
         </div>
       </div>

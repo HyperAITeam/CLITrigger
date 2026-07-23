@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ymd, type CalView, type CalChip, type CalBar } from './calendarShared';
+import { ymd, resolveDrag, type CalView, type CalChip, type CalBar, type DragMode } from './calendarShared';
 import { useI18n } from '../../i18n';
 
 interface CalendarGridProps {
@@ -28,9 +28,31 @@ interface CalendarGridProps {
   // Multi-day spanning bars (month view only). Drawn as an overlay per week.
   bars?: CalBar[];
   onBarClick?: (bar: CalBar) => void;
+  // Drag-to-resize / move (month view only). Given when the caller can persist a
+  // new inclusive range. Both gestures (edge-resize, body-move) report the same
+  // way — a new start/end — so one callback covers both. Bar handles show when
+  // onBarDrag is set; chip handles show when onChipDrag is set and chip.draggable.
+  onBarDrag?: (bar: CalBar, startKey: string, endKey: string) => void;
+  onChipDrag?: (chip: CalChip, startKey: string, endKey: string) => void;
   // Month-view cell min-height (px). User-resizable; defaults to the original
   // fixed height when the caller doesn't manage it.
   monthCellHeight?: number;
+}
+
+// A live drag on a dated entry. `base` is captured at pointer-down; `DragState`
+// drives the preview render (see effectiveBars).
+interface DragBase {
+  kind: 'bar' | 'chip';
+  entryKey: string;
+  origStart: string; origEnd: string;
+  title: string; bg: string; fg: string; done?: boolean;
+  bar?: CalBar; chip?: CalChip;
+}
+interface DragState {
+  kind: 'bar' | 'chip';
+  entryKey: string;
+  curStart: string; curEnd: string;
+  title: string; bg: string; fg: string; done?: boolean; // preview-bar styling (chip drags)
 }
 
 const EXPAND_DELAY_MS = 420;   // hover dwell before a crowded day expands
@@ -82,7 +104,7 @@ export default function CalendarGrid({
   view, gridDays, cols, dimOutOfMonth, monthIdx, todayKey, selectedDate,
   chipsByDay, maxChips, weekdayLabels, addItemLabel, bars, onBarClick,
   onSelectDate, onQuickAdd, onChipClick, onCellContextMenu,
-  onChipContextMenu, onBarContextMenu, monthCellHeight = 92,
+  onChipContextMenu, onBarContextMenu, onBarDrag, onChipDrag, monthCellHeight = 92,
 }: CalendarGridProps) {
   const { lang } = useI18n();
   // Hover-to-expand: when a month cell hides entries behind "+N", dwelling on
@@ -125,6 +147,63 @@ export default function CalendarGrid({
 
   const expEntries = expanded ? (chipsByDay.get(expanded.key) ?? []) : [];
 
+  // ── drag-to-resize / move (month view) ──────────────────────────────────
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const suppressClick = useRef(false); // a completed drag swallows the trailing click
+  const MOVE_THRESHOLD = 4; // px a body-press must travel before it counts as a move
+
+  // Day key under the cursor, via the data-daykey stamped on each cell.
+  const hitTestDayKey = (x: number, y: number): string | null =>
+    (document.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-daykey]')?.getAttribute('data-daykey') ?? null;
+
+  const beginDrag = (e: React.PointerEvent, mode: DragMode, base: DragBase) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const grabKey = hitTestDayKey(e.clientX, e.clientY) ?? base.origStart;
+    const startX = e.clientX, startY = e.clientY;
+    const isResize = mode !== 'move';
+    let moved = isResize; // resize is intentional from the first move; move needs the threshold
+    let cur = { startKey: base.origStart, endKey: base.origEnd };
+    const preview = () => setDrag({ kind: base.kind, entryKey: base.entryKey, curStart: cur.startKey, curEnd: cur.endKey, title: base.title, bg: base.bg, fg: base.fg, done: base.done });
+    const setStyles = () => { document.body.style.cursor = isResize ? 'ew-resize' : 'grabbing'; document.body.style.userSelect = 'none'; };
+    if (isResize) { setStyles(); preview(); }
+    const onMove = (ev: PointerEvent) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < MOVE_THRESHOLD && Math.abs(ev.clientY - startY) < MOVE_THRESHOLD) return;
+        moved = true; setStyles();
+      }
+      const hoverKey = hitTestDayKey(ev.clientX, ev.clientY);
+      if (!hoverKey) return;
+      cur = resolveDrag(mode, { startKey: base.origStart, endKey: base.origEnd }, hoverKey, grabKey);
+      preview();
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setDrag(null);
+      if (!moved) return;
+      suppressClick.current = true;
+      setTimeout(() => { suppressClick.current = false; }, 0);
+      if (cur.startKey === base.origStart && cur.endKey === base.origEnd) return; // no-op
+      if (base.kind === 'bar' && base.bar) onBarDrag?.(base.bar, cur.startKey, cur.endKey);
+      else if (base.kind === 'chip' && base.chip) onChipDrag?.(base.chip, cur.startKey, cur.endKey);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  // Bars with the active drag applied for live preview: a bar drag overrides that
+  // bar's range in place; a chip drag appends a temporary preview bar (the chip
+  // itself is hidden in renderCell while dragging).
+  const effectiveBars: CalBar[] = (() => {
+    const src = bars ?? [];
+    if (!drag) return src;
+    if (drag.kind === 'bar') return src.map((b) => (b.key === drag.entryKey ? { ...b, startKey: drag.curStart, endKey: drag.curEnd } : b));
+    return [...src, { key: `__drag__${drag.entryKey}`, title: drag.title, startKey: drag.curStart, endKey: drag.curEnd, bg: drag.bg, fg: drag.fg, done: drag.done }];
+  })();
+
   // One day cell. `reserveTop` is the height (px) reserved at the top for the
   // week's spanning bars so chips/date never overlap them (0 in week/day view).
   const renderCell = (d: Date, reserveTop: number) => {
@@ -138,7 +217,8 @@ export default function CalendarGrid({
     return (
       <div
         key={key}
-        onClick={() => onSelectDate(key)}
+        data-daykey={key}
+        onClick={() => { if (suppressClick.current) return; onSelectDate(key); }}
         onContextMenu={onCellContextMenu ? (e) => onCellContextMenu(key, e) : undefined}
         onMouseEnter={hasOverflow ? (e) => scheduleOpen(key, e.currentTarget) : undefined}
         onMouseLeave={hasOverflow ? scheduleClose : undefined}
@@ -175,22 +255,37 @@ export default function CalendarGrid({
           <Plus size={13} />
         </button>
         <div className="flex flex-col gap-0.5 overflow-hidden" style={{ marginTop: reserveTop || undefined }}>
-          {entries.slice(0, maxChips).map((chip) => (
-            <span
-              key={chip.key}
-              onClick={(ev) => { ev.stopPropagation(); onChipClick(chip); }}
-              onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
-              className="text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity"
-              style={{
-                backgroundColor: chip.bg,
-                color: chip.fg,
-                textDecoration: chip.done ? 'line-through' : 'none',
-              }}
-              title={chip.title}
-            >
-              {chip.prefix ?? ''}{chip.time ? `${chip.time} ` : ''}{chip.title}
-            </span>
-          ))}
+          {entries.slice(0, maxChips).map((chip) => {
+            // Hide the chip while it's being dragged — it shows as a preview bar.
+            if (drag?.kind === 'chip' && drag.entryKey === chip.key) return null;
+            const canDrag = view === 'month' && !!(chip.draggable && onChipDrag);
+            const dragBase: DragBase = { kind: 'chip', entryKey: chip.key, origStart: key, origEnd: key, title: chip.title, bg: chip.bg, fg: chip.fg, done: chip.done, chip };
+            return (
+              <span
+                key={chip.key}
+                onClick={(ev) => { ev.stopPropagation(); if (suppressClick.current) return; onChipClick(chip); }}
+                onPointerDown={canDrag ? (ev) => beginDrag(ev, 'move', dragBase) : undefined}
+                onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
+                className={`text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${canDrag ? 'relative group/chip' : ''}`}
+                style={{
+                  backgroundColor: chip.bg,
+                  color: chip.fg,
+                  textDecoration: chip.done ? 'line-through' : 'none',
+                }}
+                title={chip.title}
+              >
+                {chip.prefix ?? ''}{chip.time ? `${chip.time} ` : ''}{chip.title}
+                {canDrag && (
+                  <span
+                    onPointerDown={(ev) => { ev.stopPropagation(); beginDrag(ev, 'resize-end', dragBase); }}
+                    onClick={(ev) => ev.stopPropagation()}
+                    className="absolute top-0 right-0 h-full w-1.5 opacity-0 group-hover/chip:opacity-100 cursor-ew-resize rounded-r"
+                    style={{ backgroundColor: 'rgba(127,127,127,0.5)' }}
+                  />
+                )}
+              </span>
+            );
+          })}
           {entries.length > maxChips && (
             <span className="text-2xs px-1" style={{ color: 'var(--color-text-muted)' }}>+{entries.length - maxChips}</span>
           )}
@@ -217,7 +312,7 @@ export default function CalendarGrid({
       {view === 'month' ? (
         <div className="flex flex-col gap-px rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-border)' }}>
           {weeks.map((week, wi) => {
-            const { placed, laneCount } = layoutWeekBars(week, bars ?? []);
+            const { placed, laneCount } = layoutWeekBars(week, effectiveBars);
             const reserve = laneCount * (BAR_H + BAR_GAP);
             return (
               <div
@@ -227,13 +322,21 @@ export default function CalendarGrid({
               >
                 {week.map((d) => renderCell(d, reserve))}
                 {/* Spanning-bar overlay for this week. */}
-                {placed.map(({ bar, startCol, endCol, lane, contStart, contEnd }) => (
+                {placed.map(({ bar, startCol, endCol, lane, contStart, contEnd }) => {
+                  const canDragBar = !!onBarDrag && !bar.key.startsWith('__drag__');
+                  const barBase: DragBase = { kind: 'bar', entryKey: bar.key, origStart: bar.startKey, origEnd: bar.endKey, title: bar.title, bg: bar.bg, fg: bar.fg, done: bar.done, bar };
+                  return (
                   <div
                     key={bar.key}
-                    onClick={(ev) => { ev.stopPropagation(); onBarClick?.(bar); }}
+                    onClick={(ev) => { ev.stopPropagation(); if (suppressClick.current) return; onBarClick?.(bar); }}
+                    onPointerDown={canDragBar ? (ev) => beginDrag(ev, 'move', barBase) : undefined}
                     onContextMenu={onBarContextMenu ? (ev) => onBarContextMenu(bar, ev) : undefined}
                     className="absolute text-2xs truncate px-1.5 cursor-pointer hover:opacity-80 transition-opacity flex items-center"
                     style={{
+                      // While a drag is active the bars are purely visual — turn off
+                      // pointer events so elementFromPoint hit-tests fall through to the
+                      // day cell underneath (bars are overlay siblings, not cell children).
+                      pointerEvents: drag ? 'none' : undefined,
                       left: `calc(${startCol} / ${cols} * 100% + 2px)`,
                       width: `calc(${endCol - startCol + 1} / ${cols} * 100% - 4px)`,
                       top: BAR_TOP + lane * (BAR_H + BAR_GAP),
@@ -250,8 +353,26 @@ export default function CalendarGrid({
                     title={bar.title}
                   >
                     {contStart ? '◀ ' : ''}{bar.title}{contEnd ? ' ▶' : ''}
+                    {/* Resize handles at the bar's true ends (not week-wrap continuations). */}
+                    {canDragBar && !contStart && (
+                      <span
+                        onPointerDown={(ev) => { ev.stopPropagation(); beginDrag(ev, 'resize-start', barBase); }}
+                        onClick={(ev) => ev.stopPropagation()}
+                        className="absolute top-0 left-0 h-full w-1.5 opacity-0 hover:opacity-100 cursor-ew-resize"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}
+                      />
+                    )}
+                    {canDragBar && !contEnd && (
+                      <span
+                        onPointerDown={(ev) => { ev.stopPropagation(); beginDrag(ev, 'resize-end', barBase); }}
+                        onClick={(ev) => ev.stopPropagation()}
+                        className="absolute top-0 right-0 h-full w-1.5 opacity-0 hover:opacity-100 cursor-ew-resize"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}
+                      />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })}
