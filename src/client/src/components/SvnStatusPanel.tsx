@@ -50,6 +50,13 @@ function readStoredNumber(key: string, fallback: number, min: number, max: numbe
   return Number.isFinite(value) ? clampNumber(value, min, max) : fallback;
 }
 
+// The row context menu targets either a single file (with the usual
+// selection-aware fallback) or a whole group — a directory subtree or a
+// changelist section — applying the same actions to every file under it.
+type SvnCtxTarget =
+  | { kind: 'file'; file: SvnFile }
+  | { kind: 'group'; label: string; files: SvnFile[]; dirPath: string | null };
+
 export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPanelProps) {
   const { t } = useI18n();
 
@@ -292,7 +299,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   }, [project.id, selectedRev, revSelectedFile, revFiles]);
 
   // ── Row context menu ──────────────────────────────────────────────────────
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; file: GitStatusFile } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; target: SvnCtxTarget } | null>(null);
 
   // ── Properties dialog (LOCAL). null = closed; { file: null } = WC root. ───
   const [propsTarget, setPropsTarget] = useState<{ file: string | null } | null>(null);
@@ -300,7 +307,17 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const openCtxMenu = (e: React.MouseEvent, file: GitStatusFile) => {
     e.preventDefault();
     e.stopPropagation();
-    setCtxMenu({ x: e.clientX, y: e.clientY, file });
+    setCtxMenu({ x: e.clientX, y: e.clientY, target: { kind: 'file', file } });
+  };
+
+  // Right-click on a directory row or changelist header → same menu, applied to
+  // every file in that group at once. dirPath is the folder path (for folder
+  // properties) or null for a changelist section.
+  const openGroupCtxMenu = (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (files.length === 0) return;
+    setCtxMenu({ x: e.clientX, y: e.clientY, target: { kind: 'group', label, files, dirPath } });
   };
 
   const changelistNames = useMemo(
@@ -391,6 +408,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               activeFile={activeFile}
               onActivate={setActiveFile}
               onContextMenu={openCtxMenu}
+              onGroupContextMenu={openGroupCtxMenu}
               onChangelist={doChangelist}
               onResolve={(p, accept) => doResolve([p], accept)}
               workingDiff={workingDiff}
@@ -500,7 +518,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         <FileContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
-          file={ctxMenu.file}
+          target={ctxMenu.target}
           allFiles={status?.files ?? []}
           selected={selectedFiles}
           onClose={() => setCtxMenu(null)}
@@ -568,10 +586,10 @@ interface DirTree {
   name: string;              // segment name; compacted chains join with '/'
   path: string;              // full path of this dir (post-compaction)
   dirs: DirTree[];
-  files: GitStatusFile[];
+  files: SvnFile[];
 }
 
-function buildDirTree(files: GitStatusFile[]): DirTree {
+function buildDirTree(files: SvnFile[]): DirTree {
   const root: DirTree = { name: '', path: '', dirs: [], files: [] };
   for (const f of files) {
     const parts = f.path.split('/');
@@ -623,6 +641,14 @@ function countDir(node: DirTree): { dirs: number; files: number } {
     files += c.files;
   }
   return { dirs, files };
+}
+
+// All files under a directory subtree (this dir + every descendant) — the
+// target set for a folder-level context-menu action.
+function collectFiles(node: DirTree): SvnFile[] {
+  const out = [...node.files];
+  for (const d of node.dirs) out.push(...collectFiles(d));
+  return out;
 }
 
 interface FileRowShared {
@@ -765,12 +791,13 @@ function FileRow({ file, indent, showDir, shared }: {
   );
 }
 
-function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps }: {
+function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps, onDirContextMenu }: {
   node: DirTree;
   depth: number;
   collapsed: Set<string>;
   onToggleCollapse: (path: string) => void;
   fileProps: FileRowShared;
+  onDirContextMenu: (e: React.MouseEvent, node: DirTree) => void;
 }) {
   const { t } = useI18n();
   const isCollapsed = collapsed.has(node.path);
@@ -782,6 +809,7 @@ function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps }: {
     <>
       <div
         onClick={() => onToggleCollapse(node.path)}
+        onContextMenu={(e) => onDirContextMenu(e, node)}
         style={{ paddingLeft: 12 + depth * 14 }}
         className="flex items-center gap-1 pr-3 py-1.5 cursor-pointer text-xs hover:bg-warm-50/50 select-none"
       >
@@ -795,7 +823,7 @@ function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps }: {
       {!isCollapsed && (
         <>
           {node.dirs.map((d) => (
-            <DirNode key={d.path} node={d} depth={depth + 1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} fileProps={fileProps} />
+            <DirNode key={d.path} node={d} depth={depth + 1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} fileProps={fileProps} onDirContextMenu={onDirContextMenu} />
           ))}
           {node.files.map((f) => (
             <FileRow key={f.path} file={f} indent={depth + 1} shared={fileProps} />
@@ -852,6 +880,7 @@ function ModificationsView(props: {
   activeFile: string | null;
   onActivate: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
+  onGroupContextMenu: (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null) => void;
   onChangelist: (name: string | null, files: string[]) => void;
   onResolve: (path: string, accept: 'working' | 'mine-full' | 'theirs-full') => void;
   workingDiff: string;
@@ -1044,6 +1073,7 @@ function ModificationsView(props: {
                   <div key={sec.key}>
                     <div
                       onClick={() => toggleCollapse(secKey)}
+                      onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null)}
                       onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
                       onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
                       onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
@@ -1068,7 +1098,7 @@ function ModificationsView(props: {
                     {!isCollapsed && (tree ? (
                       <>
                         {tree.dirs.map((d) => (
-                          <DirNode key={d.path} node={d} depth={1} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} />
+                          <DirNode key={d.path} node={d} depth={1} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} onDirContextMenu={(e, n) => props.onGroupContextMenu(e, n.path, collectFiles(n), n.path)} />
                         ))}
                         {tree.files.map((f) => (
                           <FileRow key={f.path} file={f} indent={1} shared={fileProps} />
@@ -1228,7 +1258,7 @@ function LogView(props: {
 function FileContextMenu(props: {
   x: number;
   y: number;
-  file: SvnFile;
+  target: SvnCtxTarget;
   allFiles: SvnFile[];
   selected: Set<string>;
   onClose: () => void;
@@ -1246,13 +1276,23 @@ function FileContextMenu(props: {
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x: props.x, y: props.y });
 
-  // Target = the selected set if this row is part of it, otherwise just this row.
+  // Group target (folder / changelist) = every file under it. File target =
+  // the selected set if this row is part of it, otherwise just this row.
   const targets = useMemo(() => {
-    if (props.selected.size > 0 && props.selected.has(props.file.path)) {
-      return props.allFiles.filter((f) => props.selected.has(f.path));
+    if (props.target.kind === 'group') return props.target.files;
+    const f = props.target.file;
+    if (props.selected.size > 0 && props.selected.has(f.path)) {
+      return props.allFiles.filter((x) => props.selected.has(x.path));
     }
-    return [props.file];
-  }, [props.selected, props.allFiles, props.file]);
+    return [f];
+  }, [props.target, props.selected, props.allFiles]);
+
+  // Single-file-only actions (view diff, properties). For a group these are
+  // hidden, except properties on a folder (dirPath) which svn proplist supports.
+  const singleFile = props.target.kind === 'file' ? props.target.file : null;
+  const groupLabel = props.target.kind === 'group' ? props.target.label : null;
+  const dirPath = props.target.kind === 'group' ? props.target.dirPath : null;
+  const propsPath = singleFile ? (charOf(singleFile) !== '?' ? singleFile.path : null) : dirPath;
 
   const addable = targets.filter((f) => charOf(f) === '?').map((f) => f.path);
   const revertable = targets.filter((f) => charOf(f) !== '?').map((f) => f.path);
@@ -1300,9 +1340,15 @@ function FileContextMenu(props: {
       className="fixed z-tooltip bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-elevated py-1 min-w-[200px]"
       style={{ left: pos.x, top: pos.y }}
     >
-      <Item label={t('svn.viewDiff')} onClick={() => props.onViewDiff(props.file.path)} />
-      {charOf(props.file) !== '?' && (
-        <Item label={t('svn.properties')} onClick={() => props.onProperties(props.file.path)} />
+      {groupLabel !== null && (
+        <div className="px-3 py-1.5 border-b border-warm-100 dark:border-warm-700 truncate" title={groupLabel}>
+          <span className="text-xs font-semibold text-warm-700">{groupLabel}</span>
+          <span className="text-2xs text-warm-400 ml-1">· {targets.length}</span>
+        </div>
+      )}
+      {singleFile && <Item label={t('svn.viewDiff')} onClick={() => props.onViewDiff(singleFile.path)} />}
+      {propsPath !== null && (
+        <Item label={t('svn.properties')} onClick={() => props.onProperties(propsPath)} />
       )}
       {addable.length > 0 && <Item label={`${t('svn.add')}${suffix}`} onClick={() => props.onAdd(addable)} />}
       {revertable.length > 0 && <Item label={`${t('svn.revert')}${suffix}`} onClick={() => props.onRevert(revertable)} />}
