@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // `imeReset` calls `webContents.focus()` in the main process to recover the
 // native HWND keyboard focus when it gets stuck on xterm's helper textarea
@@ -35,4 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('terminal:zoom', listener);
     return () => ipcRenderer.removeListener('terminal:zoom', listener);
   },
+  // Resolve a dropped File to its absolute OS path (terminal drag-drop).
+  // File.path was removed in Electron 30; webUtils is the supported path.
+  getDroppedFilePath: (file) => webUtils.getPathForFile(file),
 });
