@@ -12,6 +12,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 // is the only way to observe compositionstart state during a real repro.
 contextBridge.exposeInMainWorld('electronAPI', {
   imeReset: () => ipcRenderer.send('ime:reset'),
+  // Native focus cycle for the stranded-TSF state where imeReset (a plain
+  // webContents.focus()) isn't enough. mode 'refocus' = invisible blur→focus;
+  // mode 'restore' = minimize→restore (the manual recovery, as escalation).
+  imeResetHard: (mode) => ipcRenderer.send('ime:reset-hard', mode),
   imeLog: (payload) => ipcRenderer.send('ime:log', payload),
   // Toggle IME file logging at runtime (Settings ▸ Terminal). Persisted in
   // session settings; the renderer re-sends the saved value on startup.

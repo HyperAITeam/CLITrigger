@@ -389,6 +389,27 @@ ipcMain.on('ime:reset', (event) => {
   }
 });
 
+// Native-level focus recovery for the stranded-TSF state: the OS window holds
+// keyboard focus but the Chromium page reads document.hasFocus() === false, so
+// Korean IME eats every key as 'Process' and composition never opens. A plain
+// webContents.focus() (ime:reset) can't fix it — isFocused() is stale-true, so
+// nothing toggles. Only a real native focus cycle re-syncs the RenderWidget.
+// mode 'refocus' = invisible blur→focus (first attempt); mode 'restore' =
+// minimize→restore (escalation; the recovery users do by hand). Windows only.
+ipcMain.on('ime:reset-hard', (event, mode) => {
+  const sender = event && event.sender;
+  const win = sender && !sender.isDestroyed()
+    ? BrowserWindow.fromWebContents(sender)
+    : mainWindow;
+  if (!win || win.isDestroyed()) return;
+  imeDebugLog(win === mainWindow ? 'mainWindow' : 'popout', { event: 'ime-reset-hard', mode });
+  if (process.platform === 'win32') {
+    if (mode === 'restore') { win.minimize(); win.restore(); }
+    else { win.blur(); win.focus(); }
+  }
+  if (sender && !sender.isDestroyed()) sender.focus();
+});
+
 function checkForUpdates({ silent } = { silent: true }) {
   if (!app.isPackaged) {
     if (!silent) {

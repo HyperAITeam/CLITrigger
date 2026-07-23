@@ -1525,13 +1525,22 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   // terminal. The triggering keystroke is already lost to the dead IME;
   // everything after it composes normally.
   let rescueRaf = 0;
+  // Layered recovery within one stranded episode: the first stranded key does an
+  // invisible native blur→focus ('refocus'); if the next key is still stranded
+  // (that toggle didn't take — e.g. Windows focus-stealing prevention), escalate
+  // to minimize→restore ('restore'), the recovery users perform by hand. The
+  // flag resets once a key arrives with focus healthy again (see handleKeydownLog).
+  let rescueEscalated = false;
   const rescueStrandedFocus = () => {
     if (rescueRaf || composing) return;
-    const api = (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI;
-    if (!api?.imeReset) return; // plain browser — no HWND focus to repair
-    imeLog('focus-rescue');
+    const api = (window as unknown as { electronAPI?: { imeReset?: () => void; imeResetHard?: (mode: string) => void } }).electronAPI;
+    if (!api?.imeReset && !api?.imeResetHard) return; // plain browser — no HWND focus to repair
+    const mode = rescueEscalated ? 'restore' : 'refocus';
+    rescueEscalated = true;
+    imeLog('focus-rescue', { mode });
     (document.activeElement as HTMLElement | null)?.blur?.();
-    api.imeReset();
+    if (api.imeResetHard) api.imeResetHard(mode);
+    else api.imeReset?.();
     rescueRaf = requestAnimationFrame(() => {
       rescueRaf = requestAnimationFrame(() => {
         rescueRaf = 0;
@@ -1553,7 +1562,8 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
         ?.classList?.contains('xterm-helper-textarea'),
       hasFocus: document.hasFocus(),
     });
-    if (!document.hasFocus()) rescueStrandedFocus();
+    if (document.hasFocus()) rescueEscalated = false; // healthy again — next episode starts at 'refocus'
+    else rescueStrandedFocus();
   };
   container.addEventListener('keydown', handleKeydownLog, true);
   container.addEventListener('compositionstart', handleCompStart, true);
