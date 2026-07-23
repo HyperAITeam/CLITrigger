@@ -183,6 +183,9 @@ WebSocket 실시간 로그 스트리밍 — Chat(마크다운) 또는 Raw(터미
 #### 외부 접속
 Cloudflare Tunnel로 어디서든 접속 — 완료 알림과 커스텀 도메인 라우팅 지원. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Remote-Access-KR)
 
+#### MCP 서버
+CLITrigger를 HTTP 엔드포인트로 MCP 클라이언트(Claude Desktop, Claude Code)에 연결 — AI와 대화하며 프로젝트 조회, 할일 생성·실행, 상태 확인. 설정 → MCP 연결에서 config(URL + 토큰)를 복사해 붙여넣기만 하면 됩니다. npm·데스크톱·터널 사용자 모두 동일하게 동작. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server-KR)
+
 ---
 
 ## 기술 스택

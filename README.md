@@ -183,6 +183,9 @@ One-click launcher for your frequent external tools (executables, commands, URLs
 #### Remote Access
 Reach CLITrigger from anywhere via Cloudflare Tunnel, with completion notifications and custom-domain routing. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Remote-Access)
 
+#### MCP Server
+Expose CLITrigger to any MCP client (Claude Desktop, Claude Code) over an HTTP endpoint — list projects, create and run tasks, and check status just by chatting with your AI. Copy the ready-made config (URL + token) from Settings → MCP; works for npm, desktop, and tunnel users alike. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server)
+
 ---
 
 ## Tech Stack
