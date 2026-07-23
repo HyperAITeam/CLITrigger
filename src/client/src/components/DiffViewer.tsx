@@ -116,26 +116,29 @@ export function CommitDiffViewer({
             // Track old/new line numbers off each `@@ -a,b +c,d @@` hunk header.
             let oldLn = 0, newLn = 0, inHunk = false;
             return diff.split('\n').map((line, i) => {
-              let className = 'text-gray-200';
-              let oldNum: number | null = null;
-              let newNum: number | null = null;
+              // Hunk header: read line numbers, don't render it.
               if (line.startsWith('@@')) {
                 const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
                 if (m) { oldLn = parseInt(m[1], 10); newLn = parseInt(m[2], 10); inHunk = true; }
-                className = 'text-blue-400';
-              } else if (line.startsWith('diff ')) {
-                className = 'text-amber-300 font-bold';
-              } else if (line.startsWith('+++') || line.startsWith('---')) {
-                // file headers — no line numbers
-              } else if (inHunk && line.startsWith('+')) {
+                return null;
+              }
+              // Skip git file headers (diff/index/---/+++) and stray metadata;
+              // only content lines inside a hunk get rendered.
+              if (!inHunk) return null;
+              let className = 'text-gray-200';
+              let oldNum: number | null = null;
+              let newNum: number | null = null;
+              if (line.startsWith('+') && !line.startsWith('+++')) {
                 className = 'text-gray-100 bg-green-500/20';
                 newNum = newLn++;
-              } else if (inHunk && line.startsWith('-')) {
+              } else if (line.startsWith('-') && !line.startsWith('---')) {
                 className = 'text-gray-100 bg-red-500/20';
                 oldNum = oldLn++;
-              } else if (inHunk && line.startsWith(' ')) {
+              } else if (line.startsWith(' ')) {
                 oldNum = oldLn++;
                 newNum = newLn++;
+              } else {
+                return null; // '\ No newline at end of file', trailing blank, etc.
               }
               return (
                 <div key={i} className={`flex ${className}`}>
