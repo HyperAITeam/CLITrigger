@@ -14,8 +14,9 @@
 // (host removes this tab from the group's tree).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2, GitCompare } from 'lucide-react';
 import SessionTerminal from '../SessionTerminal';
+import SessionDiffPanel from '../SessionDiffPanel';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import { useI18n } from '../../i18n';
 import * as sessionsApi from '../../api/sessions';
@@ -75,6 +76,8 @@ export default function SessionPane({
   })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // On-demand Diff side drawer — only fetches when opened.
+  const [diffOpen, setDiffOpen] = useState(false);
   // Terminal-requested rebuild (alt-screen font zoom settled). Composes with
   // the host-driven remountKey in the React key below so either source
   // disposes/recreates xterm — the remount's subscribe replay + resize make
@@ -325,6 +328,34 @@ export default function SessionPane({
         onCycleTab={onCycleTab}
       />
       {overlayContent}
+      {!diffOpen && (
+        <button
+          onClick={() => setDiffOpen(true)}
+          title={t('session.diff.title') || 'Diff'}
+          style={{
+            position: 'absolute', top: 4, right: 8, zIndex: 1002,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontFamily: CMD_FONT, fontSize: 10, color: CMD.dim,
+            background: 'rgba(20,20,28,0.7)',
+            border: `1px solid ${CMD.separator}`,
+            padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+          }}
+        >
+          <GitCompare size={11} /> Diff
+        </button>
+      )}
+      {diffOpen && (
+        <div
+          style={{
+            position: 'absolute', top: 0, bottom: 0, right: 0,
+            width: 'min(50%, 640px)', zIndex: 1001,
+            borderLeft: `1px solid ${CMD.separator}`,
+            boxShadow: '-8px 0 24px rgba(0,0,0,0.4)',
+          }}
+        >
+          <SessionDiffPanel sessionId={session.id} onClose={() => setDiffOpen(false)} />
+        </div>
+      )}
       {pendingPromptLength !== null && (
         <div style={pendingBannerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

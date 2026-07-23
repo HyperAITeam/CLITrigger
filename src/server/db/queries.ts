@@ -934,6 +934,7 @@ export interface Session {
   process_pid: number | null;
   branch_name: string | null;
   worktree_path: string | null;
+  base_commit: string | null;
   use_worktree: number;
   token_usage: string | null;
   total_cost_usd: number | null;
@@ -992,7 +993,7 @@ export function getSessionById(id: string): Session | undefined {
   return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id'>>): Session | undefined {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'base_commit' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id'>>): Session | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -1004,6 +1005,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.process_pid !== undefined) { fields.push('process_pid = ?'); values.push(updates.process_pid); }
   if (updates.branch_name !== undefined) { fields.push('branch_name = ?'); values.push(updates.branch_name); }
   if (updates.worktree_path !== undefined) { fields.push('worktree_path = ?'); values.push(updates.worktree_path); }
+  if (updates.base_commit !== undefined) { fields.push('base_commit = ?'); values.push(updates.base_commit); }
   if (updates.use_worktree !== undefined) { fields.push('use_worktree = ?'); values.push(updates.use_worktree ? 1 : 0); }
   if (updates.token_usage !== undefined) { fields.push('token_usage = ?'); values.push(updates.token_usage); }
   if (updates.total_cost_usd !== undefined) { fields.push('total_cost_usd = ?'); values.push(updates.total_cost_usd); }

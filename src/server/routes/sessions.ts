@@ -8,6 +8,7 @@ import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
 import { claudeManager } from '../services/claude-manager.js';
+import { listSessionDiffFiles, sessionFileDiff } from '../lib/git-diff.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -110,6 +111,64 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+// Resolve the git dir + diff range for a session's Diff view. Range is the
+// session's start commit (base_commit); `git diff <commit>` then captures both
+// committed-since and uncommitted changes. Falls back to HEAD (uncommitted
+// only) for sessions started before base_commit existed.
+function resolveSessionDiff(id: string):
+  | { ok: true; gitDir: string; range: string; base: string | null }
+  | { ok: false; status: number; reason: string } {
+  const session = queries.getSessionById(id);
+  if (!session) return { ok: false, status: 404, reason: 'session-not-found' };
+  const project = queries.getProjectById(session.project_id);
+  if (!project || !project.is_git_repo) return { ok: false, status: 200, reason: 'not-git' };
+  const gitDir = session.worktree_path && fs.existsSync(session.worktree_path)
+    ? session.worktree_path
+    : project.path;
+  return { ok: true, gitDir, range: session.base_commit || 'HEAD', base: session.base_commit };
+}
+
+// GET /api/sessions/:id/diff — files changed since the session started
+router.get('/sessions/:id/diff', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const ctx = resolveSessionDiff(req.params.id);
+    if (!ctx.ok) {
+      res.status(ctx.status).json({ available: false, reason: ctx.reason });
+      return;
+    }
+    const files = await listSessionDiffFiles(ctx.gitDir, ctx.range);
+    res.json({ available: true, files, base: ctx.base });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/sessions/:id/diff/file?path=... — unified diff for one file
+router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const filePath = (req.query.path as string | undefined)?.trim();
+    if (!filePath) {
+      res.status(400).json({ error: 'path query is required' });
+      return;
+    }
+    const ctx = resolveSessionDiff(req.params.id);
+    if (!ctx.ok) {
+      res.status(ctx.status).json({ available: false, reason: ctx.reason });
+      return;
+    }
+    // Whitelist: only serve paths that actually appear in this session's diff.
+    const match = (await listSessionDiffFiles(ctx.gitDir, ctx.range)).find((f) => f.path === filePath);
+    if (!match) {
+      res.status(400).json({ error: 'path not in diff' });
+      return;
+    }
+    const diff = await sessionFileDiff(ctx.gitDir, ctx.range, match);
+    res.json({ available: true, diff });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 

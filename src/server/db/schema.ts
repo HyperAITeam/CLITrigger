@@ -161,6 +161,7 @@ export function initDatabase(db: Database.Database): void {
       process_pid INTEGER,
       branch_name TEXT,
       worktree_path TEXT,
+      base_commit TEXT,
       token_usage TEXT,
       total_cost_usd REAL,
       total_tokens INTEGER,
@@ -367,6 +368,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'todos', column: 'total_tokens', definition: 'INTEGER' },
     { table: 'todos', column: 'use_worktree', definition: 'INTEGER' },
     { table: 'sessions', column: 'use_worktree', definition: 'INTEGER DEFAULT 0' },
+    // HEAD commit captured when the session first started — Diff view compares
+    // the working tree against this to show everything the session changed.
+    { table: 'sessions', column: 'base_commit', definition: 'TEXT' },
     { table: 'planner_items', column: 'images', definition: 'TEXT' },
     { table: 'planner_items', column: 'page_id', definition: 'TEXT' },
     { table: 'cli_models', column: 'deprecated', definition: 'INTEGER DEFAULT 0' },
