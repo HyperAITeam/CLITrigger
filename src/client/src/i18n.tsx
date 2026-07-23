@@ -366,9 +366,6 @@ const translations = {
     'header.debugLoggingTitle': 'Debug Logging',
     'header.debugLoggingDesc': 'Save full CLI input/output to .debug-logs/ for each task execution.',
     'header.debugLoggingEnable': 'Enable debug log files',
-    'header.gstackTitle': 'gstack Skills',
-    'header.gstackEnabled': 'Enable gstack skill injection',
-    'header.gstackCredit': 'Powered by gstack (MIT License, Garry Tan)',
     'header.usageLimit': 'Usage',
     'header.cliNotInstalled': '{tool} is not installed',
     'header.cliInstalled': 'Installed',
@@ -377,7 +374,6 @@ const translations = {
     'header.cliInstallHint.antigravity': 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
     'header.cliInstallHint.codex': 'npm install -g @openai/codex',
     'header.cliRefresh': 'Re-check',
-    'header.gstackClaudeOnly': 'gstack skills are only available with Claude CLI.',
 
     // Jira Header
     'header.jiraTitle': 'Jira Integration',
@@ -1840,9 +1836,6 @@ const translations = {
     'header.debugLoggingTitle': '\uB514\uBC84\uADF8 \uB85C\uAE45',
     'header.debugLoggingDesc': '\uAC01 \uD0DC\uC2A4\uD06C \uC2E4\uD589 \uC2DC CLI \uC785\uCD9C\uB825 \uC804\uCCB4\uB97C .debug-logs/ \uD30C\uC77C\uB85C \uC800\uC7A5\uD569\uB2C8\uB2E4.',
     'header.debugLoggingEnable': '\uB514\uBC84\uADF8 \uB85C\uADF8 \uD30C\uC77C \uD65C\uC131\uD654',
-    'header.gstackTitle': 'gstack \uC2A4\uD0AC',
-    'header.gstackEnabled': 'gstack \uC2A4\uD0AC \uC8FC\uC785 \uD65C\uC131\uD654',
-    'header.gstackCredit': 'gstack \uAE30\uBC18 (MIT \uB77C\uC774\uC120\uC2A4, Garry Tan)',
     'header.usageLimit': '사용량',
     'header.cliNotInstalled': '{tool}이(가) 설치되지 않았습니다',
     'header.cliInstalled': '설치됨',
@@ -1851,7 +1844,6 @@ const translations = {
     'header.cliInstallHint.antigravity': 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
     'header.cliInstallHint.codex': 'npm install -g @openai/codex',
     'header.cliRefresh': '재확인',
-    'header.gstackClaudeOnly': 'gstack 스킬은 Claude CLI에서만 사용 가능합니다.',
 
     // Jira Header
     'header.jiraTitle': 'Jira \uC5F0\uB3D9',

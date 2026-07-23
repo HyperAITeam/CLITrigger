@@ -19,10 +19,6 @@ export function getAllPlugins(): PluginManifest[] {
   return Array.from(plugins.values());
 }
 
-export function getExecutionHookPlugins(): PluginManifest[] {
-  return getAllPlugins().filter(p => p.category === 'execution-hook' && p.onBeforeExecution);
-}
-
 export function mountPluginRoutes(app: Express): void {
   for (const plugin of plugins.values()) {
     if (!plugin.createRouter) continue;

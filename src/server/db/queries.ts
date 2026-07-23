@@ -15,8 +15,6 @@ export interface Project {
   claude_model: string | null;
   claude_options: string | null;
   cli_tool: string;
-  gstack_enabled: number;
-  gstack_skills: string | null;
   jira_enabled: number;
   jira_base_url: string | null;
   jira_email: string | null;
@@ -80,7 +78,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'gstack_enabled' | 'gstack_skills' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'jira_enabled' | 'jira_base_url' | 'jira_email' | 'jira_api_token' | 'jira_project_key' | 'notion_enabled' | 'notion_api_key' | 'notion_database_id' | 'github_enabled' | 'github_token' | 'github_owner' | 'github_repo' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -95,8 +93,6 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }
   if (updates.cli_tool !== undefined) { fields.push('cli_tool = ?'); values.push(updates.cli_tool); }
-  if (updates.gstack_enabled !== undefined) { fields.push('gstack_enabled = ?'); values.push(updates.gstack_enabled); }
-  if (updates.gstack_skills !== undefined) { fields.push('gstack_skills = ?'); values.push(updates.gstack_skills); }
   if (updates.jira_enabled !== undefined) { fields.push('jira_enabled = ?'); values.push(updates.jira_enabled); }
   if (updates.jira_base_url !== undefined) { fields.push('jira_base_url = ?'); values.push(updates.jira_base_url); }
   if (updates.jira_email !== undefined) { fields.push('jira_email = ?'); values.push(updates.jira_email); }

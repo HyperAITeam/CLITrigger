@@ -337,8 +337,6 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'claude_options', definition: 'TEXT' },
     { table: 'projects', column: 'is_git_repo', definition: 'INTEGER DEFAULT 1' },
     { table: 'projects', column: 'cli_tool', definition: "TEXT DEFAULT 'claude'" },
-    { table: 'projects', column: 'gstack_enabled', definition: 'INTEGER DEFAULT 0' },
-    { table: 'projects', column: 'gstack_skills', definition: 'TEXT' },
     { table: 'projects', column: 'jira_enabled', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'jira_base_url', definition: 'TEXT' },
     { table: 'projects', column: 'jira_email', definition: 'TEXT' },
@@ -577,13 +575,6 @@ function migratePluginConfigs(db: Database.Database): void {
         { from: 'notion_enabled', to: 'enabled' },
         { from: 'notion_api_key', to: 'api_key' },
         { from: 'notion_database_id', to: 'database_id' },
-      ],
-    },
-    {
-      pluginId: 'gstack',
-      columns: [
-        { from: 'gstack_enabled', to: 'enabled' },
-        { from: 'gstack_skills', to: 'skills' },
       ],
     },
   ];

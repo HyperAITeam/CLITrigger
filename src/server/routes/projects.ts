@@ -368,7 +368,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
 
     // claude_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, svn_enabled, color } = req.body;
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, svn_enabled, color } = req.body;
 
     // Handle SVN enable/disable transitions:
     //   off → on  : run detection now and set vcs_type='svn' if .svn/ found
@@ -388,7 +388,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     }
 
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_options, cli_tool, gstack_enabled, gstack_skills, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, color,
+      name, path, default_branch, max_concurrent, claude_options, cli_tool, jira_enabled, jira_base_url, jira_email, jira_api_token, jira_project_key, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, notion_enabled, notion_api_key, notion_database_id, github_enabled, github_token, github_owner, github_repo, use_worktree, show_token_usage, npm_auto_install, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
     });

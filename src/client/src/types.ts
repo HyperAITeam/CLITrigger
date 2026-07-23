@@ -10,8 +10,6 @@ export interface Project {
   claude_model: string | null;
   claude_options: string | null;
   cli_tool: string;
-  gstack_enabled: number;
-  gstack_skills: string | null;
   jira_enabled: number;
   jira_base_url: string | null;
   jira_email: string | null;
@@ -51,14 +49,6 @@ export interface NotionQueryResult {
   results: NotionPage[];
   has_more: boolean;
   next_cursor: string | null;
-}
-
-export interface GstackSkill {
-  id: string;
-  name: string;
-  description: string;
-  descriptionKo: string;
-  category: string;
 }
 
 export interface ImageMeta {

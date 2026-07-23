@@ -1,5 +1,4 @@
 import type { Router } from 'express';
-import type { Project } from '../db/queries.js';
 
 export interface PluginConfigField {
   key: string;
@@ -13,23 +12,14 @@ export interface PluginHelpers {
   isEnabled: (projectId: string) => boolean;
 }
 
-export interface ExecutionContext {
-  project: Project;
-  todoId: string;
-  workDir: string;
-  cliTool: string;
-  log: (type: string, message: string) => void;
-}
-
 export interface PluginManifest {
   id: string;
   version: string;
   displayName: string;
   displayNameKo: string;
-  category: 'external-service' | 'execution-hook';
+  category: 'external-service';
   configFields: PluginConfigField[];
   hasPanel: boolean;
   routePrefix?: string;
   createRouter?: (helpers: PluginHelpers) => Router;
-  onBeforeExecution?: (ctx: ExecutionContext) => Promise<void>;
 }
