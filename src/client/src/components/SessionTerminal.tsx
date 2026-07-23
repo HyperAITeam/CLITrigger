@@ -167,6 +167,15 @@ function wrapBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`;
 }
 
+// Format dropped file paths for terminal insertion: quote paths containing
+// whitespace, join with spaces, trailing space to separate from next token.
+// ponytail: naive double-quote-on-whitespace; add per-shell escaping only if
+// a real path with quotes/backslash-sensitive shell shows up.
+export function formatDroppedPaths(paths: string[]): string {
+  const parts = paths.filter(Boolean).map((p) => (/\s/.test(p) ? `"${p}"` : p));
+  return parts.length ? parts.join(' ') + ' ' : '';
+}
+
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -1513,6 +1522,31 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
       console.debug('[paste-fallback] paste event had no usable text/image');
     }
   };
+  // Drag a file from the OS onto the terminal → insert its absolute path.
+  // Electron-only: the browser can't read a dropped file's OS path, so the
+  // bridge is undefined there and we just swallow the drop (never navigate).
+  const handleDrop = (e: DragEvent) => {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return; // text / internal reorder drags fall through
+    e.preventDefault();                        // never let the browser navigate to the file
+    const bridge = (window as unknown as {
+      electronAPI?: { getDroppedFilePath?: (f: File) => string };
+    }).electronAPI?.getDroppedFilePath;
+    if (!bridge) return;
+    const paths: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const p = bridge(files[i]);
+      if (p) paths.push(p);
+    }
+    const text = formatDroppedPaths(paths);
+    if (text) sendMessage({ type: 'session:terminal-input', sessionId, input: text });
+  };
+  const handleDragOver = (e: DragEvent) => {
+    if (e.dataTransfer?.types?.includes('Files')) { // only intercept file drags
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
   // Stranded-TSF self-heal: a keydown arriving while document.hasFocus() is
   // false means the OS delivers keys to this window but Chromium page focus
   // is dead (ime-debug 2026-07-16: popout teardown during recall-to-main).
@@ -1570,6 +1604,8 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   container.addEventListener('compositionupdate', handleCompUpdate, true);
   container.addEventListener('compositionend', handleCompEnd, true);
   container.addEventListener('paste', handlePaste, true);
+  container.addEventListener('dragover', handleDragOver);
+  container.addEventListener('drop', handleDrop);
   const onDataDisposable = term.onData((d) => {
     if (composing) return;
     if (pendingDedup !== null && d === pendingDedup) {
@@ -1589,6 +1625,8 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     container.removeEventListener('compositionupdate', handleCompUpdate, true);
     container.removeEventListener('compositionend', handleCompEnd, true);
     container.removeEventListener('paste', handlePaste, true);
+    container.removeEventListener('dragover', handleDragOver);
+    container.removeEventListener('drop', handleDrop);
     reportComposing('');
   };
 }
