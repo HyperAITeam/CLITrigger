@@ -111,16 +111,42 @@ export function CommitDiffViewer({
         <span className="text-xs font-mono text-gray-100">{selectedFile}</span>
       </div>
       <div className="flex-1 overflow-auto">
-        <pre className="p-3 font-mono text-xs leading-relaxed">
-          {diff ? diff.split('\n').map((line, i) => {
-            let className = 'text-gray-200';
-            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-gray-100 bg-green-500/20';
-            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-gray-100 bg-red-500/20';
-            else if (line.startsWith('@@')) className = 'text-blue-400';
-            else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
-            return <div key={i} className={className}>{line || ' '}</div>;
-          }) : <span className="text-gray-400 italic">No changes</span>}
-        </pre>
+        <div className="p-3 font-mono text-xs leading-relaxed">
+          {diff ? (() => {
+            // Track old/new line numbers off each `@@ -a,b +c,d @@` hunk header.
+            let oldLn = 0, newLn = 0, inHunk = false;
+            return diff.split('\n').map((line, i) => {
+              let className = 'text-gray-200';
+              let oldNum: number | null = null;
+              let newNum: number | null = null;
+              if (line.startsWith('@@')) {
+                const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+                if (m) { oldLn = parseInt(m[1], 10); newLn = parseInt(m[2], 10); inHunk = true; }
+                className = 'text-blue-400';
+              } else if (line.startsWith('diff ')) {
+                className = 'text-amber-300 font-bold';
+              } else if (line.startsWith('+++') || line.startsWith('---')) {
+                // file headers — no line numbers
+              } else if (inHunk && line.startsWith('+')) {
+                className = 'text-gray-100 bg-green-500/20';
+                newNum = newLn++;
+              } else if (inHunk && line.startsWith('-')) {
+                className = 'text-gray-100 bg-red-500/20';
+                oldNum = oldLn++;
+              } else if (inHunk && !line.startsWith('\\')) {
+                oldNum = oldLn++;
+                newNum = newLn++;
+              }
+              return (
+                <div key={i} className={`flex ${className}`}>
+                  <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{oldNum ?? ''}</span>
+                  <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{newNum ?? ''}</span>
+                  <span className="flex-1 whitespace-pre">{line || ' '}</span>
+                </div>
+              );
+            });
+          })() : <span className="text-gray-400 italic">No changes</span>}
+        </div>
       </div>
     </div>
   );
