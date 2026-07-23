@@ -49,7 +49,6 @@ import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
 import { jiraPlugin } from './plugins/jira/index.js';
 import { githubPlugin } from './plugins/github/index.js';
 import { notionPlugin } from './plugins/notion/index.js';
-import { gstackPlugin } from './plugins/gstack/index.js';
 import { harnessPlugin } from './plugins/harness/index.js';
 
 const app = express();
@@ -226,7 +225,6 @@ app.use('/api/auth', authRouter);
 registerPlugin(jiraPlugin);
 registerPlugin(githubPlugin);
 registerPlugin(notionPlugin);
-registerPlugin(gstackPlugin);
 registerPlugin(harnessPlugin);
 
 // --- Routes ---

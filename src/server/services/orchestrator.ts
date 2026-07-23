@@ -5,7 +5,6 @@ import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
-import { getExecutionHookPlugins } from '../plugins/registry.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcaster } from '../websocket/broadcaster.js';
@@ -545,23 +544,6 @@ Complete the task in the current directory.`;
     // Sandbox: add prompt-level path restriction for strict mode
     if (sandboxMode === 'strict') {
       prompt += `\n\nIMPORTANT: Your working directory is ${workDir}. Do NOT access, read, write, or modify any files outside this directory, except for git operations that naturally access .git metadata.`;
-    }
-
-    // Run execution-hook plugins (e.g. gstack skill injection)
-    const hookPlugins = getExecutionHookPlugins();
-    for (const plugin of hookPlugins) {
-      try {
-        await plugin.onBeforeExecution!({
-          project,
-          todoId,
-          workDir,
-          cliTool,
-          log: (type, message) => queries.createTaskLog(todoId, type, message),
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        queries.createTaskLog(todoId, 'error', `Plugin "${plugin.id}" hook failed: ${msg}`);
-      }
     }
 
     // Inject long-term memory if configured for this todo

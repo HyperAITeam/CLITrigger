@@ -141,8 +141,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
         // Keep legacy columns in sync for backward compatibility
-        gstack_enabled: pluginConfigs.gstack?.enabled === '1' ? 1 : 0,
-        gstack_skills: pluginConfigs.gstack?.skills || null,
         jira_enabled: pluginConfigs.jira?.enabled === '1' ? 1 : 0,
         jira_base_url: pluginConfigs.jira?.base_url || null,
         jira_email: pluginConfigs.jira?.email || null,
