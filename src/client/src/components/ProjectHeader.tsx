@@ -116,13 +116,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
     finally { setCheckingGit(false); }
   }, [project.id, onProjectUpdate]);
 
-  const handlePluginConfigChange = (pluginId: string, updates: Record<string, any>) => {
-    setPluginConfigs(prev => ({
-      ...prev,
-      [pluginId]: { ...prev[pluginId], ...updates },
-    }));
-  };
-
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
@@ -140,19 +133,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
-        // Keep legacy columns in sync for backward compatibility
-        jira_enabled: pluginConfigs.jira?.enabled === '1' ? 1 : 0,
-        jira_base_url: pluginConfigs.jira?.base_url || null,
-        jira_email: pluginConfigs.jira?.email || null,
-        jira_api_token: pluginConfigs.jira?.api_token || null,
-        jira_project_key: pluginConfigs.jira?.project_key || null,
-        notion_enabled: pluginConfigs.notion?.enabled === '1' ? 1 : 0,
-        notion_api_key: pluginConfigs.notion?.api_key || null,
-        notion_database_id: pluginConfigs.notion?.database_id || null,
-        github_enabled: pluginConfigs.github?.enabled === '1' ? 1 : 0,
-        github_token: pluginConfigs.github?.token || null,
-        github_owner: pluginConfigs.github?.owner || null,
-        github_repo: pluginConfigs.github?.repo || null,
       });
 
       // Save plugin configs to plugin_configs table
@@ -287,7 +267,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             {[
               { key: 'harness', label: t('tabs.harness') },
               { key: 'execution', label: t('header.execConfig') },
-              { key: 'plugins', label: t('tabs.plugins') || 'Plugins' },
               ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
             ].map((s) => (
               <button
@@ -624,23 +603,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
 
           {settingsSection === 'harness' && (
             <HarnessPanel project={project} onImportAsTask={() => {}} />
-          )}
-
-          {settingsSection === 'plugins' && (
-          <>
-          {/* Plugin Settings */}
-          {getClientPlugins()
-            .filter((plugin) => plugin.id !== 'harness')
-            .map((plugin) => (
-            <div key={plugin.id} className="mt-6">
-              <plugin.SettingsComponent
-                project={project}
-                config={pluginConfigs[plugin.id] || {}}
-                onConfigChange={(updates) => handlePluginConfigChange(plugin.id, updates)}
-              />
-            </div>
-          ))}
-          </>
           )}
 
           {!project.is_git_repo && (

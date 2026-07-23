@@ -1,7 +1,6 @@
-// Minimal Jira Cloud REST client used by the global agenda integration.
-// Mirrors the auth/fetch approach of the per-project Jira plugin
-// (src/server/plugins/jira/router.ts) but takes an explicit connection so it
-// can be driven by the agenda's own global config.
+// Minimal Jira Cloud REST client used by the global "My Schedule" agenda
+// integration. Takes an explicit connection so it can be driven by the
+// agenda's own global config (stored in app_settings).
 
 import { assertPublicHttpUrl } from '../utils/net-safety.js';
 

@@ -27,7 +27,6 @@ import PlannerWorkspace from './PlannerWorkspace';
 // codemirror) stay out of the initial bundle — they load on first tab open.
 const AnalyticsPanel = lazy(() => import('./AnalyticsPanel'));
 const VaultLayout = lazy(() => import('./vault/VaultLayout'));
-import { getPluginsWithTabs } from '../plugins/registry';
 
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
@@ -769,15 +768,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
           { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
           { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
-          ...getPluginsWithTabs(project).map((plugin) => {
-            const helpKey = `tabs.${plugin.id}.help`;
-            const help = t(helpKey);
-            return {
-              key: plugin.id,
-              label: t(`tabs.${plugin.id}`) || plugin.displayName,
-              help: help === helpKey ? '' : help,
-            };
-          }),
           ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
           ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
         ].map((tab) => (
@@ -903,19 +893,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onStopDiscussion={handleStopDiscussion}
           onDeleteDiscussion={handleDeleteDiscussion}
         />
-      )}
-      {getPluginsWithTabs(project).map((plugin) =>
-        activeTab === plugin.id && plugin.PanelComponent ? (
-          <plugin.PanelComponent
-            key={plugin.id}
-            project={project}
-            onImportAsTask={async (title: string, description: string) => {
-              if (!id) return;
-              const newTodo = await todosApi.createTodo(id, { title, description });
-              setTodos((prev) => [...prev, newTodo]);
-            }}
-          />
-        ) : null
       )}
       {activeTab === 'automation' && automationSub === 'analytics' && id && (
         <Suspense fallback={null}>
