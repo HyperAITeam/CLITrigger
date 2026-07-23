@@ -76,8 +76,32 @@ export default function SessionPane({
   })();
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // On-demand Diff side drawer — only fetches when opened.
+  // On-demand Diff side panel — docked on the right, resizable. Only fetches
+  // when opened; the terminal reflows (its ResizeObserver refits) as it shrinks.
   const [diffOpen, setDiffOpen] = useState(false);
+  const [diffWidth, setDiffWidth] = useState(480);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const startDiffResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const pane = paneRef.current;
+    if (!pane) return;
+    const onMove = (ev: MouseEvent) => {
+      const rect = pane.getBoundingClientRect();
+      const min = 240;
+      const max = Math.max(min, rect.width - 200);
+      setDiffWidth(Math.min(max, Math.max(min, rect.right - ev.clientX)));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
   // Terminal-requested rebuild (alt-screen font zoom settled). Composes with
   // the host-driven remountKey in the React key below so either source
   // disposes/recreates xterm — the remount's subscribe replay + resize make
@@ -303,13 +327,16 @@ export default function SessionPane({
 
   return (
     <div
+      ref={paneRef}
       style={{
-        display: visible ? 'block' : 'none',
+        display: visible ? 'flex' : 'none',
+        flexDirection: 'row',
         position: 'absolute',
         inset: 0,
         background: CMD.bg,
       }}
     >
+      <div style={{ position: 'relative', flex: 1, minWidth: 0, height: '100%' }}>
       <SessionTerminal
         key={`${remountKey}:${autoRefreshNonce}`}
         sessionId={session.id}
@@ -343,18 +370,6 @@ export default function SessionPane({
         >
           <GitCompare size={11} /> Diff
         </button>
-      )}
-      {diffOpen && (
-        <div
-          style={{
-            position: 'absolute', top: 0, bottom: 0, right: 0,
-            width: 'min(50%, 640px)', zIndex: 1001,
-            borderLeft: `1px solid ${CMD.separator}`,
-            boxShadow: '-8px 0 24px rgba(0,0,0,0.4)',
-          }}
-        >
-          <SessionDiffPanel sessionId={session.id} onClose={() => setDiffOpen(false)} />
-        </div>
       )}
       {pendingPromptLength !== null && (
         <div style={pendingBannerStyle}>
@@ -418,6 +433,21 @@ export default function SessionPane({
             </pre>
           )}
         </div>
+      )}
+      </div>
+      {diffOpen && (
+        <>
+          <div
+            onMouseDown={startDiffResize}
+            style={{
+              width: 5, flexShrink: 0, cursor: 'col-resize',
+              background: CMD.separator,
+            }}
+          />
+          <div style={{ width: diffWidth, flexShrink: 0, minWidth: 0, height: '100%' }}>
+            <SessionDiffPanel sessionId={session.id} onClose={() => setDiffOpen(false)} />
+          </div>
+        </>
       )}
     </div>
   );
