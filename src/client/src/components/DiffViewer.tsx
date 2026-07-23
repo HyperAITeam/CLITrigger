@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { WrapText } from 'lucide-react';
 import type { CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
 
@@ -88,6 +90,7 @@ export function CommitDiffViewer({
   selectedFile: string | null;
 }) {
   const { t } = useI18n();
+  const [wrap, setWrap] = useState(true);
 
   if (!selectedFile) {
     return (
@@ -107,8 +110,15 @@ export function CommitDiffViewer({
 
   return (
     <div className="h-full flex flex-col bg-[#1A1A1A]">
-      <div className="px-3 py-2 border-b border-gray-700 shrink-0">
-        <span className="text-xs font-mono text-gray-100">{selectedFile}</span>
+      <div className="px-3 py-2 border-b border-gray-700 shrink-0 flex items-center justify-between gap-2">
+        <span className="text-xs font-mono text-gray-100 truncate" title={selectedFile}>{selectedFile}</span>
+        <button
+          onClick={() => setWrap((w) => !w)}
+          title={t('git.wrapLines') || 'Wrap lines'}
+          className={`p-1 rounded shrink-0 hover:bg-gray-700 ${wrap ? 'text-accent' : 'text-gray-500'}`}
+        >
+          <WrapText size={14} />
+        </button>
       </div>
       <div className="flex-1 overflow-auto">
         <div className="p-3 font-mono text-xs leading-relaxed">
@@ -141,10 +151,10 @@ export function CommitDiffViewer({
                 return null; // '\ No newline at end of file', trailing blank, etc.
               }
               return (
-                <div key={i} className={`flex ${className}`}>
+                <div key={i} className={`flex items-start ${className}`}>
                   <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{oldNum ?? ''}</span>
                   <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{newNum ?? ''}</span>
-                  <span className="flex-1 whitespace-pre">{line || ' '}</span>
+                  <span className={`flex-1 min-w-0 ${wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>{line || ' '}</span>
                 </div>
               );
             });
