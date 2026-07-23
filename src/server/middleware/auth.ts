@@ -104,6 +104,20 @@ export const sessionMiddleware: RequestHandler = (req, res, next) => {
   realSessionMiddleware(req, res, next);
 };
 
+// Validate an `Authorization: Bearer <token>` header against the locally
+// generated MCP token. Used both by the /mcp endpoint guard and by the MCP
+// tools' loopback calls into /api/*.
+export function matchesMcpToken(req: { headers: Record<string, unknown> }): boolean {
+  const header = req.headers['authorization'];
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
+  const provided = header.slice(7).trim();
+  const expected = getSetting('mcp.token');
+  if (!expected || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // Auth check middleware - skip for /api/auth/* routes
 export const authMiddleware: RequestHandler = (req, res, next) => {
   // Skip auth for login/status endpoints
@@ -112,6 +126,11 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
   }
   // Skip auth for health check
   if (req.path === '/api/health' || req.path === '/health') {
+    return next();
+  }
+
+  // MCP clients and the MCP tools' loopback calls authenticate via bearer token.
+  if (matchesMcpToken(req)) {
     return next();
   }
 

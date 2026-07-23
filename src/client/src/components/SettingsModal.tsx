@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { KeyRound, Cloud, TerminalSquare } from 'lucide-react';
+import { KeyRound, Cloud, TerminalSquare, Plug } from 'lucide-react';
 import { useI18n } from '../i18n';
 import Modal from './Modal';
 import { TunnelSettingsPanel } from './TunnelSettings';
 import PasswordSettingsPanel from './PasswordSettingsPanel';
 import SessionSettingsPanel from './SessionSettingsPanel';
+import McpSettingsPanel from './McpSettingsPanel';
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab = 'account' | 'session' | 'tunnel';
+type Tab = 'account' | 'session' | 'tunnel' | 'mcp';
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { t } = useI18n();
@@ -23,6 +24,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     { id: 'account', label: t('settings.tabs.account'), icon: KeyRound },
     { id: 'session', label: t('settings.tabs.session'), icon: TerminalSquare },
     { id: 'tunnel', label: t('settings.tabs.tunnel'), icon: Cloud },
+    { id: 'mcp', label: t('settings.tabs.mcp'), icon: Plug },
   ];
 
   return (
@@ -65,6 +67,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             {tab === 'account' && <PasswordSettingsPanel onClose={onClose} />}
             {tab === 'session' && <SessionSettingsPanel onClose={onClose} />}
             {tab === 'tunnel' && <TunnelSettingsPanel onClose={onClose} />}
+            {tab === 'mcp' && <McpSettingsPanel onClose={onClose} />}
           </div>
         </div>
       </div>

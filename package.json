@@ -70,6 +70,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/iarna__toml": "^2.0.5",
     "better-sqlite3": "^12.11.1",
     "cloudflared": "^0.7.1",
@@ -86,7 +87,8 @@
     "simple-git": "^3.27.0",
     "tree-kill": "^1.2.2",
     "uuid": "^11.1.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.1.0",

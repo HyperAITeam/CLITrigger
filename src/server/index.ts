@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
+import crypto from 'crypto';
 import { getDatabase } from './db/connection.js';
 import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion, getSessionsByStatus, updateSessionStatus, updateSession } from './db/queries.js';
 import { initAuth } from './middleware/auth.js';
@@ -23,6 +24,8 @@ import { tunnelManager } from './services/tunnel-manager.js';
 import { getSetting as getAppSetting, setSetting as setAppSetting } from './db/app-settings.js';
 import { hashPassword } from './utils/password.js';
 import { initWebSocket } from './websocket/index.js';
+import mcpRouter from './routes/mcp.js';
+import { mountMcp } from './mcp/index.js';
 import tunnelRouter from './routes/tunnel.js';
 import schedulesRouter from './routes/schedules.js';
 import pluginsRouter from './routes/plugins.js';
@@ -214,6 +217,12 @@ if (process.env.DISABLE_AUTH !== 'true') {
   }
 }
 
+// MCP bearer token — generated once, stored in app_settings, shown in the UI's
+// "MCP 연결" card so external MCP clients can authenticate.
+if (!getAppSetting('mcp.token')) {
+  setAppSetting('mcp.token', crypto.randomBytes(32).toString('hex'));
+}
+
 // Auth middleware
 initAuth(app);
 app.use('/api/auth', authRouter);
@@ -247,7 +256,12 @@ app.use('/api', vaultRouter);
 app.use('/api/review', reviewRouter);
 app.use('/api', personalRouter);
 app.use('/api', favoritesRouter);
+app.use('/api', mcpRouter);
 mountPluginRoutes(app);
+
+// MCP endpoint (bearer-auth, not under /api). Mount before static/SPA serving
+// so the catch-all does not swallow /mcp.
+mountMcp(app);
 
 // --- Scheduler ---
 scheduler.initialize();

@@ -209,6 +209,19 @@ const translations = {
     'settings.tabs.account': 'Account',
     'settings.tabs.session': 'Terminals',
     'settings.tabs.tunnel': 'Tunnel',
+    'settings.tabs.mcp': 'MCP',
+
+    // MCP connection (panel inside Settings modal)
+    'mcp.title': 'MCP Connection',
+    'mcp.description': 'Connect an MCP client (Claude Desktop, Claude Code) to control CLITrigger — list projects, create and run tasks, check status. Paste the config below into your client; keep the server running.',
+    'mcp.loading': 'Loading connection info…',
+    'mcp.config.label': 'Client config (HTTP transport)',
+    'mcp.command.label': 'Claude Code (one command)',
+    'mcp.copy': 'Copy',
+    'mcp.copied': 'Copied to clipboard',
+    'mcp.copyFailed': 'Copy failed',
+    'mcp.tokenNote': 'This token grants full API access to anyone who can reach this server. Treat it like a password.',
+    'mcp.close': 'Close',
 
     // Session settings (panel inside Settings modal)
     'sessionSettings.title': 'Terminal preferences',
@@ -1574,6 +1587,19 @@ const translations = {
     'settings.tabs.account': '계정',
     'settings.tabs.session': '터미널',
     'settings.tabs.tunnel': '터널',
+    'settings.tabs.mcp': 'MCP',
+
+    // MCP connection (panel inside Settings modal)
+    'mcp.title': 'MCP 연결',
+    'mcp.description': 'MCP 클라이언트(Claude Desktop, Claude Code)를 연결해 CLITrigger를 조종합니다 — 프로젝트 목록, 할일 생성·실행, 상태 조회. 아래 config를 클라이언트에 붙여넣으세요. 서버는 켜져 있어야 합니다.',
+    'mcp.loading': '연결 정보를 불러오는 중…',
+    'mcp.config.label': '클라이언트 config (HTTP transport)',
+    'mcp.command.label': 'Claude Code (원커맨드)',
+    'mcp.copy': '복사',
+    'mcp.copied': '클립보드에 복사됨',
+    'mcp.copyFailed': '복사 실패',
+    'mcp.tokenNote': '이 토큰은 서버에 접근 가능한 누구에게나 전체 API 권한을 부여합니다. 비밀번호처럼 취급하세요.',
+    'mcp.close': '닫기',
 
     // Session settings (panel inside Settings modal)
     'sessionSettings.title': '터미널 환경설정',
