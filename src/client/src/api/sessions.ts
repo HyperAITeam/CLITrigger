@@ -12,6 +12,25 @@ export function getSession(id: string): Promise<Session> {
   return get(`/api/sessions/${id}`);
 }
 
+// Diff of everything the session changed since it started (committed +
+// uncommitted). available:false when the project isn't a git repo.
+export interface SessionDiffFile {
+  path: string;
+  status: string;
+  insertions: number;
+  deletions: number;
+  binary: boolean;
+}
+
+export function getSessionDiff(id: string): Promise<{ available: boolean; reason?: string; files?: SessionDiffFile[]; base?: string | null }> {
+  return get(`/api/sessions/${id}/diff`);
+}
+
+export function getSessionFileDiff(id: string, filePath: string): Promise<{ available: boolean; reason?: string; diff?: string }> {
+  const params = new URLSearchParams({ path: filePath });
+  return get(`/api/sessions/${id}/diff/file?${params}`);
+}
+
 export function createSession(
   projectId: string,
   data: { title: string; description?: string; cli_tool?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; tag_id?: string | null }

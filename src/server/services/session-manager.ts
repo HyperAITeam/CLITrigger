@@ -5,6 +5,7 @@ import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcastProjectStatus } from './project-status.js';
+import { createGit } from '../lib/git.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -245,6 +246,19 @@ export class SessionManager {
       }
     }
 
+    // Capture the session's starting commit once (kept across resume) so the
+    // Diff view can show everything this session changed — committed and
+    // uncommitted — relative to it. Works whether workDir is a worktree or the
+    // project root on main.
+    let baseCommit: string | null = session.base_commit ?? null;
+    if (!baseCommit && project.is_git_repo) {
+      try {
+        baseCommit = (await createGit(workDir).raw(['rev-parse', 'HEAD'])).trim() || null;
+      } catch {
+        baseCommit = null;
+      }
+    }
+
     let pid: number;
     let exitPromise: Promise<number>;
 
@@ -283,7 +297,7 @@ export class SessionManager {
     // map.delete, so a message arriving on the next event-loop tick will
     // see process_pid set and no buffer, and write straight to the PTY in
     // correct order after the replayed bytes.
-    queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath });
+    queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath, base_commit: baseCommit });
     this.livePids.set(sessionId, pid);
     const queued = this.startupInputBuffer.get(sessionId);
     this.startupInputBuffer.delete(sessionId);
