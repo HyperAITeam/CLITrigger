@@ -946,6 +946,7 @@ export interface Session {
   tag_id: string | null;
   created_at: string;
   updated_at: string;
+  is_git_repo?: number; // joined from projects (read-only); not a sessions column
 }
 
 export function createSession(
@@ -986,12 +987,12 @@ export function createSession(
 
 export function getSessionsByProjectId(projectId: string): Session[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Session[];
+  return db.prepare('SELECT s.*, p.is_git_repo FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.project_id = ? ORDER BY s.created_at DESC').all(projectId) as Session[];
 }
 
 export function getSessionById(id: string): Session | undefined {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
+  return db.prepare('SELECT s.*, p.is_git_repo FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(id) as Session | undefined;
 }
 
 export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'base_commit' | 'snapshots' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id'>>): Session | undefined {
