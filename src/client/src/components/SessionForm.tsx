@@ -67,7 +67,7 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     prev?.blur?.();
-    (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI?.imeReset?.();
+    (window as unknown as { electronAPI?: { imeReset?: (force?: boolean) => void } }).electronAPI?.imeReset?.(true);
 
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
