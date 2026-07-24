@@ -263,6 +263,7 @@ export interface Session {
   tag_id?: string | null;
   created_at: string;
   updated_at: string;
+  is_git_repo?: number; // joined from the owning project (read-only)
 }
 
 export interface SessionTag {

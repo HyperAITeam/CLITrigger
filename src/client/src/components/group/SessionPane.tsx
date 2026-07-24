@@ -80,6 +80,8 @@ export default function SessionPane({
   // when opened; the terminal reflows (its ResizeObserver refits) as it shrinks.
   const [diffOpen, setDiffOpen] = useState(false);
   const [diffWidth, setDiffWidth] = useState(480);
+  // Diff only works on a git repo; hide the button/shortcut/panel otherwise.
+  const canDiff = !!session.is_git_repo;
   const paneRef = useRef<HTMLDivElement>(null);
   const startDiffResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -353,10 +355,10 @@ export default function SessionPane({
         onRequestRefresh={handleRequestRefresh}
         disableImagePaste={session.cli_tool === 'raw-shell'}
         onCycleTab={onCycleTab}
-        onToggleDiff={() => setDiffOpen((o) => !o)}
+        onToggleDiff={() => { if (canDiff) setDiffOpen((o) => !o); }}
       />
       {overlayContent}
-      {!diffOpen && (
+      {canDiff && !diffOpen && (
         <button
           onClick={() => setDiffOpen(true)}
           title={`${t('session.diff.title') || 'Diff'} (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+Shift+D)`}
@@ -436,7 +438,7 @@ export default function SessionPane({
         </div>
       )}
       </div>
-      {diffOpen && (
+      {canDiff && diffOpen && (
         <>
           <div
             onMouseDown={startDiffResize}
