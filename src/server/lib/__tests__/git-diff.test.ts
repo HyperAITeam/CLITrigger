@@ -70,4 +70,18 @@ describe('session diff via working-tree snapshots', () => {
     const changed = await diffPaths(base);
     expect(changed.size).toBe(0);
   });
+
+  // Regression: the snapshot seeds its throwaway index by copying the real one,
+  // which on big repos carries fsmonitor / untracked-cache extensions. A stale
+  // cache used to hide files created after start — `add -A` must ignore it.
+  it('detects a new untracked file even with the untracked-cache extension enabled', async () => {
+    run(repo, 'git config core.untrackedCache true');
+    try { run(repo, 'git update-index --untracked-cache'); } catch { /* older git: config alone is enough */ }
+    run(repo, 'git status'); // populate the cache before the session starts
+
+    const base = (await snapshotWorkingTree(repo))!;
+    fs.writeFileSync(path.join(repo, 'test.txt'), 'created after start\n');
+    const changed = await diffPaths(base);
+    expect(changed.get('test.txt')).toBe('A');
+  });
 });
