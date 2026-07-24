@@ -2,7 +2,7 @@
 // started (committed + uncommitted), fetched only when opened. Capture points
 // add extra "pages" that diff from a mid-session snapshot to now. Reuses the
 // shared CommitFileList / CommitDiffViewer from the git/review UI.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, RefreshCw, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
@@ -30,6 +30,12 @@ export default function SessionDiffPanel({ sessionId, onClose }: SessionDiffPane
   // capture snapshot SHA = "since that capture".
   const [activeFrom, setActiveFrom] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
+  // The snapshot the current file list was computed against ({from, now}); fed
+  // back to per-file requests so file clicks reuse it instead of re-snapshotting
+  // the working tree. Kept as one object so `from` and `now` can never drift
+  // apart mid page-switch. `diffCache` memoizes file diffs by `${now}:${path}`.
+  const [diffCtx, setDiffCtx] = useState<{ from: string | null; now: string | null }>({ from: null, now: null });
+  const diffCache = useRef<Map<string, string>>(new Map());
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -55,6 +61,10 @@ export default function SessionDiffPanel({ sessionId, onClose }: SessionDiffPane
           ? res.files.map((f) => ({ path: f.path, status: f.status, additions: f.insertions, deletions: f.deletions }))
           : [];
         setFiles(list);
+        // New snapshot ⇒ prior per-file diffs are stale; reset the memo and
+        // record the {from, now} this list was built against.
+        diffCache.current.clear();
+        setDiffCtx({ from: activeFrom, now: res.now ?? null });
         setSelectedFile((prev) => {
           if (prev && list.some((f) => f.path === prev)) return prev;
           return list.length > 0 ? list[0].path : null;
@@ -70,18 +80,28 @@ export default function SessionDiffPanel({ sessionId, onClose }: SessionDiffPane
     return () => { cancelled = true; };
   }, [sessionId, activeFrom, nonce]);
 
-  // Unified diff for the selected file.
+  // Unified diff for the selected file. Keyed on diffCtx (not activeFrom/nonce)
+  // so `from`/`now` stay paired — the file-list effect refreshes diffCtx, which
+  // re-triggers this. A cache hit renders instantly with no request or spinner.
   useEffect(() => {
     if (!selectedFile) { setFileDiff(''); return; }
+    const cacheKey = `${diffCtx.now ?? ''}:${selectedFile}`;
+    const cached = diffCache.current.get(cacheKey);
+    if (cached !== undefined) { setFileDiff(cached); setFileDiffLoading(false); return; }
     let cancelled = false;
     setFileDiffLoading(true);
     setFileDiff('');
-    sessionsApi.getSessionFileDiff(sessionId, selectedFile, activeFrom ?? undefined)
-      .then((res) => { if (!cancelled) setFileDiff(res.available && res.diff ? res.diff : ''); })
+    sessionsApi.getSessionFileDiff(sessionId, selectedFile, diffCtx.from ?? undefined, diffCtx.now ?? undefined)
+      .then((res) => {
+        if (cancelled) return;
+        const diff = res.available && res.diff ? res.diff : '';
+        diffCache.current.set(cacheKey, diff);
+        setFileDiff(diff);
+      })
       .catch(() => { if (!cancelled) setFileDiff(''); })
       .finally(() => { if (!cancelled) setFileDiffLoading(false); });
     return () => { cancelled = true; };
-  }, [sessionId, selectedFile, activeFrom, nonce]);
+  }, [sessionId, selectedFile, diffCtx]);
 
   const capture = useCallback(() => {
     setCapturing(true);
