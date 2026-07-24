@@ -135,8 +135,11 @@ function parseSnapshots(raw: string | null): SessionSnapshot[] {
 // so a Diff page can show "since that capture" instead of "since start". It must
 // be one of the session's known snapshot SHAs (or base_commit) — never arbitrary
 // input, which would let a caller diff two unrelated commits.
-async function resolveSessionDiff(id: string, from?: string): Promise<
-  | { ok: true; gitDir: string; range: string; base: string | null }
+// `reuseNow` (a snapshot SHA the caller already got from a prior /diff response)
+// skips re-snapshotting the working tree — the expensive `git add -A` scan runs
+// once per Diff-panel open, not once per file click.
+async function resolveSessionDiff(id: string, from?: string, reuseNow?: string): Promise<
+  | { ok: true; gitDir: string; range: string; base: string | null; now: string | null }
   | { ok: false; status: number; reason: string }
 > {
   const session = queries.getSessionById(id);
@@ -152,9 +155,9 @@ async function resolveSessionDiff(id: string, from?: string): Promise<
     if (!allowed.has(from)) return { ok: false, status: 400, reason: 'bad-from' };
     base = from;
   }
-  const now = base ? await snapshotWorkingTree(gitDir) : null;
+  const now = base ? (reuseNow ?? await snapshotWorkingTree(gitDir)) : null;
   const range = base && now ? `${base}..${now}` : (base || 'HEAD');
-  return { ok: true, gitDir, range, base };
+  return { ok: true, gitDir, range, base, now };
 }
 
 // GET /api/sessions/:id/diff — files changed since the session started
@@ -167,7 +170,7 @@ router.get('/sessions/:id/diff', async (req: Request<{ id: string }>, res: Respo
       return;
     }
     const files = await listDiffFiles(createGit(ctx.gitDir), ctx.range);
-    res.json({ available: true, files, base: ctx.base });
+    res.json({ available: true, files, base: ctx.base, now: ctx.now });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
@@ -182,18 +185,20 @@ router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: 
       return;
     }
     const from = (req.query.from as string | undefined)?.trim() || undefined;
-    const ctx = await resolveSessionDiff(req.params.id, from);
+    // Reuse the snapshot SHA the /diff response already produced (SHA form only,
+    // never an arbitrary ref) so file clicks don't each re-snapshot the working
+    // tree. Falls back to a fresh snapshot when absent (direct/legacy callers).
+    const nowRaw = (req.query.now as string | undefined)?.trim();
+    const reuseNow = nowRaw && /^[0-9a-f]{7,40}$/i.test(nowRaw) ? nowRaw : undefined;
+    const ctx = await resolveSessionDiff(req.params.id, from, reuseNow);
     if (!ctx.ok) {
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
     }
+    // Path safety comes from the `--` pathspec below: repo-external / traversal
+    // paths simply don't match, and `--` blocks option injection. No need to
+    // recompute the whole diff just to whitelist the path.
     const git = createGit(ctx.gitDir);
-    // Whitelist: only serve paths that actually appear in this session's diff.
-    const allowed = new Set((await listDiffFiles(git, ctx.range)).map((f) => f.path));
-    if (!allowed.has(filePath)) {
-      res.status(400).json({ error: 'path not in diff' });
-      return;
-    }
     const diff = await git.diff([ctx.range, '-M0', '--', filePath]);
     res.json({ available: true, diff });
   } catch (err: unknown) {

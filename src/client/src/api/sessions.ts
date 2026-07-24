@@ -31,14 +31,18 @@ export interface SessionSnapshot {
 
 // `from` (a capture SHA) scopes the diff to "since that capture" instead of the
 // default "since session start".
-export function getSessionDiff(id: string, from?: string): Promise<{ available: boolean; reason?: string; files?: SessionDiffFile[]; base?: string | null }> {
+// `now` is the working-tree snapshot SHA for this diff; the client feeds it back
+// to getSessionFileDiff so per-file requests reuse the snapshot instead of
+// re-scanning the working tree each click.
+export function getSessionDiff(id: string, from?: string): Promise<{ available: boolean; reason?: string; files?: SessionDiffFile[]; base?: string | null; now?: string | null }> {
   const query = from ? `?${new URLSearchParams({ from })}` : '';
   return get(`/api/sessions/${id}/diff${query}`);
 }
 
-export function getSessionFileDiff(id: string, filePath: string, from?: string): Promise<{ available: boolean; reason?: string; diff?: string }> {
+export function getSessionFileDiff(id: string, filePath: string, from?: string, now?: string): Promise<{ available: boolean; reason?: string; diff?: string }> {
   const params = new URLSearchParams({ path: filePath });
   if (from) params.set('from', from);
+  if (now) params.set('now', now);
   return get(`/api/sessions/${id}/diff/file?${params}`);
 }
 
