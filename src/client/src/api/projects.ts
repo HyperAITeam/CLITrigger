@@ -269,6 +269,18 @@ export function gitRebase(id: string, onto: string): Promise<{ ok: boolean; resu
   return post(`/api/projects/${id}/git-rebase`, { onto });
 }
 
+export function gitRevert(id: string, commit: string): Promise<{ ok: boolean; conflict: boolean; conflictFiles: string[] }> {
+  return post(`/api/projects/${id}/git-revert`, { commit });
+}
+
+export function gitCherryPick(id: string, commit: string): Promise<{ ok: boolean; conflict: boolean; conflictFiles: string[] }> {
+  return post(`/api/projects/${id}/git-cherry-pick`, { commit });
+}
+
+export function gitReset(id: string, commit: string, mode: 'soft' | 'mixed' | 'hard'): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-reset`, { commit, mode });
+}
+
 export function gitDiff(id: string, file?: string, staged?: boolean): Promise<{ diff: string }> {
   const params = new URLSearchParams();
   if (file) params.set('file', file);

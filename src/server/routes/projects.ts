@@ -837,6 +837,57 @@ router.post('/:id/git-rebase', async (req: Request<{ id: string }>, res: Respons
   }
 });
 
+// POST /api/projects/:id/git-revert — revert a commit (conflicts respond 200 with conflict:true)
+router.post('/:id/git-revert', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { commit } = req.body;
+    if (!commit || typeof commit !== 'string') {
+      res.status(400).json({ error: 'commit is required' }); return;
+    }
+    if (hasDashArg(commit.trim())) { res.status(400).json({ error: 'invalid commit' }); return; }
+    const result = await worktreeManager.gitRevert(dirPath, commit.trim());
+    res.json({ ok: true, ...result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-cherry-pick — cherry-pick a commit onto the current branch
+router.post('/:id/git-cherry-pick', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { commit } = req.body;
+    if (!commit || typeof commit !== 'string') {
+      res.status(400).json({ error: 'commit is required' }); return;
+    }
+    if (hasDashArg(commit.trim())) { res.status(400).json({ error: 'invalid commit' }); return; }
+    const result = await worktreeManager.gitCherryPick(dirPath, commit.trim());
+    res.json({ ok: true, ...result });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-reset — move the current branch to a commit
+router.post('/:id/git-reset', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { commit, mode } = req.body;
+    if (!commit || typeof commit !== 'string') {
+      res.status(400).json({ error: 'commit is required' }); return;
+    }
+    if (hasDashArg(commit.trim())) { res.status(400).json({ error: 'invalid commit' }); return; }
+    if (mode !== 'soft' && mode !== 'mixed' && mode !== 'hard') {
+      res.status(400).json({ error: 'mode must be soft, mixed, or hard' }); return;
+    }
+    await worktreeManager.gitReset(dirPath, commit.trim(), mode);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // POST /api/projects/:id/git-conflict-resolve — take one side of a conflicted file
 router.post('/:id/git-conflict-resolve', async (req: Request<{ id: string }>, res: Response) => {
   try {
