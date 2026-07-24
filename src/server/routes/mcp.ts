@@ -18,8 +18,16 @@ router.get('/mcp/connection', (req: Request, res: Response) => {
       },
     },
   };
-  const command = `claude mcp add --transport http clitrigger ${url} --header "Authorization: Bearer ${token}"`;
-  res.json({ url, token, config, command });
+  const header = `--header "Authorization: Bearer ${token}"`;
+  // One-command registration for each supported CLI (all over HTTP transport).
+  // ponytail: only the Claude syntax is verified in this project; agy/codex flags
+  // follow the same documented pattern — confirm with `<cli> mcp add --help`.
+  const commands = [
+    { id: 'claude', label: 'Claude Code', command: `claude mcp add --transport http clitrigger ${url} ${header}` },
+    { id: 'antigravity', label: 'Antigravity (agy)', command: `agy mcp add --transport http clitrigger ${url} ${header}` },
+    { id: 'codex', label: 'Codex', command: `codex mcp add --transport http clitrigger ${url} ${header}` },
+  ];
+  res.json({ url, token, config, commands });
 });
 
 export default router;
