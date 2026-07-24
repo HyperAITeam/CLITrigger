@@ -121,9 +121,10 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
 // excluding state that was already dirty before it started. Falls back to HEAD
 // (committed-vs-worktree, tracked only) for sessions started before base_commit
 // existed or when a fresh snapshot can't be taken.
-function resolveSessionDiff(id: string):
+async function resolveSessionDiff(id: string): Promise<
   | { ok: true; gitDir: string; range: string; base: string | null }
-  | { ok: false; status: number; reason: string } {
+  | { ok: false; status: number; reason: string }
+> {
   const session = queries.getSessionById(id);
   if (!session) return { ok: false, status: 404, reason: 'session-not-found' };
   const project = queries.getProjectById(session.project_id);
@@ -132,7 +133,7 @@ function resolveSessionDiff(id: string):
     ? session.worktree_path
     : project.path;
   const base = session.base_commit;
-  const now = base ? snapshotWorkingTree(gitDir) : null;
+  const now = base ? await snapshotWorkingTree(gitDir) : null;
   const range = base && now ? `${base}..${now}` : (base || 'HEAD');
   return { ok: true, gitDir, range, base };
 }
@@ -140,7 +141,7 @@ function resolveSessionDiff(id: string):
 // GET /api/sessions/:id/diff — files changed since the session started
 router.get('/sessions/:id/diff', async (req: Request<{ id: string }>, res: Response) => {
   try {
-    const ctx = resolveSessionDiff(req.params.id);
+    const ctx = await resolveSessionDiff(req.params.id);
     if (!ctx.ok) {
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
@@ -160,7 +161,7 @@ router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: 
       res.status(400).json({ error: 'path query is required' });
       return;
     }
-    const ctx = resolveSessionDiff(req.params.id);
+    const ctx = await resolveSessionDiff(req.params.id);
     if (!ctx.ok) {
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;

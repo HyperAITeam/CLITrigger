@@ -253,7 +253,7 @@ export class SessionManager {
     // changes shows up. See snapshotWorkingTree().
     let baseCommit: string | null = session.base_commit ?? null;
     if (!baseCommit && project.is_git_repo) {
-      baseCommit = snapshotWorkingTree(workDir);
+      baseCommit = await snapshotWorkingTree(workDir);
     }
 
     let pid: number;
