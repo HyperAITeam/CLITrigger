@@ -8,6 +8,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import Modal from './Modal';
 import PushDialog from './PushDialog';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
+import ConflictResolver from './ConflictResolver';
 
 interface GitStatusPanelProps {
   project: Project;
@@ -985,9 +986,18 @@ function WorkingChangesView({
 
       {!isMobile && <Resizer axis="x" onResize={handleHResize} />}
 
-      {/* Right/bottom: diff viewer */}
+      {/* Right/bottom: conflict resolver for unmerged files, else read-only diff */}
       <div className={`flex-1 ${isMobile ? 'min-h-0 border-t border-warm-200' : 'min-w-0'}`}>
-        <WorkingDiffViewer diff={diff} loading={diffLoading} file={selectedFile} />
+        {selectedPane === 'conflict' && selectedFile ? (
+          <ConflictResolver
+            projectId={projectId}
+            filePath={selectedFile.path}
+            onResolved={onRefresh}
+            onError={onError}
+          />
+        ) : (
+          <WorkingDiffViewer diff={diff} loading={diffLoading} file={selectedFile} />
+        )}
       </div>
     </div>
   );

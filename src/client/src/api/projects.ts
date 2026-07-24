@@ -224,6 +224,14 @@ export function gitConflictResolve(id: string, file: string, side: 'ours' | 'the
   return post(`/api/projects/${id}/git-conflict-resolve`, { file, side });
 }
 
+export function getConflictFile(id: string, file: string): Promise<{ content: string }> {
+  return get(`/api/projects/${id}/git-conflict-file?file=${encodeURIComponent(file)}`);
+}
+
+export function resolveConflictContent(id: string, file: string, content: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-conflict-file`, { file, content });
+}
+
 export function gitConflictContinue(id: string): Promise<{ ok: boolean; conflict: boolean; conflictFiles: string[] }> {
   return post(`/api/projects/${id}/git-conflict-continue`);
 }

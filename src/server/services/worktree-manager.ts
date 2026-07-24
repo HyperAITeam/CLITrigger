@@ -572,6 +572,28 @@ export class WorktreeManager {
     }
   }
 
+  // Reject a file path that escapes the repo root (traversal guard for the
+  // manual conflict-resolver's read/write endpoints).
+  private resolveInsideRepo(dirPath: string, file: string): string {
+    const root = path.resolve(dirPath);
+    const abs = path.resolve(root, file);
+    if (abs !== root && !abs.startsWith(root + path.sep)) throw new Error('Invalid file path');
+    return abs;
+  }
+
+  // Raw working-tree content of a conflicted file (still contains the
+  // <<<<<<< / ======= / >>>>>>> markers) for the hunk-picker UI.
+  async readConflictFile(dirPath: string, file: string): Promise<string> {
+    return fs.promises.readFile(this.resolveInsideRepo(dirPath, file), 'utf8');
+  }
+
+  // Write the user's resolved content back and stage it, concluding the file's
+  // conflict. The overall merge/rebase is finalized separately (commit / continue).
+  async resolveConflictWithContent(dirPath: string, file: string, content: string): Promise<void> {
+    await fs.promises.writeFile(this.resolveInsideRepo(dirPath, file), content, 'utf8');
+    await createGit(dirPath).raw(['add', '--', file]);
+  }
+
   /**
    * Conclude an in-progress merge/rebase. Merge uses `commit --no-edit`
    * (keeps MERGE_MSG, never opens an editor); rebase blocks the editor via
