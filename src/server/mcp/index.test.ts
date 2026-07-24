@@ -48,14 +48,22 @@ describe('MCP endpoint', () => {
     await expect(client.connect(transport)).rejects.toThrow();
   });
 
-  it('lists the 7 core tools', async () => {
+  it('lists all registered tools', async () => {
     const { client, transport } = makeClient(TOKEN);
     await client.connect(transport);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'create_planner_item',
       'create_project',
+      'create_schedule',
+      'create_session',
       'create_todo',
+      'create_wiki_node',
+      'delete_planner_item',
+      'delete_schedule',
+      'delete_session',
+      'delete_wiki_node',
       'get_project_status',
       'get_todo_logs',
       'list_projects',

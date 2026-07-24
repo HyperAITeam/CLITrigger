@@ -136,6 +136,113 @@ function buildServer(baseUrl: string): McpServer {
     ({ todo_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/todos/${todo_id}/logs`)),
   );
 
+  // ── Planner ──────────────────────────────────────────────────────────────
+  server.registerTool(
+    'create_planner_item',
+    {
+      description: '지정한 프로젝트의 플래너에 항목을 생성합니다.',
+      inputSchema: {
+        project_id: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        priority: z.number().optional(),
+        due_date: z.string().optional(),
+      },
+    },
+    ({ project_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/planner`, body)),
+  );
+
+  server.registerTool(
+    'delete_planner_item',
+    {
+      description: '플래너 항목을 삭제합니다.',
+      inputSchema: { item_id: z.string() },
+    },
+    ({ item_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/planner/${item_id}`)),
+  );
+
+  // ── Schedules ────────────────────────────────────────────────────────────
+  server.registerTool(
+    'create_schedule',
+    {
+      description:
+        '지정한 프로젝트에 스케줄을 생성합니다. recurring은 cron_expression, once는 run_at(ISO)이 필요합니다.',
+      inputSchema: {
+        project_id: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        schedule_type: z.enum(['once', 'recurring']).optional(),
+        cron_expression: z.string().optional(),
+        run_at: z.string().optional(),
+        cli_tool: z.string().optional(),
+      },
+    },
+    ({ project_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/schedules`, body)),
+  );
+
+  server.registerTool(
+    'delete_schedule',
+    {
+      description: '스케줄을 삭제합니다.',
+      inputSchema: { schedule_id: z.string() },
+    },
+    ({ schedule_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/schedules/${schedule_id}`)),
+  );
+
+  // ── Sessions ─────────────────────────────────────────────────────────────
+  server.registerTool(
+    'create_session',
+    {
+      description: '지정한 프로젝트에 인터랙티브 터미널 세션을 생성합니다. title 생략 시 자동 생성됩니다.',
+      inputSchema: {
+        project_id: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        cli_tool: z.string().optional(),
+        use_worktree: z.boolean().optional(),
+      },
+    },
+    ({ project_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/sessions`, body)),
+  );
+
+  server.registerTool(
+    'delete_session',
+    {
+      description: '세션을 삭제합니다.',
+      inputSchema: { session_id: z.string() },
+    },
+    ({ session_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/sessions/${session_id}`)),
+  );
+
+  // ── Wiki (내부적으로는 memory node) ────────────────────────────────────────
+  server.registerTool(
+    'create_wiki_node',
+    {
+      description: '지정한 프로젝트의 위키(Wiki)에 노드를 생성합니다. title은 프로젝트 내에서 고유해야 합니다.',
+      inputSchema: {
+        project_id: z.string(),
+        title: z.string(),
+        body: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        pinned: z.boolean().optional(),
+      },
+    },
+    ({ project_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/memory/nodes`, body)),
+  );
+
+  server.registerTool(
+    'delete_wiki_node',
+    {
+      description: '위키(Wiki) 노드를 삭제합니다.',
+      inputSchema: { node_id: z.string() },
+    },
+    ({ node_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/memory/nodes/${node_id}`)),
+  );
+
   return server;
 }
 
