@@ -251,10 +251,10 @@ export class SessionManager {
     // shared/main checkout, changes already present before the session started
     // (e.g. a stray untracked file) are excluded; only what the session itself
     // changes shows up. See snapshotWorkingTree().
-    let baseCommit: string | null = session.base_commit ?? null;
-    if (!baseCommit && project.is_git_repo) {
-      baseCommit = await snapshotWorkingTree(workDir);
-    }
+    const baseCommit: string | null = session.base_commit ?? null;
+    // Capture is deferred to after PTY spawn (fire-and-forget) so a large-repo
+    // tree scan doesn't block terminal start — see the snapshot kickoff below.
+    const needsSnapshot = !baseCommit && project.is_git_repo;
 
     let pid: number;
     let exitPromise: Promise<number>;
@@ -302,6 +302,20 @@ export class SessionManager {
       for (const input of queued) {
         try { claudeManager.writeStdinRaw(pid, input); } catch { /* ignore */ }
       }
+    }
+
+    // ponytail: fire-and-forget — a large-repo `git add -A` tree scan must not block PTY start.
+    // base_commit is only read when the Diff panel opens, and a null base degrades to HEAD there
+    // (resolveSessionDiff, routes/sessions.ts). Races the CLI's own early edits in theory; the CLI
+    // takes seconds to boot before its first write, so the scan normally reads the pre-edit tree.
+    // If exact session scoping is ever required, await this before draining keystrokes above.
+    if (needsSnapshot) {
+      snapshotWorkingTree(workDir)
+        .then((base) => { if (base) queries.updateSession(sessionId, { base_commit: base }); })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.createSessionLog(sessionId, 'error', `Diff base snapshot failed: ${message}`);
+        });
     }
     const logMsg = useWorktree
       ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [interactive]`

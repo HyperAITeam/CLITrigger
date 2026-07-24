@@ -269,9 +269,12 @@ export default function SessionPane({
     if (phase === 'starting' || phase === 'pendingFit') {
       return (
         <div style={{ ...overlayStyle, pointerEvents: 'none' }}>
-          <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
-            {t('session.starting') || 'starting…'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: CMD.dim }} />
+            <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 12 }}>
+              {t('session.starting') || 'starting…'}
+            </span>
+          </div>
           <span style={{ color: CMD.dim, fontFamily: CMD_FONT, fontSize: 10, marginTop: 6 }}>
             {t('session.starting.typeAhead') || 'type-ahead is captured and replayed once ready'}
           </span>
