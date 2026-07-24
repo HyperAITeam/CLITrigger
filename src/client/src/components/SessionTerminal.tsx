@@ -1578,11 +1578,11 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   let rescueRaf = 0;
   const rescueStrandedFocus = () => {
     if (rescueRaf || composing) return;
-    const api = (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI;
+    const api = (window as unknown as { electronAPI?: { imeReset?: (force?: boolean) => void } }).electronAPI;
     if (!api?.imeReset) return; // plain browser — no HWND focus to repair
     imeLog('focus-rescue');
     (document.activeElement as HTMLElement | null)?.blur?.();
-    api.imeReset();
+    api.imeReset(true);
     rescueRaf = requestAnimationFrame(() => {
       rescueRaf = requestAnimationFrame(() => {
         rescueRaf = 0;

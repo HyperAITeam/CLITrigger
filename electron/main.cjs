@@ -374,18 +374,32 @@ ipcMain.on('window:focus-self', (event) => {
   imeDebugLog('window:focus-self', { event: 'ime-rebind' });
 });
 
-ipcMain.on('ime:reset', (event) => {
+ipcMain.on('ime:reset', (event, payload) => {
   // Route the focus call to the sender's webContents so popout child
   // windows reclaim their own keyboard focus, not the main window's.
   // Falls back to mainWindow only if the sender is gone (race during
   // teardown).
+  //
+  // `force` (form entry / stranded-focus rescue): a plain focus() is a no-op
+  // when the window never lost OS focus — Chromium skips the native focus path
+  // and the Windows TSF context stays stranded on a just-destroyed terminal
+  // helper textarea, so the new form input can't compose Hangul even though DOM
+  // focus reads correct. Synthesize the real blur→focus cycle the focus-bridge
+  // relies on (see main.cjs:325-328) with blurWebView() first; that's the only
+  // thing that rebinds a stranded TSF. Callers only pass force when no
+  // composition is in flight, so the blur can't corrupt a healthy context.
+  const force = payload && payload.force;
   const sender = event && event.sender;
   if (sender && !sender.isDestroyed()) {
+    if (force) sender.blurWebView();
     sender.focus();
+    imeDebugLog('ime:reset', { force: !!force, target: 'sender' });
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
+    if (force) mainWindow.webContents.blurWebView();
     mainWindow.webContents.focus();
+    imeDebugLog('ime:reset', { force: !!force, target: 'mainWindow' });
   }
 });
 
