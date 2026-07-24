@@ -84,7 +84,8 @@ function buildServer(baseUrl: string): McpServer {
   server.registerTool(
     'create_todo',
     {
-      description: '지정한 프로젝트에 할일(TODO)을 생성합니다.',
+      description:
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요.",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
@@ -99,7 +100,7 @@ function buildServer(baseUrl: string): McpServer {
   server.registerTool(
     'start_todo',
     {
-      description: '할일 실행을 시작합니다. mode 기본값은 headless.',
+      description: '자동 작업(TODO) 실행을 시작합니다. mode 기본값은 headless(자율 실행).',
       inputSchema: {
         todo_id: z.string(),
         mode: z.enum(['headless', 'interactive', 'verbose']).optional(),
@@ -140,7 +141,8 @@ function buildServer(baseUrl: string): McpServer {
   server.registerTool(
     'create_planner_item',
     {
-      description: '지정한 프로젝트의 플래너에 항목을 생성합니다.',
+      description:
+        "플래너(계획 보드)에 항목을 추가합니다. 실행되지 않는 계획·메모용이며, 나중에 작업·루틴·터미널로 변환해서 실행합니다. 사용자가 명시적으로 '플래너/계획에 정리'라고 할 때만 쓰세요. 실제로 실행할 작업이면 create_todo를 쓰세요.",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
@@ -167,7 +169,7 @@ function buildServer(baseUrl: string): McpServer {
     'create_schedule',
     {
       description:
-        '지정한 프로젝트에 스케줄을 생성합니다. recurring은 cron_expression, once는 run_at(ISO)이 필요합니다.',
+        '루틴(예약/반복 자동 실행)을 생성합니다. recurring은 cron_expression, once는 run_at(ISO)이 필요합니다. 정해진 시각/주기에 자동 작업을 반복 실행할 때 쓰세요.',
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
@@ -195,7 +197,8 @@ function buildServer(baseUrl: string): McpServer {
   server.registerTool(
     'create_session',
     {
-      description: '지정한 프로젝트에 인터랙티브 터미널 세션을 생성합니다. title 생략 시 자동 생성됩니다.',
+      description:
+        '인터랙티브 터미널 세션(사용자가 직접 CLI와 대화)을 생성합니다. 자동 실행이 아니라 수동 대화용입니다. title 생략 시 자동 생성됩니다.',
       inputSchema: {
         project_id: z.string(),
         title: z.string().optional(),
@@ -221,7 +224,8 @@ function buildServer(baseUrl: string): McpServer {
   server.registerTool(
     'create_wiki_node',
     {
-      description: '지정한 프로젝트의 위키(Wiki)에 노드를 생성합니다. title은 프로젝트 내에서 고유해야 합니다.',
+      description:
+        '프로젝트 위키(Wiki, 지식 노트)에 노드를 생성합니다. 실행과 무관한 문서/메모입니다. title은 프로젝트 내에서 고유해야 합니다.',
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
