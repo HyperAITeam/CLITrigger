@@ -114,7 +114,11 @@ export async function snapshotWorkingTree(gitDir: string): Promise<string | null
     } catch { /* fall back to read-tree below */ }
     if (!seeded) await git(['read-tree', 'HEAD']);
 
-    await git(['add', '-A']);
+    // Disable fsmonitor / untracked-cache for this add: the copied index carries
+    // those extensions over, and a stale cache would make `add -A` miss files
+    // created after the real index was last refreshed (e.g. new untracked files).
+    // The per-entry stat cache still applies, so unchanged files aren't re-hashed.
+    await git(['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', 'add', '-A']);
     const tree = await git(['write-tree']);
     const commit = await git(['commit-tree', tree, '-p', 'HEAD', '-m', 'clitrigger session snapshot']);
     return commit || null;
