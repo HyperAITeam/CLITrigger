@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 async function diffPaths(base: string): Promise<Map<string, string>> {
-  const now = snapshotWorkingTree(repo)!;
+  const now = (await snapshotWorkingTree(repo))!;
   const files = await listDiffFiles(createGit(repo), `${base}..${now}`);
   return new Map(files.map((f) => [f.path, f.status]));
 }
@@ -45,7 +45,7 @@ describe('session diff via working-tree snapshots', () => {
     // Dirty state that exists BEFORE the session starts.
     fs.writeFileSync(path.join(repo, 'preexisting.txt'), 'was here first\n'); // untracked before start
 
-    const base = snapshotWorkingTree(repo)!; // <-- session start
+    const base = (await snapshotWorkingTree(repo))!; // <-- session start
     expect(base).toBeTruthy();
 
     // The session's own work:
@@ -66,7 +66,7 @@ describe('session diff via working-tree snapshots', () => {
   });
 
   it('reports no changes when the session touched nothing', async () => {
-    const base = snapshotWorkingTree(repo)!;
+    const base = (await snapshotWorkingTree(repo))!;
     const changed = await diffPaths(base);
     expect(changed.size).toBe(0);
   });
