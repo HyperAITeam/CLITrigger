@@ -409,6 +409,9 @@ export function initDatabase(db: Database.Database): void {
     // Planner items gained an optional end date so month-view bars can span a
     // range (NULL = single-day, = due_date). See due_date above.
     { table: 'planner_items', column: 'end_date', definition: 'TEXT' },
+    // On-demand Diff capture points: JSON array of { seq, sha, at } working-tree
+    // snapshots the user took mid-session, each usable as a Diff page's base.
+    { table: 'sessions', column: 'snapshots', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {
