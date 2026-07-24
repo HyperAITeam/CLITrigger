@@ -906,6 +906,39 @@ router.post('/:id/git-conflict-resolve', async (req: Request<{ id: string }>, re
   }
 });
 
+// GET /api/projects/:id/git-conflict-file?file=... — raw content (with markers) of a conflicted file
+router.get('/:id/git-conflict-file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const file = req.query.file;
+    if (!file || typeof file !== 'string') {
+      res.status(400).json({ error: 'file is required' }); return;
+    }
+    const content = await worktreeManager.readConflictFile(dirPath, file);
+    res.json({ content });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/projects/:id/git-conflict-file — write resolved content and stage the file
+router.post('/:id/git-conflict-file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const { file, content } = req.body;
+    if (!file || typeof file !== 'string') {
+      res.status(400).json({ error: 'file is required' }); return;
+    }
+    if (typeof content !== 'string') {
+      res.status(400).json({ error: 'content is required' }); return;
+    }
+    await worktreeManager.resolveConflictWithContent(dirPath, file, content);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // POST /api/projects/:id/git-conflict-continue — conclude the in-progress merge/rebase
 router.post('/:id/git-conflict-continue', async (req: Request<{ id: string }>, res: Response) => {
   try {
