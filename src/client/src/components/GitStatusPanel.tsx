@@ -1624,6 +1624,8 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<string>('');
   const [fileDiffLoading, setFileDiffLoading] = useState(false);
+  const [commitMenu, setCommitMenu] = useState<{ commit: GitLogEntry; x: number; y: number } | null>(null);
+  const commitMenuRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -1767,6 +1769,41 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       setFileDiffLoading(false);
     }
   }, [project.id, selectedCommit]);
+
+  // Commit context menu (desktop): reuse the branch-menu close/clamp pattern.
+  useEffect(() => {
+    if (!commitMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (commitMenuRef.current && !commitMenuRef.current.contains(e.target as Node)) setCommitMenu(null);
+    };
+    const closeOnScroll = () => setCommitMenu(null);
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('scroll', closeOnScroll, true);
+    return () => { document.removeEventListener('mousedown', handleOutside); document.removeEventListener('scroll', closeOnScroll, true); };
+  }, [commitMenu]);
+
+  useEffect(() => {
+    if (!commitMenu || !commitMenuRef.current) return;
+    const rect = commitMenuRef.current.getBoundingClientRect();
+    let { x, y } = commitMenu;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+    if (x !== commitMenu.x || y !== commitMenu.y) setCommitMenu({ ...commitMenu, x, y });
+  }, [commitMenu]);
+
+  const runCommitAction = useCallback(async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setSidebarError(null);
+    setCommitMenu(null);
+    try {
+      await fn();
+      refresh();
+    } catch (err) {
+      setSidebarError(err instanceof Error ? err.message : 'Operation failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh]);
 
   const cancelLongPress = useCallback(() => {
     if (longPressRef.current.timer !== null) {
@@ -2063,7 +2100,11 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
                             onPointerMove={handleCommitPointerMove}
                             onPointerUp={handleCommitPointerEnd}
                             onPointerCancel={handleCommitPointerEnd}
-                            onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              if (isMobile) return;
+                              setCommitMenu({ commit, x: e.clientX, y: e.clientY });
+                            }}
                             className={`flex items-center px-3 cursor-pointer transition-colors border-b border-warm-50/20 ${
                               isSelected ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-warm-50/50'
                             }`}
@@ -2164,6 +2205,71 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
           message={pressTooltip.message}
           onDismiss={() => setPressTooltip(null)}
         />
+      )}
+
+      {/* Commit context menu (desktop right-click) */}
+      {commitMenu && createPortal(
+        (() => {
+          const commit = commitMenu.commit;
+          const short = commit.hash.substring(0, 7);
+          const item = (label: string, onClick: () => void, danger = false) => (
+            <button
+              className={`w-full text-left px-3 py-1.5 hover:bg-theme-hover transition-colors disabled:opacity-40 ${danger ? 'text-status-error' : 'text-theme-text'}`}
+              disabled={busy}
+              onClick={onClick}
+            >
+              {label}
+            </button>
+          );
+          const resetItem = (mode: 'soft' | 'mixed' | 'hard') =>
+            item(`${t('git.resetHere')} (${mode})`, () => {
+              const msg = mode === 'hard'
+                ? t('git.confirmResetHard').replace('{hash}', short)
+                : t('git.confirmReset').replace('{hash}', short).replace('{mode}', mode);
+              if (!window.confirm(msg)) { setCommitMenu(null); return; }
+              runCommitAction(() => projectsApi.gitReset(project.id, commit.hash, mode));
+            }, mode === 'hard');
+          return (
+            <div
+              ref={commitMenuRef}
+              className="fixed z-tooltip bg-theme-card border border-warm-200 dark:border-warm-700 rounded-lg shadow-elevated py-1 min-w-[240px] text-xs"
+              style={{ left: commitMenu.x, top: commitMenu.y }}
+            >
+              {item(t('git.copySha'), () => { navigator.clipboard.writeText(commit.hash); setCommitMenu(null); })}
+              <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+              {item(t('git.createBranchHere'), () => {
+                const name = window.prompt(t('git.promptBranchName').replace('{hash}', short));
+                if (name && name.trim()) runCommitAction(() => projectsApi.gitCreateBranch(project.id, name.trim(), commit.hash));
+                else setCommitMenu(null);
+              })}
+              {item(t('git.createTagHere'), () => {
+                const name = window.prompt(t('git.promptTagName').replace('{hash}', short));
+                if (name && name.trim()) runCommitAction(() => projectsApi.gitCreateTag(project.id, name.trim(), undefined, commit.hash));
+                else setCommitMenu(null);
+              })}
+              <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+              {item(t('git.cherryPick'), () => {
+                if (!window.confirm(t('git.confirmCherryPick').replace('{hash}', short))) { setCommitMenu(null); return; }
+                runCommitAction(async () => {
+                  const r = await projectsApi.gitCherryPick(project.id, commit.hash);
+                  if (r.conflict) setView('fileStatus');
+                });
+              })}
+              {item(t('git.revertCommit'), () => {
+                if (!window.confirm(t('git.confirmRevert').replace('{hash}', short))) { setCommitMenu(null); return; }
+                runCommitAction(async () => {
+                  const r = await projectsApi.gitRevert(project.id, commit.hash);
+                  if (r.conflict) setView('fileStatus');
+                });
+              })}
+              <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
+              {resetItem('soft')}
+              {resetItem('mixed')}
+              {resetItem('hard')}
+            </div>
+          );
+        })(),
+        document.body
       )}
     </div>
   );

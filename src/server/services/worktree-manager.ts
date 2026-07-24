@@ -681,6 +681,41 @@ export class WorktreeManager {
     }
   }
 
+  // Revert / cherry-pick can leave conflicts. We don't add a bespoke
+  // continue/abort UI: the conflict banner keys off `git status` conflicted
+  // files (not merge/rebase state), so resolving in the file view + committing
+  // finalizes the revert/cherry-pick.
+  // ponytail: no REVERT_HEAD/CHERRY_PICK_HEAD abort button; resolve-and-commit
+  // covers it. Add a sequencer abort if users hit dead ends.
+  async gitRevert(dirPath: string, commit: string): Promise<{ conflict: boolean; conflictFiles: string[] }> {
+    const git = createGit(dirPath);
+    try {
+      await git.raw(['revert', '--no-edit', commit]);
+      return { conflict: false, conflictFiles: [] };
+    } catch (err) {
+      const status = await git.status();
+      if (status.conflicted.length === 0) throw err;
+      return { conflict: true, conflictFiles: status.conflicted };
+    }
+  }
+
+  async gitCherryPick(dirPath: string, commit: string): Promise<{ conflict: boolean; conflictFiles: string[] }> {
+    const git = createGit(dirPath);
+    try {
+      await git.raw(['cherry-pick', commit]);
+      return { conflict: false, conflictFiles: [] };
+    } catch (err) {
+      const status = await git.status();
+      if (status.conflicted.length === 0) throw err;
+      return { conflict: true, conflictFiles: status.conflicted };
+    }
+  }
+
+  async gitReset(dirPath: string, commit: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {
+    const git = createGit(dirPath);
+    await git.raw(['reset', `--${mode}`, commit]);
+  }
+
   async gitDiff(dirPath: string, file?: string, staged = false): Promise<string> {
     const git = createGit(dirPath);
     const args: string[] = [];
