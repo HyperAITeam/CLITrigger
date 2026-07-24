@@ -71,13 +71,21 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
           </div>
 
           <div className="mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-warm-600">{t('mcp.command.label')}</label>
-              <CopyButton label="command" text={conn.command} />
+            <label className="block text-sm font-medium text-warm-600 mb-1">{t('mcp.commands.label')}</label>
+            <p className="text-2xs text-warm-400 mb-3">{t('mcp.commands.hint')}</p>
+            <div className="space-y-3">
+              {conn.commands.map((c) => (
+                <div key={c.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-warm-500">{c.label}</span>
+                    <CopyButton label={`command:${c.id}`} text={c.command} />
+                  </div>
+                  <pre className="p-3 rounded-lg text-2xs font-mono overflow-x-auto" style={blockStyle}>
+                    {c.command}
+                  </pre>
+                </div>
+              ))}
             </div>
-            <pre className="p-3 rounded-lg text-2xs font-mono overflow-x-auto" style={blockStyle}>
-              {conn.command}
-            </pre>
           </div>
 
           <p className="text-2xs text-warm-400">{t('mcp.tokenNote')}</p>

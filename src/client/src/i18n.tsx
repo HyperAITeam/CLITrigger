@@ -213,10 +213,11 @@ const translations = {
 
     // MCP connection (panel inside Settings modal)
     'mcp.title': 'MCP Connection',
-    'mcp.description': 'Connect an MCP client (Claude Desktop, Claude Code) to control CLITrigger — list projects, create and run tasks, check status. Paste the config below into your client; keep the server running.',
+    'mcp.description': 'Let your AI CLI or desktop client drive CLITrigger over MCP — list projects, create and run tasks, and check status without leaving your editor. Set it up one of the two ways below, then keep this server running while you use it.',
     'mcp.loading': 'Loading connection info…',
-    'mcp.config.label': 'Client config (HTTP transport)',
-    'mcp.command.label': 'Claude Code (one command)',
+    'mcp.config.label': 'Option A · Paste this config (Claude Desktop and other JSON clients)',
+    'mcp.commands.label': 'Option B · Run one command in your CLI',
+    'mcp.commands.hint': 'Copy the line for the CLI you use — each registers CLITrigger over HTTP transport.',
     'mcp.copy': 'Copy',
     'mcp.copied': 'Copied to clipboard',
     'mcp.copyFailed': 'Copy failed',
@@ -1593,10 +1594,11 @@ const translations = {
 
     // MCP connection (panel inside Settings modal)
     'mcp.title': 'MCP 연결',
-    'mcp.description': 'MCP 클라이언트(Claude Desktop, Claude Code)를 연결해 CLITrigger를 조종합니다 — 프로젝트 목록, 할일 생성·실행, 상태 조회. 아래 config를 클라이언트에 붙여넣으세요. 서버는 켜져 있어야 합니다.',
+    'mcp.description': 'AI CLI나 데스크톱 클라이언트가 MCP로 CLITrigger를 조종하게 만듭니다 — 에디터를 벗어나지 않고 프로젝트 목록 조회, 할일 생성·실행, 상태 확인까지. 아래 두 가지 방법 중 하나로 등록한 뒤, 사용하는 동안 이 서버를 켜 두세요.',
     'mcp.loading': '연결 정보를 불러오는 중…',
-    'mcp.config.label': '클라이언트 config (HTTP transport)',
-    'mcp.command.label': 'Claude Code (원커맨드)',
+    'mcp.config.label': '방법 A · 설정 파일에 붙여넣기 (Claude Desktop 등 JSON 클라이언트)',
+    'mcp.commands.label': '방법 B · CLI에서 한 줄 실행',
+    'mcp.commands.hint': '쓰는 CLI에 맞는 줄을 복사하세요. 셋 다 HTTP transport로 CLITrigger를 등록합니다.',
     'mcp.copy': '복사',
     'mcp.copied': '클립보드에 복사됨',
     'mcp.copyFailed': '복사 실패',
