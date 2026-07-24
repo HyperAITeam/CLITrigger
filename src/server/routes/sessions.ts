@@ -121,7 +121,21 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
 // excluding state that was already dirty before it started. Falls back to HEAD
 // (committed-vs-worktree, tracked only) for sessions started before base_commit
 // existed or when a fresh snapshot can't be taken.
-async function resolveSessionDiff(id: string): Promise<
+interface SessionSnapshot { seq: number; sha: string; at: string; }
+
+function parseSnapshots(raw: string | null): SessionSnapshot[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+
+// `from` (optional) overrides the base with a capture point taken mid-session,
+// so a Diff page can show "since that capture" instead of "since start". It must
+// be one of the session's known snapshot SHAs (or base_commit) — never arbitrary
+// input, which would let a caller diff two unrelated commits.
+async function resolveSessionDiff(id: string, from?: string): Promise<
   | { ok: true; gitDir: string; range: string; base: string | null }
   | { ok: false; status: number; reason: string }
 > {
@@ -132,7 +146,12 @@ async function resolveSessionDiff(id: string): Promise<
   const gitDir = session.worktree_path && fs.existsSync(session.worktree_path)
     ? session.worktree_path
     : project.path;
-  const base = session.base_commit;
+  let base = session.base_commit;
+  if (from) {
+    const allowed = new Set([session.base_commit, ...parseSnapshots(session.snapshots).map((s) => s.sha)].filter(Boolean) as string[]);
+    if (!allowed.has(from)) return { ok: false, status: 400, reason: 'bad-from' };
+    base = from;
+  }
   const now = base ? await snapshotWorkingTree(gitDir) : null;
   const range = base && now ? `${base}..${now}` : (base || 'HEAD');
   return { ok: true, gitDir, range, base };
@@ -141,7 +160,8 @@ async function resolveSessionDiff(id: string): Promise<
 // GET /api/sessions/:id/diff — files changed since the session started
 router.get('/sessions/:id/diff', async (req: Request<{ id: string }>, res: Response) => {
   try {
-    const ctx = await resolveSessionDiff(req.params.id);
+    const from = (req.query.from as string | undefined)?.trim() || undefined;
+    const ctx = await resolveSessionDiff(req.params.id, from);
     if (!ctx.ok) {
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
@@ -161,7 +181,8 @@ router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: 
       res.status(400).json({ error: 'path query is required' });
       return;
     }
-    const ctx = await resolveSessionDiff(req.params.id);
+    const from = (req.query.from as string | undefined)?.trim() || undefined;
+    const ctx = await resolveSessionDiff(req.params.id, from);
     if (!ctx.ok) {
       res.status(ctx.status).json({ available: false, reason: ctx.reason });
       return;
@@ -175,6 +196,43 @@ router.get('/sessions/:id/diff/file', async (req: Request<{ id: string }>, res: 
     }
     const diff = await git.diff([ctx.range, '-M0', '--', filePath]);
     res.json({ available: true, diff });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// GET /api/sessions/:id/snapshots — capture points usable as Diff page bases
+router.get('/sessions/:id/snapshots', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+    res.json({ base: session.base_commit, snapshots: parseSnapshots(session.snapshots) });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// POST /api/sessions/:id/snapshot — capture the current working tree as a new
+// Diff page base. Stores the dangling snapshot commit SHA (no ref; same ~2-week
+// GC grace as base_commit) appended to sessions.snapshots.
+// ponytail: no ref → a snapshot could be GC'd on sessions open >2 weeks; add
+// refs/clitrigger/snap refs + cleanup on delete if that ever bites.
+router.post('/sessions/:id/snapshot', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+    const project = queries.getProjectById(session.project_id);
+    if (!project || !project.is_git_repo) { res.status(200).json({ available: false, reason: 'not-git' }); return; }
+    const gitDir = session.worktree_path && fs.existsSync(session.worktree_path)
+      ? session.worktree_path
+      : project.path;
+    const sha = await snapshotWorkingTree(gitDir);
+    if (!sha) { res.status(500).json({ error: 'snapshot failed' }); return; }
+    const snapshots = parseSnapshots(session.snapshots);
+    const seq = (snapshots[snapshots.length - 1]?.seq ?? 0) + 1;
+    snapshots.push({ seq, sha, at: new Date().toISOString() });
+    queries.updateSession(req.params.id, { snapshots: JSON.stringify(snapshots) });
+    res.json({ available: true, snapshots });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
