@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { WrapText } from 'lucide-react';
 import type { CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
 
@@ -88,6 +90,7 @@ export function CommitDiffViewer({
   selectedFile: string | null;
 }) {
   const { t } = useI18n();
+  const [wrap, setWrap] = useState(true);
 
   if (!selectedFile) {
     return (
@@ -107,20 +110,56 @@ export function CommitDiffViewer({
 
   return (
     <div className="h-full flex flex-col bg-[#1A1A1A]">
-      <div className="px-3 py-2 border-b border-gray-700 shrink-0">
-        <span className="text-xs font-mono text-gray-100">{selectedFile}</span>
+      <div className="px-3 py-2 border-b border-gray-700 shrink-0 flex items-center justify-between gap-2">
+        <span className="text-xs font-mono text-gray-100 truncate" title={selectedFile}>{selectedFile}</span>
+        <button
+          onClick={() => setWrap((w) => !w)}
+          title={t('git.wrapLines') || 'Wrap lines'}
+          className={`p-1 rounded shrink-0 hover:bg-gray-700 ${wrap ? 'text-accent' : 'text-gray-500'}`}
+        >
+          <WrapText size={14} />
+        </button>
       </div>
       <div className="flex-1 overflow-auto">
-        <pre className="p-3 font-mono text-xs leading-relaxed">
-          {diff ? diff.split('\n').map((line, i) => {
-            let className = 'text-gray-200';
-            if (line.startsWith('+') && !line.startsWith('+++')) className = 'text-gray-100 bg-green-500/20';
-            else if (line.startsWith('-') && !line.startsWith('---')) className = 'text-gray-100 bg-red-500/20';
-            else if (line.startsWith('@@')) className = 'text-blue-400';
-            else if (line.startsWith('diff ')) className = 'text-amber-300 font-bold';
-            return <div key={i} className={className}>{line || ' '}</div>;
-          }) : <span className="text-gray-400 italic">No changes</span>}
-        </pre>
+        <div className="p-3 font-mono text-xs leading-relaxed">
+          {diff ? (() => {
+            // Track old/new line numbers off each `@@ -a,b +c,d @@` hunk header.
+            let oldLn = 0, newLn = 0, inHunk = false;
+            return diff.split('\n').map((line, i) => {
+              // Hunk header: read line numbers, don't render it.
+              if (line.startsWith('@@')) {
+                const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+                if (m) { oldLn = parseInt(m[1], 10); newLn = parseInt(m[2], 10); inHunk = true; }
+                return null;
+              }
+              // Skip git file headers (diff/index/---/+++) and stray metadata;
+              // only content lines inside a hunk get rendered.
+              if (!inHunk) return null;
+              let className = 'text-gray-200';
+              let oldNum: number | null = null;
+              let newNum: number | null = null;
+              if (line.startsWith('+') && !line.startsWith('+++')) {
+                className = 'text-gray-100 bg-green-500/20';
+                newNum = newLn++;
+              } else if (line.startsWith('-') && !line.startsWith('---')) {
+                className = 'text-gray-100 bg-red-500/20';
+                oldNum = oldLn++;
+              } else if (line.startsWith(' ')) {
+                oldNum = oldLn++;
+                newNum = newLn++;
+              } else {
+                return null; // '\ No newline at end of file', trailing blank, etc.
+              }
+              return (
+                <div key={i} className={`flex items-start ${className}`}>
+                  <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{oldNum ?? ''}</span>
+                  <span className="select-none shrink-0 w-9 pr-2 text-right text-gray-500">{newNum ?? ''}</span>
+                  <span className={`flex-1 min-w-0 ${wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>{line || ' '}</span>
+                </div>
+              );
+            });
+          })() : <span className="text-gray-400 italic">No changes</span>}
+        </div>
       </div>
     </div>
   );
