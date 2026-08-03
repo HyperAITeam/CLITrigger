@@ -391,13 +391,15 @@ ipcMain.on('ime:reset', (event, payload) => {
   const force = payload && payload.force;
   const sender = event && event.sender;
   if (sender && !sender.isDestroyed()) {
-    if (force) sender.blurWebView();
+    // blurWebView() lives on BrowserWindow, not webContents.
+    const win = force ? BrowserWindow.fromWebContents(sender) : null;
+    if (win && !win.isDestroyed()) win.blurWebView();
     sender.focus();
     imeDebugLog('ime:reset', { force: !!force, target: 'sender' });
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (force) mainWindow.webContents.blurWebView();
+    if (force) mainWindow.blurWebView();
     mainWindow.webContents.focus();
     imeDebugLog('ime:reset', { force: !!force, target: 'mainWindow' });
   }
