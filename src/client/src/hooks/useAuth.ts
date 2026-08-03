@@ -41,5 +41,23 @@ export function useAuth() {
     setAuthenticated(true);
   }, []);
 
-  return { authenticated, authRequired, setupRequired, loading, login, logout, setup };
+  // Change password from the login screen: sign in with the current password,
+  // rotate it on the now-authenticated session, then enter the app.
+  const changePassword = useCallback(async (
+    oldPassword: string,
+    newPassword: string,
+    confirmPassword: string,
+    remember: boolean,
+  ) => {
+    await authApi.login(oldPassword, remember);
+    try {
+      await authApi.changePassword(oldPassword, newPassword, confirmPassword);
+    } catch (err) {
+      await authApi.logout().catch(() => {});
+      throw err;
+    }
+    setAuthenticated(true);
+  }, []);
+
+  return { authenticated, authRequired, setupRequired, loading, login, logout, setup, changePassword };
 }

@@ -14,6 +14,11 @@ const translations = {
     'login.loading': 'Authenticating...',
     'login.error': 'Access denied. Please try again.',
     'login.footer': 'Secure Access',
+    'login.changePassword': 'Change password',
+    'login.backToLogin': 'Back to sign in',
+    'login.changeSubmit': 'Change password & sign in',
+    'login.forgot': 'Forgot your password?',
+    'login.forgotHint': 'Resetting requires access to the machine running the server. Run "clitrigger reset-password" in a terminal (desktop app: Help → Reset password menu), then set a new password on this screen.',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
     // Setup (first-run password)
@@ -1418,6 +1423,11 @@ const translations = {
     'login.loading': '\uC778\uC99D \uC911...',
     'login.error': '\uC811\uADFC\uC774 \uAC70\uBD80\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
     'login.footer': '\uBCF4\uC548 \uC811\uC18D',
+    'login.changePassword': '\uBE44\uBC00\uBC88\uD638 \uBCC0\uACBD',
+    'login.backToLogin': '\uB85C\uADF8\uC778\uC73C\uB85C \uB3CC\uC544\uAC00\uAE30',
+    'login.changeSubmit': '\uBCC0\uACBD \uD6C4 \uB85C\uADF8\uC778',
+    'login.forgot': '\uBE44\uBC00\uBC88\uD638\uB97C \uC78A\uC73C\uC168\uB098\uC694?',
+    'login.forgotHint': '\uCD08\uAE30\uD654\uB294 \uC11C\uBC84\uAC00 \uC2E4\uD589 \uC911\uC778 \uBA38\uC2E0\uC5D0\uC11C\uB9CC \uAC00\uB2A5\uD569\uB2C8\uB2E4. \uD130\uBBF8\uB110\uC5D0\uC11C "clitrigger reset-password"\uB97C \uC2E4\uD589\uD558\uAC70\uB098 \uB370\uC2A4\uD06C\uD1B1 \uC571\uC758 \uB3C4\uC6C0\uB9D0 \u2192 \uBE44\uBC00\uBC88\uD638 \uCD08\uAE30\uD654 \uBA54\uB274\uB97C \uC0AC\uC6A9\uD55C \uB4A4, \uC774 \uD654\uBA74\uC5D0\uC11C \uC0C8 \uBE44\uBC00\uBC88\uD638\uB97C \uC124\uC815\uD558\uC138\uC694.',
     'login.disclaimer': 'This software is provided "as is" without any warranties. Users are solely responsible for all actions taken using this tool, including any costs incurred from AI CLI usage, data loss, or unintended code changes. The developers assume no liability for any direct, indirect, or consequential damages arising from use.',
 
     // Setup (first-run password)
