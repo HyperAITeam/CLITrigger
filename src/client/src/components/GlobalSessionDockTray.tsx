@@ -36,7 +36,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GripVertical, X, ExternalLink, Maximize2 } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
-import { MAIN_WINDOW_ID, openBus, focusPopoutWindow, type PopoutBus } from './popout/popoutBus';
+import {
+  MAIN_WINDOW_ID, openBus, focusPopoutWindow, heldPopoutIds, webLocksAvailable,
+  HEARTBEAT_MS, HEARTBEAT_TIMEOUT_MS, type PopoutBus,
+} from './popout/popoutBus';
 import { useI18n } from '../i18n';
 import * as projectsApi from '../api/projects';
 import type { Project } from '../types';
@@ -145,6 +148,23 @@ function readAllMinimized(): MinimizedChip[] {
     a.projectId.localeCompare(b.projectId) || a.groupId.localeCompare(b.groupId)
   );
   return chips;
+}
+
+// Flip a persisted group's owner back to main. Same reclaim the host does on
+// `bye` / heartbeat timeout, applied straight to storage for a project whose
+// host isn't mounted.
+function reclaimPersistedGroup(projectId: string, groupId: string): void {
+  try {
+    const key = STORAGE_PREFIX + projectId;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { groups?: Array<{ id: string; ownerWindowId?: string }> };
+    if (!Array.isArray(parsed.groups)) return;
+    parsed.groups = parsed.groups.map(g =>
+      g.id === groupId ? { ...g, ownerWindowId: MAIN_WINDOW_ID } : g,
+    );
+    localStorage.setItem(key, JSON.stringify(parsed));
+  } catch { /* ignore — chip just stays until next sweep */ }
 }
 
 function getCurrentProjectId(pathname: string): string | null {
@@ -272,6 +292,45 @@ export default function GlobalSessionDockTray() {
   // emphasis) — re-read so chips that were just minimized in the new project
   // appear without waiting for a separate persist.
   useEffect(() => { refresh(); }, [location.pathname, refresh]);
+
+  // Stale popped chips. Every popout cleanup path (`bye`, `group-return`,
+  // `group-close`) needs a mounted SessionWindowsHost that owns the group, so
+  // closing a popout whose project isn't the one on screen (or with no project
+  // open at all) leaves `ownerWindowId` pointing at a dead window forever —
+  // the chip outlives the OS window, even across restarts. The tray is the
+  // only place that sees every project, so it sweeps them here using the Web
+  // Lock each popout holds (immune to timer throttling, released on real
+  // close/crash — same signal the host's liveness sweep trusts). Groups whose
+  // project IS mounted are left to that host so we don't race its persist.
+  const chipsRef = useRef<MinimizedChip[]>(chips);
+  chipsRef.current = chips;
+  const missingSinceRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!webLocksAvailable()) return;
+    const tick = async () => {
+      const orphanCandidates = chipsRef.current.filter(
+        c => c.kind === 'popped' && !!c.ownerWindowId && c.projectId !== currentProjectId,
+      );
+      if (orphanCandidates.length === 0) { missingSinceRef.current.clear(); return; }
+      const held = await heldPopoutIds();
+      const now = Date.now();
+      let reclaimed = false;
+      for (const chip of orphanCandidates) {
+        const popoutId = chip.ownerWindowId!;
+        if (held.has(popoutId)) { missingSinceRef.current.delete(popoutId); continue; }
+        // Grace period: a just-opened popout hasn't acquired its lock yet.
+        const since = missingSinceRef.current.get(popoutId);
+        if (since === undefined) { missingSinceRef.current.set(popoutId, now); continue; }
+        if (now - since < HEARTBEAT_TIMEOUT_MS) continue;
+        missingSinceRef.current.delete(popoutId);
+        reclaimPersistedGroup(chip.projectId, chip.groupId);
+        reclaimed = true;
+      }
+      if (reclaimed) refresh();
+    };
+    const timer = setInterval(() => { void tick(); }, HEARTBEAT_MS);
+    return () => clearInterval(timer);
+  }, [currentProjectId, refresh]);
 
   if (chips.length === 0) return null;
 
