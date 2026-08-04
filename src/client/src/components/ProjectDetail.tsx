@@ -900,7 +900,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         </Suspense>
       )}
       {activeTab === 'git' && project.is_git_repo ? (
-        <GitStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />
+        <GitStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} onEvent={onEvent} sendMessage={sendMessage} connected={connected} />
       ) : null}
       {activeTab === 'svn' && project.svn_enabled ? (
         <SvnStatusPanel key={project.id} project={project} refreshTrigger={gitRefreshTrigger} />

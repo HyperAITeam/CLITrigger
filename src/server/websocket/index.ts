@@ -5,7 +5,7 @@ import { broadcaster, encodeSessionFrame } from './broadcaster.js';
 import { sessionMiddleware } from '../middleware/auth.js';
 import { claudeManager } from '../services/claude-manager.js';
 import { sessionManager } from '../services/session-manager.js';
-import { vaultWatcher } from '../services/vault-watcher.js';
+import { vaultWatcher, gitWatcher } from '../services/vault-watcher.js';
 import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
 import { getSetting } from '../db/app-settings.js';
 
@@ -79,12 +79,14 @@ export function initWebSocket(server: Server): void {
     ws.on('close', () => {
       broadcaster.removeClient(ws);
       vaultWatcher.removeClient(ws);
+      gitWatcher.removeClient(ws);
     });
 
     ws.on('error', (err) => {
       console.error('WebSocket error:', err);
       broadcaster.removeClient(ws);
       vaultWatcher.removeClient(ws);
+      gitWatcher.removeClient(ws);
     });
 
     // Handle incoming messages (stdin for interactive mode)
@@ -174,6 +176,16 @@ export function initWebSocket(server: Server): void {
 
         if (msg.type === 'vault:unwatch' && typeof msg.projectId === 'string') {
           vaultWatcher.unwatch(msg.projectId, ws);
+        }
+
+        // Git UIs (Git tab, session diff panel) — same lifecycle as vault:
+        // watched only while a subscribing panel is open.
+        if (msg.type === 'git:watch' && typeof msg.projectId === 'string') {
+          gitWatcher.watch(msg.projectId, ws);
+        }
+
+        if (msg.type === 'git:unwatch' && typeof msg.projectId === 'string') {
+          gitWatcher.unwatch(msg.projectId, ws);
         }
 
         // Raw keystrokes from xterm.js (CR, arrow keys, Ctrl+C, etc).

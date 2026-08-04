@@ -8,14 +8,20 @@ import { useI18n } from '../i18n';
 import * as sessionsApi from '../api/sessions';
 import type { SessionSnapshot } from '../api/sessions';
 import type { CommitFile } from '../api/projects';
+import type { WsEvent } from '../hooks/useWebSocket';
 import { CommitFileList, CommitDiffViewer } from './DiffViewer';
 
 interface SessionDiffPanelProps {
   sessionId: string;
   onClose: () => void;
+  // Live refresh over WS (git:watch / git:changed). Optional — without them
+  // the panel degrades to the manual refresh button.
+  projectId?: string;
+  onEvent?: (cb: (event: WsEvent) => void) => () => void;
+  sendMessage?: (event: object) => void;
 }
 
-export default function SessionDiffPanel({ sessionId, onClose }: SessionDiffPanelProps) {
+export default function SessionDiffPanel({ sessionId, onClose, projectId, onEvent, sendMessage }: SessionDiffPanelProps) {
   const { t } = useI18n();
   const [files, setFiles] = useState<CommitFile[]>([]);
   const [available, setAvailable] = useState(true);
@@ -38,6 +44,22 @@ export default function SessionDiffPanel({ sessionId, onClose }: SessionDiffPane
   const diffCache = useRef<Map<string, string>>(new Map());
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  // Live refresh while open: server-side fs.watch pushes git:changed, which
+  // re-runs the same fetch as the refresh button (server coalesces at 500ms).
+  // ponytail: each event re-snapshots the working tree server-side — fine for
+  // a panel the user has open; add client-side debounce if huge repos crawl.
+  useEffect(() => {
+    if (!sendMessage || !projectId) return;
+    sendMessage({ type: 'git:watch', projectId });
+    return () => sendMessage({ type: 'git:unwatch', projectId });
+  }, [sendMessage, projectId]);
+  useEffect(() => {
+    if (!onEvent || !projectId) return;
+    return onEvent((event) => {
+      if (event.type === 'git:changed' && event.projectId === projectId) refresh();
+    });
+  }, [onEvent, projectId, refresh]);
 
   // Capture points — on mount and after each capture/refresh (no live subscription).
   useEffect(() => {
