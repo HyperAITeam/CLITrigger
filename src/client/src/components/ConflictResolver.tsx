@@ -4,6 +4,8 @@ import { useI18n } from '../i18n';
 
 interface Props {
   projectId: string;
+  // Session worktree the conflicted file lives in; main checkout when absent.
+  worktreePath?: string;
   filePath: string;
   onResolved: () => void;
   onError: (msg: string | null) => void;
@@ -78,7 +80,7 @@ function Lines({ lines, tint }: { lines: string[]; tint: string }) {
   );
 }
 
-export default function ConflictResolver({ projectId, filePath, onResolved, onError }: Props) {
+export default function ConflictResolver({ projectId, worktreePath, filePath, onResolved, onError }: Props) {
   const { t } = useI18n();
   const [segments, setSegments] = useState<Segment[] | null>(null);
   const [choices, setChoices] = useState<Record<number, Choice>>({});
@@ -91,12 +93,12 @@ export default function ConflictResolver({ projectId, filePath, onResolved, onEr
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setManual(false); setChoices({}); setLoadError(false);
-    projectsApi.getConflictFile(projectId, filePath)
+    projectsApi.getConflictFile(projectId, filePath, worktreePath)
       .then((r) => { if (!cancelled) setSegments(parseConflicts(r.content)); })
       .catch(() => { if (!cancelled) setLoadError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [projectId, filePath]);
+  }, [projectId, worktreePath, filePath]);
 
   const conflictIndices = useMemo(
     () => (segments ? segments.map((s, i) => (s.kind === 'conflict' ? i : -1)).filter((i) => i >= 0) : []),
@@ -118,7 +120,7 @@ export default function ConflictResolver({ projectId, filePath, onResolved, onEr
     setSaving(true);
     onError(null);
     try {
-      await projectsApi.resolveConflictContent(projectId, filePath, contentToSave);
+      await projectsApi.resolveConflictContent(projectId, filePath, contentToSave, worktreePath);
       onResolved();
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Failed to save resolution');

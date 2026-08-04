@@ -213,6 +213,7 @@ function ActionToolbar({
   setBusy,
   branches,
   statusFiles,
+  worktreePath,
 }: {
   projectId: string;
   projectName: string;
@@ -221,6 +222,9 @@ function ActionToolbar({
   setBusy: (b: boolean) => void;
   branches: GitRef[];
   statusFiles: GitStatusFile[];
+  // Commit/discard follow the checkout selector (statusFiles are its files);
+  // the repo-level actions (pull/push/fetch/branch/…) stay on the main checkout.
+  worktreePath?: string;
 }) {
   const { t } = useI18n();
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -332,7 +336,7 @@ function ActionToolbar({
         <ToolbarBtn label={t('git.discard')} onClick={() => {
           if (statusFiles.length === 0) return;
           if (confirm(t('git.confirmDiscard'))) {
-            exec(() => projectsApi.gitDiscard(projectId, undefined, true));
+            exec(() => projectsApi.gitDiscard(projectId, undefined, true, worktreePath));
           }
         }} icon={
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
@@ -369,7 +373,7 @@ function ActionToolbar({
           <button
             className="w-full btn-primary text-sm py-2"
             disabled={busy || !inputValue.trim() || !hasStagedFiles}
-            onClick={() => exec(() => projectsApi.gitCommit(projectId, inputValue.trim()))}
+            onClick={() => exec(() => projectsApi.gitCommit(projectId, inputValue.trim(), worktreePath))}
           >
             {t('git.commit')} {!hasStagedFiles && <span className="text-xs opacity-70 ml-1">({t('git.staged')}: 0)</span>}
           </button>
@@ -650,6 +654,7 @@ function WorkingDiffViewer({ diff, loading, file }: { diff: string; loading: boo
 
 function WorkingChangesView({
   projectId,
+  worktreePath,
   branchName,
   files,
   conflicted,
@@ -660,6 +665,9 @@ function WorkingChangesView({
   isMobile = false,
 }: {
   projectId: string;
+  // Set when the panel's checkout selector targets a session worktree —
+  // every git call below then runs there instead of the main checkout.
+  worktreePath?: string;
   branchName: string;
   files: GitStatusFile[];
   conflicted: string[];
@@ -775,12 +783,12 @@ function WorkingChangesView({
     }
     let cancelled = false;
     setDiffLoading(true);
-    projectsApi.gitDiff(projectId, selectedFile.path, selectedPane === 'staged')
+    projectsApi.gitDiff(projectId, selectedFile.path, selectedPane === 'staged', worktreePath)
       .then(r => { if (!cancelled) setDiff(r.diff); })
       .catch(() => { if (!cancelled) setDiff(''); })
       .finally(() => { if (!cancelled) setDiffLoading(false); });
     return () => { cancelled = true; };
-  }, [projectId, selectedFile, selectedPane]);
+  }, [projectId, worktreePath, selectedFile, selectedPane]);
 
   const exec = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -794,9 +802,9 @@ function WorkingChangesView({
     setBusy(true);
     onError(null);
     try {
-      await projectsApi.gitCommit(projectId, commitMessage.trim());
+      await projectsApi.gitCommit(projectId, commitMessage.trim(), worktreePath);
       if (pushAfterCommit) {
-        try { await projectsApi.gitPush(projectId); } catch (err) {
+        try { await projectsApi.gitPush(projectId, worktreePath ? { worktreePath } : undefined); } catch (err) {
           onError(err instanceof Error ? `Commit OK, push failed: ${err.message}` : 'Push failed');
         }
       }
@@ -849,7 +857,7 @@ function WorkingChangesView({
                     disabled={busy}
                     onClick={e => {
                       e.stopPropagation();
-                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'ours'));
+                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'ours', worktreePath));
                     }}
                   >
                     {t('git.acceptOurs')}
@@ -859,7 +867,7 @@ function WorkingChangesView({
                     disabled={busy}
                     onClick={e => {
                       e.stopPropagation();
-                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'theirs'));
+                      exec(() => projectsApi.gitConflictResolve(projectId, f.path, 'theirs', worktreePath));
                     }}
                   >
                     {t('git.acceptTheirs')}
@@ -884,7 +892,7 @@ function WorkingChangesView({
                   ? staged.filter(f => stagedChecked.has(f.path)).map(f => f.path)
                   : staged.map(f => f.path);
                 if (target.length === 0) return;
-                exec(() => projectsApi.gitUnstage(projectId, target));
+                exec(() => projectsApi.gitUnstage(projectId, target, worktreePath));
               }}
             >
               {stagedChecked.size > 0
@@ -925,7 +933,7 @@ function WorkingChangesView({
                   ? unstaged.filter(f => unstagedChecked.has(f.path)).map(f => f.path)
                   : unstaged.map(f => f.path);
                 if (target.length === 0) return;
-                exec(() => projectsApi.gitStage(projectId, target));
+                exec(() => projectsApi.gitStage(projectId, target, worktreePath));
               }}
             >
               {unstagedChecked.size > 0
@@ -997,6 +1005,7 @@ function WorkingChangesView({
         {selectedPane === 'conflict' && selectedFile ? (
           <ConflictResolver
             projectId={projectId}
+            worktreePath={worktreePath}
             filePath={selectedFile.path}
             onResolved={onRefresh}
             onError={onError}
@@ -1625,6 +1634,12 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
   const [stashCount, setStashCount] = useState(0);
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
   const [currentBranch, setCurrentBranch] = useState<string>('');
+  // Working-changes target: null = main checkout, otherwise a session
+  // worktree path. Threads into status/diff/stage/commit/discard so the
+  // whole fileStatus view operates on the selected checkout. History view
+  // stays repo-wide (log/refs are shared across worktrees).
+  const [statusWorktree, setStatusWorktree] = useState<string | null>(null);
+  const [worktreeList, setWorktreeList] = useState<Array<{ path: string; branch: string }>>([]);
   // In-progress merge/rebase + conflicted paths. Source of truth is the git
   // repo itself (via git-status), so conflicts created in a terminal show up
   // here too. `conflicted` can be non-empty without merging/rebasing
@@ -1688,7 +1703,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
 
   const fetchStatus = useCallback(async () => {
     try {
-      const result = await projectsApi.getGitStatusTree(project.id);
+      const result = await projectsApi.getGitStatusTree(project.id, statusWorktree ?? undefined);
       setStatusFiles(result.files);
       setCurrentBranch(result.branch || '');
       setOpState({
@@ -1699,7 +1714,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
     } catch {
       // non-critical
     }
-  }, [project.id]);
+  }, [project.id, statusWorktree]);
 
   const fetchLog = useCallback(async (skip: number, reset = false) => {
     if (loadingRef.current) return;
@@ -1875,8 +1890,30 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
   useEffect(() => {
     fetchLog(0, true);
     fetchRefs();
+  }, [fetchLog, fetchRefs]);
+
+  // Status is keyed separately: switching the worktree selector refetches
+  // working changes without resetting the commit graph.
+  useEffect(() => {
     fetchStatus();
-  }, [fetchLog, fetchRefs, fetchStatus]);
+  }, [fetchStatus]);
+
+  // Worktree selector options. Kept in sync the same way RefsSidebar does —
+  // re-fetched whenever refs change (worktrees come and go with branches).
+  useEffect(() => {
+    let cancelled = false;
+    projectsApi.getWorktrees(project.id)
+      .then(r => { if (!cancelled) setWorktreeList(r.worktrees); })
+      .catch(() => { if (!cancelled) setWorktreeList([]); });
+    return () => { cancelled = true; };
+  }, [project.id, branches]);
+
+  // Selected worktree got cleaned up → fall back to the main checkout.
+  useEffect(() => {
+    if (statusWorktree && !worktreeList.some(w => w.path === statusWorktree)) {
+      setStatusWorktree(null);
+    }
+  }, [worktreeList, statusWorktree]);
 
   // Auto-refresh when tasks complete (refreshTrigger changes)
   useEffect(() => {
@@ -1939,6 +1976,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
           setBusy={setBusy}
           branches={branches}
           statusFiles={statusFiles}
+          worktreePath={statusWorktree ?? undefined}
         />
       </div>
 
@@ -2047,17 +2085,39 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
         {/* Main view */}
         <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
           {view === 'fileStatus' ? (
-            <WorkingChangesView
-              projectId={project.id}
-              branchName={currentBranch}
-              files={statusFiles}
-              conflicted={opState.conflicted}
-              busy={busy}
-              setBusy={setBusy}
-              onRefresh={refresh}
-              onError={setSidebarError}
-              isMobile={isMobile}
-            />
+            <>
+              {/* Checkout selector — main checkout vs session worktrees.
+                  Outside WorkingChangesView so it stays reachable when the
+                  current target is clean (main clean, worktree dirty). */}
+              {worktreeList.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-warm-100 shrink-0">
+                  <span className="text-2xs text-warm-400 uppercase tracking-wider shrink-0">{t('git.statusTarget')}</span>
+                  <select
+                    className="text-xs border border-warm-200 rounded px-2 py-1 text-warm-700 focus:outline-none focus:ring-1 focus:ring-accent min-w-0 max-w-full"
+                    style={{ backgroundColor: 'var(--color-bg-card)' }}
+                    value={statusWorktree ?? ''}
+                    onChange={(e) => setStatusWorktree(e.target.value || null)}
+                  >
+                    <option value="">{t('git.mainCheckout')}</option>
+                    {worktreeList.map((w) => (
+                      <option key={w.path} value={w.path}>{w.branch}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <WorkingChangesView
+                projectId={project.id}
+                worktreePath={statusWorktree ?? undefined}
+                branchName={currentBranch}
+                files={statusFiles}
+                conflicted={opState.conflicted}
+                busy={busy}
+                setBusy={setBusy}
+                onRefresh={refresh}
+                onError={setSidebarError}
+                isMobile={isMobile}
+              />
+            </>
           ) : (
             <>
               {/* Header */}

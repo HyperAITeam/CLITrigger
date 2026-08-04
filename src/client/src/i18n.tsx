@@ -1402,6 +1402,8 @@ const translations = {
     'git.binaryFile': 'Binary file (no diff preview)',
     'git.untrackedNewFile': '(new file)',
     'git.workingTreeClean': 'Working tree is clean — nothing to commit',
+    'git.statusTarget': 'Checkout',
+    'git.mainCheckout': 'Main checkout',
 
     // Language & Theme
     'lang.toggle': 'KO',
@@ -2812,6 +2814,8 @@ const translations = {
     'git.binaryFile': '바이너리 파일 (미리보기 불가)',
     'git.untrackedNewFile': '(새 파일)',
     'git.workingTreeClean': '작업 트리가 깨끗합니다 — 커밋할 변경사항이 없습니다',
+    'git.statusTarget': '체크아웃',
+    'git.mainCheckout': '메인 체크아웃',
 
     // Language & Theme
     'lang.toggle': 'EN',
