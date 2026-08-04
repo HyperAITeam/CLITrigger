@@ -5,6 +5,7 @@ import * as projectsApi from '../api/projects';
 import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import type { WsEvent } from '../hooks/useWebSocket';
 import Modal from './Modal';
 import PushDialog from './PushDialog';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
@@ -13,6 +14,11 @@ import ConflictResolver from './ConflictResolver';
 interface GitStatusPanelProps {
   project: Project;
   refreshTrigger?: number;
+  // Live refresh over WS (git:watch / git:changed). Optional — without them
+  // the panel degrades to the manual triggers above.
+  onEvent?: (cb: (event: WsEvent) => void) => () => void;
+  sendMessage?: (event: object) => void;
+  connected?: boolean;
 }
 
 // --- Lane assignment algorithm ---
@@ -1592,7 +1598,7 @@ function readNumber(key: string, fallback: number, lo: number, hi: number): numb
 
 // --- Main component ---
 
-export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPanelProps) {
+export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendMessage, connected }: GitStatusPanelProps) {
   const { t } = useI18n();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const [refsOpen, setRefsOpen] = useState(false);
@@ -1878,6 +1884,28 @@ export default function GitStatusPanel({ project, refreshTrigger }: GitStatusPan
       refresh();
     }
   }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live refresh: ask the server to fs.watch the repo while this tab is open
+  // (same pattern as VaultLayout; `connected` in deps re-subscribes after a
+  // WS reconnect since the new socket has no server-side watch state).
+  useEffect(() => {
+    if (!connected || !sendMessage) return;
+    sendMessage({ type: 'git:watch', projectId: project.id });
+    return () => sendMessage({ type: 'git:unwatch', projectId: project.id });
+  }, [connected, sendMessage, project.id]);
+
+  // git:changed → refetch working changes + refs only. Full refresh() would
+  // reset the commit graph, selection, and scroll on every terminal write —
+  // the history view stays manual (any git action already calls refresh()).
+  useEffect(() => {
+    if (!onEvent) return;
+    return onEvent((event) => {
+      if (event.type === 'git:changed' && event.projectId === project.id) {
+        fetchStatus();
+        fetchRefs();
+      }
+    });
+  }, [onEvent, project.id, fetchStatus, fetchRefs]);
 
   // Infinite scroll
   useEffect(() => {

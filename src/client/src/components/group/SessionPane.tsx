@@ -451,7 +451,13 @@ export default function SessionPane({
             }}
           />
           <div style={{ width: diffWidth, flexShrink: 0, minWidth: 0, height: '100%' }}>
-            <SessionDiffPanel sessionId={session.id} onClose={() => setDiffOpen(false)} />
+            <SessionDiffPanel
+              sessionId={session.id}
+              projectId={session.project_id}
+              onEvent={onEvent}
+              sendMessage={sendMessage}
+              onClose={() => setDiffOpen(false)}
+            />
           </div>
         </>
       )}
