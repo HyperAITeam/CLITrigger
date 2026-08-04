@@ -24,6 +24,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // activation the caller doesn't have when reacting to a bus message. Used
   // by popout windows when the main window's dock chip asks them to front.
   windowFocus: () => ipcRenderer.send('window:focus-self'),
+  // Minimize this window's BrowserWindow. Frameless popouts have no native
+  // titlebar buttons, so their own top bar needs this bridge — the web
+  // platform has no window.minimize().
+  windowMinimize: () => ipcRenderer.send('window:minimize-self'),
   // Ctrl+wheel / pinch is consumed by Chromium's browser process as a page-zoom
   // gesture and never reaches the renderer as a DOM `wheel` event, so the
   // terminal's own Ctrl+wheel font-zoom silently never fires in the exe. Main

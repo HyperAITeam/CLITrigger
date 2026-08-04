@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Minus, X } from 'lucide-react';
 import StackView from '../group/StackView';
 import LayoutNodeView from '../group/LayoutNodeView';
 import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from '../group/DockOverlay';
@@ -606,6 +606,17 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     });
   }, [postUpdate]);
 
+  // Minimize the OS window (Electron only — see preload's windowMinimize).
+  // The dock chip in main stays as the handle to bring it back: its focus
+  // path already restores a minimized window.
+  const electronWindowApi = (window as unknown as {
+    electronAPI?: { windowMinimize?: () => void };
+  }).electronAPI;
+  const canMinimize = !!electronWindowApi?.windowMinimize;
+  const handleMinimize = useCallback(() => {
+    electronWindowApi?.windowMinimize?.();
+  }, [electronWindowApi]);
+
   // Re-dock: hand the group back to main, then close ourselves. The main
   // host's bus listener for group-return restores ownership and re-renders.
   const handleReDock = useCallback(() => {
@@ -712,6 +723,19 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {groupLabel}
         </span>
+        {/* Frameless Electron popouts have no native titlebar buttons, so the
+            bar carries its own minimize. Plain-web popups can't be minimized
+            (no such API) — the button is hidden there. */}
+        {canMinimize && (
+          <button
+            onClick={handleMinimize}
+            style={chromeBtnStyle}
+            aria-label="minimize-popout"
+            title={t('session.popout.minimize') || 'Minimize'}
+          >
+            <Minus size={13} />
+          </button>
+        )}
         <button
           onClick={handleReDock}
           style={chromeBtnStyle}
