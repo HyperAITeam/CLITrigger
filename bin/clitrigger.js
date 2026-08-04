@@ -13,6 +13,8 @@ const args = process.argv.slice(2);
 
 if (args[0] === 'config') {
   await handleConfig(args.slice(1));
+} else if (args[0] === 'reset-password') {
+  await resetPassword();
 } else if (args[0] === '--help' || args[0] === '-h') {
   printHelp();
 } else {
@@ -64,6 +66,38 @@ async function startServer() {
   await import('../dist/server/index.js');
 }
 
+async function resetPassword() {
+  const dbFile = path.join(CONFIG_DIR, 'clitrigger.db');
+  if (!fs.existsSync(dbFile)) {
+    console.log('No database found. Nothing to reset.');
+    return;
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question(
+    'Reset the web UI password? The next visitor to the web UI will set a new one. (y/N) '
+  );
+  rl.close();
+  if (answer.toLowerCase() !== 'y') {
+    console.log('Cancelled.');
+    return;
+  }
+  const { default: Database } = await import('better-sqlite3');
+  const db = new Database(dbFile);
+  try {
+    db.prepare(
+      "DELETE FROM app_settings WHERE key IN ('auth.password_hash', 'auth.password_changed_at')"
+    ).run();
+    // Kill lingering sessions so the old credential grants nothing.
+    db.prepare('DELETE FROM auth_sessions').run();
+  } catch {
+    // Tables absent on a fresh DB — no password was set anyway.
+  } finally {
+    db.close();
+  }
+  console.log('Password reset. Open the web UI to set a new password.');
+  console.log('Warning: until you do, anyone who can reach the server (including via tunnel) can claim it.');
+}
+
 async function handleConfig(args) {
   if (args[0] === 'clear') {
     if (!fs.existsSync(CONFIG_DIR)) {
@@ -107,7 +141,8 @@ async function handleConfig(args) {
   } else if (args[0] === 'password') {
     console.log('Password is now managed in the web UI.');
     console.log('  • First launch: open the browser and set a password on the setup screen.');
-    console.log('  • Change later: open Settings → Account in the web UI.');
+    console.log('  • Change later: open Settings → Account in the web UI, or the login screen.');
+    console.log('  • Forgot it: run `clitrigger reset-password` on this machine.');
   } else if (args[0] === 'path') {
     console.log(CONFIG_DIR);
   } else if (args[0] === 'tunnel') {
@@ -220,6 +255,7 @@ Usage:
                                       Clear custom domain
   clitrigger config path              Print config directory path
   clitrigger config clear             Delete all config and data
+  clitrigger reset-password           Clear the web UI password (forgot it?)
   clitrigger --help                   Show this help
 
 Password is managed in the web UI (Settings → Account).

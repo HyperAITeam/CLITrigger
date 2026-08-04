@@ -485,6 +485,32 @@ function setupAutoUpdater() {
   setTimeout(() => checkForUpdates({ silent: true }), 5000);
 }
 
+async function resetWebPassword() {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['초기화', '취소'],
+    defaultId: 1,
+    cancelId: 1,
+    message: '비밀번호를 초기화할까요?',
+    detail:
+      '초기화 후 앱 화면에서 새 비밀번호를 설정합니다. 터널이 켜져 있다면 새 비밀번호를 설정하기 전까지 외부 접속자가 먼저 설정할 수 있습니다.',
+  });
+  if (response !== 0) return;
+  try {
+    // The server runs in-process, so reuse its already-open DB connection.
+    const connectionJs = path.join(path.dirname(resolveServerEntry()), 'db', 'connection.js');
+    const { getDatabase } = await import(pathToFileURL(connectionJs).href);
+    const db = getDatabase();
+    db.prepare(
+      "DELETE FROM app_settings WHERE key IN ('auth.password_hash', 'auth.password_changed_at')"
+    ).run();
+    db.prepare('DELETE FROM auth_sessions').run();
+    mainWindow?.reload();
+  } catch (err) {
+    dialog.showErrorBox('비밀번호 초기화 실패', String(err));
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -508,6 +534,11 @@ function buildMenu() {
           click: () => {
             if (serverPort) shell.openExternal(`http://127.0.0.1:${serverPort}`);
           },
+        },
+        { type: 'separator' },
+        {
+          label: '비밀번호 초기화',
+          click: () => resetWebPassword(),
         },
         { type: 'separator' },
         {
