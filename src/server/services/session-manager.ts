@@ -45,6 +45,17 @@ export class SessionManager {
   // stop/exit; the DB lookup remains as the fallback for cache misses.
   private livePids: Map<string, number> = new Map();
 
+  // sessionId → in-flight diff-base snapshot (started just before PTY spawn,
+  // resolves after base_commit lands in the DB). The Diff route awaits this
+  // instead of falling back to a HEAD-only diff that hides untracked files.
+  private pendingBaseSnapshots: Map<string, Promise<void>> = new Map();
+
+  /** Resolves once the session's diff-base snapshot (if in flight) is in the DB. */
+  async waitForBaseSnapshot(sessionId: string): Promise<void> {
+    const pending = this.pendingBaseSnapshots.get(sessionId);
+    if (pending) await pending;
+  }
+
   /**
    * Hook the raw PTY byte stream of `pid` into:
    *   1. live binary WS frames to currently subscribed clients
@@ -251,10 +262,25 @@ export class SessionManager {
     // shared/main checkout, changes already present before the session started
     // (e.g. a stray untracked file) are excluded; only what the session itself
     // changes shows up. See snapshotWorkingTree().
-    const baseCommit: string | null = session.base_commit ?? null;
-    // Capture is deferred to after PTY spawn (fire-and-forget) so a large-repo
-    // tree scan doesn't block terminal start — see the snapshot kickoff below.
-    const needsSnapshot = !baseCommit && project.is_git_repo;
+    //
+    // Kicked off BEFORE the PTY spawns (not awaited — start stays instant):
+    // started after spawn, the scan raced the CLI's boot-time edits and could
+    // bake them into the base, hiding them from the Diff forever. Started
+    // here, the CLI process doesn't even exist yet; only a scan still running
+    // when the CLI's first write lands could miss it (huge repos).
+    // resolveSessionDiff (routes/sessions.ts) awaits the pending promise via
+    // waitForBaseSnapshot, so an early-opened Diff sees the real base instead
+    // of falling back to a HEAD-only diff that hides untracked files.
+    if (!session.base_commit && project.is_git_repo) {
+      const snapshot = snapshotWorkingTree(workDir)
+        .then((base) => { if (base) queries.updateSession(sessionId, { base_commit: base }); })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          queries.createSessionLog(sessionId, 'error', `Diff base snapshot failed: ${message}`);
+        })
+        .finally(() => { this.pendingBaseSnapshots.delete(sessionId); });
+      this.pendingBaseSnapshots.set(sessionId, snapshot);
+    }
 
     let pid: number;
     let exitPromise: Promise<number>;
@@ -294,7 +320,10 @@ export class SessionManager {
     // map.delete, so a message arriving on the next event-loop tick will
     // see process_pid set and no buffer, and write straight to the PTY in
     // correct order after the replayed bytes.
-    queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath, base_commit: baseCommit });
+    // base_commit intentionally absent: the pre-spawn snapshot's completion
+    // handler owns that column — writing the (possibly stale-null) value here
+    // could overwrite a snapshot that already landed.
+    queries.updateSession(sessionId, { process_pid: pid, branch_name: branchName, worktree_path: worktreePath });
     this.livePids.set(sessionId, pid);
     const queued = this.startupInputBuffer.get(sessionId);
     this.startupInputBuffer.delete(sessionId);
@@ -304,19 +333,6 @@ export class SessionManager {
       }
     }
 
-    // ponytail: fire-and-forget — a large-repo `git add -A` tree scan must not block PTY start.
-    // base_commit is only read when the Diff panel opens, and a null base degrades to HEAD there
-    // (resolveSessionDiff, routes/sessions.ts). Races the CLI's own early edits in theory; the CLI
-    // takes seconds to boot before its first write, so the scan normally reads the pre-edit tree.
-    // If exact session scoping is ever required, await this before draining keystrokes above.
-    if (needsSnapshot) {
-      snapshotWorkingTree(workDir)
-        .then((base) => { if (base) queries.updateSession(sessionId, { base_commit: base }); })
-        .catch((err) => {
-          const message = err instanceof Error ? err.message : String(err);
-          queries.createSessionLog(sessionId, 'error', `Diff base snapshot failed: ${message}`);
-        });
-    }
     const logMsg = useWorktree
       ? `Started ${adapter.displayName} (PID: ${pid}) on branch ${branchName} [interactive]`
       : `Started ${adapter.displayName} (PID: ${pid}) [interactive]`;
