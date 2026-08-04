@@ -158,16 +158,18 @@ export function getGitRefs(id: string, worktreePath?: string): Promise<GitRefsRe
 
 // --- Git actions ---
 
-export function gitStage(id: string, files: string[]): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-stage`, { files });
+// `worktreePath` (here and below) targets a session worktree under
+// <project>/.worktrees instead of the main checkout — validated server-side.
+export function gitStage(id: string, files: string[], worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-stage`, { files, worktreePath });
 }
 
-export function gitUnstage(id: string, files: string[]): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-unstage`, { files });
+export function gitUnstage(id: string, files: string[], worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-unstage`, { files, worktreePath });
 }
 
-export function gitCommit(id: string, message: string): Promise<{ ok: boolean; commit: string }> {
-  return post(`/api/projects/${id}/git-commit`, { message });
+export function gitCommit(id: string, message: string, worktreePath?: string): Promise<{ ok: boolean; commit: string }> {
+  return post(`/api/projects/${id}/git-commit`, { message, worktreePath });
 }
 
 export function gitPull(id: string, remote?: string, branch?: string): Promise<{ ok: boolean; summary: string }> {
@@ -185,6 +187,7 @@ export interface GitPushPayload {
   branches?: PushBranchSpec[];
   pushAllTags?: boolean;
   force?: boolean;
+  worktreePath?: string;
 }
 
 export function gitPush(id: string, payload?: GitPushPayload): Promise<{ ok: boolean }> {
@@ -220,16 +223,17 @@ export function gitMerge(id: string, branch: string): Promise<{ ok: boolean; res
   return post(`/api/projects/${id}/git-merge`, { branch });
 }
 
-export function gitConflictResolve(id: string, file: string, side: 'ours' | 'theirs'): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-conflict-resolve`, { file, side });
+export function gitConflictResolve(id: string, file: string, side: 'ours' | 'theirs', worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-conflict-resolve`, { file, side, worktreePath });
 }
 
-export function getConflictFile(id: string, file: string): Promise<{ content: string }> {
-  return get(`/api/projects/${id}/git-conflict-file?file=${encodeURIComponent(file)}`);
+export function getConflictFile(id: string, file: string, worktreePath?: string): Promise<{ content: string }> {
+  const qs = worktreePath ? `&worktreePath=${encodeURIComponent(worktreePath)}` : '';
+  return get(`/api/projects/${id}/git-conflict-file?file=${encodeURIComponent(file)}${qs}`);
 }
 
-export function resolveConflictContent(id: string, file: string, content: string): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-conflict-file`, { file, content });
+export function resolveConflictContent(id: string, file: string, content: string, worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-conflict-file`, { file, content, worktreePath });
 }
 
 export function gitConflictContinue(id: string): Promise<{ ok: boolean; conflict: boolean; conflictFiles: string[] }> {
@@ -257,8 +261,8 @@ export function gitStashList(id: string): Promise<GitStashEntry[]> {
   return get(`/api/projects/${id}/git-stash-list`);
 }
 
-export function gitDiscard(id: string, files?: string[], all?: boolean): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/git-discard`, { files, all });
+export function gitDiscard(id: string, files?: string[], all?: boolean, worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-discard`, { files, all, worktreePath });
 }
 
 export function gitCreateTag(id: string, name: string, message?: string, commit?: string): Promise<{ ok: boolean }> {
@@ -289,10 +293,11 @@ export function gitReset(id: string, commit: string, mode: 'soft' | 'mixed' | 'h
   return post(`/api/projects/${id}/git-reset`, { commit, mode });
 }
 
-export function gitDiff(id: string, file?: string, staged?: boolean): Promise<{ diff: string }> {
+export function gitDiff(id: string, file?: string, staged?: boolean, worktreePath?: string): Promise<{ diff: string }> {
   const params = new URLSearchParams();
   if (file) params.set('file', file);
   if (staged) params.set('staged', 'true');
+  if (worktreePath) params.set('worktreePath', worktreePath);
   return get(`/api/projects/${id}/git-diff?${params}`);
 }
 
