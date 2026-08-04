@@ -374,6 +374,14 @@ ipcMain.on('window:focus-self', (event) => {
   imeDebugLog('window:focus-self', { event: 'ime-rebind' });
 });
 
+// Minimize the sender's OS window. Frameless popouts render their own top bar
+// (no native minimize button) and the web platform offers no equivalent.
+ipcMain.on('window:minimize-self', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || !win.isMinimizable()) return;
+  win.minimize();
+});
+
 ipcMain.on('ime:reset', (event, payload) => {
   // Route the focus call to the sender's webContents so popout child
   // windows reclaim their own keyboard focus, not the main window's.
