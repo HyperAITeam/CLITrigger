@@ -18,7 +18,7 @@ import { getSessionSettings } from './api/sessionSettings';
 import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
 
 function App() {
-  const { authenticated, authRequired, setupRequired, loading, login, logout, setup } = useAuth();
+  const { authenticated, authRequired, setupRequired, loading, login, logout, setup, changePassword } = useAuth();
   const { connected, onEvent, sendMessage, subscribeBinary } = useWebSocket(authenticated);
   const { t } = useI18n();
 
@@ -112,7 +112,7 @@ function App() {
   }
 
   if (!authenticated) {
-    return <LoginPage onLogin={login} />;
+    return <LoginPage onLogin={login} onChangePassword={changePassword} />;
   }
 
   return (
