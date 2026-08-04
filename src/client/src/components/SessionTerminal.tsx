@@ -864,6 +864,32 @@ export default function SessionTerminal({
     if (termRef.current) termRef.current.options.cursorBlink = isRunning;
   }, [isRunning]);
 
+  // Focus when this pane's tab becomes the active one. `autoFocusOnMount`
+  // doubles as the visibility signal (SessionPane passes `visible`), but the
+  // mount-time focus above only runs once — clicking a tab title or Ctrl+Tab
+  // just flips `display`, leaving DOM focus on body (the previously-focused
+  // textarea went display:none) or on the clicked "+" button, so keystrokes
+  // went nowhere until the user clicked inside the viewport. Laxer guard than
+  // mount: stealing from a button is intended here (the click that switched
+  // tabs is the user asking for this terminal); form inputs stay protected.
+  useEffect(() => {
+    if (!autoFocusOnMount) return;
+    const ae = document.activeElement as HTMLElement | null;
+    // Another terminal's helper textarea is a TEXTAREA but not a form the
+    // user is typing in — terminal→terminal tab switches must steal from it
+    // (blur timing of the now-hidden pane isn't guaranteed by effect time).
+    const isXtermHelper = !!ae && ae.classList.contains('xterm-helper-textarea');
+    const isFormish = !isXtermHelper && !!ae && (
+      ae.tagName === 'INPUT' ||
+      ae.tagName === 'TEXTAREA' ||
+      ae.tagName === 'SELECT' ||
+      ae.isContentEditable
+    );
+    if (!isFormish) {
+      try { termRef.current?.focus(); } catch { /* term disposed */ }
+    }
+  }, [autoFocusOnMount]);
+
   // Apply font-size changes without re-creating the terminal: update xterm
   // option, re-fit (cols/rows shrink/grow at the same container size), then
   // broadcast the new dimensions to the PTY through a long debounce.
