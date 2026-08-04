@@ -142,10 +142,17 @@ async function resolveSessionDiff(id: string, from?: string, reuseNow?: string):
   | { ok: true; gitDir: string; range: string; base: string | null; now: string | null }
   | { ok: false; status: number; reason: string }
 > {
-  const session = queries.getSessionById(id);
+  let session = queries.getSessionById(id);
   if (!session) return { ok: false, status: 404, reason: 'session-not-found' };
   const project = queries.getProjectById(session.project_id);
   if (!project || !project.is_git_repo) return { ok: false, status: 200, reason: 'not-git' };
+  // A fresh session's base snapshot may still be in flight (kicked off just
+  // before PTY spawn). Wait for it rather than degrading to the HEAD range
+  // below, which hides untracked files the session created.
+  if (!session.base_commit) {
+    await sessionManager.waitForBaseSnapshot(id);
+    session = queries.getSessionById(id) ?? session;
+  }
   const gitDir = session.worktree_path && fs.existsSync(session.worktree_path)
     ? session.worktree_path
     : project.path;
