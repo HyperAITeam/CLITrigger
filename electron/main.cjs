@@ -66,6 +66,44 @@ function attachImeWindowLogging(win, label) {
   });
 }
 
+// Focus-recovery bridge, shared by the main window and popout children.
+//
+// A focus that FOLLOWS a real OS blur (lock screen, alt-tab, forced IME
+// handoff) leaves the Windows TSF IME context stranded — Hangul commits as
+// detached jamo and the candidate window jumps to the corner — even though
+// webContents.isFocused() reads stale-true (ime-debug 2026-07-11). Force a
+// webContents.focus() rebind on post-blur refocus; keep skipping the
+// blur-less redundant focus, whose focus() would instead reset a healthy TSF
+// context (the original corner-jump this guard was added to prevent).
+//
+// Stale-event guard: with two app windows open, a 'focus' event can be
+// processed AFTER activation has already moved to the other window (the event
+// arrives with win.isFocused() === false). Calling webContents.focus() then is
+// not a rebind but an HWND activation STEAL from the sibling window — it blurs
+// the sibling, re-arms the sibling's bridge, whose own stale rebind steals
+// back: a self-sustaining blur→focus ping-pong between the two bridges, no
+// renderer involved (ime-debug 2026-08-05: a forced IME handoff's blur handed
+// activation to an open popout and the two bridges flickered at 15–30Hz for
+// 28s, ~10,400 window events). Skipping the stale rebind breaks the loop:
+// a fresh-focus rebind targets the already-active window and cannot steal.
+// wasBlurred stays armed on the skip so the eventual real focus still rebinds.
+function attachFocusRebindBridge(win, label) {
+  let wasBlurred = false;
+  win.on('blur', () => { wasBlurred = true; });
+  win.on('focus', () => {
+    if (win.isDestroyed()) return;
+    if (!win.isFocused()) {
+      imeDebugLog(label, { event: 'focus-bridge', skipped: 'stale' });
+      return;
+    }
+    const rebind = wasBlurred;
+    wasBlurred = false;
+    if (!rebind && win.webContents.isFocused()) return;
+    imeDebugLog(label, { event: 'focus-bridge', rebind });
+    win.webContents.focus();
+  });
+}
+
 function readOrInitConfig() {
   fs.mkdirSync(userDataDir, { recursive: true });
   let config = {};
@@ -288,23 +326,7 @@ function createWindow(port) {
   mainWindow.webContents.on('did-create-window', (childWin) => {
     blockOffOriginNav(childWin.webContents);
     wireTerminalZoom(childWin.webContents, 'popout');
-    // A focus that FOLLOWS a real OS blur (lock screen, alt-tab) leaves the
-    // Windows TSF IME context stranded, so composition breaks — Hangul commits
-    // as detached jamo and the candidate window jumps to the corner — even
-    // though webContents.isFocused() still reads stale-true (ime-debug
-    // 2026-07-11). Force a rebind on post-blur refocus; keep skipping the
-    // blur-less redundant focus, whose focus() would instead reset a healthy
-    // TSF context (the original corner-jump this guard was added to prevent).
-    let wasBlurred = false;
-    childWin.on('blur', () => { wasBlurred = true; });
-    childWin.on('focus', () => {
-      if (childWin.isDestroyed()) return;
-      const rebind = wasBlurred;
-      wasBlurred = false;
-      if (!rebind && childWin.webContents.isFocused()) return;
-      imeDebugLog('popout', { event: 'focus-bridge', rebind });
-      childWin.webContents.focus();
-    });
+    attachFocusRebindBridge(childWin, 'popout');
     attachImeWindowLogging(childWin, 'popout');
   });
 
@@ -321,22 +343,8 @@ function createWindow(port) {
   // Windows lock-screen / screensaver hands the native HWND keyboard focus
   // off to the lock UI; on resume it doesn't always return to webContents,
   // leaving every input (SessionForm, SessionTerminal) dead until the user
-  // minimizes and restores. Re-focus webContents on window focus — but a
-  // redundant programmatic focus() (no preceding blur) resets the Windows IME
-  // (TSF) caret context (candidate window jumps to the corner), so gate the
-  // rebind on an actual blur having happened first: after a real blur→focus
-  // cycle the TSF context is stranded and needs the rebind even though
-  // isFocused() reads stale-true (ime-debug 2026-07-11).
-  let mainWasBlurred = false;
-  mainWindow.on('blur', () => { mainWasBlurred = true; });
-  mainWindow.on('focus', () => {
-    if (mainWindow.isDestroyed()) return;
-    const rebind = mainWasBlurred;
-    mainWasBlurred = false;
-    if (!rebind && mainWindow.webContents.isFocused()) return;
-    imeDebugLog('mainWindow', { event: 'focus-bridge', rebind });
-    mainWindow.webContents.focus();
-  });
+  // minimizes and restores.
+  attachFocusRebindBridge(mainWindow, 'mainWindow');
 }
 
 ipcMain.on('ime:log', (_event, payload) => {
