@@ -24,10 +24,20 @@ export function imeHandoffInFlight(): boolean {
 
 /**
  * Blur the current element → ime:reset(force) (OS window blur→focus in main)
- * → two RAFs → focusTarget(). Returns false (and does nothing) outside
- * Electron or while another handoff is running. Callers must ensure no IME
- * composition is in flight. focusTarget runs before the in-flight guard
- * releases, so the focusin it fires synchronously cannot re-trigger a rescue.
+ * → wait for the window `focus` event (the OS cycle actually landing back in
+ * this renderer) → two RAFs → focusTarget(). Returns false (and does nothing)
+ * outside Electron or while another handoff is running. Callers must ensure
+ * no IME composition is in flight.
+ *
+ * The guard MUST hold until window focus has returned, not just until a
+ * double-RAF: the OS cycle's artifacts — the page blur and the focus event
+ * Chromium re-fires on the focused element when the window reactivates —
+ * arrive asynchronously, and a focusin observed while document.hasFocus() is
+ * false is exactly the App-level rescue's trigger condition. v0.2.46 released
+ * on RAF2, which can beat the OS round-trip; the refire then landed after
+ * release, the rescue started another window cycle, and each cycle's refire
+ * re-armed the next — a runaway blur→focus flicker storm that froze the
+ * desktop. Everything the cycle emits must land while inFlight still holds.
  */
 export function forceImeHandoff(focusTarget: () => void): boolean {
   const api = (window as unknown as {
@@ -35,19 +45,32 @@ export function forceImeHandoff(focusTarget: () => void): boolean {
   }).electronAPI;
   if (!api?.imeReset || inFlight) return false;
   inFlight = true;
-  // Idempotent release: normally after focusTarget on RAF2, but a hidden or
-  // occluded page can starve RAFs — the timer keeps a stuck handoff from
-  // permanently disabling every future rescue.
   let released = false;
-  const release = () => { released = true; inFlight = false; };
-  const timer = window.setTimeout(release, 1000);
+  const release = () => {
+    released = true;
+    inFlight = false;
+    window.clearTimeout(watchdog);
+    window.removeEventListener('focus', onWindowFocus);
+  };
+  const finish = () => {
+    if (released) return;
+    try { focusTarget(); } finally { release(); }
+  };
+  // Watchdog: if the focus event never arrives (window never actually lost
+  // focus, hidden page starving RAFs), a stuck handoff must not permanently
+  // disable every future rescue — best-effort focus and release.
+  const watchdog = window.setTimeout(finish, 1000);
+  const onWindowFocus = () => {
+    // Two RAFs after focus return: the activation-driven focus refire on the
+    // focused element dispatches within the reactivation task — it must be
+    // swallowed while the guard still holds, and xterm's own focus
+    // restoration needs the same settling time as before.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(finish);
+    });
+  };
+  window.addEventListener('focus', onWindowFocus);
   (document.activeElement as HTMLElement | null)?.blur?.();
   api.imeReset(true);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      window.clearTimeout(timer);
-      try { focusTarget(); } finally { if (!released) release(); }
-    });
-  });
   return true;
 }
