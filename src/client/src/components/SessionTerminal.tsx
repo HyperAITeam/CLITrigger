@@ -10,6 +10,7 @@ import { bumpSessionFontSize } from '../hooks/useSessionFontSize';
 import { pasteImage, getClipboardImagePath } from '../api/sessions';
 import { TERMINAL_PRESETS } from '../lib/terminal-presets';
 import { useToast } from '../hooks/useToast';
+import { forceImeHandoff } from '../ime-handoff';
 import type { WsEvent } from '../hooks/useWebSocket';
 
 // Temporary IME diagnostics (document-level, registered once per window).
@@ -1597,24 +1598,16 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
   // composition. Neither existing defense reaches this state: the main-process
   // focus-bridge only re-fires on a blur→focus cycle, and the App-level
   // focusin→imeReset excludes the helper textarea (and focusin doesn't fire
-  // while the page is unfocused anyway). Rebind with the proven SessionForm
-  // sequence: blur → ime:reset (webContents.focus()) → two RAFs → refocus the
-  // terminal. The triggering keystroke is already lost to the dead IME;
-  // everything after it composes normally.
-  let rescueRaf = 0;
+  // while the page is unfocused anyway). Rebind via the shared forced handoff
+  // (OS window blur→focus cycle in main, then refocus the terminal). The
+  // triggering keystroke is already lost to the dead IME; everything after it
+  // composes normally.
   const rescueStrandedFocus = () => {
-    if (rescueRaf || composing) return;
-    const api = (window as unknown as { electronAPI?: { imeReset?: (force?: boolean) => void } }).electronAPI;
-    if (!api?.imeReset) return; // plain browser — no HWND focus to repair
-    imeLog('focus-rescue');
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    api.imeReset(true);
-    rescueRaf = requestAnimationFrame(() => {
-      rescueRaf = requestAnimationFrame(() => {
-        rescueRaf = 0;
-        try { term.focus(); } catch { /* term disposed mid-rescue */ }
-      });
+    if (composing) return;
+    const rescued = forceImeHandoff(() => {
+      try { term.focus(); } catch { /* term disposed mid-rescue */ }
     });
+    if (rescued) imeLog('focus-rescue');
   };
   // Key arrival at the DOM layer. `key === 'Process'` means the OS IME is
   // handling the keystroke; a raw letter on a Hangul-mode key means the TSF
@@ -1652,7 +1645,6 @@ function setupDesktopInput({ container, term, sessionId, sendMessage, isPasteAlr
     onDataDisposable.dispose();
     cursorMoveDisposable.dispose();
     if (posRaf) cancelAnimationFrame(posRaf);
-    if (rescueRaf) cancelAnimationFrame(rescueRaf);
     container.removeEventListener('keydown', handleKeydownLog, true);
     container.removeEventListener('compositionstart', handleCompStart, true);
     container.removeEventListener('compositionupdate', handleCompUpdate, true);

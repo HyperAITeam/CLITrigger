@@ -8,6 +8,7 @@ import type { MemoryInjectMode, SessionTag } from '../types';
 import type { VaultInjectMode } from '../api/vault';
 import * as tagsApi from '../api/sessionTags';
 import * as settingsApi from '../api/sessionSettings';
+import { forceImeHandoff } from '../ime-handoff';
 
 export interface SessionFormInitial {
   title: string;
@@ -59,20 +60,14 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
   // Windows EXE + Korean IME: xterm's helper textarea retains the native HWND
   // keyboard focus after a session has been interacted with, so React's
   // autoFocus on the title input only moves DOM focus — clicks land but the
-  // caret never activates. Force a native focus handoff: blur the previous
-  // active element, ask the main process to refocus webContents (recovers the
-  // OS-level focus), then focus the title input across two RAFs so xterm's
-  // own focus restoration has settled. Also park every xterm helper textarea
-  // out of the focus traversal for the form's lifetime.
+  // caret never activates. Run the shared forced handoff (OS window blur→focus
+  // cycle in main, then focus the title input) — falling back to a plain
+  // focus() outside Electron. Also park every xterm helper textarea out of
+  // the focus traversal for the form's lifetime.
   useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null;
-    prev?.blur?.();
-    (window as unknown as { electronAPI?: { imeReset?: (force?: boolean) => void } }).electronAPI?.imeReset?.(true);
-
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => titleRef.current?.focus());
-    });
+    if (!forceImeHandoff(() => titleRef.current?.focus())) {
+      titleRef.current?.focus();
+    }
 
     const helpers = Array.from(document.querySelectorAll<HTMLTextAreaElement>('.xterm-helper-textarea'));
     const prevHelpers = helpers.map((h) => ({
@@ -87,8 +82,6 @@ export default function SessionForm({ projectId, initial, onSave, onCancel, proj
     });
 
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
       prevHelpers.forEach(({ el, tabIndex, ariaHidden }) => {
         el.tabIndex = tabIndex;
         if (ariaHidden === null) el.removeAttribute('aria-hidden');

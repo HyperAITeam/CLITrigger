@@ -392,22 +392,32 @@ ipcMain.on('ime:reset', (event, payload) => {
   // when the window never lost OS focus — Chromium skips the native focus path
   // and the Windows TSF context stays stranded on a just-destroyed terminal
   // helper textarea, so the new form input can't compose Hangul even though DOM
-  // focus reads correct. Synthesize the real blur→focus cycle the focus-bridge
-  // relies on (see main.cjs:325-328) with blurWebView() first; that's the only
-  // thing that rebinds a stranded TSF. Callers only pass force when no
-  // composition is in flight, so the blur can't corrupt a healthy context.
+  // focus reads correct. Cycle the whole BrowserWindow (blur → focus): the OS
+  // sees a real WM_KILLFOCUS→WM_SETFOCUS pair and the focus-bridge above
+  // rebinds webContents, exactly like the alt-tab recovery — the only recovery
+  // ime-debug has ever shown working (2026-07-23: five webview-level rescues
+  // failed back-to-back, the alt-tab that followed fixed input instantly; the
+  // blurWebView() variant shipped 2026-08-03 and form entry was still dead on
+  // 2026-08-05, so a webview-internal cycle provably doesn't rebind TSF).
+  // Callers only pass force when no composition is in flight, so the blur
+  // can't corrupt a healthy context.
   const force = payload && payload.force;
   const sender = event && event.sender;
   if (sender && !sender.isDestroyed()) {
-    // blurWebView() lives on BrowserWindow, not webContents.
     const win = force ? BrowserWindow.fromWebContents(sender) : null;
-    if (win && !win.isDestroyed()) win.blurWebView();
+    if (win && !win.isDestroyed()) {
+      win.blur();
+      win.focus();
+    }
     sender.focus();
     imeDebugLog('ime:reset', { force: !!force, target: 'sender' });
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (force) mainWindow.blurWebView();
+    if (force) {
+      mainWindow.blur();
+      mainWindow.focus();
+    }
     mainWindow.webContents.focus();
     imeDebugLog('ime:reset', { force: !!force, target: 'mainWindow' });
   }
