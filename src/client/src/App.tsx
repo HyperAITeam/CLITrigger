@@ -16,6 +16,7 @@ import GlobalSessionDockTray from './components/GlobalSessionDockTray';
 import PopoutPage from './components/popout/PopoutPage';
 import { getSessionSettings } from './api/sessionSettings';
 import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
+import { forceImeHandoff } from './ime-handoff';
 
 function App() {
   const { authenticated, authRequired, setupRequired, loading, login, logout, setup, changePassword } = useAuth();
@@ -49,9 +50,11 @@ function App() {
   // a no-op (main skips a blur-less focus() on an already-focused window), so
   // no number of clicks recovers — the SessionForm mount handoff only covers
   // form entry and SessionTerminal only self-heals its own container. Rebind
-  // with the proven forced sequence: blur → ime:reset(force) → two RAFs →
-  // refocus the clicked target. Forcing is safe here: no composition can be in
-  // flight while page focus is dead.
+  // via the shared forced handoff (OS window blur→focus cycle in main); its
+  // in-flight guard also keeps this rescue from re-triggering off a handoff
+  // another component already started — a handoff makes hasFocus() read false
+  // mid-cycle, which is this rescue's own trigger condition. Forcing is safe
+  // here: no composition can be in flight while page focus is dead.
   useEffect(() => {
     const api = (window as unknown as {
       electronAPI?: { imeReset?: (force?: boolean) => void; imeLog?: (payload: unknown) => void };
@@ -60,18 +63,10 @@ function App() {
       !!t &&
       !t.classList?.contains('xterm-helper-textarea') &&
       (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    let rescueRaf = 0;
     const rescue = (target: HTMLElement) => {
-      if (!api?.imeReset || rescueRaf) return;
-      api.imeLog?.({ src: 'app', event: 'focus-rescue', tag: target.tagName });
-      (document.activeElement as HTMLElement | null)?.blur?.();
-      api.imeReset(true);
-      rescueRaf = requestAnimationFrame(() => {
-        rescueRaf = requestAnimationFrame(() => {
-          rescueRaf = 0;
-          target.focus();
-        });
-      });
+      if (forceImeHandoff(() => target.focus())) {
+        api?.imeLog?.({ src: 'app', event: 'focus-rescue', tag: target.tagName });
+      }
     };
     const onFocusIn = (e: FocusEvent) => {
       const t = e.target as HTMLElement | null;
@@ -99,7 +94,6 @@ function App() {
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
-      if (rescueRaf) cancelAnimationFrame(rescueRaf);
       document.removeEventListener('focusin', onFocusIn, true);
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown, true);
