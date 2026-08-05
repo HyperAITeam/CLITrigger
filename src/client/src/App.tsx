@@ -41,17 +41,69 @@ function App() {
   // Re-focus webContents whenever focus lands on an editable element so the
   // IME context re-binds. Skip the terminal's own helper textarea — it must
   // not be reset mid-use. No-op outside Electron.
+  //
+  // Dead-page-focus rescue: input arriving while document.hasFocus() is false
+  // means the OS still routes clicks/keys to this window but Chromium page
+  // focus is dead (ime-debug 2026-07-16). Clicking a form input then moves DOM
+  // focus without ever activating the caret, and the non-forced reset below is
+  // a no-op (main skips a blur-less focus() on an already-focused window), so
+  // no number of clicks recovers — the SessionForm mount handoff only covers
+  // form entry and SessionTerminal only self-heals its own container. Rebind
+  // with the proven forced sequence: blur → ime:reset(force) → two RAFs →
+  // refocus the clicked target. Forcing is safe here: no composition can be in
+  // flight while page focus is dead.
   useEffect(() => {
+    const api = (window as unknown as {
+      electronAPI?: { imeReset?: (force?: boolean) => void; imeLog?: (payload: unknown) => void };
+    }).electronAPI;
+    const isEditable = (t: HTMLElement | null): t is HTMLElement =>
+      !!t &&
+      !t.classList?.contains('xterm-helper-textarea') &&
+      (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    let rescueRaf = 0;
+    const rescue = (target: HTMLElement) => {
+      if (!api?.imeReset || rescueRaf) return;
+      api.imeLog?.({ src: 'app', event: 'focus-rescue', tag: target.tagName });
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      api.imeReset(true);
+      rescueRaf = requestAnimationFrame(() => {
+        rescueRaf = requestAnimationFrame(() => {
+          rescueRaf = 0;
+          target.focus();
+        });
+      });
+    };
     const onFocusIn = (e: FocusEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.classList?.contains('xterm-helper-textarea')) return;
-      const editable = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
-      if (!editable) return;
-      (window as unknown as { electronAPI?: { imeReset?: () => void } }).electronAPI?.imeReset?.();
+      if (!isEditable(t)) return;
+      if (!document.hasFocus()) {
+        rescue(t);
+        return;
+      }
+      api?.imeReset?.();
+    };
+    // focusin never re-fires on an element that already holds DOM focus, so a
+    // repeat click on the dead input needs its own hook; keydown covers the
+    // typing-first path the same way SessionTerminal's rescue does.
+    const onPointerDown = (e: PointerEvent) => {
+      if (document.hasFocus()) return;
+      const t = e.target as HTMLElement | null;
+      if (isEditable(t)) rescue(t);
+    };
+    const onKeyDown = () => {
+      if (document.hasFocus()) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (isEditable(ae)) rescue(ae);
     };
     document.addEventListener('focusin', onFocusIn, true);
-    return () => document.removeEventListener('focusin', onFocusIn, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      if (rescueRaf) cancelAnimationFrame(rescueRaf);
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
   }, []);
 
   if (loading) {
