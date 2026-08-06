@@ -6,9 +6,9 @@
   <img alt="CLITrigger" src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/src/client/public/logo.svg" width="360">
 </picture>
 
-**Your AI Development Command Center**
+**An IDE for AI CLI Agents**
 
-*AI agents code overnight in parallel git worktrees — you review the diffs over coffee.*
+*Docs, plans, terminals, autonomous agents, and git — one workspace instead of five scattered tools.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -44,11 +44,11 @@ npm i -g clitrigger && clitrigger
 
 > ### Docs → Plan → Terminal → Autonomous Tasks → Version Control. One pipeline.
 >
-> The five stages of a development cycle scattered across five tools is today's real bottleneck. CLITrigger connects them in a single app — build project knowledge in **Docs**, shape it into a plan with the **planner & calendar**, refine it live in **terminal sessions**, then let multiple AI CLIs (**Claude Code · Antigravity · Codex**) **execute autonomously in parallel**, each in its own isolated git worktree — and land the results through the **review queue and built-in Git client**.
+> Developing with AI CLI agents (Claude Code, Codex, …) scatters the workflow across disconnected tools: requirements in a note app, plans in another tool, agents across a pile of terminal windows, results in a git client. Editor-centric development has the IDE; CLI-agent-centric development doesn't — so the one ferrying context between tools ends up being you.
 >
-> While you sleep (or focus elsewhere), they burn through your token quota. Next morning you sit down, review the stack of diffs, and **accept / reject / merge**.
+> CLITrigger is that missing IDE. It connects the whole workflow into a single five-stage pipeline — build project knowledge in **Docs**, shape it into a plan with the **planner & calendar**, refine it live in **terminal sessions**, hand it to multiple AI CLIs (**Claude Code · Antigravity · Codex**) for **parallel autonomous execution** in isolated git worktrees, and land the results through the **review queue and built-in Git client**.
 >
-> **No context leaks between stages — the intent you captured in docs flows all the way to the merge.**
+> **Each stage inherits the context of the one before it — the intent you captured in docs flows all the way to the merge.**
 
 ```mermaid
 flowchart LR
@@ -68,20 +68,16 @@ flowchart LR
 
 ## Why CLITrigger?
 
-**Running Claude Code in your terminal, you drive one agent at a time and babysit it.** CLITrigger fans that out: many agents, each in its own isolated worktree, running while you're away — and a single place to plan the work and review every diff when they're done.
+**The tools don't talk to each other.** As AI writes more of the code, the developer's real job becomes capturing intent and reviewing output — yet that intent lives in a note app, the plan in another tool, the agents in a stack of terminal windows, and the results in a git client. Editor-centric development solved this decades ago with the IDE. CLI-agent-centric development never got one.
 
-Boris Cherny, creator of Claude Code, emphasizes **parallelism** as the key to AI-assisted development. Waiting for one task to finish before starting the next is the new bottleneck.
+CLITrigger is built as that IDE. Its backbone is a single pipeline — **Docs → Plan → Terminal → Autonomous Tasks → Version Control** — where each stage is not a separate tool but a consumer of the previous stage's context: docs become plans, plans become the agent's prompt, execution results arrive in a review queue. Intent is never lost between stages.
 
-At the same time, most AI services have **rate limits** — you can burn through your daily quota by noon and be stuck waiting until midnight.
+Inside the pipeline sits the execution machinery:
 
-And as AI writes more of the code, the developer's real job becomes **capturing intent and reviewing output** — which falls apart the moment your context is scattered across sticky notes, terminals, and a dozen browser tabs.
-
-CLITrigger solves all three:
-
-- **Right now** — Multiple tasks run in isolated git worktrees, with Claude / Antigravity / Codex executing in parallel
-- **Without hitting limits** — Schedule tasks for off-peak hours to make the most of your token quota
-- **Without losing the thread** — The intent captured in your docs flows through plan → terminal → autonomous tasks → merge as one pipeline. No sticky notes, no twelve browser tabs
-- **Better output** — Multiple AI agents debate and review before implementation, producing higher-quality results than a single AI working alone
+- **Parallel execution** — every task runs in its own isolated git worktree, with Claude / Antigravity / Codex working simultaneously
+- **Scheduling around rate limits** — cron-based runs and auto-retry at quota reset make full use of your tokens, even while you're away
+- **Multi-agent quality** — architect / developer / reviewer agents debate before implementation, beating a single agent working alone
+- **One place to land it** — triage every diff in the review queue, then commit, push, and merge in the built-in Git client
 
 ---
 
