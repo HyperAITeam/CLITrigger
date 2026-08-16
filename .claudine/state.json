@@ -1,0 +1,487 @@
+{
+  "conversations": [
+    {
+      "id": "ccf6f67e-9bf0-4254-ac71-25c41e9d8cba",
+      "title": "You are a commit message generator. Based on the following git diff, write a ...",
+      "description": "",
+      "category": "feature",
+      "status": "todo",
+      "lastMessage": "",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "feat/wsl-workspace-support",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T14:33:38.289Z",
+      "updatedAt": "2026-08-16T14:33:38.542Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\ccf6f67e-9bf0-4254-ac71-25c41e9d8cba.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3669"
+    },
+    {
+      "id": "380a9ebd-b9f4-44af-bbbd-a199a56a7578",
+      "title": "Add WSL workspace to project",
+      "description": "Explain adding a WSL workspace; project-aware wiring left undone pending approval.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Le rendre projet-aware demande de faire descendre le projet jusque-là. Dis-moi si tu veux que je le fasse.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "feat/wsl-workspace-support",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Bash",
+        "summary": "timeout 25 git ls-remote --heads origin 2>&1 | grep -c wsl-workspace; echo \"(...",
+        "outputHint": "5 lines of output",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T08:42:04.044Z",
+      "updatedAt": "2026-08-16T14:33:33.787Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\380a9ebd-b9f4-44af-bbbd-a199a56a7578.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "originalTitle": "comment je rajoute un workspace wsl",
+      "originalDescription": "Ambigupx — 2 read:",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cpolygon%20points%3D%2230%2C46%2034%2C54%2026%2C54%22%20fill%3D%22hsl(56%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2250%22%20cy%3D%2226%22%20r%3D%228%22%20fill%3D%22hsl(56%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2220%22%20y%3D%2240%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22hsl(56%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2246%2C18%2050%2C26%2042%2C26%22%20fill%3D%22hsl(56%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2222%22%20cy%3D%2242%22%20r%3D%228%22%20fill%3D%22hsl(56%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "shortId": "T-3660",
+      "previousStatus": "in-review"
+    },
+    {
+      "id": "65fa368f-d0b8-4e82-bcf0-8002109cc0a8",
+      "title": "Generate commit message from git diff",
+      "description": "Write a commit message based on provided git diff output.",
+      "category": "task",
+      "status": "in-review",
+      "lastMessage": "",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T14:24:11.781Z",
+      "updatedAt": "2026-08-16T14:24:16.816Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\65fa368f-d0b8-4e82-bcf0-8002109cc0a8.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3668",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(claudine): update task state with WSL workspace conversation"
+    },
+    {
+      "id": "3b7b4b2a-ea47-4652-8336-14f53d98f6da",
+      "title": "Generate commit message from git diff",
+      "description": "Write a commit message based on the provided git diff.",
+      "category": "task",
+      "status": "in-review",
+      "lastMessage": "",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T14:20:05.025Z",
+      "updatedAt": "2026-08-16T14:20:11.120Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\3b7b4b2a-ea47-4652-8336-14f53d98f6da.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3667",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(claudine): reorder conversations and refresh WSL task state"
+    },
+    {
+      "id": "a2e43c74-8d92-4953-9c73-2d5528e7f998",
+      "title": "Generate commit message from git diff",
+      "description": "Write a commit message based on a provided git diff.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T14:09:16.477Z",
+      "updatedAt": "2026-08-16T14:09:22.886Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\a2e43c74-8d92-4953-9c73-2d5528e7f998.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3666",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "```\nWIP(wsl): fix raw-shell spawn and sandbox paths inside WSL distro"
+    },
+    {
+      "id": "45330f84-bc55-4426-8c92-bf23ac789580",
+      "title": "Generate commit message from git diff",
+      "description": "Write a commit message based on a provided git diff.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": true
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T13:55:36.190Z",
+      "updatedAt": "2026-08-16T13:55:41.322Z",
+      "filePath": "c:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--Users-SylvainMALNUIT-git-personal-CLITrigger\\45330f84-bc55-4426-8c92-bf23ac789580.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3665",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "```\nWIP(wsl): route WSL CLI probe and spawn through login shell"
+    },
+    {
+      "id": "848fd561-6f62-46c7-a9e0-fc09bf0da991",
+      "title": "Run projects and git inside WSL",
+      "description": "Execute projects and git in WSL distro via UNC paths.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "WSL badge in Sidebar/ProjectHeader; added `accent-pink` token and client `lib/wsl.ts` path helper.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T09:20:02.398Z",
+      "updatedAt": "2026-08-16T09:20:13.097Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger\\848fd561-6f62-46c7-a9e0-fc09bf0da991.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3664",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Crect%20x%3D%2240.5%22%20y%3D%2235.5%22%20width%3D%2217%22%20height%3D%2217%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2244%2C33%2050%2C45%2038%2C45%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2239%22%20cy%3D%2234%22%20r%3D%229.5%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2227%22%20y%3D%2222%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(wsl): run projects and git inside WSL distro via UNC paths"
+    },
+    {
+      "id": "3f695571-0df9-46b5-b43e-462d4639c0b5",
+      "title": "Implement schema, queries, and service layer",
+      "description": "Build database schema and queries first, then the service layer.",
+      "category": "feature",
+      "status": "in-progress",
+      "lastMessage": "Now the service:",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "feature/pr-httpsgithubcomhyperaiteamclitriggeris",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Bash",
+        "summary": "cd \"C:/Users/SylvainMALNUIT/git/personal/CLITrigger/.worktrees/feature-pr-htt...",
+        "outputHint": "(Bash completed with no output)",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T09:16:44.662Z",
+      "updatedAt": "2026-08-16T09:20:06.675Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger--worktrees-feature-pr-httpsgithubcomhyperaiteamclitriggeris\\3f695571-0df9-46b5-b43e-462d4639c0b5.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-httpsgithubcomhyperaiteamclitriggeris",
+      "provider": "claude-code",
+      "previousStatus": "todo",
+      "shortId": "T-3663",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Crect%20x%3D%2245%22%20y%3D%2243%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22hsl(250%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2250%2C42%2056%2C54%2044%2C54%22%20fill%3D%22hsl(250%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2248%22%20cy%3D%2246%22%20r%3D%225%22%20fill%3D%22hsl(250%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2242%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22hsl(250%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "You are working in a git worktree. Complete the task described in the ",
+      "originalDescription": "Now implement. Schema + queries first."
+    },
+    {
+      "id": "033907fa-49da-4211-9c7a-e039650b95f0",
+      "title": "Refresh conversation titles and activity state",
+      "description": "Update Claudine conversation titles, reorder entries, move lastActivity timestamp.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Move lastActivity to T-3660; reorder conversation entries by latest update.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T09:02:56.912Z",
+      "updatedAt": "2026-08-16T09:03:01.406Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger\\033907fa-49da-4211-9c7a-e039650b95f0.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3662",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Ccircle%20cx%3D%2231%22%20cy%3D%2252%22%20r%3D%225.5%22%20fill%3D%22hsl(237%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2248%22%20y%3D%2225%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22hsl(237%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2229%2C41.5%2037.5%2C58.5%2020.5%2C58.5%22%20fill%3D%22hsl(237%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(claudine): refresh conversation titles and activity state"
+    },
+    {
+      "id": "7c39f891-e2d1-449f-b337-8bc567d2d4e2",
+      "title": "Sync task snapshot with new conversations",
+      "description": "Update T-3659 status and refresh snapshot lastUpdated timestamp.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Update T-3659 title/description/status for commit-message task; refresh lastUpdated timestamp.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T08:43:28.561Z",
+      "updatedAt": "2026-08-16T08:43:32.254Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger\\7c39f891-e2d1-449f-b337-8bc567d2d4e2.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3661",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cpolygon%20points%3D%2248%2C35%2055%2C49%2041%2C49%22%20fill%3D%22hsl(350%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2242%22%20cy%3D%2236%22%20r%3D%228%22%20fill%3D%22hsl(350%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2227%22%20y%3D%2221%22%20width%3D%2218%22%20height%3D%2218%22%20fill%3D%22hsl(350%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2230%2C20%2034%2C28%2026%2C28%22%20fill%3D%22hsl(350%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2224%22%20cy%3D%2218%22%20r%3D%225%22%20fill%3D%22hsl(350%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(claudine): sync task state snapshot with new conversation entries"
+    },
+    {
+      "id": "19f4ee76-3f7e-4eeb-a2ed-8727c52679f1",
+      "title": "Add task state snapshot",
+      "description": "Snapshot tracking four in-progress Claudine conversations.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Snapshot tracks 4 in-progress/in-review conversations (build fix, WSL picker, PTY spawn, claude-manager wiring).",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "createdAt": "2026-08-16T08:40:51.463Z",
+      "updatedAt": "2026-08-16T08:40:55.126Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger\\19f4ee76-3f7e-4eeb-a2ed-8727c52679f1.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "shortId": "T-3659",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Crect%20x%3D%2245.5%22%20y%3D%2242.5%22%20width%3D%2211%22%20height%3D%2211%22%20fill%3D%22hsl(121%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2248%2C39%2054%2C51%2042%2C51%22%20fill%3D%22hsl(121%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2245%22%20cy%3D%2242%22%20r%3D%226.5%22%20fill%3D%22hsl(121%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2235%22%20y%3D%2232%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22hsl(121%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "You are a commit message generator. Based on the following git diff, write a ...",
+      "originalDescription": "WIP(claudine): add task state snapshot"
+    },
+    {
+      "id": "3d76daad-936c-4416-a8f0-70492079a5c1",
+      "title": "Fix failing npm run build",
+      "description": "Missing @vitejs/plugin-react dependency in src/client/node_modules broke the build.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Build passes now. Fix: `@vitejs/plugin-react` missing in `src/client/node_modules` — ran `npm install` there.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "main",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Bash",
+        "summary": "cd \"c:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\" && npm run build 2>&1 | ...",
+        "outputHint": "31 lines of output",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T08:39:00.155Z",
+      "updatedAt": "2026-08-16T08:40:48.590Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger\\3d76daad-936c-4416-a8f0-70492079a5c1.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger",
+      "provider": "claude-code",
+      "previousStatus": "todo",
+      "shortId": "T-3658",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Ccircle%20cx%3D%2235%22%20cy%3D%2216%22%20r%3D%225.5%22%20fill%3D%22hsl(285%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2212%22%20y%3D%2237%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22hsl(285%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2241%2C13.5%2049.5%2C30.5%2032.5%2C30.5%22%20fill%3D%22hsl(285%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "originalTitle": "npm run build +=-> fail",
+      "originalDescription": "Missing dep in `src/client/node_modules`. Check:"
+    },
+    {
+      "id": "5fe6154e-6e93-4454-b30a-096cc5a577a5",
+      "title": "Add WSL distro picker to client",
+      "description": "Client picker prefills WSL UNC path from detected distros.",
+      "category": "feature",
+      "status": "in-review",
+      "lastMessage": "Added client picker (detected distros → prefill `\\\\wsl.localhost\\<distro>\\` path) since that was missing.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "feature/pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Bash",
+        "summary": "cd \"C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for...",
+        "outputHint": "ok ce138cd",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T08:31:57.348Z",
+      "updatedAt": "2026-08-16T08:34:02.334Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger--worktrees-feature-pr-for-httpsgithubcomhyperaiteamclitrigg\\5fe6154e-6e93-4454-b30a-096cc5a577a5.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "provider": "claude-code",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cpolygon%20points%3D%2223%2C30.5%2028.5%2C41.5%2017.5%2C41.5%22%20fill%3D%22hsl(53%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2236%22%20cy%3D%2249%22%20r%3D%228%22%20fill%3D%22hsl(53%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2244.5%22%20y%3D%2213.5%22%20width%3D%229%22%20height%3D%229%22%20fill%3D%22hsl(53%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2218%2C24%2025%2C38%2011%2C38%22%20fill%3D%22hsl(53%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2231%22%20cy%3D%2244%22%20r%3D%229.5%22%20fill%3D%22hsl(53%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "shortId": "T-3655",
+      "originalTitle": "You are working in a git worktree. Complete the task described in the ",
+      "originalDescription": "Memory says prior session already built WSL detection + spawn wrapping. Check current state first."
+    },
+    {
+      "id": "d166c523-c45d-4b33-bbd5-b35ca41b42a9",
+      "title": "Wrap PTY and spawn branches for WSL",
+      "description": "Handle WSL wrapping in PTY spawn and child_process.spawn fallback branches.",
+      "category": "feature",
+      "status": "in-progress",
+      "lastMessage": "Now the child_process.spawn fallback branch:",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "feature/pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Edit",
+        "summary": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyperaiteamclitrigg\\src\\client\\src\\api\\cli-status.ts",
+        "outputHint": "The file C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyp...",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T08:21:51.887Z",
+      "updatedAt": "2026-08-16T08:25:39.139Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger--worktrees-feature-pr-for-httpsgithubcomhyperaiteamclitrigg\\d166c523-c45d-4b33-bbd5-b35ca41b42a9.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "provider": "claude-code",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cpolygon%20points%3D%2248%2C35%2055%2C49%2041%2C49%22%20fill%3D%22hsl(14%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2242%22%20cy%3D%2236%22%20r%3D%228%22%20fill%3D%22hsl(14%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2227%22%20y%3D%2221%22%20width%3D%2218%22%20height%3D%2218%22%20fill%3D%22hsl(14%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2230%2C20%2034%2C28%2026%2C28%22%20fill%3D%22hsl(14%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2224%22%20cy%3D%2218%22%20r%3D%225%22%20fill%3D%22hsl(14%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "shortId": "T-3656",
+      "originalTitle": "You are working in a git worktree. Complete the task described in the ",
+      "originalDescription": "Now the PTY spawn branch:"
+    },
+    {
+      "id": "f7576749-ad42-46c2-b2ee-0c4783d5a0e8",
+      "title": "Wire claude-manager WSL spawn and routes",
+      "description": "Add preflight check plus WSL spawn wrapping for PTY and non-PTY paths.",
+      "category": "feature",
+      "status": "in-progress",
+      "lastMessage": "Now update `claude-manager.ts` — preflight check + actual spawn wrapping for both PTY and non-PTY paths.",
+      "agents": [
+        {
+          "id": "claude-main",
+          "name": "Claude",
+          "avatar": "",
+          "isActive": false
+        }
+      ],
+      "gitBranch": "feature/pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "hasError": false,
+      "isInterrupted": false,
+      "hasQuestion": false,
+      "isRateLimited": false,
+      "lastActivity": {
+        "toolName": "Read",
+        "summary": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyperaiteamclitrigg\\src\\server\\services\\claude-manager.ts",
+        "outputHint": "20 lines of output",
+        "status": "completed"
+      },
+      "createdAt": "2026-08-16T08:20:07.546Z",
+      "updatedAt": "2026-08-16T08:24:18.712Z",
+      "filePath": "C:\\Users\\SylvainMALNUIT\\.claude\\projects\\c--users-sylvainmalnuit-git-personal-clitrigger--worktrees-feature-pr-for-httpsgithubcomhyperaiteamclitrigg\\f7576749-ad42-46c2-b2ee-0c4783d5a0e8.jsonl",
+      "workspacePath": "C:\\Users\\SylvainMALNUIT\\git\\personal\\CLITrigger\\.worktrees\\feature-pr-for-httpsgithubcomhyperaiteamclitrigg",
+      "provider": "claude-code",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%20%20%20%20%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%2310b981%22%20opacity%3D%220.1%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Crect%20x%3D%2236.5%22%20y%3D%2227.5%22%20width%3D%2217%22%20height%3D%2217%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Cpolygon%20points%3D%2236%2C21%2042%2C33%2030%2C33%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Ccircle%20cx%3D%2227%22%20cy%3D%2218%22%20r%3D%229.5%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%3Crect%20x%3D%2211%22%20y%3D%2246%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22hsl(91%2C%2060%25%2C%2050%25)%22%20opacity%3D%220.7%22%2F%3E%0A%20%20%20%20%20%20%3C%2Fsvg%3E",
+      "shortId": "T-3657",
+      "originalTitle": "You are working in a git worktree. Complete the task described in the ",
+      "originalDescription": "Now let's check index.ts route registration and i18n patterns quickly."
+    }
+  ],
+  "lastUpdated": "2026-08-16T14:33:41.278Z"
+}
