@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, FolderOpen } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { browseNativeFolder } from '../api/projects';
+import { browseNativeFolder, listWslDistros } from '../api/projects';
 import Modal from './Modal';
 
 interface ProjectFormProps {
-  onSubmit: (name: string, path: string) => Promise<void>;
+  onSubmit: (name: string, path: string, wslDistro?: string) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -15,7 +15,14 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   const [browsing, setBrowsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // '' = local Windows/macOS path; otherwise the project lives inside that distro.
+  const [wslDistro, setWslDistro] = useState('');
+  const [distros, setDistros] = useState<string[]>([]);
   const { t } = useI18n();
+
+  useEffect(() => {
+    listWslDistros().then((r) => setDistros(r.distros)).catch(() => setDistros([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +30,7 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
     setError('');
     setSubmitting(true);
     try {
-      await onSubmit(name.trim(), path.trim());
+      await onSubmit(name.trim(), path.trim(), wslDistro || undefined);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg || t('form.createError'));
@@ -62,6 +69,23 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
                 autoFocus
               />
             </div>
+            {distros.length > 0 && (
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-warm-600 mb-2">
+                  {t('form.location')}
+                </label>
+                <select
+                  value={wslDistro}
+                  onChange={(e) => { setWslDistro(e.target.value); setPath(''); }}
+                  className="input-field text-sm"
+                >
+                  <option value="">{t('form.locationLocal')}</option>
+                  {distros.map((d) => (
+                    <option key={d} value={d}>WSL · {d}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="mb-8">
               <label className="block text-sm font-medium text-warm-600 mb-2">
                 {t('form.folderPath')}
@@ -69,25 +93,32 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="C:/Projects/my-project"
+                  placeholder={wslDistro ? '/home/you/git/my-project' : 'C:/Projects/my-project'}
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
                   className="input-field text-sm flex-1"
                 />
-                <button
-                  type="button"
-                  onClick={handleBrowse}
-                  disabled={browsing}
-                  className="btn-ghost text-sm px-3 shrink-0"
-                  title={t('browse.title')}
-                >
-                  {browsing ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <FolderOpen size={16} />
-                  )}
-                </button>
+                {/* The native picker only yields Windows paths, so it cannot help
+                    pick a path inside a distro. */}
+                {!wslDistro && (
+                  <button
+                    type="button"
+                    onClick={handleBrowse}
+                    disabled={browsing}
+                    className="btn-ghost text-sm px-3 shrink-0"
+                    title={t('browse.title')}
+                  >
+                    {browsing ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <FolderOpen size={16} />
+                    )}
+                  </button>
+                )}
               </div>
+              {wslDistro && (
+                <p className="text-xs text-warm-500 mt-2">{t('form.wslPathHint')}</p>
+              )}
             </div>
             {error && (
               <p className="text-sm mb-4" style={{ color: 'var(--color-danger, #ef4444)' }}>{error}</p>

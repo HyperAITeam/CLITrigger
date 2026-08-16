@@ -13,6 +13,7 @@ import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
 import { broadcastProjectStatus as broadcastProjectStatusShared } from './project-status.js';
 import * as queries from '../db/queries.js';
+import { agentVisiblePath } from '../utils/wsl.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
 
@@ -522,9 +523,7 @@ Complete the task in the current directory.`;
         const existingSettings = fs.existsSync(settingsPath)
           ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
           : {};
-        // Claude's permission matcher normalizes paths to forward slashes; mixed separators
-        // (e.g. backslash dir + slash glob on Windows) silently fail to match.
-        const normalizedWorkDir = workDir.replace(/\\/g, '/');
+        const normalizedWorkDir = agentVisiblePath(workDir);
         existingSettings.permissions = {
           allow: [
             `Read(${normalizedWorkDir}/**)`,`Edit(${normalizedWorkDir}/**)`,`Write(${normalizedWorkDir}/**)`,
@@ -543,7 +542,7 @@ Complete the task in the current directory.`;
 
     // Sandbox: add prompt-level path restriction for strict mode
     if (sandboxMode === 'strict') {
-      prompt += `\n\nIMPORTANT: Your working directory is ${workDir}. Do NOT access, read, write, or modify any files outside this directory, except for git operations that naturally access .git metadata.`;
+      prompt += `\n\nIMPORTANT: Your working directory is ${agentVisiblePath(workDir)}. Do NOT access, read, write, or modify any files outside this directory, except for git operations that naturally access .git metadata.`;
     }
 
     // Inject long-term memory if configured for this todo

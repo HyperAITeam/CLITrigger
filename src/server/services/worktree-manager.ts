@@ -2,6 +2,16 @@ import { createGit } from '../lib/git.js';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
+import { parseWslPath } from '../utils/wsl.js';
+
+/**
+ * Path form to hand to git itself. Node keeps using the UNC path for fs calls,
+ * but git runs inside the distro for WSL projects and only understands the
+ * Linux path.
+ */
+function gitTargetPath(p: string): string {
+  return parseWslPath(p)?.linuxPath ?? p;
+}
 
 export interface PushBranchSpec {
   local: string;
@@ -122,7 +132,10 @@ export class WorktreeManager {
     }
 
     // actualBranch is guaranteed unique now — always create a fresh branch.
-    await git.raw(['worktree', 'add', '-b', actualBranch, worktreePath]);
+    // git runs inside the distro for WSL projects, so it must be handed the
+    // Linux path — a UNC path would be recorded verbatim in the worktree's
+    // .git file and break every later git call from inside WSL.
+    await git.raw(['worktree', 'add', '-b', actualBranch, gitTargetPath(worktreePath)]);
 
     // Auto-install dependencies in the background (non-blocking).
     // Opt-in per project (npm_auto_install) — the worktree flow itself is language-agnostic,
@@ -168,7 +181,7 @@ export class WorktreeManager {
     const git = createGit(projectPath);
 
     try {
-      await git.raw(['worktree', 'remove', worktreePath, '--force']);
+      await git.raw(['worktree', 'remove', gitTargetPath(worktreePath), '--force']);
     } catch {
       // If the worktree directory was already removed, just prune
       await git.raw(['worktree', 'prune']);
@@ -206,7 +219,7 @@ export class WorktreeManager {
     const dirExisted = !!worktreePath && fs.existsSync(worktreePath);
     if (worktreePath && dirExisted) {
       try {
-        await git.raw(['worktree', 'remove', worktreePath, '--force']);
+        await git.raw(['worktree', 'remove', gitTargetPath(worktreePath), '--force']);
       } catch (err) {
         result.worktreeError = err instanceof Error ? err.message : String(err);
         // Fallback: nuke the directory + prune admin entry.

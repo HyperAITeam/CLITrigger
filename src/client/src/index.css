@@ -26,6 +26,8 @@
     --color-accent-light: #4DA3FF;
     --color-accent-dark: #0058B0;
     --color-accent-amber: #FF9500;
+    /* Point Pink — expressive accent for special badges. Never interactive. */
+    --color-accent-pink: #FF2D55;
     --color-scrollbar: #D1D1D6;
     --color-scrollbar-hover: #AEAEB2;
     --color-selection-bg: rgba(0, 113, 227, 0.15);
@@ -59,6 +61,7 @@
     --color-accent-light: #7BABFF;
     --color-accent-dark: #3370E0;
     --color-accent-amber: #FF9F0A;
+    --color-accent-pink: #FF375F;
     --color-scrollbar: #3A3A3A;
     --color-scrollbar-hover: #555555;
     --color-selection-bg: rgba(75, 141, 255, 0.25);
