@@ -10,6 +10,7 @@ import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal } from 'lucide-react';
 import IconButton from './IconButton';
+import { parseWslPath, displayPath } from '../lib/wsl';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -44,6 +45,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const [showSandboxWarning, setShowSandboxWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
+  const wslInfo = parseWslPath(project.path);
   const [cliStatuses, setCliStatuses] = useState<CliToolStatus[]>([]);
   const [cliStatusLoaded, setCliStatusLoaded] = useState(false);
 
@@ -210,11 +212,16 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               onClick={() => projectsApi.openFolder(project.path)}
             >
               <FolderOpen size={12} className="flex-shrink-0" />
-              <span className="truncate">{project.path}</span>
+              <span className="truncate">{displayPath(project.path)}</span>
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 order-3 basis-full lg:order-none lg:basis-auto">
+            {wslInfo && (
+              <span className="badge bg-accent-pink/10 text-accent-pink" title={`Runs inside WSL · ${wslInfo.distro}`}>
+                WSL · {wslInfo.distro}
+              </span>
+            )}
             {project.is_git_repo ? (
               <span className="badge bg-warm-200/60 text-warm-600">
                 Git · {project.default_branch}

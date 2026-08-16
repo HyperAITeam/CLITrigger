@@ -3,6 +3,7 @@ import nodePath from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { osOpenPath } from '../utils/open-path.js';
+import { listWslDistros, toUncPath } from '../utils/wsl.js';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults, reorderProjects } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
@@ -15,18 +16,36 @@ const router = Router();
  * Validate project path: must be absolute, exist, be a directory,
  * and not contain path traversal sequences.
  */
-function validateProjectPath(inputPath: string): { valid: boolean; error?: string; resolved?: string } {
+function validateProjectPath(inputPath: string, wslDistro?: string): { valid: boolean; error?: string; resolved?: string } {
   if (!inputPath || typeof inputPath !== 'string') {
     return { valid: false, error: 'Path is required' };
   }
-
-  // Resolve to absolute path
-  const resolved = nodePath.resolve(inputPath);
 
   // Check for path traversal attempts
   if (inputPath.includes('..')) {
     return { valid: false, error: 'Path traversal (..) is not allowed' };
   }
+
+  // WSL projects are entered as a Linux path (/home/...) plus a distro, but are
+  // stored as the equivalent UNC path so every fs call stays native on Windows.
+  // Convert before resolve(): path.win32.resolve('/home/x') would yield C:\home\x.
+  if (wslDistro) {
+    if (!/^\//.test(inputPath)) {
+      return { valid: false, error: 'WSL path must be absolute and start with /' };
+    }
+    const uncPath = toUncPath(wslDistro, inputPath);
+    try {
+      if (!fs.statSync(uncPath).isDirectory()) {
+        return { valid: false, error: 'Path must be a directory' };
+      }
+    } catch {
+      return { valid: false, error: `Path does not exist in WSL distro '${wslDistro}'` };
+    }
+    return { valid: true, resolved: uncPath };
+  }
+
+  // Resolve to absolute path
+  const resolved = nodePath.resolve(inputPath);
 
   // Must be an absolute path
   if (!nodePath.isAbsolute(inputPath)) {
@@ -201,6 +220,11 @@ namespace CLITriggerPicker {
   }
 });
 
+// GET /api/projects/wsl-distros - installed WSL distros (empty off Windows)
+router.get('/wsl-distros', async (_req: Request, res: Response) => {
+  res.json({ distros: await listWslDistros() });
+});
+
 // POST /api/projects/open-folder - open folder in OS file explorer
 router.post('/open-folder', (req: Request, res: Response) => {
   const { path: folderPath } = req.body;
@@ -226,13 +250,13 @@ router.post('/open-folder', (req: Request, res: Response) => {
 // POST /api/projects - create project
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, path, default_branch } = req.body;
+    const { name, path, default_branch, wsl_distro } = req.body;
     if (!name || !path) {
       res.status(400).json({ error: 'name and path are required' });
       return;
     }
 
-    const pathCheck = validateProjectPath(path);
+    const pathCheck = validateProjectPath(path, typeof wsl_distro === 'string' && wsl_distro ? wsl_distro : undefined);
     if (!pathCheck.valid) {
       res.status(400).json({ error: pathCheck.error });
       return;

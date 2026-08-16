@@ -8,6 +8,7 @@ import * as queries from '../db/queries.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcastProjectStatus } from './project-status.js';
+import { agentVisiblePath } from '../utils/wsl.js';
 
 function broadcastDiscussionProjectStatus(discussionId: string): void {
   try {
@@ -300,9 +301,7 @@ export class DiscussionOrchestrator {
           const existingSettings = fs.existsSync(settingsPath)
             ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
             : {};
-          // Claude's permission matcher normalizes paths to forward slashes; mixed separators
-          // (e.g. backslash dir + slash glob on Windows) silently fail to match.
-          const normalizedWorktreePath = discussion.worktree_path.replace(/\\/g, '/');
+          const normalizedWorktreePath = agentVisiblePath(discussion.worktree_path);
           existingSettings.permissions = {
             allow: [
               `Read(${normalizedWorktreePath}/**)`,`Edit(${normalizedWorktreePath}/**)`,`Write(${normalizedWorktreePath}/**)`,
