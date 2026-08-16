@@ -40,6 +40,7 @@ logs/
 worktrees/
 .worktrees/
 .claude/settings.local.json
+.claudine/
 .hecaton/
 plugin-build/
 clitrigger-plugin.zip
