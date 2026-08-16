@@ -9,7 +9,7 @@ import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMo
 import { getToolStatus } from './cli-status.js';
 import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
 import os from 'os';
-import { parseWslPath, probeWslCli, wrapWslCommand } from '../utils/wsl.js';
+import { parseWslPath, probeWslCli, wrapWslCommand, wrapWslShell } from '../utils/wsl.js';
 
 export type ClaudeMode = CliMode;
 
@@ -19,7 +19,7 @@ export type ClaudeMode = CliMode;
  * is authoritative for the working directory — the Windows-side process gets a
  * plain local cwd instead, since a UNC cwd is unreliable under ConPTY.
  */
-function resolveLaunch(command: string, args: string[], cwd: string): {
+function resolveLaunch(command: string, args: string[], cwd: string, rawShell?: boolean): {
   command: string;
   args: string[];
   cwd: string;
@@ -27,7 +27,12 @@ function resolveLaunch(command: string, args: string[], cwd: string): {
 } {
   const loc = parseWslPath(cwd);
   if (!loc) return { command, args, cwd, wsl: false };
-  return { ...wrapWslCommand(loc.distro, loc.linuxPath, command, args), cwd: os.homedir(), wsl: true };
+  // raw-shell's command is the *host* shell (powershell.exe on Windows), which
+  // is meaningless inside a distro — replace it with the distro's login shell.
+  const launch = rawShell
+    ? wrapWslShell(loc.distro, loc.linuxPath)
+    : wrapWslCommand(loc.distro, loc.linuxPath, command, args);
+  return { ...launch, cwd: os.homedir(), wsl: true };
 }
 
 // Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
@@ -165,7 +170,10 @@ export class ClaudeManager {
     // a missing CLI never fires ENOENT — cmd exits 1 with a localized (often
     // mojibake) message. POSIX already surfaces ENOENT via the 'error' event.
     const wslLocation = parseWslPath(worktreePath);
-    if (wslLocation) {
+    // raw-shell has no CLI to probe — it becomes the distro's own login shell.
+    if (wslLocation && tool === 'raw-shell') {
+      // nothing to verify
+    } else if (wslLocation) {
       // The Windows PATH check is meaningless here — the CLI has to exist inside
       // the distro. WSL's PATH interop happily resolves the Windows build via
       // /mnt/c, which would then receive Linux paths it cannot understand, so
@@ -199,7 +207,7 @@ export class ClaudeManager {
       const stdinPrompt = adapter.needsStdin(mode) && prompt
         ? adapter.formatStdinPrompt(prompt, mode)
         : undefined;
-      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows);
+      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows, tool === 'raw-shell');
       return { ...result, command: adapter.command, args };
     }
     const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
@@ -209,7 +217,7 @@ export class ClaudeManager {
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
+  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number, rawShell?: boolean): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -229,7 +237,7 @@ export class ClaudeManager {
       let ptyProcess: pty.IPty;
       try {
         ensurePtyHelperExecutable();
-        const launch = resolveLaunch(command, args, cwd);
+        const launch = resolveLaunch(command, args, cwd, rawShell);
         // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd).
         // WSL launches go straight to wsl.exe — a real executable, no shim.
         const ptyCommand = launch.wsl ? launch.command : (process.platform === 'win32' ? 'cmd.exe' : command);

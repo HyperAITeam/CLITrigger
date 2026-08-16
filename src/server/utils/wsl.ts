@@ -37,6 +37,17 @@ export function toUncPath(distro: string, linuxPath: string): string {
   return `\\\\wsl.localhost\\${distro}${rel ? `\\${rel}` : ''}`;
 }
 
+/**
+ * The path as the spawned agent sees it. For a WSL project the CLI runs inside
+ * the distro and only knows the Linux path — handing it the UNC path makes
+ * sandbox permission globs match nothing, silently rejecting every Edit/Write.
+ * Otherwise just normalize separators: Claude's permission matcher folds paths
+ * to forward slashes, and mixed separators fail to match on Windows.
+ */
+export function agentVisiblePath(p: string): string {
+  return parseWslPath(p)?.linuxPath ?? p.replace(/\\/g, '/');
+}
+
 /** Installed distro names, in `wsl.exe -l -q` order (first is the default). */
 export async function listWslDistros(): Promise<string[]> {
   if (process.platform !== 'win32') return [];
@@ -134,5 +145,17 @@ export function wrapWslCommand(
   return {
     command: 'wsl.exe',
     args: ['-d', distro, '--cd', linuxCwd, '--', ...WSL_SHELL, cmdline],
+  };
+}
+
+/**
+ * Interactive login shell inside the distro, for raw-shell terminal sessions.
+ * Unlike wrapWslCommand this keeps -i: a raw shell always runs under a PTY, so
+ * ~/.bashrc (prompt, aliases, version-manager hooks) both works and is wanted.
+ */
+export function wrapWslShell(distro: string, linuxCwd: string): { command: string; args: string[] } {
+  return {
+    command: 'wsl.exe',
+    args: ['-d', distro, '--cd', linuxCwd, '--', 'bash', '-li'],
   };
 }
