@@ -19,8 +19,13 @@ export function getProject(id: string): Promise<Project> {
   return get(`/api/projects/${id}`);
 }
 
-export function createProject(data: { name: string; path: string }): Promise<Project> {
+export function createProject(data: { name: string; path: string; wsl_distro?: string }): Promise<Project> {
   return post('/api/projects', data);
+}
+
+// Installed WSL distros; empty off Windows or when WSL is not installed.
+export function listWslDistros(): Promise<{ distros: string[] }> {
+  return get('/api/projects/wsl-distros');
 }
 
 // Read-only check whether the project folder is an SVN working copy. Drives

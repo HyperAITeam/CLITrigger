@@ -8,8 +8,27 @@ import treeKill from 'tree-kill';
 import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 import { getToolStatus } from './cli-status.js';
 import { createPtyFilterState, filterInteractivePtyOutput, type PtyFilterState } from './pty-output-filter.js';
+import os from 'os';
+import { parseWslPath, probeWslCli, wrapWslCommand } from '../utils/wsl.js';
 
 export type ClaudeMode = CliMode;
+
+/**
+ * Resolve how a CLI should actually be launched for a given working directory.
+ * For a WSL project the command runs inside the distro via wsl.exe, where --cd
+ * is authoritative for the working directory — the Windows-side process gets a
+ * plain local cwd instead, since a UNC cwd is unreliable under ConPTY.
+ */
+function resolveLaunch(command: string, args: string[], cwd: string): {
+  command: string;
+  args: string[];
+  cwd: string;
+  wsl: boolean;
+} {
+  const loc = parseWslPath(cwd);
+  if (!loc) return { command, args, cwd, wsl: false };
+  return { ...wrapWslCommand(loc.distro, loc.linuxPath, command, args), cwd: os.homedir(), wsl: true };
+}
 
 // Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
 // server-only secrets so an agent or raw-shell can't read them — otherwise a
@@ -145,7 +164,29 @@ export class ClaudeManager {
     // Pre-flight on Windows only: spawn goes through cmd.exe (shell:true), so
     // a missing CLI never fires ENOENT — cmd exits 1 with a localized (often
     // mojibake) message. POSIX already surfaces ENOENT via the 'error' event.
-    if (process.platform === 'win32') {
+    let launchCommand = adapter.command;
+    const wslLocation = parseWslPath(worktreePath);
+    if (wslLocation) {
+      // The Windows PATH check is meaningless here — the CLI has to exist inside
+      // the distro. WSL's PATH interop happily resolves the Windows build via
+      // /mnt/c, which would then receive Linux paths it cannot understand, so
+      // probeWslCli rejects those too.
+      const probe = await probeWslCli(wslLocation.distro, adapter.command);
+      if (!probe.found) {
+        throw new Error(
+          probe.windowsInterop
+            ? `${adapter.displayName} ('${adapter.command}') only resolves to the Windows build (${probe.path}) through WSL PATH interop. `
+              + `Install it inside the '${wslLocation.distro}' distro — the Windows executable cannot operate on Linux paths.`
+            : `${adapter.displayName} ('${adapter.command}') was not found inside the WSL distro '${wslLocation.distro}'. `
+              + `Install it there; a Windows-side install is not usable for a WSL project.`
+        );
+      }
+      // wsl.exe runs the command through a NON-login shell, so PATH additions
+      // made by ~/.profile (e.g. ~/.local/bin, where claude installs) are absent
+      // and a bare name exits 127. Spawn the absolute path the login-shell probe
+      // resolved instead of relying on PATH.
+      launchCommand = probe.path!;
+    } else if (process.platform === 'win32') {
       const status = await getToolStatus(tool);
       if (status && !status.installed) {
         throw new Error(
@@ -164,17 +205,17 @@ export class ClaudeManager {
       const stdinPrompt = adapter.needsStdin(mode) && prompt
         ? adapter.formatStdinPrompt(prompt, mode)
         : undefined;
-      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows);
+      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows, launchCommand);
       return { ...result, command: adapter.command, args };
     }
-    const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
+    const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode, launchCommand);
     return { ...result, command: adapter.command, args };
   }
 
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
+  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number, launchCommand?: string): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -182,7 +223,7 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     return new Promise((resolve, reject) => {
-      const command = adapter.command;
+      const command = launchCommand ?? adapter.command;
       const displayName = adapter.displayName;
       const delayStdin = !!adapter.delayStdinUntilReady;
       const autoRespondRules = adapter.autoRespondRules ?? [];
@@ -194,14 +235,16 @@ export class ClaudeManager {
       let ptyProcess: pty.IPty;
       try {
         ensurePtyHelperExecutable();
-        // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd)
-        const ptyCommand = process.platform === 'win32' ? 'cmd.exe' : command;
-        const ptyArgs = process.platform === 'win32' ? ['/c', command, ...args] : args;
+        const launch = resolveLaunch(command, args, cwd);
+        // On Windows, use cmd.exe to resolve .cmd shims (e.g. codex.cmd).
+        // WSL launches go straight to wsl.exe — a real executable, no shim.
+        const ptyCommand = launch.wsl ? launch.command : (process.platform === 'win32' ? 'cmd.exe' : command);
+        const ptyArgs = launch.wsl ? launch.args : (process.platform === 'win32' ? ['/c', command, ...args] : args);
         ptyProcess = pty.spawn(ptyCommand, ptyArgs, {
           name: 'xterm-256color',
           cols: ptyCols ?? 200,
           rows: ptyRows ?? 50,
-          cwd,
+          cwd: launch.cwd,
           env: childEnv(),
         });
       } catch (err) {
@@ -370,7 +413,7 @@ export class ClaudeManager {
   /**
    * Spawn using child_process for standard CLIs.
    */
-  private startWithSpawn(adapter: ReturnType<typeof getAdapter>, args: string[], cwd: string, prompt: string, mode: CliMode): Promise<{
+  private startWithSpawn(adapter: ReturnType<typeof getAdapter>, args: string[], cwd: string, prompt: string, mode: CliMode, launchCommand?: string): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -382,12 +425,15 @@ export class ClaudeManager {
       const needsStdin = adapter.needsStdin(mode);
 
       try {
-        child = spawn(adapter.command, args, {
-          cwd,
+        const launch = resolveLaunch(launchCommand ?? adapter.command, args, cwd);
+        child = spawn(launch.command, launch.args, {
+          cwd: launch.cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
           // shell needed on Windows to resolve .cmd shims (claude.cmd, agy.cmd)
-          // Safe: prompts are delivered via stdin, not as command-line arguments
-          shell: process.platform === 'win32',
+          // Safe: prompts are delivered via stdin, not as command-line arguments.
+          // Never for WSL: wsl.exe is a real executable and cmd.exe quoting
+          // would mangle the argv it forwards into the distro.
+          shell: !launch.wsl && process.platform === 'win32',
           windowsHide: true,
           env: childEnv(),
         });

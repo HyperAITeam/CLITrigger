@@ -19,6 +19,7 @@ import SettingsModal from './SettingsModal';
 import ProjectColorPicker from './ProjectColorPicker';
 import { resolveProjectColor } from '../lib/projectColor';
 import { getErrorMessage } from '../lib/errors';
+import { parseWslPath } from '../lib/wsl';
 import IconButton from './IconButton';
 
 interface SidebarProps {
@@ -241,8 +242,8 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     onClose?.();
   };
 
-  const handleAddProject = async (name: string, path: string) => {
-    await projectsApi.createProject({ name, path });
+  const handleAddProject = async (name: string, path: string, wslDistro?: string) => {
+    await projectsApi.createProject({ name, path, wsl_distro: wslDistro });
     setShowForm(false);
     window.dispatchEvent(new Event('projects:changed'));
   };
@@ -618,6 +619,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             const hasActivity = activeWork > 0;
             const tagColor = resolveProjectColor(project);
             const isDragSource = dragSourceId === project.id;
+            const wsl = parseWslPath(project.path);
             const showAbove = dragSourceId !== null && dragOverGapIndex === index;
             const showBelow = dragSourceId !== null
               && index === projects.length - 1
@@ -658,6 +660,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                       : project.name}
                   />
                   <span className="truncate flex-1">{project.name}</span>
+                  {wsl && (
+                    <span
+                      className="flex-shrink-0 px-1 py-px rounded text-[9px] font-semibold leading-none tracking-wide bg-accent-pink/10 text-accent-pink"
+                      title={`WSL · ${wsl.distro}`}
+                    >
+                      WSL
+                    </span>
+                  )}
                   <IconButton
                     onClick={(e) => handleDeleteProject(project.id, e)}
                     label={t('projects.delete')}
@@ -677,7 +687,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
 
       {showForm && (
         <ProjectForm
-          onSubmit={(name, path) => handleAddProject(name, path)}
+          onSubmit={(name, path, wslDistro) => handleAddProject(name, path, wslDistro)}
           onCancel={() => setShowForm(false)}
         />
       )}

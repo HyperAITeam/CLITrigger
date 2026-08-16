@@ -21,6 +21,7 @@ export default {
           light: 'var(--color-accent-light)',
           dark: 'var(--color-accent-dark)',
           amber: 'var(--color-accent-amber)',
+          pink: 'var(--color-accent-pink)',
         },
         status: {
           success: '#34C759',
