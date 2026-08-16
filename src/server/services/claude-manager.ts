@@ -164,7 +164,6 @@ export class ClaudeManager {
     // Pre-flight on Windows only: spawn goes through cmd.exe (shell:true), so
     // a missing CLI never fires ENOENT — cmd exits 1 with a localized (often
     // mojibake) message. POSIX already surfaces ENOENT via the 'error' event.
-    let launchCommand = adapter.command;
     const wslLocation = parseWslPath(worktreePath);
     if (wslLocation) {
       // The Windows PATH check is meaningless here — the CLI has to exist inside
@@ -181,11 +180,6 @@ export class ClaudeManager {
               + `Install it there; a Windows-side install is not usable for a WSL project.`
         );
       }
-      // wsl.exe runs the command through a NON-login shell, so PATH additions
-      // made by ~/.profile (e.g. ~/.local/bin, where claude installs) are absent
-      // and a bare name exits 127. Spawn the absolute path the login-shell probe
-      // resolved instead of relying on PATH.
-      launchCommand = probe.path!;
     } else if (process.platform === 'win32') {
       const status = await getToolStatus(tool);
       if (status && !status.installed) {
@@ -205,17 +199,17 @@ export class ClaudeManager {
       const stdinPrompt = adapter.needsStdin(mode) && prompt
         ? adapter.formatStdinPrompt(prompt, mode)
         : undefined;
-      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows, launchCommand);
+      const result = await this.startWithPty(adapter, args, worktreePath, stdinPrompt, mode === 'interactive', ptyCols, ptyRows);
       return { ...result, command: adapter.command, args };
     }
-    const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode, launchCommand);
+    const result = await this.startWithSpawn(adapter, args, worktreePath, prompt, mode);
     return { ...result, command: adapter.command, args };
   }
 
   /**
    * Spawn using node-pty for CLIs that require a TTY.
    */
-  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number, launchCommand?: string): Promise<{
+  private startWithPty(adapter: CliAdapter, args: string[], cwd: string, stdinPrompt?: string, interactive?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -223,7 +217,7 @@ export class ClaudeManager {
     exitPromise: Promise<number>;
   }> {
     return new Promise((resolve, reject) => {
-      const command = launchCommand ?? adapter.command;
+      const command = adapter.command;
       const displayName = adapter.displayName;
       const delayStdin = !!adapter.delayStdinUntilReady;
       const autoRespondRules = adapter.autoRespondRules ?? [];
@@ -413,7 +407,7 @@ export class ClaudeManager {
   /**
    * Spawn using child_process for standard CLIs.
    */
-  private startWithSpawn(adapter: ReturnType<typeof getAdapter>, args: string[], cwd: string, prompt: string, mode: CliMode, launchCommand?: string): Promise<{
+  private startWithSpawn(adapter: ReturnType<typeof getAdapter>, args: string[], cwd: string, prompt: string, mode: CliMode): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -425,7 +419,7 @@ export class ClaudeManager {
       const needsStdin = adapter.needsStdin(mode);
 
       try {
-        const launch = resolveLaunch(launchCommand ?? adapter.command, args, cwd);
+        const launch = resolveLaunch(adapter.command, args, cwd);
         child = spawn(launch.command, launch.args, {
           cwd: launch.cwd,
           stdio: ['pipe', 'pipe', 'pipe'],

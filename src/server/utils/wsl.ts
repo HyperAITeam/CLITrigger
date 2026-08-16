@@ -64,30 +64,65 @@ export interface WslCliProbe {
   windowsInterop?: boolean;
 }
 
+/**
+ * Login, NOT interactive. A login shell sources ~/.profile, which is what puts
+ * per-user install dirs (e.g. ~/.local/bin) on PATH — a plain `wsl.exe -- cmd`
+ * gets neither and exits 127. Interactive (-i) is deliberately avoided: it also
+ * loads ~/.bashrc, whose wrapper functions and version-manager hooks commonly
+ * expect a TTY and abort with "open terminal failed" under a headless spawn.
+ */
+const WSL_SHELL = ['bash', '-lc'];
+
+/** Quote a single argument for safe interpolation into a POSIX shell command line. */
+function shQuote(arg: string): string {
+  return `'${arg.replace(/'/g, `'\\''`)}'`;
+}
+
 /** Check whether a CLI is genuinely installed inside the distro (not a /mnt/c interop shim). */
 export async function probeWslCli(distro: string, command: string): Promise<WslCliProbe> {
-  try {
+  const run = async (shell: string[]) => {
     const { stdout } = await execFileAsync(
       'wsl.exe',
-      ['-d', distro, '--', 'sh', '-lc', `command -v ${command}`],
-      { env: { ...process.env, WSL_UTF8: '1' }, timeout: 15_000 }
+      ['-d', distro, '--', ...shell, `command -v ${shQuote(command)}`],
+      { env: { ...process.env, WSL_UTF8: '1' }, timeout: 20_000 }
     );
-    const resolved = stdout.trim().split(/\r?\n/)[0]?.trim();
-    if (!resolved) return { found: false };
-    if (/^\/mnt\/[a-z]\//i.test(resolved)) {
-      return { found: false, path: resolved, windowsInterop: true };
-    }
-    return { found: true, path: resolved };
+    // Shell startup files can print banners; the resolved path is the last line.
+    return stdout.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop();
+  };
+
+  let resolved: string | undefined;
+  try {
+    resolved = await run(WSL_SHELL);
   } catch {
-    return { found: false };
+    // Distro without bash (e.g. Alpine) — fall back to a POSIX login shell.
+    try {
+      resolved = await run(['sh', '-lc']);
+    } catch {
+      return { found: false };
+    }
   }
+
+  // A bare name (not a path) means a shell function or alias — still runnable,
+  // since the command goes through this same shell.
+  if (!resolved) return { found: false };
+  if (/^\/mnt\/[a-z]\//i.test(resolved)) {
+    return { found: false, path: resolved, windowsInterop: true };
+  }
+  return { found: true, path: resolved };
 }
 
 /**
  * Rewrite a command so it runs inside the distro at `linuxCwd`.
+ *
  * `--cd` is authoritative for the working directory, so the caller should give
  * the spawned Windows process a plain local cwd (a UNC cwd is unreliable under
  * ConPTY).
+ *
+ * The command goes through a login+interactive shell rather than being exec'd
+ * directly: CLIs installed by a version manager are scripts whose `#!/usr/bin/env
+ * node` shebang resolves against PATH, and a direct exec would find the Windows
+ * node shim via /mnt/c interop and die. Args are quoted, so this stays a plain
+ * argv — no shell injection surface.
  */
 export function wrapWslCommand(
   distro: string,
@@ -95,8 +130,9 @@ export function wrapWslCommand(
   command: string,
   args: string[]
 ): { command: string; args: string[] } {
+  const cmdline = [command, ...args].map(shQuote).join(' ');
   return {
     command: 'wsl.exe',
-    args: ['-d', distro, '--cd', linuxCwd, '--', command, ...args],
+    args: ['-d', distro, '--cd', linuxCwd, '--', ...WSL_SHELL, cmdline],
   };
 }
