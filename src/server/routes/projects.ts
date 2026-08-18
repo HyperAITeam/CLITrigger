@@ -6,6 +6,7 @@ import { osOpenPath } from '../utils/open-path.js';
 import os from 'os';
 import { createProject, getAllProjects, getProjectById, updateProject, deleteProject, syncProjectCliDefaults, reorderProjects } from '../db/queries.js';
 import { worktreeManager } from '../services/worktree-manager.js';
+import { parseAutoDelegate } from '../services/auto-delegate.js';
 import { isSvnRepository } from '../lib/svn.js';
 import { cleanupProjectImages } from './images.js';
 
@@ -368,7 +369,12 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
 
     // claude_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, svn_enabled, color } = req.body;
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, auto_delegate, svn_enabled, color } = req.body;
+
+    if (auto_delegate !== undefined && auto_delegate !== null && parseAutoDelegate(auto_delegate) === null) {
+      res.status(400).json({ error: 'auto_delegate must be JSON like {"from":"claude","to":"codex"} with valid CLI tools' });
+      return;
+    }
 
     // Handle SVN enable/disable transitions:
     //   off → on  : run detection now and set vcs_type='svn' if .svn/ found
@@ -388,7 +394,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     }
 
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, color,
+      name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, auto_delegate, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
     });

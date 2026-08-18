@@ -1,5 +1,8 @@
+import type { Todo } from '../db/queries.js';
+
 export type WSEvent =
   | { type: 'todo:status-changed'; todoId: string; status: string; mode?: string; worktree_path?: string | null; branch_name?: string | null }
+  | { type: 'todo:created'; todo: Todo }
   | { type: 'todo:log'; todoId: string; message: string; logType: string }
   | { type: 'project:status-changed'; projectId: string; running: number; completed: number; total: number; running_sessions?: number; running_discussions?: number }
   | { type: 'todo:commit'; todoId: string; commitHash: string; message: string }

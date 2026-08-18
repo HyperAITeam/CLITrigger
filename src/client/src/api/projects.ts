@@ -29,7 +29,7 @@ export function detectSvn(id: string): Promise<{ isSvnRepository: boolean }> {
   return get(`/api/projects/${id}/svn-detect`);
 }
 
-export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'svn_enabled' | 'color'>>): Promise<Project> {
+export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'max_concurrent' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'auto_delegate' | 'svn_enabled' | 'color'>>): Promise<Project> {
   return put(`/api/projects/${id}`, data);
 }
 

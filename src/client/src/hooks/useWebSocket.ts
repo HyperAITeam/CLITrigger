@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { Todo } from '../types';
 
 export interface WsEvent {
   type: string;
   todoId?: string;
+  // todo:created (auto-delegated review tasks) carries the full row
+  todo?: Todo;
   projectId?: string;
   status?: string;
   message?: string;

@@ -12,6 +12,7 @@ import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
 import { broadcastProjectStatus as broadcastProjectStatusShared } from './project-status.js';
+import { maybeCreateReviewTodo } from './auto-delegate.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -657,6 +658,7 @@ Complete the task in the current directory.`;
       if (debugSession) {
         try { debugSession.finalize(exitCode); } catch { /* ignore */ }
       }
+      let delegated: queries.Todo | null = null;
       const currentTodo = queries.getTodoById(todoId);
       // Only update if still in running state (not manually stopped)
       if (currentTodo && currentTodo.status === 'running') {
@@ -735,11 +737,21 @@ Complete the task in the current directory.`;
           broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
           broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
           this.broadcastProjectStatus(projectId);
+
+          try {
+            delegated = maybeCreateReviewTodo(projectId, todoId);
+          } catch { /* never block completion */ }
+          if (delegated) {
+            queries.createTaskLog(todoId, 'output', `Auto-delegation: created review task "${delegated.title}" (${delegated.cli_tool}).`, roundNumber);
+            broadcaster.broadcast({ type: 'todo:created', todo: delegated });
+            this.broadcastProjectStatus(projectId);
+          }
         }
       }
 
       // Start dependent children that were waiting for this task to complete
-      if (autoChain) {
+      // (or a review todo this completion just auto-delegated)
+      if (autoChain || delegated) {
         this.startDependentChildren(projectId, todoId).catch(() => {
           // Ignore errors when starting dependent children
         });

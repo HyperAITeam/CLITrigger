@@ -177,6 +177,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           });
         }
       }
+      if (event.type === 'todo:created' && event.todo && event.todo.project_id === id) {
+        const created = event.todo;
+        setTodos((prev) => (prev.some((t) => t.id === created.id) ? prev : [...prev, created]));
+      }
       if (event.type === 'schedule:status-changed' && event.scheduleId) {
         setSchedules((prev) =>
           prev.map((s) =>

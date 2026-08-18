@@ -57,6 +57,13 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
     } catch { return []; }
   });
 
+  // Auto-delegation rule state (null = disabled)
+  const [autoDelegate, setAutoDelegate] = useState<{ from: string; to: string } | null>(() => {
+    try {
+      return project.auto_delegate ? JSON.parse(project.auto_delegate) : null;
+    } catch { return null; }
+  });
+
   // Load plugin configs from server
   useEffect(() => {
     const plugins = getClientPlugins();
@@ -133,6 +140,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
+        auto_delegate: autoDelegate ? JSON.stringify(autoDelegate) : null,
       });
 
       // Save plugin configs to plugin_configs table
@@ -429,6 +437,55 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               <p className="text-2xs text-warm-500 mt-2">
                 {fallbackChain.map((v) => CLI_TOOLS.find((t) => t.value === v)?.label ?? v).join(' → ')}
               </p>
+            )}
+          </div>
+
+          {/* Auto Reviewer (auto-delegation rule) */}
+          <div className="mt-5 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-xs font-semibold text-warm-600 mb-2">
+              {t('header.autoReviewerTitle')}
+            </h4>
+            <p className="text-2xs text-warm-400 mb-3">{t('header.autoReviewerHint')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!autoDelegate}
+                onChange={(e) => setAutoDelegate(e.target.checked ? { from: 'claude', to: 'codex' } : null)}
+                className="rounded border-warm-300"
+              />
+              <span className="text-xs text-warm-600">{t('header.autoReviewerEnable')}</span>
+            </label>
+            {autoDelegate && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-2xs font-medium text-warm-500 mb-1">
+                    {t('header.autoReviewerFrom')}
+                  </label>
+                  <select
+                    value={autoDelegate.from}
+                    onChange={(e) => setAutoDelegate({ ...autoDelegate, from: e.target.value })}
+                    className="input-field"
+                  >
+                    {CLI_TOOLS.filter((tool) => tool.value !== 'raw-shell').map((tool) => (
+                      <option key={tool.value} value={tool.value}>{tool.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-2xs font-medium text-warm-500 mb-1">
+                    {t('header.autoReviewerTo')}
+                  </label>
+                  <select
+                    value={autoDelegate.to}
+                    onChange={(e) => setAutoDelegate({ ...autoDelegate, to: e.target.value })}
+                    className="input-field"
+                  >
+                    {CLI_TOOLS.filter((tool) => tool.value !== 'raw-shell').map((tool) => (
+                      <option key={tool.value} value={tool.value}>{tool.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
           </div>
 

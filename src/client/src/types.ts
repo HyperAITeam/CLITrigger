@@ -18,6 +18,7 @@ export interface Project {
   show_token_usage: number;
   npm_auto_install: number;
   memory_auto_ingest: number;
+  auto_delegate: string | null;
   color: string | null;
   sort_order: number;
   path_exists?: boolean;
@@ -61,6 +62,7 @@ export interface Todo {
   memory_inject_mode?: MemoryInjectMode | null;
   memory_node_ids?: string | null;
   memory_raw_file_paths?: string | null;
+  delegated_from?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -23,6 +23,7 @@ export interface Project {
   show_token_usage: number;
   npm_auto_install: number;
   memory_auto_ingest: number;
+  auto_delegate: string | null;
   color: string | null;
   sort_order: number;
   created_at: string;
@@ -66,7 +67,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'color'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'auto_delegate' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -89,6 +90,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.show_token_usage !== undefined) { fields.push('show_token_usage = ?'); values.push(updates.show_token_usage); }
   if (updates.npm_auto_install !== undefined) { fields.push('npm_auto_install = ?'); values.push(updates.npm_auto_install); }
   if (updates.memory_auto_ingest !== undefined) { fields.push('memory_auto_ingest = ?'); values.push(updates.memory_auto_ingest); }
+  if (updates.auto_delegate !== undefined) { fields.push('auto_delegate = ?'); values.push(updates.auto_delegate); }
   if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color); }
 
   if (fields.length === 0) return getProjectById(id);
@@ -174,19 +176,20 @@ export interface Todo {
   memory_inject_mode: string | null;
   memory_node_ids: string | null;
   memory_raw_file_paths: string | null;
+  delegated_from: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: string, memoryNodeIds?: string | null, memoryRawFilePaths?: string | null): Todo {
+export function createTodo(projectId: string, title: string, description?: string, priority = 0, cliTool?: string, cliModel?: string, scheduleId?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: string, memoryNodeIds?: string | null, memoryRawFilePaths?: string | null, delegatedFrom?: string): Todo {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   const normalizedUseWorktree = useWorktree === 0 || useWorktree === 1 ? useWorktree : null;
   db.prepare(
-    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, normalizedUseWorktree, memoryInjectMode ?? 'none', memoryNodeIds ?? null, memoryRawFilePaths ?? null, now, now);
+    `INSERT INTO todos (id, project_id, title, description, priority, cli_tool, cli_model, schedule_id, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, delegated_from, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, title, description ?? null, priority, cliTool ?? null, cliModel ?? null, scheduleId ?? null, dependsOn ?? null, maxTurns ?? null, normalizedUseWorktree, memoryInjectMode ?? 'none', memoryNodeIds ?? null, memoryRawFilePaths ?? null, delegatedFrom ?? null, now, now);
   return getTodoById(id)!;
 }
 
