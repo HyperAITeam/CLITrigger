@@ -111,13 +111,11 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
     );
   }
 
-  const borderColor = schedule.is_active ? 'border-l-amber-500' : 'border-l-warm-300';
-
-  const runStatusColor: Record<string, string> = {
-    triggered: 'text-status-running',
-    skipped: 'text-status-warning',
-    completed: 'text-status-success',
-    failed: 'text-status-error',
+  const runStatusDot: Record<string, string> = {
+    triggered: 'bg-status-running',
+    skipped: 'bg-status-warning',
+    completed: 'bg-status-success',
+    failed: 'bg-status-error',
   };
 
   const runStatusLabel: Record<string, string> = {
@@ -134,52 +132,39 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
   };
 
   return (
-    <div className={`card border-l-4 ${borderColor} overflow-hidden`}>
+    <div className="card overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
+        className="flex items-start gap-3 px-4 py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
         onClick={handleExpand}
       >
         {/* Expand arrow */}
-        <button className="text-warm-400 hover:text-amber-500 flex-shrink-0 transition-colors">
+        <button className="mt-0.5 text-warm-400 hover:text-warm-600 flex-shrink-0 transition-colors">
           <ChevronRight
             size={14}
             className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
           />
         </button>
 
-        {/* Title */}
-        <span className="flex-1 text-sm text-warm-800 font-medium truncate">{schedule.title}</span>
-
-        {/* Schedule type & timing badge */}
-        {isOnce ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-blue-500/10 text-blue-600 flex-shrink-0">
-            <Clock size={12} />
-            {formatRunAt(schedule.run_at)}
-          </span>
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-amber-500/10 text-amber-600 flex-shrink-0">
-            {schedule.cron_expression}
-          </span>
-        )}
-
-        {/* Once / Recurring badge */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${
-          isOnce
-            ? 'bg-blue-500/10 text-blue-600'
-            : 'bg-amber-500/10 text-amber-600'
-        }`}>
-          {isOnce ? t('schedule.once') : t('schedule.recurring')}
-        </span>
-
-        {/* Active/Paused badge */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${
-          schedule.is_active
-            ? 'bg-status-success/10 text-status-success'
-            : 'bg-warm-200 text-warm-500'
-        }`}>
-          {schedule.is_active ? t('schedule.active') : t('schedule.paused')}
-        </span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm text-warm-800 font-medium truncate">{schedule.title}</h3>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-warm-400">
+            <span className="inline-flex items-center gap-1 font-mono">
+              <Clock size={11} />
+              {isOnce ? formatRunAt(schedule.run_at) : schedule.cron_expression}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{isOnce ? t('schedule.once') : t('schedule.recurring')}</span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1.5 text-warm-500">
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${schedule.is_active ? 'bg-status-success' : 'bg-warm-400'}`}
+              />
+              {schedule.is_active ? t('schedule.active') : t('schedule.paused')}
+            </span>
+          </div>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
@@ -242,27 +227,28 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
             </div>
           )}
 
-          {/* Info badges */}
-          <div className="flex flex-wrap gap-2 text-xs">
-            {isOnce ? (
-              <span className="badge bg-blue-500/10 text-blue-600 font-mono">
-                {t('schedule.runAtLabel')}: {formatRunAt(schedule.run_at)}
+          {/* Schedule settings: ordinary metadata, not a row of callout pills. */}
+          <div className="grid gap-x-8 gap-y-2 text-xs sm:grid-cols-2">
+            <div className="flex items-baseline gap-3 min-w-0">
+              <span className="w-20 shrink-0 text-warm-400">
+                {isOnce ? t('schedule.runAtLabel') : t('schedule.cronExpression')}
               </span>
-            ) : (
-              <span className="badge bg-amber-500/10 text-amber-600 font-mono">
-                {schedule.cron_expression}
+              <span className="min-w-0 truncate font-mono text-warm-600">
+                {isOnce ? formatRunAt(schedule.run_at) : schedule.cron_expression}
               </span>
-            )}
-            {!isOnce && schedule.skip_if_running ? (
-              <span className="badge bg-status-info/10 text-status-info">
+            </div>
+            <div className="flex items-baseline gap-3 min-w-0">
+              <span className="w-20 shrink-0 text-warm-400">{t('schedule.lastRun')}</span>
+              <span className="min-w-0 truncate text-warm-600">
+                {schedule.last_run_at ? new Date(schedule.last_run_at).toLocaleString() : t('schedule.never')}
+              </span>
+            </div>
+            {!isOnce && schedule.skip_if_running && (
+              <div className="flex items-center gap-2 text-warm-500 sm:col-span-2">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warm-400" />
                 {t('schedule.skipIfRunning')}
-              </span>
-            ) : null}
-            <span className="badge bg-warm-200 text-warm-600">
-              {t('schedule.lastRun')}: {schedule.last_run_at
-                ? new Date(schedule.last_run_at).toLocaleString()
-                : t('schedule.never')}
-            </span>
+              </div>
+            )}
           </div>
 
           {/* Run History */}
@@ -281,7 +267,11 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
 
                   return (
                     <div key={run.id} className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-lg bg-theme-hover">
-                      <span className={`font-medium ${runStatusColor[run.status] || 'text-warm-500'}`}>
+                      <span className="inline-flex items-center gap-1.5 font-medium text-warm-600">
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 rounded-full ${runStatusDot[run.status] || 'bg-warm-400'}`}
+                        />
                         {runStatusLabel[run.status] || run.status}
                       </span>
                       {run.skipped_reason && (

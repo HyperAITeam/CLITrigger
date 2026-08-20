@@ -1,7 +1,6 @@
 import type { Todo } from '../types';
 import { useI18n } from '../i18n';
-import { Clock, Loader2, CheckCircle2, XCircle, PauseCircle, GitMerge } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface StatusBadgeProps {
   status: Todo['status'];
@@ -10,44 +9,40 @@ interface StatusBadgeProps {
 export default function StatusBadge({ status }: StatusBadgeProps) {
   const { t } = useI18n();
 
-  const config: Record<Todo['status'], { labelKey: string; classes: string; icon: ReactNode }> = {
+  const config: Record<Todo['status'], { labelKey: string; dotClass: string }> = {
     pending: {
       labelKey: 'status.pending',
-      classes: 'bg-warm-200 text-warm-500',
-      icon: <Clock size={10} />,
+      dotClass: 'bg-warm-400',
     },
     running: {
       labelKey: 'status.running',
-      classes: 'bg-status-running/10 text-status-running',
-      icon: <Loader2 size={10} className="animate-spin" />,
+      dotClass: 'bg-status-running',
     },
     completed: {
       labelKey: 'status.completed',
-      classes: 'bg-status-success/10 text-status-success',
-      icon: <CheckCircle2 size={10} />,
+      dotClass: 'bg-status-success',
     },
     failed: {
       labelKey: 'status.failed',
-      classes: 'bg-status-error/10 text-status-error',
-      icon: <XCircle size={10} />,
+      dotClass: 'bg-status-error',
     },
     stopped: {
       labelKey: 'status.stopped',
-      classes: 'bg-status-warning/10 text-status-warning',
-      icon: <PauseCircle size={10} />,
+      dotClass: 'bg-status-warning',
     },
     merged: {
       labelKey: 'status.merged',
-      classes: 'bg-theme-bg-tertiary text-theme-text-secondary',
-      icon: <GitMerge size={10} />,
+      dotClass: 'bg-warm-400',
     },
   };
 
-  const { labelKey, classes, icon } = config[status];
+  const { labelKey, dotClass } = config[status];
 
   return (
-    <span className={`badge text-2xs font-semibold ${classes}`}>
-      {icon}
+    <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warm-500 whitespace-nowrap flex-shrink-0">
+      {status === 'running'
+        ? <Loader2 size={11} className="animate-spin text-status-running" />
+        : <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />}
       {t(labelKey as any)}
     </span>
   );

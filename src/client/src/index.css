@@ -348,18 +348,7 @@
   }
 
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0
-           transition-all duration-200 hover:scale-105 cursor-default;
-    position: relative;
-  }
-  .badge::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    border: 1px solid currentColor;
-    opacity: 0.15;
-    pointer-events: none;
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium whitespace-nowrap flex-shrink-0 cursor-default;
   }
 
   /* Section label for list headers */

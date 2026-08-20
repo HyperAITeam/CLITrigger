@@ -88,7 +88,7 @@ export default function ScheduleForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card p-5 border-amber-500/30">
+    <form onSubmit={handleSubmit} className="card p-5">
       <div className="mb-3">
         <input
           type="text"
@@ -114,14 +114,14 @@ export default function ScheduleForm({
         <label className="block text-xs font-medium text-warm-500 mb-1.5">
           {t('schedule.type')}
         </label>
-        <div className="flex gap-1.5">
+        <div className="inline-flex gap-1 rounded-lg bg-warm-100 p-1">
           <button
             type="button"
             onClick={() => setScheduleType('recurring')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               scheduleType === 'recurring'
-                ? 'bg-amber-500 text-white'
-                : 'bg-warm-100 text-warm-500 hover:bg-warm-200'
+                ? 'bg-theme-card text-warm-700 shadow-sm'
+                : 'text-warm-500 hover:text-warm-700'
             }`}
           >
             {t('schedule.recurring')}
@@ -131,8 +131,8 @@ export default function ScheduleForm({
             onClick={() => setScheduleType('once')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               scheduleType === 'once'
-                ? 'bg-amber-500 text-white'
-                : 'bg-warm-100 text-warm-500 hover:bg-warm-200'
+                ? 'bg-theme-card text-warm-700 shadow-sm'
+                : 'text-warm-500 hover:text-warm-700'
             }`}
           >
             {t('schedule.once')}
@@ -189,7 +189,7 @@ export default function ScheduleForm({
               type="checkbox"
               checked={skipIfRunning}
               onChange={(e) => setSkipIfRunning(e.target.checked)}
-              className="rounded border-warm-300 text-amber-500 focus:ring-amber-500"
+              className="rounded border-warm-300 text-accent focus:ring-accent"
             />
             {t('schedule.skipIfRunning')}
           </label>

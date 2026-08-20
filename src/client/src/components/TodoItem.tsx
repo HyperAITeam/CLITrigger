@@ -463,15 +463,6 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
     );
   }
 
-  const borderColor = {
-    pending: 'border-l-warm-300',
-    running: 'border-l-status-running',
-    completed: 'border-l-status-success',
-    failed: 'border-l-status-error',
-    stopped: 'border-l-status-warning',
-    merged: 'border-l-theme-border-strong',
-  }[todo.status];
-
   const handleItemDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', todo.id);
     e.dataTransfer.effectAllowed = 'link';
@@ -518,7 +509,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         setCtxMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <div className={`card border-l-4 ${borderColor} overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-accent/50 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-status-error/50 ring-offset-1' : ''}`}>
+      <div className={`card overflow-hidden transition-all duration-200 ${dropZoneActive ? 'ring-2 ring-accent/50 ring-offset-1' : ''} ${dropZoneInvalid ? 'ring-2 ring-status-error/50 ring-offset-1' : ''}`}>
       {/* Header row */}
       <div
         className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap md:gap-3 px-3 md:px-4 py-3 md:py-3.5 cursor-pointer hover:bg-warm-50 transition-colors"
@@ -547,9 +538,9 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         {/* Title — takes remaining space, forces line break after on mobile */}
         <span className="flex-1 basis-[calc(100%-100px)] md:basis-auto min-w-0 text-sm text-warm-800 font-medium truncate order-none">{todo.title}</span>
 
-        {/* Image count badge */}
+        {/* Secondary metadata stays quiet so the title and state lead. */}
         {existingImages.length > 0 && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-2xs font-mono text-warm-400 bg-warm-100 flex-shrink-0">
+          <span className="inline-flex items-center gap-0.5 text-2xs font-mono text-warm-400 flex-shrink-0">
             <ImageIcon size={12} />
             {existingImages.length}
           </span>
@@ -558,7 +549,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         {/* Dependency Badge */}
         {parentTodo && (
           <span
-            className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-theme-bg-tertiary text-theme-text-secondary flex-shrink-0 group/dep"
+            className="hidden md:inline-flex items-center gap-1 text-2xs font-mono text-warm-400 flex-shrink-0 group/dep"
             title={`${t('todo.dependsOn')}: ${parentTodo.title}`}
           >
             <Link size={12} />
@@ -575,9 +566,9 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
           </span>
         )}
 
-        {/* CLI Tool Badge */}
+        {/* CLI tool is context, not a visual callout. */}
         {todo.cli_tool && (
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium bg-theme-bg-tertiary text-theme-muted flex-shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1 text-2xs font-mono text-warm-400 flex-shrink-0">
             {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
           </span>
         )}
@@ -727,14 +718,14 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Schedule Picker (inline, below header) */}
       {showSchedulePicker && (
-        <div className="border-t border-accent/20 px-5 py-3 bg-accent/5 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="text-xs font-medium text-accent">{t('todo.scheduleAt')}</label>
+            <label className="text-xs font-medium text-theme-text-secondary">{t('todo.scheduleAt')}</label>
             <input
               type="datetime-local"
               value={scheduleRunAt}
               onChange={(e) => setScheduleRunAt(e.target.value)}
-              className="bg-theme-card border border-accent/20 rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="bg-theme-card border border-theme-border-strong rounded-lg px-2 py-1.5 text-sm font-mono text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
               min={new Date().toISOString().slice(0, 16)}
             />
             <button
@@ -750,7 +741,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             >
               {t('scheduleForm.cancel')}
             </button>
-            <label className="flex items-center gap-2 text-xs text-accent">
+            <label className="flex items-center gap-2 text-xs text-warm-500">
               <input
                 type="checkbox"
                 checked={keepOriginalOnSchedule}
@@ -806,11 +797,11 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Reset Schedule Input (inline, below header) */}
       {showResetSchedule && resetsAt && (
-        <div className="border-t border-amber-200 px-5 py-3 bg-amber-50/50 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-amber-600">{t('todo.scheduleOnResetLabel')}</label>
-              <span className="text-xs text-amber-500/80 font-mono">
+              <label className="text-xs font-medium text-theme-text-secondary">{t('todo.scheduleOnResetLabel')}</label>
+              <span className="text-xs text-warm-400 font-mono">
                 {new Date(resetsAt * 1000).toLocaleString()}
               </span>
             </div>
@@ -819,7 +810,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
               onChange={(e) => setResetPrompt(e.target.value)}
               placeholder={t('todo.resetPromptPlaceholder')}
               rows={3}
-              className="w-full bg-theme-card border border-amber-200 rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 resize-y"
+              className="w-full bg-theme-card border border-theme-border-strong rounded-lg px-3 py-2 text-sm text-warm-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 resize-y"
               disabled={schedulingReset}
             />
             {resetError && <p className="text-xs text-status-error">{resetError}</p>}
@@ -827,7 +818,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
               <button
                 onClick={handleScheduleOnReset}
                 disabled={schedulingReset || !resetPrompt.trim()}
-                className="btn-primary text-xs py-1.5 !bg-amber-500 hover:!bg-amber-600 disabled:opacity-30"
+                className="btn-primary text-xs py-1.5 disabled:opacity-30"
               >
                 {schedulingReset ? t('todo.scheduling') : t('todo.confirmResetSchedule')}
               </button>

@@ -8,7 +8,7 @@ import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
-import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal } from 'lucide-react';
+import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch } from 'lucide-react';
 import IconButton from './IconButton';
 
 interface ProjectHeaderProps {
@@ -222,18 +222,24 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 order-3 basis-full lg:order-none lg:basis-auto">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 order-3 basis-full text-2xs text-warm-400 lg:order-none lg:basis-auto">
             {project.is_git_repo ? (
-              <span className="badge bg-warm-200/60 text-warm-600">
-                Git · {project.default_branch}
+              <span className="inline-flex items-center gap-1 font-mono">
+                <GitBranch size={11} />
+                {project.default_branch}
               </span>
             ) : (
-              <span className="badge bg-status-warning/10 text-status-warning">{t('header.noGit')}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-status-warning" />
+                {t('header.noGit')}
+              </span>
             )}
-            <span className="badge bg-warm-200/60 text-warm-600">
+            <span aria-hidden="true">·</span>
+            <span className="font-mono">
               {getToolConfig((project.cli_tool as CliTool) || 'claude').label}
             </span>
-            <span className="badge bg-warm-200/60 text-warm-600">
+            <span aria-hidden="true">·</span>
+            <span>
               {(project.sandbox_mode || 'strict') === 'strict' ? t('header.sandboxBadgeStrict') : t('header.sandboxBadgePermissive')}
             </span>
           </div>

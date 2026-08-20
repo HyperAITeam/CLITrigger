@@ -40,19 +40,15 @@ interface SessionListProps {
   onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-warm-200 text-warm-600',
-  running: 'bg-status-success/10 text-status-success',
-  completed: 'bg-accent/10 text-accent',
-  failed: 'bg-status-error/10 text-status-error',
-  stopped: 'bg-amber-100 text-amber-700',
-};
-
-// Visual treatment for the per-row window-placement badge.
-const WIN_BADGE: Record<Exclude<WindowState, 'closed'>, string> = {
-  floating: 'bg-accent/10 text-accent',
-  minimized: 'bg-warm-200 text-warm-600',
-  popped: 'bg-violet-500/15 text-violet-500',
+// Keep state visible without turning every bit of metadata into a coloured chip.
+// The small dot carries the semantic colour; the label stays in the card's
+// normal text hierarchy so titles remain the focal point.
+const STATUS_DOT: Record<string, string> = {
+  pending: 'bg-warm-400',
+  running: 'bg-status-success',
+  completed: 'bg-accent',
+  failed: 'bg-status-error',
+  stopped: 'bg-status-warning',
 };
 
 export default function SessionList({
@@ -313,15 +309,19 @@ export default function SessionList({
                           </span>
                         )}
                         <h3 className="text-sm font-semibold text-warm-700 truncate">{session.title}</h3>
-                        <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[session.status] || ''}`}>
+                        <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warm-500 whitespace-nowrap">
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[session.status] || 'bg-warm-400'}`}
+                          />
                           {t(`status.${session.status}`) || session.status}
                         </span>
                         {winState !== 'closed' && (
                           <span
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium ${WIN_BADGE[winState]}`}
+                            className="inline-flex items-center gap-1 text-2xs text-warm-400 whitespace-nowrap"
                             title={isPopped ? t('session.dock.poppedHint') : undefined}
                           >
-                            {isPopped && <ExternalLink size={10} />}
+                            {isPopped ? <ExternalLink size={11} /> : <span aria-hidden="true">·</span>}
                             {t(`session.windowState.${winState}`)}
                           </span>
                         )}
