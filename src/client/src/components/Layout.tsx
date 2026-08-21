@@ -35,6 +35,7 @@ export default function Layout({ children, onLogout, authRequired, connected, on
     <div className="flex h-screen bg-theme-bg">
       {/* Sidebar - desktop: always visible, mobile: overlay */}
       <aside
+        data-app-sidebar
         className={`
           fixed inset-y-0 left-0 z-40 flex-shrink-0
           transition-[transform,width] duration-200 ease-in-out
@@ -76,8 +77,19 @@ export default function Layout({ children, onLogout, authRequired, connected, on
           <span className="ml-3 text-sm font-semibold text-theme-text">CLITrigger</span>
         </div>
 
-        {/* Scrollable content area */}
-        <main className="flex-1 overflow-y-auto relative">
+        {/* Scrollable content area. The --dock-inset-* variables are written
+            by SessionWindowsHost while a floating terminal is docked to a
+            content-area edge; margins (not padding) so the scrollbar stays
+            visible next to the docked window. */}
+        <main
+          className="flex-1 overflow-y-auto relative"
+          style={{
+            marginLeft: 'var(--dock-inset-left, 0px)',
+            marginRight: 'var(--dock-inset-right, 0px)',
+            marginTop: 'var(--dock-inset-top, 0px)',
+            marginBottom: 'var(--dock-inset-bottom, 0px)',
+          }}
+        >
           {location.pathname === '/' && <ParticleBackground />}
           <div className="relative" style={{ zIndex: 1 }}>
             {children}

@@ -299,6 +299,10 @@ export default function SessionWindow({
       if (!guideShown && Math.hypot(ev.clientX - startMouseX, ev.clientY - startMouseY) >= GUIDE_DRAG_THRESHOLD) {
         guideShown = true;
         setChromeDragging(true);
+        // Dragging a docked window un-docks it — the app content reflows
+        // back immediately (Aero-style). The wrapper's live left/top are
+        // direct DOM writes, so the re-render doesn't fight the gesture.
+        if (group.dock) api.setGroupDock(group.id, null);
       }
 
       // Viewport-guide + edge-snap previews, suppressed while a dock zone is
@@ -341,6 +345,17 @@ export default function SessionWindow({
         api.popOutGroup(group.id, { atScreenX: ev.screenX, atScreenY: ev.screenY });
         return;
       }
+      if (gz && gz !== 'max') {
+        // Edge zones dock: geometry + dock flag committed by the host, the
+        // app content reflows around the window. No geometry commit here —
+        // setGroupDock is the single source for the docked rect.
+        dockHoverRef.current = null;
+        setDockHover(null);
+        snapZoneRef.current = null;
+        setSnapZone(null);
+        api.setGroupDock(group.id, gz);
+        return;
+      }
       const target = gz
         ? viewportZoneToGeom(gz, vpW, vpH, contentLeft)
         : snapZoneRef.current
@@ -366,7 +381,7 @@ export default function SessionWindow({
     window.addEventListener('blur', onAbort);
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVis);
-  }, [isMobile, isMaximized, api, group.id, group.root]);
+  }, [isMobile, isMaximized, api, group.id, group.root, group.dock]);
 
   const onChromeMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => startGroupChromeDrag(e, false),
@@ -455,6 +470,9 @@ export default function SessionWindow({
   // ── Viewport resize re-clamp ─────────────────────────────────────────────
   useEffect(() => {
     if (isMobile) return;
+    // Docked groups are re-glued to their edge by the host's recompute
+    // effect — the free-floating clamp here would fight it.
+    if (group.dock) return;
     const onResize = () => {
       const vpW = window.innerWidth;
       const vpH = window.innerHeight;
@@ -467,7 +485,7 @@ export default function SessionWindow({
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [isMobile, api, group.id]);
+  }, [isMobile, api, group.id, group.dock]);
 
   // ── Tab callbacks (delegated to host) ────────────────────────────────────
   const handleTabClick = useCallback((sid: string) => {
@@ -509,6 +527,7 @@ export default function SessionWindow({
       return;
     }
     restoreGeomRef.current = { ...geomRef.current };
+    if (group.dock) api.setGroupDock(group.id, null);
     api.setGroupGeometry(group.id, {
       x: 6,
       y: 6,
@@ -516,7 +535,7 @@ export default function SessionWindow({
       h: Math.max(MIN_H, window.innerHeight - 12),
     });
     setIsMaximized(true);
-  }, [api, group.id, isMaximized]);
+  }, [api, group.id, isMaximized, group.dock]);
 
   // Group-chrome shortcuts (Ctrl+Shift, Cmd+Shift on Mac): O → pop out,
   // M → minimize, X → close. Bound on the wrapper so keydowns bubbling out

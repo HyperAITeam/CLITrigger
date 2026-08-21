@@ -33,6 +33,7 @@ import DockOverlay, {
   detectDockZone,
   detectViewportZone,
   viewportZoneToGeom,
+  dockEdgeGeom,
   contentAreaLeft,
   hitTestStackAt,
   ViewportGuide,
@@ -75,6 +76,11 @@ export type WindowIntent = 'start' | 'open' | 'resume';
 //   popped    — torn out into a separate OS window (window.open)
 export type WindowState = 'closed' | 'floating' | 'minimized' | 'popped';
 
+// Content-area edge a group can be docked to via the viewport guide. While
+// docked, the app content column reflows around the group (via --dock-inset-*
+// CSS variables consumed by Layout's <main>) instead of being covered.
+export type DockEdge = 'left' | 'right' | 'top' | 'bottom';
+
 export interface OpenGroup extends WindowGeom {
   id: string;
   z: number;
@@ -90,6 +96,9 @@ export interface OpenGroup extends WindowGeom {
   // state can describe both. Optional in the type for backward-compat with
   // pre-popout persisted entries; undefined is treated as 'main'.
   ownerWindowId?: string;
+  // Edge this group is docked to (undefined = free-floating overlay). At most
+  // one group per edge — docking a new group releases the previous holder.
+  dock?: DockEdge;
 }
 
 interface DragState {
@@ -126,6 +135,9 @@ export interface SessionWindowsAPI {
   minimizeGroup: (groupId: string) => void;
   restoreGroup: (groupId: string) => void;
   setGroupGeometry: (groupId: string, geom: WindowGeom) => void;
+  // Dock the group to a content-area edge (geometry = half the content area,
+  // app content reflows around it) or release it (null). One group per edge.
+  setGroupDock: (groupId: string, edge: DockEdge | null) => void;
   setSplitSizes: (groupId: string, path: Path, sizes: number[]) => void;
   setActiveTab: (groupId: string, sessionId: string) => void;
   applyLayoutPreset: (groupId: string, preset: LayoutPreset) => void;
@@ -445,6 +457,67 @@ export default function SessionWindowsHost({
     };
   }, [projectId]);
 
+  // ── Docked-group reflow ──────────────────────────────────────────────────
+  // Write the docked extents as --dock-inset-* CSS variables on :root;
+  // Layout's <main> consumes them as margins so the app content reflows
+  // around docked terminals instead of being covered. Cleared on unmount
+  // (project navigation) so no stale inset survives the host.
+  useEffect(() => {
+    const style = document.documentElement.style;
+    const inset = { left: 0, right: 0, top: 0, bottom: 0 };
+    for (const g of groups) {
+      if (!g.dock || g.minimized || (g.ownerWindowId || MAIN_WINDOW_ID) !== MAIN_WINDOW_ID) continue;
+      if (g.dock === 'left') inset.left = Math.max(inset.left, g.x + g.w - contentAreaLeft());
+      else if (g.dock === 'right') inset.right = Math.max(inset.right, window.innerWidth - g.x);
+      else if (g.dock === 'top') inset.top = Math.max(inset.top, g.y + g.h);
+      else inset.bottom = Math.max(inset.bottom, window.innerHeight - g.y);
+    }
+    for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
+      style.setProperty(`--dock-inset-${edge}`, `${Math.max(0, Math.round(inset[edge]))}px`);
+    }
+    return () => {
+      for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
+        style.removeProperty(`--dock-inset-${edge}`);
+      }
+    };
+  }, [groups]);
+
+  // Keep docked groups glued to their content-area edge when the viewport or
+  // the sidebar width changes (SessionWindow's own resize handler only
+  // re-clamps free-floating x/y and skips docked groups). The ResizeObserver
+  // on <main> catches sidebar expand/collapse, which fires no window resize.
+  // Runs once on mount to fix persisted docked geometry after a viewport
+  // change. Convergent: dock geometry depends only on the viewport and the
+  // sidebar edge, never on <main>'s own (inset-shifted) box.
+  useEffect(() => {
+    const recompute = () => {
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const contentLeft = contentAreaLeft();
+      setGroups((prev) => {
+        let changed = false;
+        const next = prev.map(g => {
+          if (!g.dock) return g;
+          const size = g.dock === 'left' || g.dock === 'right' ? g.w : g.h;
+          const geom = dockEdgeGeom(g.dock, size, vpW, vpH, contentLeft);
+          if (geom.x === g.x && geom.y === g.y && geom.w === g.w && geom.h === g.h) return g;
+          changed = true;
+          return { ...g, ...geom };
+        });
+        return changed ? next : prev;
+      });
+    };
+    recompute();
+    const main = document.querySelector('main');
+    const observer = main ? new ResizeObserver(recompute) : null;
+    if (main && observer) observer.observe(main);
+    window.addEventListener('resize', recompute);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', recompute);
+    };
+  }, []);
+
   // ── Foreign / missing session resolution ─────────────────────────────────
   // A group may hold sessions docked in from OTHER projects (cross-project
   // re-dock), which this project's `sessions` prop can't see. Any group
@@ -727,6 +800,20 @@ export default function SessionWindowsHost({
     setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ...geom } : g));
   }, []);
 
+  const setGroupDock = useCallback((groupId: string, edge: DockEdge | null) => {
+    setGroups((prev) => prev.map(g => {
+      if (g.id === groupId) {
+        if (!edge) return g.dock ? { ...g, dock: undefined } : g;
+        const geom = viewportZoneToGeom(edge, window.innerWidth, window.innerHeight, contentAreaLeft());
+        return { ...g, ...geom, dock: edge };
+      }
+      // One dock per edge: docking a new group releases the previous holder
+      // (it stays where it is as a plain floating window).
+      if (edge && g.dock === edge) return { ...g, dock: undefined };
+      return g;
+    }));
+  }, []);
+
   const setSplitSizes = useCallback((groupId: string, path: Path, sizes: number[]) => {
     setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, root: treeSetSplitSizes(g.root, path, sizes) } : g));
   }, []);
@@ -968,9 +1055,12 @@ export default function SessionWindowsHost({
         const idToDrop = detachedId;
         if (vz === 'popout') {
           popOutGroupRef.current?.(idToDrop, { atScreenX: ev.screenX, atScreenY: ev.screenY });
-        } else {
+        } else if (vz === 'max') {
           const geom = viewportZoneToGeom(vz, window.innerWidth, window.innerHeight, contentAreaLeft());
           setGroups(prev => prev.map(g => g.id === idToDrop ? { ...g, x: geom.x, y: geom.y, w: geom.w, h: geom.h } : g));
+        } else {
+          // Edge zones dock: geometry + dock flag, app content reflows.
+          setGroupDock(idToDrop, vz);
         }
         return;
       }
@@ -1152,10 +1242,12 @@ export default function SessionWindowsHost({
     // the full layout tree (LayoutNodeView for splits), and the handoff/return
     // protocol carries the whole OpenGroup so the layout round-trips intact.
     const popoutId = newPopoutId();
-    const handoffPayload: OpenGroup = { ...group, ownerWindowId: popoutId };
+    // Docked groups pop out undocked — the OS window has no content to reflow
+    // and a stale flag would re-dock the group on return.
+    const handoffPayload: OpenGroup = { ...group, ownerWindowId: popoutId, dock: undefined };
     handoffCacheRef.current.set(groupId, handoffPayload);
     alivePopoutsRef.current.set(popoutId, Date.now());
-    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: popoutId } : g));
+    setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: popoutId, dock: undefined } : g));
     busRef.current?.post({ t: 'group-handoff', to: popoutId, groupId, group: handoffPayload });
     // Position the new OS window. Drag-out path supplies cursor screen
     // coords so the popout opens under the user's pointer with a small
@@ -1367,7 +1459,7 @@ export default function SessionWindowsHost({
             setGroups((prev) => {
               // If main no longer has this group in its array, restore it.
               const exists = prev.find(g => g.id === msg.groupId);
-              const restored: OpenGroup = { ...payload, ownerWindowId: MAIN_WINDOW_ID };
+              const restored: OpenGroup = { ...payload, ownerWindowId: MAIN_WINDOW_ID, dock: undefined };
               return exists
                 ? prev.map(g => g.id === msg.groupId ? restored : g)
                 : [...prev, restored];
@@ -1602,12 +1694,12 @@ export default function SessionWindowsHost({
 
   const api = useMemo<SessionWindowsAPI>(() => ({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
-    closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
+    closeGroup, minimizeGroup, restoreGroup, setGroupGeometry, setGroupDock,
     setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab,
     beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
     sendToSession, listOpenTerminals, sendToNewTerminal,
   }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
-       closeGroup, minimizeGroup, restoreGroup, setGroupGeometry,
+       closeGroup, minimizeGroup, restoreGroup, setGroupGeometry, setGroupDock,
        setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
        sendToSession, listOpenTerminals, sendToNewTerminal]);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectViewportZone, viewportZoneToGeom } from '../../components/group/DockOverlay';
+import { detectViewportZone, viewportZoneToGeom, dockEdgeGeom } from '../../components/group/DockOverlay';
 
 // Geometry mirrors DockOverlay's ARM_SIZE=28 / ARM_OFFSET=68 cross, centered
 // on the viewport, plus the pop-out box at -(ARM_OFFSET*2+12) above center.
@@ -33,15 +33,24 @@ describe('detectViewportZone', () => {
 });
 
 describe('viewportZoneToGeom', () => {
-  it('maps halves across the full viewport', () => {
-    expect(viewportZoneToGeom('left', VP_W, VP_H, 240)).toEqual({ x: 0, y: 0, w: 600, h: VP_H });
-    expect(viewportZoneToGeom('right', VP_W, VP_H, 240)).toEqual({ x: 600, y: 0, w: 600, h: VP_H });
-    expect(viewportZoneToGeom('top', VP_W, VP_H, 240)).toEqual({ x: 0, y: 0, w: VP_W, h: 400 });
-    expect(viewportZoneToGeom('bottom', VP_W, VP_H, 240)).toEqual({ x: 0, y: 400, w: VP_W, h: 400 });
+  it('maps edge zones to half the content area (right of contentLeft)', () => {
+    expect(viewportZoneToGeom('left', VP_W, VP_H, 240)).toEqual({ x: 240, y: 0, w: 480, h: VP_H });
+    expect(viewportZoneToGeom('right', VP_W, VP_H, 240)).toEqual({ x: 720, y: 0, w: 480, h: VP_H });
+    expect(viewportZoneToGeom('top', VP_W, VP_H, 240)).toEqual({ x: 240, y: 0, w: 960, h: 400 });
+    expect(viewportZoneToGeom('bottom', VP_W, VP_H, 240)).toEqual({ x: 240, y: 400, w: 960, h: 400 });
   });
 
   it('max fills the content area to the right of contentLeft', () => {
     expect(viewportZoneToGeom('max', VP_W, VP_H, 240)).toEqual({ x: 240, y: 0, w: 960, h: VP_H });
     expect(viewportZoneToGeom('max', VP_W, VP_H, 0)).toEqual({ x: 0, y: 0, w: VP_W, h: VP_H });
+  });
+});
+
+describe('dockEdgeGeom', () => {
+  it('anchors the group to the edge with the given primary size', () => {
+    expect(dockEdgeGeom('left', 300, VP_W, VP_H, 240)).toEqual({ x: 240, y: 0, w: 300, h: VP_H });
+    expect(dockEdgeGeom('right', 300, VP_W, VP_H, 240)).toEqual({ x: 900, y: 0, w: 300, h: VP_H });
+    expect(dockEdgeGeom('top', 250, VP_W, VP_H, 240)).toEqual({ x: 240, y: 0, w: 960, h: 250 });
+    expect(dockEdgeGeom('bottom', 250, VP_W, VP_H, 240)).toEqual({ x: 240, y: 550, w: 960, h: 250 });
   });
 });

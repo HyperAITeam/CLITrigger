@@ -107,30 +107,48 @@ export function detectViewportZone(
   return null;
 }
 
-// `contentLeft` is the app content area's left edge (= the sidebar's right
-// edge); only 'max' uses it — the halves keep the existing edge-snap
-// semantics that span the full viewport.
+// Geometry of a group docked to a content-area edge, given its primary size
+// (width for left/right, height for top/bottom). Used both for the initial
+// guide drop (size = half the content area) and to re-glue docked groups to
+// their edge when the viewport or sidebar width changes.
+export function dockEdgeGeom(
+  edge: 'left' | 'right' | 'top' | 'bottom',
+  size: number,
+  vpW: number,
+  vpH: number,
+  contentLeft: number,
+): DockTargetRect {
+  switch (edge) {
+    case 'left':   return { x: contentLeft, y: 0, w: size, h: vpH };
+    case 'right':  return { x: vpW - size, y: 0, w: size, h: vpH };
+    case 'top':    return { x: contentLeft, y: 0, w: vpW - contentLeft, h: size };
+    case 'bottom': return { x: contentLeft, y: vpH - size, w: vpW - contentLeft, h: size };
+  }
+}
+
+// All zones are content-area based (right of the sidebar): edge zones dock
+// the group to half the content area (the app content reflows around it),
+// 'max' fills the content area entirely.
 export function viewportZoneToGeom(
   zone: Exclude<ViewportZone, 'popout'>,
   vpW: number,
   vpH: number,
   contentLeft: number,
 ): DockTargetRect {
-  const halfW = Math.round(vpW / 2);
-  const halfH = Math.round(vpH / 2);
-  switch (zone) {
-    case 'left':   return { x: 0, y: 0, w: halfW, h: vpH };
-    case 'right':  return { x: vpW - halfW, y: 0, w: halfW, h: vpH };
-    case 'top':    return { x: 0, y: 0, w: vpW, h: halfH };
-    case 'bottom': return { x: 0, y: vpH - halfH, w: vpW, h: halfH };
-    case 'max':    return { x: contentLeft, y: 0, w: vpW - contentLeft, h: vpH };
-  }
+  if (zone === 'max') return { x: contentLeft, y: 0, w: vpW - contentLeft, h: vpH };
+  const size = zone === 'left' || zone === 'right'
+    ? Math.round((vpW - contentLeft) / 2)
+    : Math.round(vpH / 2);
+  return dockEdgeGeom(zone, size, vpW, vpH, contentLeft);
 }
 
-// The Layout component renders exactly one <main> for the content column to
-// the right of the sidebar (works for both the expanded and collapsed rail).
+// The app content area's left edge = the sidebar's right edge. Anchored on
+// the Layout <aside> (not <main>) because the dock insets shift <main>'s box,
+// which would feed back into this measurement. Clamped to 0 for the mobile
+// off-screen sidebar.
 export function contentAreaLeft(): number {
-  return document.querySelector('main')?.getBoundingClientRect().left ?? 0;
+  const aside = document.querySelector('[data-app-sidebar]');
+  return Math.max(0, aside ? aside.getBoundingClientRect().right : 0);
 }
 
 export function ViewportGuide({ activeZone }: { activeZone: ViewportZone | null }) {
