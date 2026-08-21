@@ -9,7 +9,15 @@ import { createPortal } from 'react-dom';
 import { X, Minus, ExternalLink, Square, Columns2, Grid2X2, Maximize2, Minimize2 } from 'lucide-react';
 import LayoutNodeView from './group/LayoutNodeView';
 import StackView from './group/StackView';
-import DockOverlay, { detectDockZone, type DockTargetRect } from './group/DockOverlay';
+import DockOverlay, {
+  detectDockZone,
+  detectViewportZone,
+  viewportZoneToGeom,
+  contentAreaLeft,
+  ViewportGuide,
+  type DockTargetRect,
+  type ViewportZone,
+} from './group/DockOverlay';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
@@ -50,6 +58,9 @@ const SNAP_NEIGHBOR_THRESHOLD = 10;
 // bounds during a chrome drag before the group is auto-popped out as a
 // separate OS window. Generous so a wobble at the edge doesn't trigger.
 const TEAR_OUT_THRESHOLD = 60;
+// Mousemove distance from drag start before the viewport guide appears, so a
+// plain click on the chrome doesn't flash the guide.
+const GUIDE_DRAG_THRESHOLD = 12;
 
 type SnapZone = 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
@@ -130,6 +141,12 @@ export default function SessionWindow({
   geomRef.current = { x: group.x, y: group.y, w: group.w, h: group.h };
   const [snapZone, setSnapZone] = useState<SnapZone | null>(null);
   const snapZoneRef = useRef<SnapZone | null>(null);
+  // Viewport guide (cross at the viewport center + pop-out icon), shown once
+  // the chrome drag has actually moved. Refs mirror state for the
+  // window-level listeners.
+  const [chromeDragging, setChromeDragging] = useState(false);
+  const [guideZone, setGuideZone] = useState<ViewportZone | null>(null);
+  const guideZoneRef = useRef<ViewportZone | null>(null);
   const neighborsRef = useRef<Geometry[]>(neighbors);
   neighborsRef.current = neighbors;
   // Dock hover preview (only used by single-stack chrome drag)
@@ -155,6 +172,10 @@ export default function SessionWindow({
     const wrapper = wrapperRef.current;
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
+    const contentLeft = contentAreaLeft();
+    // Guide appears only once the gesture has actually moved (closure flag,
+    // mirrored into chromeDragging state for the render).
+    let guideShown = false;
 
     // For dock detection we need elementFromPoint to see *other* groups'
     // stacks. Since this very window is being dragged under the cursor,
@@ -190,6 +211,9 @@ export default function SessionWindow({
       setDockHover(null);
       snapZoneRef.current = null;
       setSnapZone(null);
+      guideZoneRef.current = null;
+      setGuideZone(null);
+      setChromeDragging(false);
       api.setGroupGeometry(group.id, { ...geomRef.current });
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
@@ -228,6 +252,9 @@ export default function SessionWindow({
           setDockHover(null);
           snapZoneRef.current = null;
           setSnapZone(null);
+          guideZoneRef.current = null;
+          setGuideZone(null);
+          setChromeDragging(false);
           api.setGroupGeometry(group.id, { ...geomRef.current });
           api.popOutGroup(group.id, { atScreenX: ev.screenX, atScreenY: ev.screenY });
           return;
@@ -269,17 +296,32 @@ export default function SessionWindow({
         setDockHover(hover ? { rect: hover.rect, zone: hover.zone } : null);
       }
 
-      // Edge-snap preview only when not actively docking onto another stack.
+      if (!guideShown && Math.hypot(ev.clientX - startMouseX, ev.clientY - startMouseY) >= GUIDE_DRAG_THRESHOLD) {
+        guideShown = true;
+        setChromeDragging(true);
+      }
+
+      // Viewport-guide + edge-snap previews, suppressed while a dock zone is
+      // live so only one target UI is active at a time (dock > guide > edge).
       const dockActive = detectDock && dockHoverRef.current && dockHoverRef.current.zone;
-      const edgeZone = dockActive ? null : detectSnapZone(ev.clientX, ev.clientY, vpW, vpH);
+      const gz = dockActive || !guideShown ? null : detectViewportZone(ev.clientX, ev.clientY, vpW, vpH);
+      if (gz !== guideZoneRef.current) {
+        guideZoneRef.current = gz;
+        setGuideZone(gz);
+      }
+      const edgeZone = dockActive || gz ? null : detectSnapZone(ev.clientX, ev.clientY, vpW, vpH);
       if (edgeZone !== snapZoneRef.current) {
         snapZoneRef.current = edgeZone;
         setSnapZone(edgeZone);
       }
     };
-    const onUp = () => {
+    const onUp = (ev: MouseEvent) => {
       detachListeners();
-      // Resolution priority: dock > edge snap > free move.
+      setChromeDragging(false);
+      const gz = guideZoneRef.current;
+      guideZoneRef.current = null;
+      setGuideZone(null);
+      // Resolution priority: dock > viewport guide > edge snap > free move.
       if (detectDock && dockHoverRef.current && dockHoverRef.current.zone) {
         const dh = dockHoverRef.current;
         api.dockGroup(group.id, dh.groupId, dh.path, dh.zone!);
@@ -289,8 +331,22 @@ export default function SessionWindow({
         setSnapZone(null);
         return; // group dissolved into dst — no geometry commit needed
       }
-      if (snapZoneRef.current) {
-        const target = snapZoneToGeom(snapZoneRef.current, vpW, vpH);
+      if (gz === 'popout') {
+        dockHoverRef.current = null;
+        setDockHover(null);
+        snapZoneRef.current = null;
+        setSnapZone(null);
+        // Same sequence as the tear-out path: commit geometry, then hand off.
+        api.setGroupGeometry(group.id, { ...geomRef.current });
+        api.popOutGroup(group.id, { atScreenX: ev.screenX, atScreenY: ev.screenY });
+        return;
+      }
+      const target = gz
+        ? viewportZoneToGeom(gz, vpW, vpH, contentLeft)
+        : snapZoneRef.current
+          ? snapZoneToGeom(snapZoneRef.current, vpW, vpH)
+          : null;
+      if (target) {
         if (wrapper) {
           wrapper.style.left = `${target.x}px`;
           wrapper.style.top = `${target.y}px`;
@@ -726,6 +782,7 @@ export default function SessionWindow({
     <>
       {desktopWindow}
       {snapPreview}
+      {chromeDragging && !dockHover?.zone && <ViewportGuide activeZone={guideZone} />}
       {dockHover && <DockOverlay targetRect={dockHover.rect} activeZone={dockHover.zone} />}
     </>
   );

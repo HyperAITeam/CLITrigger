@@ -6,6 +6,7 @@
 // rectangle inside the target stack's content area.
 
 import { createPortal } from 'react-dom';
+import { ExternalLink } from 'lucide-react';
 import { CMD } from '../terminal-theme';
 import type { DockSide } from './groupTree';
 
@@ -77,6 +78,100 @@ export function dropPreviewRect(rect: DockTargetRect, zone: DockSide): DockTarge
   }
 }
 
+// ── Viewport guide (screen-level drop zones) ────────────────────────────────
+// Cross of 5 icons at the viewport center, shown while a floating window or a
+// torn-off tab is dragged: left/right/top/bottom snap the group to a viewport
+// half, the center maximizes it over the content area (right of the sidebar),
+// and a sixth icon above the cross pops the group out as a separate OS window.
+
+export type ViewportZone = 'left' | 'right' | 'top' | 'bottom' | 'max' | 'popout';
+
+// Distance from the cross center to the pop-out icon's center. One extra arm
+// step plus a gap so it reads as a separate action, not a fifth split target.
+const POPOUT_OFFSET = ARM_OFFSET * 2 + 12;
+
+export function detectViewportZone(
+  mouseX: number,
+  mouseY: number,
+  vpW: number,
+  vpH: number,
+): ViewportZone | null {
+  const dx = mouseX - vpW / 2;
+  const dy = mouseY - vpH / 2;
+  if (Math.abs(dx) <= ARM_SIZE && Math.abs(dy) <= ARM_SIZE) return 'max';
+  if (dx >= -ARM_OFFSET - ARM_SIZE && dx <= -ARM_OFFSET + ARM_SIZE && Math.abs(dy) <= ARM_SIZE) return 'left';
+  if (dx >= ARM_OFFSET - ARM_SIZE && dx <= ARM_OFFSET + ARM_SIZE && Math.abs(dy) <= ARM_SIZE) return 'right';
+  if (dy >= -ARM_OFFSET - ARM_SIZE && dy <= -ARM_OFFSET + ARM_SIZE && Math.abs(dx) <= ARM_SIZE) return 'top';
+  if (dy >= ARM_OFFSET - ARM_SIZE && dy <= ARM_OFFSET + ARM_SIZE && Math.abs(dx) <= ARM_SIZE) return 'bottom';
+  if (dy >= -POPOUT_OFFSET - ARM_SIZE && dy <= -POPOUT_OFFSET + ARM_SIZE && Math.abs(dx) <= ARM_SIZE) return 'popout';
+  return null;
+}
+
+// `contentLeft` is the app content area's left edge (= the sidebar's right
+// edge); only 'max' uses it — the halves keep the existing edge-snap
+// semantics that span the full viewport.
+export function viewportZoneToGeom(
+  zone: Exclude<ViewportZone, 'popout'>,
+  vpW: number,
+  vpH: number,
+  contentLeft: number,
+): DockTargetRect {
+  const halfW = Math.round(vpW / 2);
+  const halfH = Math.round(vpH / 2);
+  switch (zone) {
+    case 'left':   return { x: 0, y: 0, w: halfW, h: vpH };
+    case 'right':  return { x: vpW - halfW, y: 0, w: halfW, h: vpH };
+    case 'top':    return { x: 0, y: 0, w: vpW, h: halfH };
+    case 'bottom': return { x: 0, y: vpH - halfH, w: vpW, h: halfH };
+    case 'max':    return { x: contentLeft, y: 0, w: vpW - contentLeft, h: vpH };
+  }
+}
+
+// The Layout component renders exactly one <main> for the content column to
+// the right of the sidebar (works for both the expanded and collapsed rail).
+export function contentAreaLeft(): number {
+  return document.querySelector('main')?.getBoundingClientRect().left ?? 0;
+}
+
+export function ViewportGuide({ activeZone }: { activeZone: ViewportZone | null }) {
+  const vpW = window.innerWidth;
+  const vpH = window.innerHeight;
+  const cx = vpW / 2;
+  const cy = vpH / 2;
+  const preview = activeZone && activeZone !== 'popout'
+    ? viewportZoneToGeom(activeZone, vpW, vpH, contentAreaLeft())
+    : null;
+  return createPortal(
+    <>
+      {preview && (
+        <div
+          style={{
+            position: 'fixed',
+            left: preview.x, top: preview.y,
+            width: preview.w, height: preview.h,
+            background: `${CMD.info}33`,
+            border: `2px dashed ${CMD.info}`,
+            borderRadius: 8,
+            pointerEvents: 'none',
+            zIndex: 2400,
+            transition: 'left 80ms ease-out, top 80ms ease-out, width 80ms ease-out, height 80ms ease-out',
+            boxSizing: 'border-box',
+          }}
+        />
+      )}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2500 }}>
+        <ZoneIcon offsetX={cx - ARM_SIZE} offsetY={cy - ARM_SIZE} active={activeZone === 'max'} kind="center" />
+        <ZoneIcon offsetX={cx - ARM_OFFSET - ARM_SIZE} offsetY={cy - ARM_SIZE} active={activeZone === 'left'} kind="left" />
+        <ZoneIcon offsetX={cx + ARM_OFFSET - ARM_SIZE} offsetY={cy - ARM_SIZE} active={activeZone === 'right'} kind="right" />
+        <ZoneIcon offsetX={cx - ARM_SIZE} offsetY={cy - ARM_OFFSET - ARM_SIZE} active={activeZone === 'top'} kind="top" />
+        <ZoneIcon offsetX={cx - ARM_SIZE} offsetY={cy + ARM_OFFSET - ARM_SIZE} active={activeZone === 'bottom'} kind="bottom" />
+        <ZoneIcon offsetX={cx - ARM_SIZE} offsetY={cy - POPOUT_OFFSET - ARM_SIZE} active={activeZone === 'popout'} kind="popout" />
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 export default function DockOverlay({ targetRect, activeZone }: DockOverlayProps) {
   const cx = targetRect.x + targetRect.w / 2;
   const cy = targetRect.y + targetRect.h / 2;
@@ -131,7 +226,7 @@ interface ZoneIconProps {
   offsetX: number;
   offsetY: number;
   active: boolean;
-  kind: DockSide;
+  kind: DockSide | 'popout';
 }
 
 function ZoneIcon({ offsetX, offsetY, active, kind }: ZoneIconProps) {
@@ -157,11 +252,17 @@ function ZoneIcon({ offsetX, offsetY, active, kind }: ZoneIconProps) {
   );
 }
 
-function ZoneShape({ kind, fill }: { kind: DockSide; fill: string }) {
+function ZoneShape({ kind, fill }: { kind: DockSide | 'popout'; fill: string }) {
   const baseStyle: React.CSSProperties = { position: 'absolute', background: fill };
   switch (kind) {
     case 'center':
       return <div style={{ ...baseStyle, inset: 4 }} />;
+    case 'popout':
+      return (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ExternalLink size={24} color={fill} />
+        </div>
+      );
     case 'left':
       return (
         <>

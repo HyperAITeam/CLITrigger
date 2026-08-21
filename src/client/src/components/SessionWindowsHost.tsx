@@ -29,7 +29,16 @@ import {
   type LayoutPreset,
 } from './group/groupTree';
 import { assignColor } from './group/colors';
-import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from './group/DockOverlay';
+import DockOverlay, {
+  detectDockZone,
+  detectViewportZone,
+  viewportZoneToGeom,
+  contentAreaLeft,
+  hitTestStackAt,
+  ViewportGuide,
+  type DockTargetRect,
+  type ViewportZone,
+} from './group/DockOverlay';
 import * as sessionsApi from '../api/sessions';
 import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
@@ -95,6 +104,10 @@ interface DragState {
   hoveredPath: Path | null;
   hoveredRect: DockTargetRect | null;
   zone: DockSide | null;
+  // Viewport-guide zone under the cursor (screen halves / max / pop out),
+  // only sampled once the tab has been eagerly detached and no dock zone
+  // is live.
+  viewportZone: ViewportZone | null;
 }
 
 export interface SessionWindowsAPI {
@@ -757,6 +770,7 @@ export default function SessionWindowsHost({
       startX, startY,
       mouseX: startX, mouseY: startY,
       hoveredGroupId: null, hoveredPath: null, hoveredRect: null, zone: null,
+      viewportZone: null,
     });
 
     const performEagerDetach = (mouseX: number, mouseY: number) => {
@@ -895,10 +909,17 @@ export default function SessionWindowsHost({
         zone = detectDockZone(ev.clientX, ev.clientY, hoveredRect);
         break;
       }
+      // Viewport guide: only meaningful once detached (the drop acts on the
+      // floating group), and suppressed while a dock zone is live so only
+      // one target UI is active at a time (dock > guide).
+      const viewportZone = zone || !detachedId
+        ? null
+        : detectViewportZone(ev.clientX, ev.clientY, window.innerWidth, window.innerHeight);
       setDragState({
         ...cur,
         mouseX: ev.clientX, mouseY: ev.clientY,
         hoveredGroupId, hoveredPath, hoveredRect, zone,
+        viewportZone,
       });
     };
 
@@ -923,7 +944,7 @@ export default function SessionWindowsHost({
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
     const onVis = () => { if (document.hidden) onAbort(); };
 
-    const onUp = () => {
+    const onUp = (ev: MouseEvent) => {
       detachListeners();
       const cur = dragStateRef.current;
       setDragState(null);
@@ -935,6 +956,22 @@ export default function SessionWindowsHost({
         // is still the origin group.
         const srcId = detachedId || cur.groupId;
         applyDock(srcId, cur.sessionId, cur.hoveredGroupId, cur.hoveredPath, cur.zone);
+        return;
+      }
+      // Viewport-guide drop: pop the detached floating group out as a
+      // separate OS window, or snap it to a viewport half / content-area
+      // max. Same race guard as tear-out: the eager-detach state update may
+      // not have flushed yet, in which case popOutGroup would no-op — skip
+      // and the group simply stays floating at the cursor.
+      const vz = cur.viewportZone;
+      if (vz && detachedId && groupsRef.current.some(g => g.id === detachedId)) {
+        const idToDrop = detachedId;
+        if (vz === 'popout') {
+          popOutGroupRef.current?.(idToDrop, { atScreenX: ev.screenX, atScreenY: ev.screenY });
+        } else {
+          const geom = viewportZoneToGeom(vz, window.innerWidth, window.innerHeight, contentAreaLeft());
+          setGroups(prev => prev.map(g => g.id === idToDrop ? { ...g, x: geom.x, y: geom.y, w: geom.w, h: geom.h } : g));
+        }
         return;
       }
       // No dock target. If detached, the floating group is already at the
@@ -1673,6 +1710,13 @@ export default function SessionWindowsHost({
       {/* Tab drag visual: dock overlay over hovered stack */}
       {dragState && dragState.hoveredRect && (
         <DockOverlay targetRect={dragState.hoveredRect} activeZone={dragState.zone} />
+      )}
+      {/* Tab drag visual: viewport guide (snap halves / max / pop out).
+          Hidden while a dock zone is live, and until the drag has actually
+          torn the tab off so a plain tab click doesn't flash the guide. */}
+      {dragState && !dragState.zone
+        && Math.hypot(dragState.mouseX - dragState.startX, dragState.mouseY - dragState.startY) >= TAB_DETACH_THRESHOLD && (
+        <ViewportGuide activeZone={dragState.viewportZone} />
       )}
       {/* Cross-window drag: a popout's tab hovering over one of our stacks */}
       {remoteDock && (
