@@ -347,8 +347,19 @@ export default function SessionWindow({
       }
       if (gz && gz !== 'max') {
         // Edge zones dock: geometry + dock flag committed by the host, the
-        // app content reflows around the window. No geometry commit here —
-        // setGroupDock is the single source for the docked rect.
+        // app content reflows around the window. The wrapper is ALSO moved
+        // imperatively: mid-drag left/top are direct DOM writes React can't
+        // see, so when the docked rect equals the pre-drag state (re-dock to
+        // the same edge) React's style diff writes nothing and the window
+        // would stay stuck at the drop position.
+        const docked = viewportZoneToGeom(gz, vpW, vpH, contentLeft);
+        if (wrapper) {
+          wrapper.style.left = `${docked.x}px`;
+          wrapper.style.top = `${docked.y}px`;
+          wrapper.style.width = `${docked.w}px`;
+          wrapper.style.height = `${docked.h}px`;
+        }
+        geomRef.current = docked;
         dockHoverRef.current = null;
         setDockHover(null);
         snapZoneRef.current = null;
