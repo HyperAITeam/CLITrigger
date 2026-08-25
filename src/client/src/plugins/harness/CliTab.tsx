@@ -27,6 +27,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
   // Show the CLAUDE.local.md editor even before the file exists (saving
   // creates it). Reset implicitly on remount per project/cli.
   const [creatingLocal, setCreatingLocal] = useState(false);
+  const [porting, setPorting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSaveSettings = async (patch: HarnessSettings) => {
@@ -96,6 +97,20 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
     }
   };
 
+  const handlePortFromClaude = async () => {
+    if (!confirm(t('harness.port.confirm'))) return;
+    setPorting(true);
+    setError(null);
+    try {
+      const next = await harnessApi.portFromClaude(projectId, cli);
+      onChange(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPorting(false);
+    }
+  };
+
   const handleUpsertMcp = async (server: McpServer) => {
     setSavingMcp(true);
     setError(null);
@@ -144,6 +159,20 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
       {cli === 'codex' && (
         <div className="p-3 border border-warm-200 rounded-lg bg-warm-50 text-xs text-warm-500">
           {t('harness.warning.tomlComments')}
+        </div>
+      )}
+
+      {cli !== 'claude' && (
+        <div className="flex items-center justify-between gap-3 p-3 border border-warm-200 rounded-lg bg-warm-50">
+          <p className="text-xs text-warm-500">{t('harness.port.note')}</p>
+          <button
+            type="button"
+            onClick={handlePortFromClaude}
+            disabled={porting}
+            className="shrink-0 px-4 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent-dark disabled:opacity-50 transition-colors"
+          >
+            {porting ? t('harness.port.running') : t('harness.port.button')}
+          </button>
         </div>
       )}
 

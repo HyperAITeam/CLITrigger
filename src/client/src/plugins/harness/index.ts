@@ -50,6 +50,12 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'harness.hooks.editJson': 'Edit JSON',
       'harness.hooks.invalidJson': 'Invalid JSON — fix the syntax and try again.',
       'harness.skills.empty': 'No skills in .claude/skills/.',
+      'harness.port.button': 'Import from Claude',
+      'harness.port.running': 'Importing…',
+      'harness.port.note':
+        'Inline CLAUDE.md and .claude/skills/ into AGENTS.md. Hooks are not ported — this CLI has no hook mechanism.',
+      'harness.port.confirm':
+        'Port CLAUDE.md + skills into AGENTS.md? A marked block is inserted (or replaced on re-port); content outside the block is kept.',
       'harness.mcp.add': 'Add Server',
       'harness.mcp.empty': 'No MCP servers configured.',
       'harness.mcp.addTitle': 'Add MCP Server',
@@ -112,6 +118,12 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'harness.hooks.editJson': 'JSON 편집',
       'harness.hooks.invalidJson': 'JSON 형식이 올바르지 않습니다. 수정 후 다시 저장하세요.',
       'harness.skills.empty': '.claude/skills/ 에 스킬이 없습니다.',
+      'harness.port.button': 'Claude에서 가져오기',
+      'harness.port.running': '가져오는 중…',
+      'harness.port.note':
+        'CLAUDE.md와 .claude/skills/ 를 AGENTS.md에 인라인합니다. 훅은 이 CLI에 실행 메커니즘이 없어 포팅되지 않습니다.',
+      'harness.port.confirm':
+        'CLAUDE.md + 스킬을 AGENTS.md로 포팅할까요? 마커 블록으로 삽입되며(재실행 시 블록만 교체), 블록 밖 내용은 유지됩니다.',
       'harness.mcp.add': '서버 추가',
       'harness.mcp.empty': '등록된 MCP 서버가 없습니다.',
       'harness.mcp.addTitle': 'MCP 서버 추가',

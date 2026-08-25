@@ -5,6 +5,7 @@ import { claudeHarnessAdapter } from './adapters/claude.js';
 import { antigravityHarnessAdapter } from './adapters/antigravity.js';
 import { codexHarnessAdapter } from './adapters/codex.js';
 import { HarnessPathError } from './io.js';
+import { buildPortedBlock, mergePortedMemory } from './port.js';
 import type { CliId, HarnessAdapter, HarnessSettings, McpServer } from './types.js';
 
 const adapters: Record<CliId, HarnessAdapter> = {
@@ -235,6 +236,37 @@ export function createRouter(_helpers: PluginHelpers): Router {
     try {
       await adapter.writeSkill(projectPath, req.params.name, body.content);
       const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
+  // POST /:projectId/:cli/port-from-claude — inline CLAUDE.md + skills into
+  // the target CLI's AGENTS.md as a marker-delimited block (idempotent on
+  // re-port). Hooks are not ported: the target CLIs have no hook mechanism.
+  router.post('/:projectId/:cli/port-from-claude', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli) || req.params.cli === 'claude') {
+      res.status(400).json({ error: 'Target cli must be antigravity or codex' });
+      return;
+    }
+    try {
+      const source = await adapters.claude.read(projectPath);
+      const skills = source.skills ?? [];
+      if (!source.memory.trim() && skills.length === 0) {
+        res.status(400).json({ error: 'Nothing to port: no CLAUDE.md content or skills found' });
+        return;
+      }
+      const target = adapters[req.params.cli];
+      const existing = (await target.read(projectPath)).memory;
+      const block = buildPortedBlock(source.memory, skills);
+      await target.writeMemory(projectPath, mergePortedMemory(existing, block));
+      const snapshot = await target.read(projectPath);
       res.json(snapshot);
     } catch (err) {
       handleError(res, err);

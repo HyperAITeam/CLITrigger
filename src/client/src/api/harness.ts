@@ -1,4 +1,4 @@
-import { get, put, del } from './client';
+import { get, post, put, del } from './client';
 import type { CliId, HarnessSettings, HarnessSnapshot, McpServer } from '../plugins/harness/types';
 
 export type HarnessSnapshotMap = Record<CliId, HarnessSnapshot>;
@@ -51,6 +51,11 @@ export function updateSkill(
   content: string,
 ): Promise<HarnessSnapshot> {
   return put(`/api/harness/${projectId}/${cli}/skills/${encodeURIComponent(name)}`, { content });
+}
+
+// Inline CLAUDE.md + skills into the target CLI's AGENTS.md (antigravity/codex).
+export function portFromClaude(projectId: string, cli: CliId): Promise<HarnessSnapshot> {
+  return post(`/api/harness/${projectId}/${cli}/port-from-claude`);
 }
 
 export function upsertMcp(
