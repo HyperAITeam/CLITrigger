@@ -101,7 +101,7 @@ function MemoryNodeBox({ data }: { data: { node: MemoryNode; selected: boolean; 
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           {tags.slice(0, 3).map(tag => (
-            <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-warm-200 text-warm-700">{tag}</span>
+            <span key={tag} className="px-1.5 py-0.5 rounded-md text-[10px] bg-warm-200 text-warm-700">{tag}</span>
           ))}
           {tags.length > 3 && <span className="text-[10px] text-warm-500">+{tags.length - 3}</span>}
         </div>

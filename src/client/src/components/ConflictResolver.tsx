@@ -139,13 +139,13 @@ export default function ConflictResolver({ projectId, worktreePath, filePath, on
               {unresolved > 0 ? t('git.cr.unresolved').replace('{n}', String(unresolved)) : t('git.cr.allResolved')}
             </span>
             <button
-              className="text-2xs px-2 py-0.5 rounded border border-gray-600 text-gray-300 hover:bg-gray-800"
+              className="text-2xs px-2 py-0.5 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800"
               onClick={() => (manual ? setManual(false) : enterManual())}
             >
               {manual ? t('git.cr.guided') : t('git.cr.manual')}
             </button>
             <button
-              className="text-2xs px-2 py-0.5 rounded bg-accent text-white disabled:opacity-40"
+              className="text-2xs px-2 py-0.5 rounded-md bg-accent text-white disabled:opacity-40"
               disabled={saveDisabled}
               onClick={save}
               title={hasMarkers ? t('git.cr.markersRemain') : undefined}
@@ -181,7 +181,7 @@ export default function ConflictResolver({ projectId, worktreePath, filePath, on
                     <button
                       key={c}
                       onClick={() => pick(idx, c)}
-                      className={`text-2xs px-2 py-0.5 rounded border transition-colors ${
+                      className={`text-2xs px-2 py-0.5 rounded-md border transition-colors ${
                         choices[idx] === c
                           ? 'bg-accent text-white border-accent'
                           : 'border-gray-600 text-gray-300 hover:bg-gray-700'

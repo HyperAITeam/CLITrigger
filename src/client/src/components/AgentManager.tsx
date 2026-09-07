@@ -4,6 +4,7 @@ import type { DiscussionAgent } from '../types';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
 import * as discussionsApi from '../api/discussions';
+import Button from './Button';
 import EmptyState from './EmptyState';
 
 const ROLE_OPTIONS = ['architect', 'developer', 'reviewer', 'pm', 'tester', 'custom'] as const;
@@ -155,10 +156,10 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
                 <span className="text-sm font-semibold text-warm-700 truncate">{agent.name}</span>
                 {!!agent.can_implement && (
                   <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-2xs font-medium bg-status-warning/10 text-status-warning border border-status-warning/30"
                     title={t('agents.canImplementHelp')}
                   >
-                    <Hammer size={10} />
+                    <Hammer size={12} />
                     {t('agents.canImplementBadge')}
                   </span>
                 )}
@@ -181,7 +182,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
               </button>
               <button
                 onClick={() => handleDelete(agent.id)}
-                className="p-1.5 text-warm-400 hover:text-status-error hover:bg-red-50 rounded-lg transition-colors"
+                className="p-1.5 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded-lg transition-colors"
               >
                 <Trash2 size={16} />
               </button>
@@ -199,13 +200,9 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
               <label className="block text-xs font-medium text-warm-500 mb-2">{t('agents.presets')}</label>
               <div className="flex flex-wrap gap-2">
                 {PRESET_AGENTS.map((preset) => (
-                  <button
-                    key={preset.role}
-                    onClick={() => handlePreset(preset)}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-warm-50 text-warm-600 hover:bg-warm-100 border border-warm-150 hover:border-warm-300 transition-colors font-medium"
-                  >
+                  <Button key={preset.role} size="sm" onClick={() => handlePreset(preset)}>
                     {lang === 'ko' ? preset.nameKo : preset.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -272,7 +269,7 @@ export default function AgentManager({ projectId, agents, onAgentsChange }: Agen
                 type="checkbox"
                 checked={canImplement}
                 onChange={(e) => setCanImplement(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-warm-300 text-warm-600 focus:ring-warm-400"
+                className="mt-0.5 w-4 h-4 rounded-md border-warm-300 text-warm-600 focus:ring-warm-400"
               />
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-warm-700">

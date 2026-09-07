@@ -199,7 +199,7 @@ export default function TunnelSettings({ open, onClose }: TunnelSettingsProps) {
   if (!open) return null;
   return (
     <Modal open={open} onClose={onClose} size="lg">
-      <div className="card shadow-2xl rounded-2xl">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated overflow-hidden">
         <TunnelSettingsPanel onClose={onClose} />
       </div>
     </Modal>

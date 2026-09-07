@@ -695,12 +695,12 @@ export default function SessionWindow({
             {allIds.length > 1 && (
               <>
                 <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'single')} style={closeBtnStyle} aria-label="single-pane" title={t('session.layout.single')}><Square size={12} /></button>
-                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'columns')} style={closeBtnStyle} aria-label="two-columns" title={t('session.layout.columns')}><Columns2 size={13} /></button>
-                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'grid')} style={closeBtnStyle} aria-label="grid-layout" title={t('session.layout.grid')}><Grid2X2 size={13} /></button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'columns')} style={closeBtnStyle} aria-label="two-columns" title={t('session.layout.columns')}><Columns2 size={14} /></button>
+                <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => api.applyLayoutPreset(group.id, 'grid')} style={closeBtnStyle} aria-label="grid-layout" title={t('session.layout.grid')}><Grid2X2 size={14} /></button>
               </>
             )}
             <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={toggleMaximize} style={closeBtnStyle} aria-label="toggle-maximize" title={`${isMaximized ? t('session.restoreSize') : t('session.maximize')} · ${t('session.maximizeHint')}`}>
-              {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
             <button
               data-no-drag

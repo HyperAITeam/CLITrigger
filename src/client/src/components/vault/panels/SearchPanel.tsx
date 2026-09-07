@@ -73,7 +73,7 @@ export function SearchPanel({ files, activeFile, onSelectFile }: Props) {
           <button
             key={file.relativePath}
             onClick={() => onSelectFile(file.relativePath)}
-            className={`w-full text-left px-2 py-1.5 rounded hover:bg-warm-100 ${
+            className={`w-full text-left px-2 py-1.5 rounded-md hover:bg-warm-100 ${
               activeFile === file.relativePath ? 'bg-warm-200' : ''
             }`}
           >

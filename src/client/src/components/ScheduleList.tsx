@@ -69,7 +69,7 @@ export default function ScheduleList({
       </div>
 
       {showForm && (
-        <div className="mb-5 animate-slide-up">
+        <div className="mb-5">
           <ScheduleForm
             projectCliTool={projectCliTool}
             onSave={async (data) => {
@@ -88,7 +88,7 @@ export default function ScheduleList({
           </div>
         ) : (
           schedules.map((schedule, index) => (
-            <div key={schedule.id} className="animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+            <div key={schedule.id}>
               <ScheduleItem
                 schedule={schedule}
                 onToggle={onToggleSchedule}

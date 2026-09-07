@@ -84,10 +84,15 @@ export function CommitDiffViewer({
   diff,
   loading,
   selectedFile,
+  fileHeaders,
 }: {
   diff: string;
   loading: boolean;
   selectedFile: string | null;
+  // Render `Index: <path>` lines as file-section headers — needed for
+  // multi-file diffs (whole-revision / revision-vs-working-copy), which
+  // otherwise run together with no file boundaries.
+  fileHeaders?: boolean;
 }) {
   const { t } = useI18n();
   const [wrap, setWrap] = useState(true);
@@ -115,7 +120,7 @@ export function CommitDiffViewer({
         <button
           onClick={() => setWrap((w) => !w)}
           title={t('git.wrapLines') || 'Wrap lines'}
-          className={`p-1 rounded shrink-0 hover:bg-gray-700 ${wrap ? 'text-accent' : 'text-gray-500'}`}
+          className={`p-1 rounded-md shrink-0 hover:bg-gray-700 ${wrap ? 'text-accent' : 'text-gray-500'}`}
         >
           <WrapText size={14} />
         </button>
@@ -126,6 +131,16 @@ export function CommitDiffViewer({
             // Track old/new line numbers off each `@@ -a,b +c,d @@` hunk header.
             let oldLn = 0, newLn = 0, inHunk = false;
             return diff.split('\n').map((line, i) => {
+              // File-section header (svn `Index: <path>`): render as a
+              // divider and close the current hunk.
+              if (fileHeaders && line.startsWith('Index: ')) {
+                inHunk = false;
+                return (
+                  <div key={i} className="mt-3 first:mt-0 mb-1 pb-1 border-b border-gray-700 font-semibold text-gray-100">
+                    {line.slice('Index: '.length)}
+                  </div>
+                );
+              }
               // Hunk header: read line numbers, don't render it.
               if (line.startsWith('@@')) {
                 const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);

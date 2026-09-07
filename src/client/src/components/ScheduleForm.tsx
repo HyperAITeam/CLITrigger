@@ -189,7 +189,7 @@ export default function ScheduleForm({
               type="checkbox"
               checked={skipIfRunning}
               onChange={(e) => setSkipIfRunning(e.target.checked)}
-              className="rounded border-warm-300 text-accent focus:ring-accent"
+              className="rounded-md border-warm-300 text-accent focus:ring-accent"
             />
             {t('schedule.skipIfRunning')}
           </label>

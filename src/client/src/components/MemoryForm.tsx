@@ -4,6 +4,7 @@ import type { MemoryNode } from '../types';
 import { useI18n } from '../i18n';
 import { parseMemoryTags } from '../api/memory';
 import WikilinkAutocomplete from './WikilinkAutocomplete';
+import Button from './Button';
 
 interface MemoryFormProps {
   editNode?: MemoryNode | null;
@@ -76,7 +77,7 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
         <h3 className="text-base font-semibold text-warm-800">
           {editNode ? t('wiki.form.editTitle') : t('wiki.form.newTitle')}
         </h3>
-        <button onClick={onCancel} className="p-1 hover:bg-warm-200 rounded">
+        <button onClick={onCancel} className="p-1 hover:bg-warm-200 rounded-md">
           <X size={16} />
         </button>
       </div>
@@ -121,7 +122,7 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
               <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warm-200 text-xs text-warm-800">
                 {tag}
                 <button onClick={() => removeTag(tag)} className="hover:text-warm-900">
-                  <X size={10} />
+                  <X size={12} />
                 </button>
               </span>
             ))}
@@ -143,19 +144,17 @@ export default function MemoryForm({ editNode, allNodes = [], onSave, onCancel }
       </div>
 
       <div className="flex gap-2 mt-5">
-        <button
+        <Button
+          variant="primary"
+          size="md"
           onClick={handleSubmit}
           disabled={!title.trim() || saving}
-          className="px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? t('wiki.saving') : t('wiki.save')}
-        </button>
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100"
-        >
+        </Button>
+        <Button size="md" onClick={onCancel}>
           {t('wiki.cancel')}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -31,7 +31,7 @@ class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
     return (
       <main className="min-h-screen bg-theme-bg flex items-center justify-center p-6">
         <section role="alert" className="card w-full max-w-lg p-8 text-center shadow-elevated">
-          <AlertTriangle size={36} className="mx-auto mb-4 text-status-error" />
+          <AlertTriangle size={32} className="mx-auto mb-4 text-status-error" />
           <h1 className="text-xl font-semibold text-theme-text mb-2">{this.props.title}</h1>
           <p className="text-sm text-theme-text-secondary mb-6">{this.props.description}</p>
           <button type="button" className="btn-primary mx-auto" onClick={() => window.location.reload()}>

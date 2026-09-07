@@ -168,6 +168,10 @@ export function gitUnstage(id: string, files: string[], worktreePath?: string): 
   return post(`/api/projects/${id}/git-unstage`, { files, worktreePath });
 }
 
+export function gitIgnore(id: string, path: string, worktreePath?: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/git-ignore`, { path, worktreePath });
+}
+
 export function gitCommit(id: string, message: string, worktreePath?: string): Promise<{ ok: boolean; commit: string }> {
   return post(`/api/projects/${id}/git-commit`, { message, worktreePath });
 }

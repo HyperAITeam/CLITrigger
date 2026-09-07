@@ -158,12 +158,12 @@ export default function ReviewCard({
         <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${risk.dot}`} title={t(risk.label)} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-2xs tracking-wide mb-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            <FolderGit2 size={11} />
+            <FolderGit2 size={12} />
             <span className="truncate">{item.project_name}</span>
             {item.branch_name && (
               <>
                 <span>·</span>
-                <GitBranch size={11} />
+                <GitBranch size={12} />
                 <span className="truncate font-mono">{item.branch_name}</span>
               </>
             )}
@@ -296,7 +296,7 @@ export default function ReviewCard({
               <div className="text-center">{t(reasonKey(diffData.reason))}</div>
               {diffData.debug && (
                 <pre
-                  className="text-xs font-mono whitespace-pre-wrap break-all p-2 rounded"
+                  className="text-xs font-mono whitespace-pre-wrap break-all p-2 rounded-md"
                   style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-tertiary)' }}
                 >
 {`worktree_path: ${diffData.debug.worktree_path ?? '(null)'}

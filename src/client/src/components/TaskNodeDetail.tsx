@@ -194,7 +194,7 @@ export default function TaskNodeDetail({
   }
 
   return (
-    <div className="w-[380px] border-l border-warm-200 bg-theme-card overflow-y-auto animate-slide-up">
+    <div className="w-[380px] border-l border-warm-200 bg-theme-card overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 bg-theme-card border-b border-warm-200 px-4 py-3 flex items-center gap-2 z-10">
         <StatusBadge status={todo.status} />
@@ -362,7 +362,7 @@ export default function TaskNodeDetail({
               <span className="badge text-2xs bg-warm-200/60 text-warm-600">{t('todo.mergedFrom')}: {todo.merged_from_branch}</span>
             )}
             {!todo.worktree_path && childTodo && (
-              <span className="badge text-2xs bg-amber-500/10 text-amber-600">{t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}</span>
+              <span className="badge text-2xs bg-status-warning/10 text-status-warning">{t('todo.transferredTo')}: {childTodo.title.length > 20 ? childTodo.title.slice(0, 20) + '...' : childTodo.title}</span>
             )}
           </div>
         )}
@@ -378,7 +378,7 @@ export default function TaskNodeDetail({
                 {onFix && (
                   <button
                     onClick={() => onFix(todo, errorLogs)}
-                    className="text-2xs font-medium text-amber-500 hover:text-amber-600"
+                    className="text-2xs font-medium text-status-warning hover:text-status-warning"
                   >
                     {t('failure.fix')}
                   </button>
@@ -422,7 +422,7 @@ export default function TaskNodeDetail({
             {/* Commits */}
             {resultData.commits.length > 0 && (
               <div>
-                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('result.commitHistory')}</h4>
+                <h4 className="section-label mb-1">{t('result.commitHistory')}</h4>
                 <div className="space-y-0.5">
                   {resultData.commits.map((c, i) => (
                     <div key={i} className="flex items-start gap-1.5 text-2xs">
@@ -440,7 +440,7 @@ export default function TaskNodeDetail({
         {showDiff && diffData && (
           <div>
             <div className="flex items-center justify-between mb-1">
-              <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider">{t('todo.diffOutput')}</h4>
+              <h4 className="section-label">{t('todo.diffOutput')}</h4>
               <div className="flex gap-2 text-2xs">
                 <span className="text-status-success">+{diffData.stats.insertions}</span>
                 <span className="text-status-error">-{diffData.stats.deletions}</span>
@@ -461,7 +461,7 @@ export default function TaskNodeDetail({
 
         {/* Logs */}
         <div>
-          <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1">{t('todo.systemLog')}</h4>
+          <h4 className="section-label mb-1">{t('todo.systemLog')}</h4>
           <LogViewer
             logs={logs}
             interactive={isInteractive && todo.status === 'running'}

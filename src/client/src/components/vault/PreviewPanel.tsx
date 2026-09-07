@@ -1,5 +1,4 @@
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
-import { confirmDialog } from '../../lib/confirm';
 import { createPortal } from 'react-dom';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
@@ -15,6 +14,7 @@ import {
 import { FindReplaceBar, type FindOptions } from './FindReplaceBar';
 import { AnnotationOverlay, type AnnotationOverlayHandle, type AnnotationOverlayState, type AnnotationTool } from './AnnotationOverlay';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../hooks/useDialog';
 import { getFileContent, getBinaryFileUrl, openFile, saveFileContent } from '../../api/files';
 import type { FileEntry } from '../../api/files';
 import { ApiError } from '../../api/client';
@@ -22,6 +22,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
 import { useVaultZoom, DEFAULT_VAULT_FONT_SIZE } from '../../hooks/useVaultZoom';
 import MarkdownContent from '../MarkdownContent';
+import Button from '../Button';
 import { editBuffer } from './vault-edit-buffer';
 import { getDraft, saveDraft, clearDraft } from './vault-draft';
 import {
@@ -66,6 +67,7 @@ export function PreviewPanel({
   const { t } = useI18n();
   const { theme } = useTheme();
   const { error: toastError } = useToast();
+  const { confirm } = useDialog();
   const [zoom] = useVaultZoom(projectId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,12 +242,12 @@ export function PreviewPanel({
   }, [editable]);
 
   const handleCancelEdit = useCallback(async () => {
-    if (dirty && !(await confirmDialog(t('files.editor.discardConfirm')))) return;
+    if (dirty && !(await confirm({ message: t('files.editor.discardConfirm'), danger: true }))) return;
     setEditorValue(savedValue);
     setEditMode(false);
     setDraftRestored(false);
     if (path) clearDraft(projectId, path);
-  }, [dirty, savedValue, t, path, projectId]);
+  }, [dirty, savedValue, t, path, projectId, confirm]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (!editable) return;
@@ -534,59 +536,62 @@ export function PreviewPanel({
         <span className="truncate font-medium text-warm-800">{path}</span>
         <span className="text-warm-400 shrink-0">{formatSize(meta?.size ?? entry.size)}</span>
         {dirty && (
-          <span className="text-amber-600 shrink-0 text-[10px] uppercase tracking-wide">
+          <span className="text-status-warning shrink-0 text-[10px] uppercase tracking-wide">
             • {t('files.editor.dirty')}
           </span>
         )}
         {draftRestored && editMode && (
-          <span className="text-sky-600 shrink-0 text-[10px]" title={t('files.editor.draftRestored')}>
+          <span className="text-status-running shrink-0 text-[10px]" title={t('files.editor.draftRestored')}>
             ↻ {t('files.editor.draftRestored')}
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
           {editMode ? (
             <>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleSave}
                 disabled={!dirty || saving}
-                className="px-1.5 py-1 rounded text-warm-700 hover:bg-warm-100 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center gap-1"
                 title={`${t('files.editor.save')} (Ctrl+S)`}
               >
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{t('files.editor.save')}</span>
-              </button>
+              </Button>
               {savedFlash && (
                 <span className="inline-flex items-center gap-1 text-status-success text-xs transition-opacity duration-200">
                   <Check className="w-3.5 h-3.5" />
                   <span>{t('files.editor.saved')}</span>
                 </span>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleCancelEdit}
                 disabled={saving}
-                className="px-1.5 py-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 inline-flex items-center gap-1"
                 title={`${t('files.editor.done')} (Ctrl+E)`}
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{t('files.editor.done')}</span>
-              </button>
+              </Button>
             </>
           ) : (
             editable && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleEnterEdit}
-                className="px-1.5 py-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700 inline-flex items-center gap-1"
                 title={`${t('files.editor.edit')} (Ctrl+E)`}
               >
                 <Pencil className="w-3.5 h-3.5" />
                 <span>{t('files.editor.edit')}</span>
-              </button>
+              </Button>
             )
           )}
           {canAnnotate && (
             <button
               onClick={toggleAnnotate}
-              className={`p-1 rounded inline-flex items-center ${annotateMode ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+              className={`p-1 rounded-md inline-flex items-center ${annotateMode ? 'bg-accent/10 text-accent' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
               title={`${annotateMode ? t('annotate.stop') : t('annotate.start')} (Ctrl+Shift+D)`}
               aria-pressed={annotateMode}
             >
@@ -595,21 +600,21 @@ export function PreviewPanel({
           )}
           <button
             onClick={openInOS}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500 hover:text-warm-700"
             title={`${t('files.openInOS')} (Ctrl+Shift+O)`}
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={revealInOS}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500 hover:text-warm-700"
             title={`${t('files.revealInExplorer')} (Ctrl+Shift+E)`}
           >
             <FolderOpen className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={copyPath}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500 hover:text-warm-700"
             title={`${t('files.copyPath')} (Alt+Shift+C)`}
           >
             <Copy className="w-3.5 h-3.5" />
@@ -624,7 +629,7 @@ export function PreviewPanel({
             onClick={() => setAnnotateTool('select')}
             title={`${t('annotate.select')} (V)`}
             aria-pressed={annotateTool === 'select'}
-            className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'select' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${annotateTool === 'select' ? 'bg-accent/10 text-accent' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
             <MousePointer2 className="w-3 h-3" />
             <span>{t('annotate.select')}</span>
@@ -635,7 +640,7 @@ export function PreviewPanel({
             onClick={() => setAnnotateTool('pen')}
             title={`${t('annotate.pen')} (P)`}
             aria-pressed={annotateTool === 'pen'}
-            className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'pen' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${annotateTool === 'pen' ? 'bg-accent/10 text-accent' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
             <Pencil className="w-3 h-3" />
             <span>{t('annotate.pen')}</span>
@@ -645,7 +650,7 @@ export function PreviewPanel({
             onClick={() => setAnnotateTool('highlighter')}
             title={`${t('annotate.highlighter')} (H)`}
             aria-pressed={annotateTool === 'highlighter'}
-            className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'highlighter' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${annotateTool === 'highlighter' ? 'bg-accent/10 text-accent' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
             <Highlighter className="w-3 h-3" />
             <span>{t('annotate.highlighter')}</span>
@@ -655,7 +660,7 @@ export function PreviewPanel({
             onClick={() => setAnnotateTool('eraser')}
             title={`${t('annotate.eraser')} (E)`}
             aria-pressed={annotateTool === 'eraser'}
-            className={`p-1 rounded inline-flex items-center gap-1 ${annotateTool === 'eraser' ? 'bg-amber-100 text-amber-700' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${annotateTool === 'eraser' ? 'bg-accent/10 text-accent' : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
           >
             <Eraser className="w-3 h-3" />
             <span>{t('annotate.eraser')}</span>
@@ -680,7 +685,7 @@ export function PreviewPanel({
             onClick={() => overlayRef.current?.undo()}
             disabled={!canUndo}
             title={`${t('annotate.undo')} (Ctrl+Z)`}
-            className={`p-1 rounded inline-flex items-center gap-1 ${canUndo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${canUndo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
           >
             <Undo2 className="w-3 h-3" />
             <span>{t('annotate.undo')}</span>
@@ -690,7 +695,7 @@ export function PreviewPanel({
             onClick={() => overlayRef.current?.redo()}
             disabled={!canRedo}
             title={`${t('annotate.redo')} (Ctrl+Shift+Z)`}
-            className={`p-1 rounded inline-flex items-center gap-1 ${canRedo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
+            className={`p-1 rounded-md inline-flex items-center gap-1 ${canRedo ? 'text-warm-500 hover:bg-warm-100 hover:text-warm-700' : 'text-warm-300 cursor-not-allowed'}`}
           >
             <Redo2 className="w-3 h-3" />
             <span>{t('annotate.redo')}</span>
@@ -700,7 +705,7 @@ export function PreviewPanel({
             type="button"
             onClick={() => overlayRef.current?.clearAll()}
             title={`${t('annotate.clear')} (Shift+Delete)`}
-            className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 inline-flex items-center gap-1"
+            className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700 inline-flex items-center gap-1"
           >
             <Trash2 className="w-3 h-3" />
             <span>{t('annotate.clear')}</span>
@@ -741,7 +746,7 @@ export function PreviewPanel({
           </div>
         )}
         {error && (
-          <div className="flex items-center gap-2 text-xs text-red-500 p-4">
+          <div className="flex items-center gap-2 text-xs text-status-error p-4">
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
@@ -840,7 +845,7 @@ export function PreviewPanel({
             <a
               href={getBinaryFileUrl(projectId, path)}
               download={entry.name}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-warm-100 hover:bg-warm-200 text-warm-700"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-warm-100 hover:bg-warm-200 text-warm-700"
             >
               <ExternalLink className="w-3 h-3" /> {t('files.download')}
             </a>

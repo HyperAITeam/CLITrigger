@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, FileText, Calendar, List } from 'lucide-react';
+import { Plus, Trash2, FileText, Calendar, List, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { PlannerPage } from '../types';
 import type { CalView } from './calendar/calendarShared';
 import * as plannerApi from '../api/planner';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import PlannerList, { type PlannerItemsProps } from './PlannerList';
 import PlannerPageView from './PlannerPageView';
 import { PAGE_TEMPLATES, type PageTemplate } from './planner/pageTemplates';
@@ -14,6 +14,7 @@ import { Resizer } from './vault/Resizer';
 const SIDEBAR_MIN = 160;
 const SIDEBAR_MAX = 480;
 const SIDEBAR_KEY = 'plannerSidebarWidth';
+const COLLAPSED_KEY = 'plannerSidebarCollapsed';
 
 interface PlannerWorkspaceProps extends PlannerItemsProps {
   projectId: string;
@@ -23,6 +24,7 @@ type Selection = { kind: 'work' } | { kind: 'page'; id: string };
 
 export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWorkspaceProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [pages, setPages] = useState<PlannerPage[]>([]);
   const [selection, setSelection] = useState<Selection>({ kind: 'work' });
   const [workView, setWorkView] = useState<CalView>('table');
@@ -42,6 +44,11 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
     setSidebarWidth(w);
     localStorage.setItem(SIDEBAR_KEY, String(w));
   }, []);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === '1');
+  const toggleCollapsed = () => setCollapsed((v) => {
+    localStorage.setItem(COLLAPSED_KEY, v ? '0' : '1');
+    return !v;
+  });
 
   const PICKER_W = 240;
   const openPicker = () => {
@@ -95,7 +102,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   };
 
   const handleDeletePage = async (id: string) => {
-    if (!(await confirmDialog(t('planner.pages.deleteConfirm')))) return;
+    if (!(await confirm({ message: t('planner.pages.deleteConfirm'), danger: true }))) return;
     await plannerApi.deletePlannerPage(id);
     setPages((list) => list.filter((p) => p.id !== id));
     setSelection((cur) => (cur.kind === 'page' && cur.id === id ? { kind: 'work' } : cur));
@@ -133,34 +140,49 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   return (
     <div className="flex gap-4" style={{ minHeight: '70vh' }}>
       {/* Unified sidebar: pages (primary) + work roll-up views (secondary) */}
-      <div ref={sidebarRef} className="flex-shrink-0 flex flex-col card p-2 overflow-y-auto" style={{ width: sidebarWidth }}>
-        <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
-          <button ref={addBtnRef} onClick={() => (showPicker ? setShowPicker(false) : openPicker())} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
-            <Plus size={14} />
+      {collapsed ? (
+        <div className="flex-shrink-0 flex flex-col items-center card p-1.5">
+          <button onClick={toggleCollapsed} className="p-1 text-warm-400 hover:text-warm-600 transition-colors" title={t('sidebar.expand')}>
+            <PanelLeftOpen size={14} />
           </button>
         </div>
-        {pages.map((p) => navItem(
-          selection.kind === 'page' && selection.id === p.id,
-          () => setSelection({ kind: 'page', id: p.id }),
-          <FileText size={13} className="text-warm-400 flex-shrink-0" />,
-          p.title || t('planner.pages.untitled'),
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDeletePage(p.id); }}
-            className="opacity-0 group-hover:opacity-100 text-warm-400 hover:text-red-500 transition-all flex-shrink-0"
-          >
-            <Trash2 size={13} />
-          </button>,
-        ))}
+      ) : (
+        <>
+          <div ref={sidebarRef} className="flex-shrink-0 flex flex-col card p-2 overflow-y-auto" style={{ width: sidebarWidth }}>
+            <div className="flex items-center justify-between px-2.5 pt-1 pb-1">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-warm-400">{t('planner.view.pages')}</span>
+              <div className="flex items-center gap-2">
+                <button ref={addBtnRef} onClick={() => (showPicker ? setShowPicker(false) : openPicker())} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('planner.pages.new')}>
+                  <Plus size={14} />
+                </button>
+                <button onClick={toggleCollapsed} className="text-warm-400 hover:text-warm-600 transition-colors" title={t('sidebar.collapse')}>
+                  <PanelLeftClose size={14} />
+                </button>
+              </div>
+            </div>
+            {pages.map((p) => navItem(
+              selection.kind === 'page' && selection.id === p.id,
+              () => setSelection({ kind: 'page', id: p.id }),
+              <FileText size={14} className="text-warm-400 flex-shrink-0" />,
+              p.title || t('planner.pages.untitled'),
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeletePage(p.id); }}
+                className="opacity-0 group-hover:opacity-100 text-warm-400 hover:text-status-error transition-all flex-shrink-0"
+              >
+                <Trash2 size={14} />
+              </button>,
+            ))}
 
-        <div className="px-2.5 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-warm-400">
-          {t('planner.view.all')}
-        </div>
-        {navItem(calActive, selectCalendar, <Calendar size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.calendar'))}
-        {navItem(listActive, selectList, <List size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.list'))}
-      </div>
+            <div className="px-2.5 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-warm-400">
+              {t('planner.view.all')}
+            </div>
+            {navItem(calActive, selectCalendar, <Calendar size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.calendar'))}
+            {navItem(listActive, selectList, <List size={14} className="text-warm-400 flex-shrink-0" />, t('planner.nav.list'))}
+          </div>
 
-      <Resizer onResize={resizeSidebar} />
+          <Resizer onResize={resizeSidebar} />
+        </>
+      )}
 
       {/* Main pane */}
       <div className="flex-1 min-w-0 flex flex-col">
@@ -186,7 +208,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
       {showPicker && createPortal(
         <div
           data-template-picker
-          className="fixed z-tooltip rounded-xl py-1 shadow-elevated animate-scale-in"
+          className="fixed z-tooltip rounded-xl py-1 shadow-elevated"
           style={{ top: pickerPos.top, left: pickerPos.left, width: PICKER_W, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
         >
           {PAGE_TEMPLATES.map((tpl) => (

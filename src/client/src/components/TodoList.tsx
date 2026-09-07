@@ -493,7 +493,7 @@ export default function TodoList({
       </div>
 
       {showForm && (
-        <div className="mb-5 animate-slide-up">
+        <div className="mb-5">
           <TodoForm
             projectId={projectId}
             projectCliTool={projectCliTool}
@@ -601,12 +601,12 @@ export default function TodoList({
             return (
               <div
                 key={todo.id}
-                className={isStacked ? '' : 'animate-fade-in'}
-                style={isStacked ? stackStyle : { animationDelay: `${index * 30}ms`, ...stackStyle }}
+                className={isStacked ? '' : ''}
+                style={stackStyle}
               >
                 {/* Chain merge header for completed chain roots */}
                 {!isStacked && isCompletedChainRoot && (
-                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-theme-bg-secondary/60 border border-theme-border animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-theme-bg-secondary/60 border border-theme-border">
                     <Link size={16} className="text-theme-muted flex-shrink-0" />
                     <span className="text-xs font-semibold text-theme-text-secondary">
                       {t('todo.chainComplete')}
@@ -630,7 +630,7 @@ export default function TodoList({
                     </div>
                   </div>
                 )}
-                <div className="relative animate-fade-in" style={{ animationDelay: `${index * 30}ms`, marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
+                <div className="relative" style={{ marginLeft: depth > 0 ? `${depth * 24}px` : undefined }}>
                   {depth > 0 && (
                     <div className="absolute top-0 bottom-0 w-px" style={{ left: '-13px', backgroundColor: 'var(--color-border)' }} />
                   )}
@@ -680,7 +680,7 @@ export default function TodoList({
       </div>
       {!isStacked && dragSourceId && todos.find(t => t.id === dragSourceId)?.depends_on && (
         <div
-          className="mt-3 border-2 border-dashed border-warm-300 rounded-lg p-4 text-center text-sm text-red-400 transition-colors hover:border-warm-400 hover:text-red-500 hover:bg-red-50"
+          className="mt-3 border-2 border-dashed border-warm-300 rounded-lg p-4 text-center text-sm text-status-error transition-colors hover:border-warm-400 hover:text-status-error hover:bg-status-error/10"
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
           onDrop={(e) => {
             e.preventDefault();

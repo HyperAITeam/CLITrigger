@@ -14,7 +14,7 @@
 // (host removes this tab from the group's tree).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2, GitCompare } from 'lucide-react';
+import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2, GitCompare, Clipboard } from 'lucide-react';
 import SessionTerminal from '../SessionTerminal';
 import SessionDiffPanel from '../SessionDiffPanel';
 import { CMD, CMD_FONT } from '../terminal-theme';
@@ -374,13 +374,13 @@ export default function SessionPane({
             padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
           }}
         >
-          <GitCompare size={11} /> Diff
+          <GitCompare size={12} /> Diff
         </button>
       )}
       {pendingPromptLength !== null && (
         <div style={pendingBannerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span aria-hidden style={{ color: CMD.info, fontSize: 14 }}>📋</span>
+            <Clipboard aria-hidden size={14} style={{ color: CMD.info }} />
             <span style={{ flex: 1 }}>
               {(t('session.initialPrompt.ready') || 'Initial prompt ready')}
               <span style={{ color: CMD.dim, marginLeft: 8 }}>
@@ -395,7 +395,7 @@ export default function SessionPane({
               style={pendingButtonStyle('neutral')}
               title={pendingPreviewOpen ? (t('session.initialPrompt.hidePreview') || 'Hide preview') : (t('session.initialPrompt.preview') || 'Preview')}
             >
-              {pendingPreviewOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {pendingPreviewOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               {pendingPreviewOpen ? (t('session.initialPrompt.hidePreview') || 'Hide') : (t('session.initialPrompt.preview') || 'Preview')}
             </button>
             <button
@@ -403,7 +403,7 @@ export default function SessionPane({
               disabled={pendingActionInFlight !== null}
               style={pendingButtonStyle('primary')}
             >
-              {pendingActionInFlight === 'send' ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={11} />}
+              {pendingActionInFlight === 'send' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={12} />}
               {t('session.initialPrompt.send') || 'Send'}
             </button>
             <button

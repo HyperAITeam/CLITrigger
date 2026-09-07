@@ -85,7 +85,7 @@ export default function MemoryNodeDetail({
             {node.pinned === 1 && <Pin size={14} className="text-warm-500 flex-shrink-0" />}
             <h3 className="text-base font-semibold text-warm-800 truncate">{node.title}</h3>
             {node.source_type && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-warm-200 text-warm-500 flex-shrink-0">auto</span>
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-warm-200 text-warm-500 flex-shrink-0">auto</span>
             )}
           </div>
           {tags.length > 0 && (
@@ -99,18 +99,18 @@ export default function MemoryNodeDetail({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => setLinkPickerOpen(v => !v)}
-            className="p-1.5 hover:bg-warm-200 rounded"
+            className="p-1.5 hover:bg-warm-200 rounded-md"
             title={t('wiki.addLink')}
           >
             <Link2 size={14} />
           </button>
-          <button onClick={() => onEdit(node)} className="p-1.5 hover:bg-warm-200 rounded" title={t('wiki.edit')}>
+          <button onClick={() => onEdit(node)} className="p-1.5 hover:bg-warm-200 rounded-md" title={t('wiki.edit')}>
             <Edit2 size={14} />
           </button>
-          <button onClick={() => onDelete(node)} className="p-1.5 hover:bg-red-100 text-red-600 rounded" title={t('wiki.delete')}>
+          <button onClick={() => onDelete(node)} className="p-1.5 hover:bg-status-error/10 text-status-error rounded-md" title={t('wiki.delete')}>
             <Trash2 size={14} />
           </button>
-          <button onClick={onClose} className="p-1.5 hover:bg-warm-200 rounded">
+          <button onClick={onClose} className="p-1.5 hover:bg-warm-200 rounded-md">
             <X size={14} />
           </button>
         </div>
@@ -122,7 +122,7 @@ export default function MemoryNodeDetail({
             value={linkSearch}
             onChange={e => setLinkSearch(e.target.value)}
             placeholder={t('wiki.addLinkPlaceholder')}
-            className="w-full px-2 py-1.5 rounded border border-warm-300 bg-warm-50 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
+            className="w-full px-2 py-1.5 rounded-md border border-warm-300 bg-warm-50 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400"
             autoFocus
           />
           <ul className="mt-2 max-h-[200px] overflow-y-auto space-y-1">
@@ -131,7 +131,7 @@ export default function MemoryNodeDetail({
                 <button
                   onClick={() => handleAddLink(n)}
                   disabled={adding}
-                  className="w-full text-left px-2 py-1 rounded text-sm text-warm-700 hover:bg-warm-200 disabled:opacity-50 flex items-center gap-1.5"
+                  className="w-full text-left px-2 py-1 rounded-md text-sm text-warm-700 hover:bg-warm-200 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <Plus size={12} className="flex-shrink-0" />
                   <span className="truncate">{n.title}</span>

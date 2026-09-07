@@ -6,6 +6,7 @@ import { ThemeContext, useThemeProvider } from './hooks/useTheme';
 import { NotificationContext, useNotificationProvider } from './hooks/useNotification';
 import { initPlugins } from './plugins/init';
 import { ToastProvider, useToast } from './hooks/useToast';
+import { DialogProvider } from './hooks/useDialog';
 import ToastContainer from './components/Toast';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { getErrorMessage, isResizeObserverLoopError } from './lib/errors';
@@ -70,9 +71,11 @@ function Root() {
       <NotificationContext.Provider value={notificationValue}>
         <ToastProvider>
           <I18nProvider>
-            <AppErrorBoundary>
-              <App />
-            </AppErrorBoundary>
+            <DialogProvider>
+              <AppErrorBoundary>
+                <App />
+              </AppErrorBoundary>
+            </DialogProvider>
             <GlobalToasts />
           </I18nProvider>
         </ToastProvider>

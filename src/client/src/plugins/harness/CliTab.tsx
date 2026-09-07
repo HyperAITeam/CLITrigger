@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../hooks/useDialog';
 import * as harnessApi from '../../api/harness';
+import Button from '../../components/Button';
 import SettingsForm from './SettingsForm';
 import MemoryEditor from './MemoryEditor';
 import HooksPanel from './HooksPanel';
@@ -18,6 +20,7 @@ interface CliTabProps {
 
 export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [savingLocalMemory, setSavingLocalMemory] = useState(false);
@@ -27,6 +30,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
   // Show the CLAUDE.local.md editor even before the file exists (saving
   // creates it). Reset implicitly on remount per project/cli.
   const [creatingLocal, setCreatingLocal] = useState(false);
+  const [porting, setPorting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSaveSettings = async (patch: HarnessSettings) => {
@@ -96,6 +100,20 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
     }
   };
 
+  const handlePortFromClaude = async () => {
+    if (!(await confirm(t('harness.port.confirm')))) return;
+    setPorting(true);
+    setError(null);
+    try {
+      const next = await harnessApi.portFromClaude(projectId, cli);
+      onChange(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPorting(false);
+    }
+  };
+
   const handleUpsertMcp = async (server: McpServer) => {
     setSavingMcp(true);
     setError(null);
@@ -135,7 +153,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
         <div className="p-3 border border-status-warning/30 rounded-lg bg-status-warning/5 text-xs text-warm-600">
           <p className="font-semibold mb-1">{t('harness.warning.codexTrustLevel.title')}</p>
           <p className="mb-2">{t('harness.warning.codexTrustLevel.body')}</p>
-          <pre className="px-2 py-1 bg-warm-50 border border-warm-150 rounded text-[11px] font-mono whitespace-pre-wrap break-all">
+          <pre className="px-2 py-1 bg-warm-50 border border-warm-150 rounded-md text-[11px] font-mono whitespace-pre-wrap break-all">
 {`[projects."${snapshot.filePaths.settings.replace(/[\\/]\.codex[\\/]config\.toml$/, '').replace(/\\/g, '\\\\')}"]\ntrust_level = "trusted"`}
           </pre>
         </div>
@@ -144,6 +162,21 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
       {cli === 'codex' && (
         <div className="p-3 border border-warm-200 rounded-lg bg-warm-50 text-xs text-warm-500">
           {t('harness.warning.tomlComments')}
+        </div>
+      )}
+
+      {cli !== 'claude' && (
+        <div className="flex items-center justify-between gap-3 p-3 border border-warm-200 rounded-lg bg-warm-50">
+          <p className="text-xs text-warm-500">{t('harness.port.note')}</p>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handlePortFromClaude}
+            disabled={porting}
+            className="shrink-0"
+          >
+            {porting ? t('harness.port.running') : t('harness.port.button')}
+          </Button>
         </div>
       )}
 
@@ -165,7 +198,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
             onClick={() => setCreatingLocal(true)}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs text-warm-400 hover:text-warm-600 border border-dashed border-warm-200 hover:border-warm-300 rounded-xl transition-colors"
           >
-            <Plus size={13} />
+            <Plus size={14} />
             {t('harness.localMemory.create') || 'Create CLAUDE.local.md'}
           </button>
         )

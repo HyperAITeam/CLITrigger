@@ -29,7 +29,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   return (
     <Modal open={open} onClose={onClose} size="xl">
-      <div className="card shadow-2xl rounded-2xl overflow-hidden">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated overflow-hidden">
         <div className="flex" style={{ minHeight: 460 }}>
           <aside className="w-44 shrink-0 border-r flex flex-col" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-hover)' }}>
             <div className="px-4 pt-5 pb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>

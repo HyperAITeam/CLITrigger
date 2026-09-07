@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, FolderOpen, X, Terminal, ListTodo } from 'lucide-react';
 import type { Project, Session, Todo } from '../types';
@@ -12,6 +11,7 @@ import { useI18n } from '../i18n';
 import { resolveProjectColor } from '../lib/projectColor';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { useToast } from '../hooks/useToast';
+import { useDialog } from '../hooks/useDialog';
 import { getErrorMessage } from '../lib/errors';
 import IconButton from './IconButton';
 
@@ -36,6 +36,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { error: toastError } = useToast();
+  const { confirm } = useDialog();
 
   useEffect(() => {
     projectsApi.getProjects()
@@ -113,7 +114,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const handleDeleteProject = async (id: string, e: React.MouseEvent, skipConfirm = false) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!skipConfirm && !(await confirmDialog(t('projects.deleteConfirm')))) return;
+    if (!skipConfirm && !(await confirm({ message: t('projects.deleteConfirm'), danger: true }))) return;
     try {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -148,14 +149,14 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
           onClick={() => setShowForm(true)}
           className="btn-primary"
         >
-          <Plus size={20} strokeWidth={2.5} />
+          <Plus size={20} />
           <span className="hidden sm:inline font-bold">{t('projects.new')}</span>
         </button>
       </div>
 
       {/* Search */}
       <div className="mb-8 relative group">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-accent transition-colors" size={20} strokeWidth={2} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-accent transition-colors" size={20} />
         <input
           type="text"
           value={search}
@@ -201,23 +202,21 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
             const cardProps = pathMissing
               ? {
                   onClick: async (e: React.MouseEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (await confirmDialog(t('projects.pathMissingConfirm'))) {
+                    if (await confirm({ message: t('projects.pathMissingConfirm'), danger: true })) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },
-                  className: 'card card-tagged group block p-5 opacity-50 relative cursor-pointer animate-fade-in',
+                  className: 'card card-tagged group block p-5 opacity-50 relative cursor-pointer',
                 }
               : {
                   to: `/projects/${project.id}`,
-                  className: 'card card-tagged group block p-5 relative animate-fade-in',
+                  className: 'card card-tagged group block p-5 relative',
                 };
             return (
               <CardWrapper
                 key={project.id}
                 {...cardProps as any}
-                style={{ animationDelay: `${index * 50}ms`, '--tag-color': tagColor } as React.CSSProperties}
+                style={{ '--tag-color': tagColor } as React.CSSProperties}
               >
                 {/* Delete button */}
                 <IconButton
@@ -227,7 +226,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                   variant="danger"
                   className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 >
-                  <X size={14} strokeWidth={2} />
+                  <X size={14} />
                 </IconButton>
 
                 {/* Top row: avatar + name */}
@@ -290,7 +289,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                         title={session.title}
                       >
                         <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: tagColor }} />
-                        <Terminal size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
+                        <Terminal size={12} className="flex-shrink-0 text-theme-muted" />
                         <span className="truncate">{session.title}</span>
                       </button>
                     ))}
@@ -306,7 +305,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
                         title={todo.title}
                       >
                         <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: tagColor }} />
-                        <ListTodo size={12} strokeWidth={2} className="flex-shrink-0 text-theme-muted" />
+                        <ListTodo size={12} className="flex-shrink-0 text-theme-muted" />
                         <span className="truncate">{todo.title}</span>
                       </button>
                     ))}

@@ -49,10 +49,10 @@ export default function EmptyState({
   const ActionIcon = action?.icon;
 
   return (
-    <div className={cn('text-center animate-fade-in', s.wrapper, className)}>
+    <div className={cn('text-center', s.wrapper, className)}>
       {Icon && (
         <div className={cn('inline-flex items-center justify-center mb-4 bg-theme-hover', s.iconBox)}>
-          <Icon size={s.iconSize} strokeWidth={1.5} className="text-theme-muted" />
+          <Icon size={s.iconSize} className="text-theme-muted" />
         </div>
       )}
       <p className={cn('font-medium text-theme-text-secondary', s.title)}>{title}</p>

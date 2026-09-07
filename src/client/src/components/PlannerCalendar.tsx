@@ -1,23 +1,16 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Plus, MoreVertical, ArrowRight, Clock, Terminal, Trash2 } from 'lucide-react';
 import type { PlannerItem as PlannerItemType } from '../types';
 import { useI18n } from '../i18n';
-import { getTagStyle } from './plannerTagColors';
+import { useDialog } from '../hooks/useDialog';
+import { getTagStyle, PLANNER_STATUS_STYLES } from './plannerTagColors';
 import CalendarGrid from './calendar/CalendarGrid';
 import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
 import {
   ymd, useCalendarRange, useWeekdayLabels, stepCursor, formatRangeTitle,
   type CalView, type CalChip, type CalBar,
 } from './calendar/calendarShared';
-
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-warm-200 text-warm-500',
-  in_progress: 'bg-blue-500/10 text-blue-600',
-  done: 'bg-emerald-500/10 text-emerald-600',
-  moved: 'bg-purple-500/10 text-purple-600',
-};
 
 function parseTags(json: string | null): string[] {
   if (!json) return [];
@@ -205,7 +198,7 @@ export default function PlannerCalendar({
             {new Date(selectedDate + 'T00:00').toLocaleDateString(lang, { month: 'long', day: 'numeric', weekday: 'short' })}
           </h3>
           <button onClick={() => onQuickAdd(selectedDate)} className="btn-ghost text-xs px-2 py-1 flex items-center gap-1">
-            <Plus size={13} />{t('agenda.add')}
+            <Plus size={14} />{t('agenda.add')}
           </button>
         </div>
         <div className="flex-1 overflow-auto px-4 pb-4 flex flex-col gap-4">
@@ -255,6 +248,7 @@ function PlannerCalendarCard({ item, tagColors, onEdit, onConvert, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [menuOpen, setMenuOpen] = useState(false);
   const [positioned, setPositioned] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -310,11 +304,11 @@ function PlannerCalendarCard({ item, tagColors, onEdit, onConvert, onDelete }: {
         </div>
         {item.description && <div className="text-2xs truncate" style={{ color: 'var(--color-text-muted)' }}>{item.description}</div>}
         <div className="flex flex-wrap items-center gap-1 mt-1">
-          <span className={`px-1.5 py-0.5 rounded-full text-2xs font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.pending}`}>
+          <span className={`px-1.5 py-0.5 rounded-full text-2xs font-medium ${PLANNER_STATUS_STYLES[item.status] || PLANNER_STATUS_STYLES.pending}`}>
             {t(`plannerStatus.${item.status}`)}
           </span>
           {tags.map((tag) => (
-            <span key={tag} className={`px-1.5 py-0.5 rounded text-2xs font-medium ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
+            <span key={tag} className={`px-1.5 py-0.5 rounded-md text-2xs font-medium ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
           ))}
         </div>
       </button>
@@ -323,7 +317,7 @@ function PlannerCalendarCard({ item, tagColors, onEdit, onConvert, onDelete }: {
           <MoreVertical size={14} />
         </button>
         {menuOpen && createPortal(
-          <div ref={dropRef} className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+          <div ref={dropRef} className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? '' : ''}`}
             style={{ top: pos.top, left: pos.left, opacity: positioned ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
             onClick={() => setMenuOpen(false)}
           >
@@ -340,7 +334,7 @@ function PlannerCalendarCard({ item, tagColors, onEdit, onConvert, onDelete }: {
                 </button>
               </>
             )}
-            <button onClick={async () => { if (await confirmDialog(t('planner.deleteConfirm'))) onDelete(item.id); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
+            <button onClick={async () => { if (await confirm({ message: t('planner.deleteConfirm'), danger: true })) onDelete(item.id); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-status-error hover:bg-status-error/10 rounded-md transition-colors text-left">
               <Trash2 size={12} /> {t('planner.delete')}
             </button>
           </div>,

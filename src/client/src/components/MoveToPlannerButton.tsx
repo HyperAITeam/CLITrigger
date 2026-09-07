@@ -67,12 +67,12 @@ export default function MoveToPlannerButton({ projects, onMove, title }: MoveToP
         className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
         title={title}
       >
-        <FolderInput size={13} style={{ color: 'var(--color-text-muted)' }} />
+        <FolderInput size={14} style={{ color: 'var(--color-text-muted)' }} />
       </button>
       {open && createPortal(
         <div
           ref={dropRef}
-          className={`fixed z-tooltip min-w-[180px] max-h-[280px] overflow-auto rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+          className={`fixed z-tooltip min-w-[180px] max-h-[280px] overflow-auto rounded-xl py-1 shadow-elevated${positioned ? '' : ''}`}
           style={{ top: pos.top, left: pos.left, opacity: positioned ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
         >
           <div className="px-3 py-1 text-2xs uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{title}</div>

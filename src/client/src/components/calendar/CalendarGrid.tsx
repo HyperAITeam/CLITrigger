@@ -252,7 +252,7 @@ export default function CalendarGrid({
           title={addItemLabel}
           style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
         >
-          <Plus size={13} />
+          <Plus size={14} />
         </button>
         <div className="flex flex-col gap-0.5 overflow-hidden" style={{ marginTop: reserveTop || undefined }}>
           {entries.slice(0, maxChips).map((chip) => {
@@ -266,7 +266,7 @@ export default function CalendarGrid({
                 onClick={(ev) => { ev.stopPropagation(); if (suppressClick.current) return; onChipClick(chip); }}
                 onPointerDown={canDrag ? (ev) => beginDrag(ev, 'move', dragBase) : undefined}
                 onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
-                className={`text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${canDrag ? 'relative group/chip' : ''}`}
+                className={`text-2xs truncate px-1 py-0.5 rounded-md cursor-pointer hover:opacity-80 transition-opacity ${canDrag ? 'relative group/chip' : ''}`}
                 style={{
                   backgroundColor: chip.bg,
                   color: chip.fg,
@@ -279,7 +279,7 @@ export default function CalendarGrid({
                   <span
                     onPointerDown={(ev) => { ev.stopPropagation(); beginDrag(ev, 'resize-end', dragBase); }}
                     onClick={(ev) => ev.stopPropagation()}
-                    className="absolute top-0 right-0 h-full w-1.5 opacity-0 group-hover/chip:opacity-100 cursor-ew-resize rounded-r"
+                    className="absolute top-0 right-0 h-full w-1.5 opacity-0 group-hover/chip:opacity-100 cursor-ew-resize rounded-r-md"
                     style={{ backgroundColor: 'rgba(127,127,127,0.5)' }}
                   />
                 )}
@@ -414,7 +414,7 @@ export default function CalendarGrid({
                   key={chip.key}
                   onClick={(ev) => { ev.stopPropagation(); onChipClick(chip); setExpanded(null); }}
                   onContextMenu={onChipContextMenu ? (ev) => onChipContextMenu(chip, ev) : undefined}
-                  className="text-2xs truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                  className="text-2xs truncate px-1 py-0.5 rounded-md cursor-pointer hover:opacity-80 transition-opacity"
                   style={{ backgroundColor: chip.bg, color: chip.fg, textDecoration: chip.done ? 'line-through' : 'none' }}
                   title={chip.title}
                 >

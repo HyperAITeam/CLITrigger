@@ -370,7 +370,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
             <button
               type="button"
               onClick={() => setIgnoreHelpOpen(true)}
-              className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+              className="p-1.5 rounded-md text-warm-500 hover:bg-warm-200 hover:text-warm-700"
               title={t('vault.ignoreHelp')}
             >
               <HelpCircle className="w-3.5 h-3.5" />
@@ -378,7 +378,7 @@ export default function VaultLayout({ projectId, onCreateTask, onEvent, sendMess
             <button
               type="button"
               onClick={() => setIgnoreModalOpen(true)}
-              className="p-1.5 rounded text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+              className="p-1.5 rounded-md text-warm-500 hover:bg-warm-200 hover:text-warm-700"
               title=".vaultignore"
             >
               <Settings className="w-3.5 h-3.5" />

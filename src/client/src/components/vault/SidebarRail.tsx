@@ -39,7 +39,7 @@ export function SidebarRail<TId extends string>({
       <button
         type="button"
         onClick={onToggleCollapsed}
-        className="p-1.5 rounded hover:bg-warm-200 text-warm-500 hover:text-warm-700"
+        className="p-1.5 rounded-md hover:bg-warm-200 text-warm-500 hover:text-warm-700"
         title={`${collapsed ? t('vault.sidebar.expand') : t('vault.sidebar.collapse')}${collapseShortcut ? ` (${collapseShortcut})` : ''}`}
       >
         {(isLeft && collapsed) || (!isLeft && !collapsed)
@@ -58,7 +58,7 @@ export function SidebarRail<TId extends string>({
               if (collapsed) onToggleCollapsed();
               onActivate(p.id);
             }}
-            className={`p-1.5 rounded ${
+            className={`p-1.5 rounded-md ${
               isActive
                 ? 'bg-warm-200 text-warm-800'
                 : 'text-warm-500 hover:bg-warm-200 hover:text-warm-700'

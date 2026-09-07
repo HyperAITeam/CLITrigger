@@ -5,9 +5,8 @@ import { cn } from '../lib/cn';
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
   position?: 'center' | 'top';
-  animation?: 'scale' | 'slide-up';
   disableEscClose?: boolean;
   disableBackdropClose?: boolean;
   children: React.ReactNode;
@@ -19,11 +18,7 @@ const SIZE_CLASSES: Record<NonNullable<ModalProps['size']>, string> = {
   lg: 'max-w-lg',
   xl: 'max-w-xl',
   '2xl': 'max-w-2xl',
-};
-
-const ANIMATION_CLASSES: Record<NonNullable<ModalProps['animation']>, string> = {
-  scale: 'animate-scale-in',
-  'slide-up': 'animate-slide-up',
+  '4xl': 'max-w-4xl',
 };
 
 export default function Modal({
@@ -31,7 +26,6 @@ export default function Modal({
   onClose,
   size = 'md',
   position = 'center',
-  animation = 'scale',
   disableEscClose = false,
   disableBackdropClose = false,
   children,
@@ -60,7 +54,7 @@ export default function Modal({
         if (!disableBackdropClose && e.target === overlayRef.current) onClose();
       }}
     >
-      <div className={cn('w-full', SIZE_CLASSES[size], ANIMATION_CLASSES[animation])}>
+      <div className={cn('w-full', SIZE_CLASSES[size])}>
         {children}
       </div>
     </div>,

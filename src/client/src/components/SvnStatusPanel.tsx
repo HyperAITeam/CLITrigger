@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Folder, FolderTree, List } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderTree, List, X } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
 import type { SvnFile, SvnStatusResult } from '../api/svn';
@@ -8,7 +8,10 @@ import type { CommitFile, GitLogEntry, GitStatusFile } from '../api/projects';
 import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
 import Modal from './Modal';
+import Button from './Button';
+import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
+import SvnExternalsEditor from './SvnExternalsEditor';
 
 interface SvnStatusPanelProps {
   project: Project;
@@ -23,6 +26,11 @@ type View = 'modifications' | 'log';
 // ponytail: unbounded Map, projects are few; add eviction only if it matters.
 const statusCache = new Map<string, SvnStatusResult>();
 
+// Names of changelists created empty from the UI. Native SVN changelists only
+// exist while files are assigned, so empty ones live client-side until the
+// first file is moved in (same remount-survival trick as statusCache).
+const pendingChangelistsCache = new Map<string, string[]>();
+
 const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
 
 const charColor = (ch: string) =>
@@ -31,7 +39,7 @@ const charColor = (ch: string) =>
     : ch === 'M' ? 'text-accent'
     : ch === 'C' ? 'text-status-error'
     : ch === '?' ? 'text-warm-400'
-    : 'text-amber-500';
+    : 'text-status-warning';
 
 const SVN_COMMIT_MESSAGE_HEIGHT_KEY = 'clitrigger:svn:commit-message-h';
 const SVN_COMMIT_MESSAGE_MIN_HEIGHT = 60;
@@ -55,7 +63,7 @@ function readStoredNumber(key: string, fallback: number, min: number, max: numbe
 // changelist section — applying the same actions to every file under it.
 type SvnCtxTarget =
   | { kind: 'file'; file: SvnFile }
-  | { kind: 'group'; label: string; files: SvnFile[]; dirPath: string | null };
+  | { kind: 'group'; label: string; files: SvnFile[]; dirPath: string | null; changelist?: string };
 
 export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPanelProps) {
   const { t } = useI18n();
@@ -87,6 +95,10 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [statusLoading, setStatusLoading] = useState(false);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [pendingChangelists, setPendingChangelists] = useState<string[]>(
+    () => pendingChangelistsCache.get(project.id) ?? [],
+  );
+  useEffect(() => { pendingChangelistsCache.set(project.id, pendingChangelists); }, [project.id, pendingChangelists]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [workingDiff, setWorkingDiff] = useState<string>('');
   const [workingDiffLoading, setWorkingDiffLoading] = useState(false);
@@ -221,7 +233,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const handleCleanup = () =>
     runAction(() => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
 
-  // ── New changelist dialog. Non-null = files pending assignment. ───────────
+  // ── New changelist dialog. Non-null = files pending assignment; an empty
+  // array (from clicking empty space) creates a client-side empty changelist.
   const [clDialogFiles, setClDialogFiles] = useState<string[] | null>(null);
   const [clNameInput, setClNameInput] = useState('');
   const handleNewChangelist = () => {
@@ -230,7 +243,30 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     const files = clDialogFiles;
     setClDialogFiles(null);
     setClNameInput('');
-    doChangelist(name, files);
+    if (files.length === 0) {
+      setPendingChangelists((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    } else {
+      doChangelist(name, files);
+    }
+  };
+
+  // ── Rename changelist dialog. Rename = reassign every member file to the
+  // new name (SVN has no rename); an empty pending list renames locally. ────
+  const [renameTarget, setRenameTarget] = useState<{ name: string; files: string[] } | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const handleRenameChangelist = () => {
+    const newName = renameInput.trim();
+    if (!newName || !renameTarget) return;
+    const { name, files } = renameTarget;
+    setRenameTarget(null);
+    setRenameInput('');
+    if (newName === name) return;
+    setPendingChangelists((prev) => {
+      const next = prev.filter((n) => n !== name && n !== newName);
+      if (files.length === 0) next.push(newName);
+      return next;
+    });
+    if (files.length > 0) doChangelist(newName, files);
   };
 
   const handleCommit = () => {
@@ -298,6 +334,16 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     return () => { cancelled = true; };
   }, [project.id, selectedRev, revSelectedFile, revFiles]);
 
+  // ── Log revision context menu + revision diff modal ──────────────────────
+  const [logCtxMenu, setLogCtxMenu] = useState<{ x: number; y: number; rev: string } | null>(null);
+  const [revDiffModal, setRevDiffModal] = useState<{ mode: 'commit' | 'working'; rev: string } | null>(null);
+
+  const openLogCtxMenu = (e: React.MouseEvent, rev: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLogCtxMenu({ x: e.clientX, y: e.clientY, rev });
+  };
+
   // ── Row context menu ──────────────────────────────────────────────────────
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; target: SvnCtxTarget } | null>(null);
 
@@ -313,16 +359,19 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   // Right-click on a directory row or changelist header → same menu, applied to
   // every file in that group at once. dirPath is the folder path (for folder
   // properties) or null for a changelist section.
-  const openGroupCtxMenu = (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null) => {
+  const openGroupCtxMenu = (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null, changelist?: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (files.length === 0) return;
-    setCtxMenu({ x: e.clientX, y: e.clientY, target: { kind: 'group', label, files, dirPath } });
+    if (files.length === 0 && !changelist) return;
+    setCtxMenu({ x: e.clientX, y: e.clientY, target: { kind: 'group', label, files, dirPath, changelist } });
   };
 
   const changelistNames = useMemo(
-    () => Array.from(new Set((status?.files ?? []).map((f) => f.changelist).filter((n): n is string => !!n))).sort(),
-    [status],
+    () => Array.from(new Set([
+      ...(status?.files ?? []).map((f) => f.changelist).filter((n): n is string => !!n),
+      ...pendingChangelists,
+    ])).sort(),
+    [status, pendingChangelists],
   );
 
   const repoLine = useMemo(() => {
@@ -342,7 +391,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   }, [status, updateConflicts]);
 
   return (
-    <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
       {svnInstalled === false && (
         <div className="card mb-2 px-3 py-2 bg-status-warning/10 border border-status-warning/30 text-2xs text-status-warning">
           {t('svn.cliMissing')}
@@ -361,7 +410,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       )}
       <div className="flex flex-1 min-h-0 gap-2">
         {/* Command list sidebar (TortoiseSVN-style) */}
-        <div className="card w-52 shrink-0 flex flex-col overflow-y-auto">
+        <div className="card-static w-52 shrink-0 flex flex-col overflow-y-auto">
           <div className="px-3 py-3 border-b border-warm-100">
             <div className="text-[11px] font-semibold text-warm-500 uppercase tracking-wider">SVN</div>
             {repoLine && (
@@ -394,7 +443,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         </div>
 
         {/* Main */}
-        <div className="card flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
+        <div className="card-static flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
           {view === 'modifications' ? (
             <ModificationsView
               statusFiles={status?.files ?? []}
@@ -409,6 +458,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onActivate={setActiveFile}
               onContextMenu={openCtxMenu}
               onGroupContextMenu={openGroupCtxMenu}
+              pendingChangelists={pendingChangelists}
+              onNewEmptyChangelist={() => setClDialogFiles([])}
               onChangelist={doChangelist}
               onResolve={(p, accept) => doResolve([p], accept)}
               workingDiff={workingDiff}
@@ -430,6 +481,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onLoadMore={() => loadLog(logEntries.length)}
               selectedRev={selectedRev}
               onSelectRev={selectRevision}
+              onRevContextMenu={openLogCtxMenu}
               revFiles={revFiles}
               revFilesLoading={revFilesLoading}
               selectedFile={revSelectedFile}
@@ -444,12 +496,10 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
 
       {/* Update to revision dialog */}
       <Modal open={showRevDialog} onClose={() => setShowRevDialog(false)} size="sm">
-        <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+        <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
           <div className="px-4 py-3 border-b border-warm-100 flex items-center gap-2">
             <span className="text-sm font-semibold text-warm-700">{t('svn.updateToRevision')}</span>
-            <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              {t('svn.remoteBadge')}
-            </span>
+            <RemoteBadge />
           </div>
           <div className="p-4 space-y-3">
             <input
@@ -458,22 +508,25 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onChange={(e) => setRevInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateToRevision(); }}
               placeholder={t('svn.revisionPlaceholder')}
-              className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <div className="flex gap-2">
-              <button
-                className="flex-1 px-3 py-2 text-sm rounded border border-warm-200 hover:bg-warm-50"
+              <Button
+                size="md"
+                className="flex-1"
                 onClick={() => setShowRevDialog(false)}
               >
                 {t('svn.cancel')}
-              </button>
-              <button
-                className="flex-1 px-3 py-2 text-sm font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1"
                 disabled={!revInput.trim() || busy}
                 onClick={handleUpdateToRevision}
               >
                 {t('svn.update')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -481,7 +534,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
 
       {/* New changelist dialog */}
       <Modal open={clDialogFiles !== null} onClose={() => setClDialogFiles(null)} size="sm">
-        <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+        <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
           <div className="px-4 py-3 border-b border-warm-100">
             <span className="text-sm font-semibold text-warm-700">{t('svn.newChangelist')}</span>
           </div>
@@ -492,22 +545,62 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               onChange={(e) => setClNameInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleNewChangelist(); }}
               placeholder={t('svn.changelistNamePlaceholder')}
-              className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <div className="flex gap-2">
-              <button
-                className="flex-1 px-3 py-2 text-sm rounded border border-warm-200 hover:bg-warm-50"
+              <Button
+                size="md"
+                className="flex-1"
                 onClick={() => setClDialogFiles(null)}
               >
                 {t('svn.cancel')}
-              </button>
-              <button
-                className="flex-1 px-3 py-2 text-sm font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1"
                 disabled={!clNameInput.trim() || busy}
                 onClick={handleNewChangelist}
               >
-                {t('svn.moveToChangelist')}
-              </button>
+                {clDialogFiles?.length ? t('svn.moveToChangelist') : t('svn.createChangelist')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Rename changelist dialog */}
+      <Modal open={renameTarget !== null} onClose={() => setRenameTarget(null)} size="sm">
+        <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
+          <div className="px-4 py-3 border-b border-warm-100">
+            <span className="text-sm font-semibold text-warm-700">{t('svn.renameChangelist')}</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <input
+              autoFocus
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleRenameChangelist(); }}
+              placeholder={t('svn.changelistNamePlaceholder')}
+              className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="md"
+                className="flex-1"
+                onClick={() => setRenameTarget(null)}
+              >
+                {t('svn.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1"
+                disabled={!renameInput.trim() || busy}
+                onClick={handleRenameChangelist}
+              >
+                {t('svn.saveProperty')}
+              </Button>
             </div>
           </div>
         </div>
@@ -529,6 +622,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           changelists={changelistNames}
           onChangelist={doChangelist}
           onNewChangelist={(files) => setClDialogFiles(files)}
+          onRenameChangelist={(name, files) => { setRenameTarget({ name, files }); setRenameInput(name); }}
+          onDeleteChangelist={(name) => setPendingChangelists((prev) => prev.filter((n) => n !== name))}
           onViewDiff={(p) => { setActiveFile(p); setCtxMenu(null); }}
           onProperties={(p) => { setPropsTarget({ file: p }); setCtxMenu(null); }}
         />
@@ -537,11 +632,51 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       {propsTarget && (
         <PropertiesDialog projectId={project.id} file={propsTarget.file} onClose={() => setPropsTarget(null)} />
       )}
+
+      {/* Log revision context menu */}
+      {logCtxMenu && (
+        <CursorContextMenu x={logCtxMenu.x} y={logCtxMenu.y} onClose={() => setLogCtxMenu(null)}>
+          <button
+            className={ctxMenuItemClass}
+            onClick={() => setRevDiffModal({ mode: 'commit', rev: logCtxMenu.rev })}
+          >
+            {t('svn.showRevisionChanges')}
+          </button>
+          <button
+            className={ctxMenuItemClass}
+            onClick={() => setRevDiffModal({ mode: 'working', rev: logCtxMenu.rev })}
+          >
+            {t('svn.compareRevisionWithWorking')}
+          </button>
+        </CursorContextMenu>
+      )}
+
+      {revDiffModal && (
+        <RevisionDiffModal
+          projectId={project.id}
+          mode={revDiffModal.mode}
+          revision={revDiffModal.rev}
+          onClose={() => setRevDiffModal(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ── Sidebar primitives ──────────────────────────────────────────────────────
+
+// Amber "REMOTE" pill marking actions that contact the SVN server.
+function RemoteBadge({ title }: { title?: string }) {
+  const { t } = useI18n();
+  return (
+    <span
+      title={title}
+      className="shrink-0 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded-md bg-status-warning/10 text-status-warning"
+    >
+      {t('svn.remoteBadge')}
+    </span>
+  );
+}
 
 function SidebarHeader({ label }: { label: string }) {
   return (
@@ -568,14 +703,7 @@ function CmdButton({ label, active, remote, disabled, onClick }: {
       }`}
     >
       <span className="truncate flex-1">{label}</span>
-      {remote && (
-        <span
-          title={t('svn.remoteHint')}
-          className="shrink-0 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-        >
-          {t('svn.remoteBadge')}
-        </span>
-      )}
+      {remote && <RemoteBadge title={t('svn.remoteHint')} />}
     </button>
   );
 }
@@ -708,7 +836,7 @@ function ConflictResolveButton({ onResolve, onOpen }: {
         ref={btnRef}
         draggable={false}
         onClick={open}
-        className="shrink-0 text-2xs px-1.5 py-0.5 rounded bg-status-error/15 text-status-error hover:bg-status-error/25 font-medium"
+        className="shrink-0 text-2xs px-1.5 py-0.5 rounded-md bg-status-error/15 text-status-error hover:bg-status-error/25 font-medium"
       >
         {t('svn.resolve')} ▾
       </button>
@@ -816,7 +944,7 @@ function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps, onDirCon
         {isCollapsed
           ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
           : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-warm-400" />}
-        <Folder className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+        <Folder className="w-3.5 h-3.5 shrink-0 text-status-warning" />
         <span className="truncate text-warm-700 font-medium" title={node.path}>{node.name}</span>
         <span className="text-warm-400 text-2xs ml-1 shrink-0">{countLabel}</span>
       </div>
@@ -844,7 +972,7 @@ interface ClSection {
 
 // Named changelists first (sorted), then the default bucket, then automatic
 // status sections (unversioned '?', locally deleted '!').
-function partitionSections(files: SvnFile[], t: (k: string) => string): ClSection[] {
+function partitionSections(files: SvnFile[], pendingNames: string[], t: (k: string) => string): ClSection[] {
   const named = new Map<string, SvnFile[]>();
   const def: SvnFile[] = [];
   const unversioned: SvnFile[] = [];
@@ -858,6 +986,9 @@ function partitionSections(files: SvnFile[], t: (k: string) => string): ClSectio
     else if (ch === '!') missing.push(f);
     else def.push(f);
   }
+  // Client-side empty changelists render as droppable empty sections; once a
+  // real one with the same name exists, the real one wins.
+  for (const name of pendingNames) if (!named.has(name)) named.set(name, []);
   const sections: ClSection[] = Array.from(named.keys()).sort()
     .map((name) => ({ key: `cl:${name}`, label: name, files: named.get(name)! }));
   if (def.length) sections.push({ key: 'default', label: t('svn.changelistDefault'), files: def });
@@ -880,7 +1011,9 @@ function ModificationsView(props: {
   activeFile: string | null;
   onActivate: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
-  onGroupContextMenu: (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null) => void;
+  onGroupContextMenu: (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null, changelist?: string) => void;
+  pendingChangelists: string[];
+  onNewEmptyChangelist: () => void;
   onChangelist: (name: string | null, files: string[]) => void;
   onResolve: (path: string, accept: 'working' | 'mine-full' | 'theirs-full') => void;
   workingDiff: string;
@@ -908,7 +1041,10 @@ function ModificationsView(props: {
       SVN_COMMIT_MESSAGE_MAX_HEIGHT,
     ),
   );
-  const sections = useMemo(() => partitionSections(props.statusFiles, t), [props.statusFiles, t]);
+  const sections = useMemo(
+    () => partitionSections(props.statusFiles, props.pendingChangelists, t),
+    [props.statusFiles, props.pendingChangelists, t],
+  );
 
   useEffect(() => {
     try { localStorage.setItem(SVN_COMMIT_MESSAGE_HEIGHT_KEY, String(commitMessageHeight)); } catch { /* ignore */ }
@@ -1024,17 +1160,13 @@ function ModificationsView(props: {
   return (
     <>
       <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0 flex-wrap">
-        <button onClick={props.onRefresh} disabled={props.busy}
-          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
+        <Button size="sm" onClick={props.onRefresh} disabled={props.busy}>
           {props.statusLoading ? t('svn.checking') : t('svn.refresh')}
-        </button>
-        <button onClick={props.onCheckRepository} disabled={props.busy}
-          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40 flex items-center gap-1">
+        </Button>
+        <Button size="sm" onClick={props.onCheckRepository} disabled={props.busy}>
           {props.remoteChecking ? t('svn.checking') : t('svn.checkRepository')}
-          <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-            {t('svn.remoteBadge')}
-          </span>
-        </button>
+          <RemoteBadge />
+        </Button>
         {props.actionFlash && <span className="text-2xs text-status-success ml-1">{props.actionFlash}</span>}
         {props.error && <span className="text-2xs text-status-error ml-1">{props.error}</span>}
       </div>
@@ -1048,24 +1180,27 @@ function ModificationsView(props: {
               <button
                 onClick={toggleGroup}
                 title={groupByDir ? t('svn.viewFlat') : t('svn.groupByDir')}
-                className="text-warm-400 hover:text-warm-700 p-0.5 rounded hover:bg-warm-100"
+                className="text-warm-400 hover:text-warm-700 p-0.5 rounded-md hover:bg-warm-100"
               >
                 {groupByDir ? <List className="w-3.5 h-3.5" /> : <FolderTree className="w-3.5 h-3.5" />}
               </button>
               <span className="text-2xs text-warm-400">{props.statusFiles.length}</span>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div
+            className="flex-1 overflow-y-auto"
+            onClick={(e) => { if (e.target === e.currentTarget) props.onNewEmptyChangelist(); }}
+          >
             {props.statusLoading ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
-            ) : props.statusFiles.length === 0 ? (
+            ) : sections.length === 0 ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
             ) : (
               sections.map((sec) => {
                 const secKey = `§${sec.key}`;
                 const isCollapsed = collapsed.has(secKey);
                 const selCount = sec.files.reduce((n, f) => n + (props.selectedFiles.has(f.path) ? 1 : 0), 0);
-                const allSelected = selCount === sec.files.length;
+                const allSelected = sec.files.length > 0 && selCount === sec.files.length;
                 const tree = groupByDir ? buildDirTree(sec.files) : null;
                 const droppable = sec.key !== 'unversioned' && sec.key !== 'missing';
                 const isDropTarget = dragOverKey === sec.key;
@@ -1073,7 +1208,7 @@ function ModificationsView(props: {
                   <div key={sec.key}>
                     <div
                       onClick={() => toggleCollapse(secKey)}
-                      onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null)}
+                      onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null, sec.key.startsWith('cl:') ? sec.label : undefined)}
                       onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
                       onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
                       onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
@@ -1130,17 +1265,19 @@ function ModificationsView(props: {
                 onChange={(e) => props.onCommitMessageChange(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder={t('svn.commitMessagePlaceholder')}
-                className="block w-full text-xs p-2 border border-warm-200 rounded resize-none focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
+                className="block w-full text-xs p-2 border border-warm-200 rounded-md resize-none focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none"
                 style={{ height: commitMessageHeight }}
                 rows={3}
               />
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={props.onCommit}
                 disabled={props.busy || !props.commitMessage.trim()}
-                className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
+                className="mt-2 w-full"
               >
                 {props.busy ? t('svn.committing') : t('svn.commit')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1164,6 +1301,7 @@ function LogView(props: {
   onLoadMore: () => void;
   selectedRev: string | null;
   onSelectRev: (rev: string) => void;
+  onRevContextMenu: (e: React.MouseEvent, rev: string) => void;
   revFiles: CommitFile[];
   revFilesLoading: boolean;
   selectedFile: string | null;
@@ -1179,14 +1317,15 @@ function LogView(props: {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-xs text-warm-400 max-w-xs">{t('svn.logEmptyHint')}</p>
-        <button
+        <Button
+          variant="primary"
+          size="md"
           onClick={props.onLoad}
           disabled={props.loading}
-          className="px-4 py-2 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40 flex items-center gap-2"
         >
           {props.loading ? t('svn.checking') : t('svn.loadLog')}
-          <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-white/20">{t('svn.remoteBadge')}</span>
-        </button>
+          <span className="text-[9px] uppercase tracking-wide px-1 rounded-md bg-white/20">{t('svn.remoteBadge')}</span>
+        </Button>
         {props.error && <span className="text-2xs text-status-error">{props.error}</span>}
       </div>
     );
@@ -1195,10 +1334,9 @@ function LogView(props: {
   return (
     <>
       <div className="px-3 py-2 border-b border-warm-100 flex items-center gap-2 shrink-0">
-        <button onClick={props.onLoad} disabled={props.loading}
-          className="px-2 py-1 text-xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40">
+        <Button size="sm" onClick={props.onLoad} disabled={props.loading}>
           {props.loading ? t('svn.checking') : t('svn.refresh')}
-        </button>
+        </Button>
         {props.error && <span className="text-2xs text-status-error ml-1">{props.error}</span>}
       </div>
       <div className="flex-1 grid grid-cols-[1fr_1fr] min-h-0">
@@ -1212,6 +1350,7 @@ function LogView(props: {
               <div
                 key={e.hash}
                 onClick={() => props.onSelectRev(e.hash)}
+                onContextMenu={(ev) => props.onRevContextMenu(ev, e.hash)}
                 className={`px-3 py-2 cursor-pointer text-xs border-b border-warm-50 hover:bg-warm-50/50 ${
                   props.selectedRev === e.hash ? 'bg-accent/10 border-l-2 border-accent' : ''
                 }`}
@@ -1269,6 +1408,8 @@ function FileContextMenu(props: {
   changelists: string[];
   onChangelist: (name: string | null, files: string[]) => void;
   onNewChangelist: (files: string[]) => void;
+  onRenameChangelist: (name: string, files: string[]) => void;
+  onDeleteChangelist: (name: string) => void;
   onViewDiff: (path: string) => void;
   onProperties: (path: string) => void;
 }) {
@@ -1292,6 +1433,7 @@ function FileContextMenu(props: {
   const singleFile = props.target.kind === 'file' ? props.target.file : null;
   const groupLabel = props.target.kind === 'group' ? props.target.label : null;
   const dirPath = props.target.kind === 'group' ? props.target.dirPath : null;
+  const clName = props.target.kind === 'group' ? props.target.changelist : undefined;
   const propsPath = singleFile ? (charOf(singleFile) !== '?' ? singleFile.path : null) : dirPath;
 
   const addable = targets.filter((f) => charOf(f) === '?').map((f) => f.path);
@@ -1346,6 +1488,14 @@ function FileContextMenu(props: {
           <span className="text-2xs text-warm-400 ml-1">· {targets.length}</span>
         </div>
       )}
+      {clName !== undefined && (
+        <>
+          <Item label={t('svn.renameChangelist')} onClick={() => props.onRenameChangelist(clName, targets.map((f) => f.path))} />
+          {targets.length === 0 && (
+            <Item label={t('svn.deleteChangelist')} danger onClick={() => props.onDeleteChangelist(clName)} />
+          )}
+        </>
+      )}
       {singleFile && <Item label={t('svn.viewDiff')} onClick={() => props.onViewDiff(singleFile.path)} />}
       {propsPath !== null && (
         <Item label={t('svn.properties')} onClick={() => props.onProperties(propsPath)} />
@@ -1381,6 +1531,59 @@ function FileContextMenu(props: {
   );
 }
 
+// ── Revision diff modal (SERVER) ──────────────────────────────────────────────
+// mode 'commit'  = the revision's own changes (svn diff -r rev-1:rev)
+// mode 'working' = that revision vs the current working copy (svn diff -r rev)
+
+function RevisionDiffModal({ projectId, mode, revision, onClose }: {
+  projectId: string;
+  mode: 'commit' | 'working';
+  revision: string;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [diff, setDiff] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const req = mode === 'commit'
+      ? svnApi.getSvnCommitDiff(projectId, revision)
+      : svnApi.getSvnDiff(projectId, undefined, revision);
+    req
+      .then((r) => { if (!cancelled) setDiff(r.diff); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Diff failed'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, mode, revision]);
+
+  const title = t(mode === 'commit' ? 'svn.revisionChangesTitle' : 'svn.compareWithWorkingTitle')
+    .replace('{rev}', revision);
+
+  return (
+    <Modal open onClose={onClose} size="4xl">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-full h-[80vh] flex flex-col overflow-hidden">
+        <div className="px-4 py-3 border-b border-warm-100 flex items-center gap-2 shrink-0">
+          <span className="text-sm font-semibold text-warm-700 truncate" title={title}>{title}</span>
+          <RemoteBadge />
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-warm-400 hover:text-warm-600 shrink-0"><X size={14} /></button>
+        </div>
+        <div className="flex-1 min-h-0">
+          {error ? (
+            <p className="p-4 text-status-error text-xs whitespace-pre-wrap break-all">{error}</p>
+          ) : (
+            <CommitDiffViewer fileHeaders diff={diff} loading={loading} selectedFile={title} />
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Properties dialog (LOCAL: `svn proplist -v`) ──────────────────────────────
 
 function PropertiesDialog({ projectId, file, onClose }: {
@@ -1393,6 +1596,7 @@ function PropertiesDialog({ projectId, file, onClose }: {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null); // property name being edited
   const [draft, setDraft] = useState('');
+  const [rawMode, setRawMode] = useState(false); // svn:externals: plain textarea instead of the table editor
   const [saving, setSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -1406,11 +1610,11 @@ function PropertiesDialog({ projectId, file, onClose }: {
     return () => { cancelled = true; };
   }, [projectId, file, reloadKey]);
 
-  const save = async (name: string) => {
+  const save = async (name: string, value = draft) => {
     setSaving(true);
     setError(null);
     try {
-      await svnApi.svnPropset(projectId, name, draft, file ?? undefined);
+      await svnApi.svnPropset(projectId, name, value, file ?? undefined);
       setEditing(null);
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -1424,12 +1628,12 @@ function PropertiesDialog({ projectId, file, onClose }: {
 
   return (
     <Modal open onClose={onClose} size="2xl">
-      <div className="bg-theme-card rounded-lg shadow-xl w-full max-h-[80vh] flex flex-col">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-full max-h-[80vh] flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-warm-100 flex items-center justify-between shrink-0">
           <span className="text-sm font-semibold text-warm-700 truncate" title={target}>
             {t('svn.propertiesOf').replace('{target}', target)}
           </span>
-          <button onClick={onClose} className="text-warm-400 hover:text-warm-600 shrink-0 ml-2">✕</button>
+          <button onClick={onClose} className="text-warm-400 hover:text-warm-600 shrink-0 ml-2"><X size={14} /></button>
         </div>
         <div className="p-4 overflow-y-auto">
           {error && (
@@ -1447,41 +1651,59 @@ function PropertiesDialog({ projectId, file, onClose }: {
                     <div className="text-xs font-mono font-semibold text-accent break-all">{p.name}</div>
                     {editing !== p.name && (
                       <button
-                        onClick={() => { setEditing(p.name); setDraft(p.value); }}
+                        onClick={() => { setEditing(p.name); setDraft(p.value); setRawMode(false); }}
                         className="text-2xs text-warm-400 hover:text-accent shrink-0"
                       >
                         {t('svn.editProperty')}
                       </button>
                     )}
                   </div>
-                  {editing === p.name ? (
+                  {editing === p.name && p.name === 'svn:externals' && !rawMode ? (
+                    <SvnExternalsEditor
+                      projectId={projectId}
+                      value={draft}
+                      saving={saving}
+                      onCancel={() => setEditing(null)}
+                      onSave={(value) => { setDraft(value); save(p.name, value); }}
+                      onEditAsText={(value) => { setDraft(value); setRawMode(true); }}
+                    />
+                  ) : editing === p.name ? (
                     <>
                       <textarea
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         rows={Math.min(12, Math.max(3, draft.split('\n').length + 1))}
                         spellCheck={false}
-                        className="mt-1 w-full text-2xs font-mono text-warm-700 bg-warm-50 dark:bg-warm-800/40 rounded p-2 border border-accent/40 focus:outline-none focus:border-accent resize-y"
+                        className="mt-1 w-full text-2xs font-mono text-warm-700 bg-warm-50 dark:bg-warm-800/40 rounded-md p-2 border border-accent/40 focus:outline-none focus:border-accent resize-y"
                       />
                       <div className="mt-1 flex justify-end gap-2">
-                        <button
+                        {p.name === 'svn:externals' && (
+                          <button
+                            onClick={() => setRawMode(false)}
+                            className="text-2xs text-warm-400 hover:text-accent mr-auto"
+                          >
+                            {t('svn.ext.editTable')}
+                          </button>
+                        )}
+                        <Button
+                          size="sm"
                           onClick={() => setEditing(null)}
                           disabled={saving}
-                          className="px-2.5 py-1 text-2xs rounded border border-warm-200 hover:bg-warm-50 disabled:opacity-40"
                         >
                           {t('svn.cancel')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => save(p.name)}
                           disabled={saving}
-                          className="px-2.5 py-1 text-2xs font-semibold rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-40"
                         >
                           {t('svn.saveProperty')}
-                        </button>
+                        </Button>
                       </div>
                     </>
                   ) : (
-                    <pre className="mt-1 text-2xs font-mono text-warm-600 bg-warm-50 dark:bg-warm-800/40 rounded p-2 whitespace-pre-wrap break-all">
+                    <pre className="mt-1 text-2xs font-mono text-warm-600 bg-warm-50 dark:bg-warm-800/40 rounded-md p-2 whitespace-pre-wrap break-all">
                       {p.value || '—'}
                     </pre>
                   )}
@@ -1491,9 +1713,9 @@ function PropertiesDialog({ projectId, file, onClose }: {
           )}
         </div>
         <div className="px-4 py-3 border-t border-warm-100 shrink-0 text-right">
-          <button onClick={onClose} className="px-3 py-1.5 text-xs rounded border border-warm-200 hover:bg-warm-50">
+          <Button size="sm" onClick={onClose}>
             {t('svn.close')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

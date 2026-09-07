@@ -185,7 +185,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
             onClick={() => update({ mode: m.value })}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
               state.mode === m.value
-                ? 'bg-amber-500 text-white'
+                ? 'bg-accent text-white'
                 : 'bg-warm-100 text-warm-500 hover:bg-warm-200'
             }`}
           >
@@ -249,8 +249,8 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
                   onClick={() => toggleWeekday(day.value)}
                   className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${
                     state.weeklyDays.includes(day.value)
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-theme-card text-warm-500 border border-warm-200 hover:border-amber-300'
+                      ? 'bg-accent text-white'
+                      : 'bg-theme-card text-warm-500 border border-warm-200 hover:border-accent'
                   }`}
                 >
                   {t(day.labelKey)}
@@ -309,7 +309,7 @@ export default function CronBuilder({ value, onChange }: CronBuilderProps) {
       {state.mode !== 'custom' && currentCron && (
         <div className="flex items-center gap-2 text-[11px]">
           <span className="text-warm-400">{t('cron.expression')}:</span>
-          <code className="px-2 py-0.5 rounded bg-warm-100 text-warm-600 font-mono">{currentCron}</code>
+          <code className="px-2 py-0.5 rounded-md bg-warm-100 text-warm-600 font-mono">{currentCron}</code>
         </div>
       )}
     </div>

@@ -41,7 +41,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warm-500 whitespace-nowrap flex-shrink-0">
       {status === 'running'
-        ? <Loader2 size={11} className="animate-spin text-status-running" />
+        ? <Loader2 size={12} className="animate-spin text-status-running" />
         : <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />}
       {t(labelKey as any)}
     </span>

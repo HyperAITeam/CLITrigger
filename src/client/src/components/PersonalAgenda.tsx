@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download, Image as ImageIcon, X } from 'lucide-react';
 import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta, Project } from '../types';
 import * as personalApi from '../api/personal';
 import { getProjects } from '../api/projects';
+import Button from './Button';
 import HoverHelp from './HoverHelp';
 import ImageLightbox from './ImageLightbox';
+import Modal from './Modal';
 import MoveToPlannerButton from './MoveToPlannerButton';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import CalendarGrid from './calendar/CalendarGrid';
 import CursorContextMenu, { ctxMenuItemClass, ctxMenuDangerItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import {
@@ -75,6 +77,7 @@ let imageCounter = 0;
 
 export default function PersonalAgenda() {
   const { t, lang } = useI18n();
+  const { confirm } = useDialog();
   const navigate = useNavigate();
   const [view, setView] = useState<CalView>('month');
   const [sort, setSort] = useState<{ key: 'date' | 'kind' | 'status'; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'asc' });
@@ -521,7 +524,7 @@ export default function PersonalAgenda() {
     personalApi.updatePersonalItem(id, { start_at: start, end_at: end }).then(load);
   };
   const remove = async (p: PersonalItem) => {
-    if (!(await confirmDialog(t('agenda.confirmDelete') || 'Delete this item?'))) return false;
+    if (!(await confirm({ message: t('agenda.confirmDelete'), danger: true }))) return false;
     await personalApi.deletePersonalItem(p.id);
     load();
     return true;
@@ -826,7 +829,7 @@ export default function PersonalAgenda() {
             {new Date(selectedDate + 'T00:00').toLocaleDateString(lang, { month: 'long', day: 'numeric', weekday: 'short' })}
           </h2>
           <button onClick={() => openAdd(selectedDate)} className="btn-ghost text-xs px-2 py-1 flex items-center gap-1">
-            <Plus size={13} />{t('agenda.add')}
+            <Plus size={14} />{t('agenda.add')}
           </button>
         </div>
 
@@ -842,8 +845,8 @@ export default function PersonalAgenda() {
                 return (
                   <div key={e.id} onContextMenu={(ev) => openItemMenu(item, ev)} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                     <button onClick={() => toggleDone(item)} className="mt-0.5 flex-shrink-0" title={t('agenda.toggleDone')}>
-                      <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
-                        {item.status === 'done' && <Check size={11} />}
+                      <span className="w-4 h-4 rounded-md border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
+                        {item.status === 'done' && <Check size={12} />}
                       </span>
                     </button>
                     <button onClick={() => openEdit(item)} className="flex-1 text-left min-w-0">
@@ -863,7 +866,7 @@ export default function PersonalAgenda() {
                     </button>
                     <MoveToPlannerButton projects={projects} onMove={(pid) => moveToPlanner(item, pid)} title={t('agenda.moveToPlanner')} />
                     <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.delete')}>
-                      <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
+                      <Trash2 size={14} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
                   </div>
                 );
@@ -872,7 +875,7 @@ export default function PersonalAgenda() {
                 const issue = jiraEntries.find((j) => j.key === e.id);
                 return (
                   <div key={`jira-${e.id}`} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: JIRA_BLUE.bg, border: `1px solid ${JIRA_BLUE.bg}` }}>
-                    <ExternalLink size={13} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
+                    <ExternalLink size={14} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
                     <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
                       <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={e.title}>{e.title}</div>
                       <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>Jira</div>
@@ -886,7 +889,7 @@ export default function PersonalAgenda() {
                         className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
                         title={t('agenda.jira.import')}
                       >
-                        <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
+                        <Download size={14} style={{ color: 'var(--color-text-muted)' }} />
                       </button>
                     )}
                     <button
@@ -894,7 +897,7 @@ export default function PersonalAgenda() {
                       className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
                       title={t('agenda.jira.dismiss')}
                     >
-                      <X size={13} style={{ color: 'var(--color-text-muted)' }} />
+                      <X size={14} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
                   </div>
                 );
@@ -907,7 +910,7 @@ export default function PersonalAgenda() {
                   className="flex items-start gap-2 rounded-lg px-2.5 py-2 hover:opacity-80 transition-opacity"
                   style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px dashed var(--color-border)' }}
                 >
-                  {e.kind === 'schedule' ? <Clock size={13} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} /> : <FolderGit2 size={13} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />}
+                  {e.kind === 'schedule' ? <Clock size={14} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} /> : <FolderGit2 size={14} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm truncate" style={{ color: 'var(--color-text-secondary)' }}>
                       {e.time && <span className="text-2xs mr-1" style={{ color: 'var(--color-text-muted)' }}>{e.time}</span>}
@@ -927,7 +930,7 @@ export default function PersonalAgenda() {
             <div className="flex items-center justify-between mb-1.5">
               <h3 className="text-2xs uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.backlog')}</h3>
               <button onClick={() => openAdd('')} className="btn-ghost text-2xs px-1.5 py-0.5 flex items-center gap-1">
-                <Plus size={11} />{t('agenda.memo')}
+                <Plus size={12} />{t('agenda.memo')}
               </button>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -937,8 +940,8 @@ export default function PersonalAgenda() {
               {backlog.map((item) => (
                 <div key={item.id} onContextMenu={(e) => openItemMenu(item, e)} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                   <button onClick={() => toggleDone(item)} className="mt-0.5 flex-shrink-0">
-                    <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
-                      {item.status === 'done' && <Check size={11} />}
+                    <span className="w-4 h-4 rounded-md border flex items-center justify-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
+                      {item.status === 'done' && <Check size={12} />}
                     </span>
                   </button>
                   <button onClick={() => openEdit(item)} className="flex-1 text-left min-w-0">
@@ -955,7 +958,7 @@ export default function PersonalAgenda() {
                   </button>
                   <MoveToPlannerButton projects={projects} onMove={(pid) => moveToPlanner(item, pid)} title={t('agenda.moveToPlanner')} />
                   <button onClick={() => remove(item)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                    <Trash2 size={13} style={{ color: 'var(--color-text-muted)' }} />
+                    <Trash2 size={14} style={{ color: 'var(--color-text-muted)' }} />
                   </button>
                 </div>
               ))}
@@ -969,17 +972,17 @@ export default function PersonalAgenda() {
               <div className="flex flex-col gap-1.5">
                 {jiraEntries.filter((j) => !j.duedate).map((j) => (
                   <div key={`jira-nd-${j.key}`} className="group flex items-start gap-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: JIRA_BLUE.bg }}>
-                    <ExternalLink size={13} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
+                    <ExternalLink size={14} className="mt-0.5 flex-shrink-0" style={{ color: JIRA_BLUE.fg }} />
                     <a href={j.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
                       <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }} title={`${j.key} · ${j.summary}`}>{j.key} · {j.summary}</div>
                       <div className="text-2xs" style={{ color: JIRA_BLUE.fg }}>{j.status || 'Jira'}</div>
                     </a>
                     <MoveToPlannerButton projects={projects} onMove={(pid) => jiraToPlanner(j, pid)} title={t('agenda.importToPlanner')} />
                     <button onClick={() => personalApi.importJiraIssue(j).then(load)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.import')}>
-                      <Download size={13} style={{ color: 'var(--color-text-muted)' }} />
+                      <Download size={14} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
                     <button onClick={() => dismissJira(j.key)} className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" title={t('agenda.jira.dismiss')}>
-                      <X size={13} style={{ color: 'var(--color-text-muted)' }} />
+                      <X size={14} style={{ color: 'var(--color-text-muted)' }} />
                     </button>
                   </div>
                 ))}
@@ -996,7 +999,7 @@ export default function PersonalAgenda() {
                 style={{ color: 'var(--color-text-muted)' }}
               >
                 {t('agenda.jira.dismissedTitle')} ({jiraDismissed.length})
-                <ChevronRight size={11} style={{ transform: showDismissed ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                <ChevronRight size={12} style={{ transform: showDismissed ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
               </button>
               {showDismissed && (
                 <div className="flex flex-col gap-1">
@@ -1087,8 +1090,8 @@ export default function PersonalAgenda() {
                       className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
                       style={fDone ? { color: 'var(--color-accent)' } : undefined}
                     >
-                      <span className="w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: 'var(--color-border)' }}>
-                        {fDone && <Check size={11} />}
+                      <span className="w-4 h-4 rounded-md border flex items-center justify-center" style={{ borderColor: 'var(--color-border)' }}>
+                        {fDone && <Check size={12} />}
                       </span>
                       {t(fDone ? 'agenda.status.done' : 'agenda.status.pending')}
                     </button>
@@ -1133,7 +1136,7 @@ export default function PersonalAgenda() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs btn-ghost"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs btn-ghost"
                   >
                     <ImageIcon size={14} />
                     {t('plannerForm.addImage')}
@@ -1162,9 +1165,9 @@ export default function PersonalAgenda() {
                         <button
                           type="button"
                           onClick={() => removeExistingImage(img.id)}
-                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X size={12} strokeWidth={3} />
+                          <X size={12} />
                         </button>
                       </div>
                     ))}
@@ -1174,9 +1177,9 @@ export default function PersonalAgenda() {
                         <button
                           type="button"
                           onClick={() => removePendingImage(img.id)}
-                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X size={12} strokeWidth={3} />
+                          <X size={12} />
                         </button>
                       </div>
                     ))}
@@ -1262,8 +1265,8 @@ function CleanupModal({ items, defaultFrom, defaultTo, onClose, onDone }: {
   };
 
   return (
-    <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl shadow-xl flex flex-col" style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+    <Modal open onClose={onClose} size="md">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
         <div className="px-6 pt-6 pb-2">
           <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
             <Trash2 size={16} />{t('agenda.cleanup.title')}
@@ -1284,11 +1287,11 @@ function CleanupModal({ items, defaultFrom, defaultTo, onClose, onDone }: {
           </div>
 
           <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            <input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} className="rounded" />
+            <input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} className="rounded-md" />
             {t('agenda.cleanup.doneOnly')}
           </label>
           <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            <input type="checkbox" checked={includeBacklog} onChange={(e) => setIncludeBacklog(e.target.checked)} className="rounded" />
+            <input type="checkbox" checked={includeBacklog} onChange={(e) => setIncludeBacklog(e.target.checked)} className="rounded-md" />
             {t('agenda.cleanup.includeBacklog')}
           </label>
 
@@ -1301,17 +1304,17 @@ function CleanupModal({ items, defaultFrom, defaultTo, onClose, onDone }: {
 
         <div className="flex justify-end gap-2 px-6 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
           <button onClick={onClose} className="btn-ghost text-sm">{t('agenda.cancel')}</button>
-          <button
+          <Button
+            variant="danger"
             onClick={confirm}
             disabled={busy || count === 0}
-            className="btn-primary text-sm disabled:opacity-40"
-            style={{ backgroundColor: 'var(--color-status-error, #ef4444)' }}
+            className="text-sm"
           >
             {t('agenda.cleanup.confirm')}{count > 0 ? ` (${count})` : ''}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1335,7 +1338,7 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
   const [statusFilter, setStatusFilter] = useState('');
   const [extraJql, setExtraJql] = useState(initial?.extra_jql ?? '');
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const payload = () => ({
     enabled, base_url: baseUrl.trim(), email: email.trim(), api_token: token || undefined,
@@ -1363,9 +1366,9 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
     try {
       await personalApi.saveJiraConfig(payload());
       const r = await personalApi.testJiraConfig();
-      setResult(r.ok ? `✓ ${r.user}` : `✗ ${r.error || 'failed'}`);
+      setResult(r.ok ? { ok: true, text: r.user ?? '' } : { ok: false, text: r.error || 'failed' });
     } catch (e) {
-      setResult(`✗ ${e instanceof Error ? e.message : 'failed'}`);
+      setResult({ ok: false, text: e instanceof Error ? e.message : 'failed' });
     } finally { setBusy(false); }
   };
   const save = async () => {
@@ -1379,8 +1382,8 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
   const hintCls = 'mt-1 text-2xs leading-relaxed';
 
   return (
-    <div className="fixed inset-0 z-tooltip flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl shadow-xl flex flex-col" style={{ backgroundColor: 'var(--color-bg-card)', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+    <Modal open onClose={onClose} size="md">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
         <div className="px-6 pt-6 pb-2">
           <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{t('agenda.jira.settings')}</h3>
           <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.subtitle')}</p>
@@ -1388,7 +1391,7 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
 
         <div className="px-6 overflow-auto flex flex-col gap-4 py-2">
           <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded" />
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="rounded-md" />
             {t('agenda.jira.enable')}
           </label>
 
@@ -1433,11 +1436,11 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
             <p className={hintCls} style={{ color: 'var(--color-text-muted)', marginBottom: 8 }}>{t('agenda.jira.criteriaHint')}</p>
 
             <label className="flex items-center gap-2 text-sm mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-              <input type="checkbox" checked={assigneeMe} onChange={(e) => setAssigneeMe(e.target.checked)} className="rounded" />
+              <input type="checkbox" checked={assigneeMe} onChange={(e) => setAssigneeMe(e.target.checked)} className="rounded-md" />
               {t('agenda.jira.assigneeMe')}
             </label>
             <label className="flex items-center gap-2 text-sm mb-3" style={{ color: 'var(--color-text-secondary)', opacity: statuses.length ? 0.4 : 1 }}>
-              <input type="checkbox" checked={includeDone} disabled={statuses.length > 0} onChange={(e) => setIncludeDone(e.target.checked)} className="rounded" />
+              <input type="checkbox" checked={includeDone} disabled={statuses.length > 0} onChange={(e) => setIncludeDone(e.target.checked)} className="rounded-md" />
               {t('agenda.jira.includeDone')}
             </label>
 
@@ -1449,15 +1452,14 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls} style={{ color: 'var(--color-text-secondary)', marginBottom: 0 }}>{t('agenda.jira.statuses')}</label>
-                <button
-                  type="button"
+                <Button
                   onClick={loadStatuses}
                   disabled={statusLoading}
-                  className="text-2xs px-2 py-0.5 rounded border disabled:opacity-40"
+                  className="text-2xs px-2 py-0.5 rounded-md"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}
                 >
                   {statusLoading ? t('agenda.jira.statusesLoading') : t('agenda.jira.statusesLoad')}
-                </button>
+                </Button>
               </div>
               <p className={hintCls} style={{ color: 'var(--color-text-muted)', marginBottom: 6 }}>{t('agenda.jira.statusesHint')}</p>
 
@@ -1481,7 +1483,7 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
                       .filter((o) => o.name.toLowerCase().includes(statusFilter.trim().toLowerCase()))
                       .map((o) => (
                         <label key={o.name} className="flex items-center gap-2 text-sm px-2.5 py-1.5 cursor-pointer" style={{ color: 'var(--color-text-secondary)' }}>
-                          <input type="checkbox" checked={statuses.includes(o.name)} onChange={() => toggleStatus(o.name)} className="rounded" />
+                          <input type="checkbox" checked={statuses.includes(o.name)} onChange={() => toggleStatus(o.name)} className="rounded-md" />
                           <span>{o.name}</span>
                           {o.category && <span className="text-2xs ml-auto" style={{ color: 'var(--color-text-muted)' }}>{o.category}</span>}
                         </label>
@@ -1503,7 +1505,7 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
             <p className={hintCls} style={{ color: 'var(--color-text-muted)' }}>{t('agenda.jira.extraJqlHint')}</p>
           </div>
 
-          {result && <p className="text-xs" style={{ color: result.startsWith('✓') ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result}</p>}
+          {result && <p className="text-xs flex items-center gap-1" style={{ color: result.ok ? 'var(--color-status-success, #4ade80)' : 'var(--color-status-error, #f87171)' }}>{result.ok ? <Check size={12} /> : <X size={12} />}{result.text}</p>}
         </div>
 
         <div className="flex justify-between items-center px-6 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
@@ -1514,6 +1516,6 @@ function JiraSettingsModal({ initial, onClose, onSaved }: {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

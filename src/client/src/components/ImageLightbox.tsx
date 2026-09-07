@@ -28,7 +28,7 @@ export default function ImageLightbox({ src, alt, onClose }: ImageLightboxProps)
         className="absolute top-4 right-4 h-9 w-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
         aria-label="close"
       >
-        <X size={18} />
+        <X size={16} />
       </button>
       <img
         src={src}

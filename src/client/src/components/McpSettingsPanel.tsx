@@ -41,7 +41,7 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
       onClick={() => copy(label, text)}
       className="btn-ghost text-xs flex items-center gap-1"
     >
-      {copied === label ? <Check size={13} /> : <Copy size={13} />}
+      {copied === label ? <Check size={14} /> : <Copy size={14} />}
       {t('mcp.copy')}
     </button>
   );

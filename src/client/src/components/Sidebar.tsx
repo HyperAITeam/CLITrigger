@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, CalendarDays, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
@@ -13,6 +12,7 @@ import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
 import { useToast } from '../hooks/useToast';
+import { useDialog } from '../hooks/useDialog';
 import type { WsEvent } from '../hooks/useWebSocket';
 import ProjectForm from './ProjectForm';
 import FavoriteForm from './FavoriteForm';
@@ -66,6 +66,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const { theme, toggleTheme } = useTheme();
   const { enabled: notifEnabled, supported: notifSupported, toggleNotification } = useNotification();
   const { error: toastError, success: toastSuccess, info: toastInfo, warning: toastWarning } = useToast();
+  const { confirm } = useDialog();
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
@@ -136,7 +137,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const handleDeleteFavorite = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!(await confirmDialog(t('favorites.deleteConfirm')))) return;
+    if (!(await confirm({ message: t('favorites.deleteConfirm'), danger: true }))) return;
     try {
       await favoritesApi.deleteFavorite(id);
       setFavorites((prev) => prev.filter((f) => f.id !== id));
@@ -372,7 +373,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!(await confirmDialog(t('projects.deleteConfirm')))) return;
+    if (!(await confirm({ message: t('projects.deleteConfirm'), danger: true }))) return;
     try {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -403,13 +404,13 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   if (collapsed) {
     const railDivider = <div className="w-7 border-t my-1.5" style={{ borderColor: 'var(--color-border)' }} />;
     return (
-      <div className="flex flex-col items-center h-full glass border-none py-3">
+      <div className="flex flex-col items-center h-full bg-theme-bg-secondary border-none py-3">
         <IconButton
           onClick={onToggleCollapsed}
           label={t('sidebar.expand')}
           size="lg"
         >
-          <PanelLeftOpen size={18} />
+          <PanelLeftOpen size={16} />
         </IconButton>
         {railDivider}
         <Link
@@ -421,7 +422,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             : { color: 'var(--color-text-tertiary)' }}
           title={t('sidebar.home')}
         >
-          <LayoutDashboard size={18} />
+          <LayoutDashboard size={16} />
         </Link>
         <Link
           to="/review"
@@ -432,7 +433,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             : { color: 'var(--color-text-tertiary)' }}
           title={t('sidebar.review')}
         >
-          <Inbox size={18} />
+          <Inbox size={16} />
           {reviewCount !== null && reviewCount > 0 && (
             <span
               className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
@@ -449,7 +450,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             : { color: 'var(--color-text-tertiary)' }}
           title={t('sidebar.agenda')}
         >
-          <CalendarDays size={18} />
+          <CalendarDays size={16} />
         </Link>
         {railDivider}
         <div className="flex-1 overflow-y-auto w-full flex flex-col items-center gap-1 py-1">
@@ -506,7 +507,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
 
   return (
     <div
-      className="flex flex-col h-full glass border-none"
+      className="flex flex-col h-full bg-theme-bg-secondary border-none"
       // Defence in depth: any element inside the sidebar that the browser
       // tries to start a native drag from (anchor, image, selected text)
       // is canceled here. Without it, Edge can grab a drag from anywhere
@@ -515,15 +516,10 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
     >
       {/* Logo */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
-        <Link to="/" onClick={handleNav} className="block">
-          <svg viewBox="0 0 200 32" fill="none" className="h-6 w-auto">
-            {/* >_ prompt */}
-            <text x="0" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-accent)" opacity="0.5">{'>'}_</text>
-            {/* CLI — bold accent */}
-            <text x="38" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="700" fill="var(--color-accent)">CLI</text>
-            {/* Trigger — lighter */}
-            <text x="96" y="24" fontFamily="'JetBrains Mono', monospace" fontSize="22" fontWeight="500" fill="var(--color-text-primary)">Trigger</text>
-          </svg>
+        <Link to="/" onClick={handleNav} className="block font-mono text-[22px] leading-none whitespace-nowrap select-none">
+          <span className="font-medium text-accent/50">{'>'}_ </span>
+          <span className="font-bold text-accent">CLI</span>
+          <span className="font-medium text-theme-text">Trigger</span>
         </Link>
         <IconButton
           onClick={onToggleCollapsed}
@@ -606,7 +602,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
             label={t('projects.new')}
             size="sm"
           >
-            <Plus size={14} strokeWidth={2} />
+            <Plus size={14} />
           </IconButton>
         </div>
         <div className="space-y-0.5">
@@ -666,7 +662,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                     variant="danger"
                     className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                   >
-                    <X size={12} strokeWidth={2} />
+                    <X size={12} />
                   </IconButton>
                 </Link>
                 {showBelow && renderDropIndicator('below')}
@@ -694,7 +690,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               label={t('favorites.add')}
               size="sm"
             >
-              <Plus size={14} strokeWidth={2} />
+              <Plus size={14} />
             </IconButton>
           </div>
           <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -712,19 +708,19 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                   <span className="truncate flex-1 text-left">{favorite.name}</span>
                   <span
                     onClick={(e) => handleEditFavorite(favorite, e)}
-                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-theme-hover cursor-pointer"
+                    className="flex-shrink-0 p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-theme-hover cursor-pointer"
                     style={{ color: 'var(--color-text-muted)' }}
                     title={t('favorites.edit')}
                   >
-                    <Edit2 size={11} strokeWidth={2} />
+                    <Edit2 size={12} />
                   </span>
                   <span
                     onClick={(e) => handleDeleteFavorite(favorite.id, e)}
-                    className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10 cursor-pointer"
+                    className="flex-shrink-0 p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-status-error/10 cursor-pointer"
                     style={{ color: 'var(--color-text-muted)' }}
                     title={t('favorites.delete')}
                   >
-                    <X size={12} strokeWidth={2} />
+                    <X size={12} />
                   </span>
                 </button>
               );

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import {
   ChevronDown, ChevronRight, Edit2, Trash2, Pin, Network,
-  Download, Wrench, Loader2, AlertCircle, Save, FileText, Database, Activity, RefreshCw, FolderSync,
+  Download, Wrench, Loader2, AlertCircle, Save, FileText, Database, Activity, RefreshCw, FolderSync, X,
 } from 'lucide-react';
 import type { MemoryNode, MemoryEdge, MemoryRelationType, Todo, Discussion } from '../types';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import {
   getMemoryGraph,
   updateMemoryNode,
@@ -35,6 +35,7 @@ import { getDiscussions } from '../api/discussions';
 import Modal from './Modal';
 import MemoryNetworkGraph from './MemoryNetworkGraph';
 import RawFileViewer from './RawFileViewer';
+import Button from './Button';
 
 const WIKI_SCHEMA_TAG = '__wiki_schema__';
 const WIKI_INDEX_TAG = '__wiki_index__';
@@ -58,6 +59,7 @@ interface MemoryListProps {
 
 export default function MemoryList({ projectId }: MemoryListProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [nodes, setNodes] = useState<MemoryNode[]>([]);
   const [edges, setEdges] = useState<MemoryEdge[]>([]);
   const [rawFiles, setRawFiles] = useState<RawFileEntry[]>([]);
@@ -147,7 +149,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   };
 
   const handleDelete = async (node: MemoryNode) => {
-    if (!(await confirmDialog(t('wiki.deleteConfirm')))) return;
+    if (!(await confirm({ message: t('wiki.deleteConfirm'), danger: true }))) return;
     await deleteMemoryNode(node.id);
     setNodes(prev => prev.filter(n => n.id !== node.id));
     setEdges(prev => prev.filter(e => e.from_node_id !== node.id && e.to_node_id !== node.id));
@@ -226,25 +228,19 @@ export default function MemoryList({ projectId }: MemoryListProps) {
           </button>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
+            size="sm"
             onClick={() => setShowDiskDiff(true)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
             title={t('wiki.diskDiff.tooltip')}
           >
             <FolderSync size={12} /> {t('wiki.diskDiff.button')}
-          </button>
-          <button
-            onClick={() => setShowLint(true)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
-          >
+          </Button>
+          <Button size="sm" onClick={() => setShowLint(true)}>
             <Wrench size={12} /> {t('wiki.lint')}
-          </button>
-          <button
-            onClick={() => setShowIngest(true)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-warm-300 text-warm-700 text-xs font-medium hover:bg-warm-100"
-          >
+          </Button>
+          <Button size="sm" onClick={() => setShowIngest(true)}>
             <Download size={12} /> {t('wiki.ingest')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -285,7 +281,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                         selected={selectedNodeId === indexNode.id}
                         onClick={() => handleSelectNode(indexNode.id)}
                         onDelete={handleDelete}
-                        icon={<Network size={12} className="text-blue-500 flex-shrink-0" />}
+                        icon={<Network size={12} className="text-accent flex-shrink-0" />}
                       />
                     )}
                     {schemaNode && (
@@ -294,7 +290,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                         selected={selectedNodeId === schemaNode.id}
                         onClick={() => handleSelectNode(schemaNode.id)}
                         onDelete={handleDelete}
-                        icon={<FileText size={12} className="text-amber-500 flex-shrink-0" />}
+                        icon={<FileText size={12} className="text-status-warning flex-shrink-0" />}
                       />
                     )}
                     <p className="px-3 pb-1 text-[10px] text-warm-400 leading-snug">
@@ -339,13 +335,13 @@ export default function MemoryList({ projectId }: MemoryListProps) {
                 onClick={() => setRightPanel('graph')}
                 className={`px-2.5 py-1 text-[11px] flex items-center gap-1 ${rightPanel === 'graph' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-600 hover:bg-warm-100'}`}
               >
-                <Network size={11} /> Graph
+                <Network size={12} /> Graph
               </button>
               <button
                 onClick={() => setRightPanel('editor')}
                 className={`px-2.5 py-1 text-[11px] flex items-center gap-1 ${rightPanel === 'editor' ? 'bg-warm-700 text-warm-50' : 'bg-warm-50 text-warm-600 hover:bg-warm-100'}`}
               >
-                <Edit2 size={11} /> Edit
+                <Edit2 size={12} /> Edit
               </button>
             </div>
           )}
@@ -482,7 +478,7 @@ function TagGroup({ label, nodes, selectedId, onSelect, onDelete, icon }: {
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-1 pl-5 pr-2 py-1 text-[11px] text-warm-500 hover:text-warm-700 hover:bg-warm-100 select-none"
       >
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         {icon}
         <span className="truncate">{label}</span>
         <span className="ml-auto text-warm-400">{nodes.length}</span>
@@ -510,15 +506,15 @@ function SidebarItem({ node, selected, onClick, onDelete, icon }: {
       onMouseLeave={() => setHovered(false)}
     >
       {icon}
-      {node.pinned === 1 && <Pin size={10} className="text-warm-400 flex-shrink-0" />}
+      {node.pinned === 1 && <Pin size={12} className="text-warm-400 flex-shrink-0" />}
       <span className="truncate flex-1">{node.title}</span>
       {node.source_type && <span className="text-[9px] text-warm-400 flex-shrink-0">auto</span>}
       {hovered && (
         <button
           onClick={e => { e.stopPropagation(); onDelete(node); }}
-          className="p-0.5 rounded hover:bg-red-100 text-red-400 flex-shrink-0"
+          className="p-0.5 rounded-md hover:bg-status-error/10 text-status-error flex-shrink-0"
         >
-          <Trash2 size={10} />
+          <Trash2 size={12} />
         </button>
       )}
     </div>
@@ -538,8 +534,8 @@ function RawSourceGroup({ label, files, selectedPath, onSelect }: {
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-1 pl-5 pr-2 py-1 text-[11px] text-warm-500 hover:text-warm-700 hover:bg-warm-100 select-none"
       >
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <Database size={10} className="text-warm-400" />
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <Database size={12} className="text-warm-400" />
         <span className="truncate font-mono">{label}/</span>
         <span className="ml-auto text-warm-400">{files.length}</span>
       </button>
@@ -549,7 +545,7 @@ function RawSourceGroup({ label, files, selectedPath, onSelect }: {
           onClick={() => onSelect(f.relative_path)}
           className={`group flex items-center gap-1 pl-9 pr-2 py-1 cursor-pointer text-[12px] transition-colors ${selectedPath === f.relative_path ? 'bg-warm-200 text-warm-900' : 'text-warm-700 hover:bg-warm-100'}`}
         >
-          <FileText size={10} className="text-warm-400 flex-shrink-0" />
+          <FileText size={12} className="text-warm-400 flex-shrink-0" />
           <span className="truncate flex-1" title={f.filename}>{f.filename}</span>
           {f.derived_node_ids.length > 0 && (
             <span className="text-[9px] text-warm-400 flex-shrink-0">{f.derived_node_ids.length}</span>
@@ -711,19 +707,15 @@ function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, on
         />
         <div className="flex items-center gap-1 flex-shrink-0">
           {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-warm-700 text-warm-50 text-xs font-medium hover:bg-warm-800 disabled:opacity-50"
-            >
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               {t('wiki.save')}
-            </button>
+            </Button>
           )}
           {node.source_path && (
             <button
               onClick={() => setShowRaw(true)}
-              className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+              className="p-1.5 rounded-md hover:bg-warm-200 text-warm-500"
               title={t('wiki.viewRaw')}
             >
               <FileText size={14} />
@@ -731,7 +723,7 @@ function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, on
           )}
           <button
             onClick={() => onDelete(node)}
-            className="p-1.5 rounded hover:bg-red-100 text-red-500"
+            className="p-1.5 rounded-md hover:bg-status-error/10 text-status-error"
             title={t('wiki.delete')}
           >
             <Trash2 size={14} />
@@ -744,7 +736,7 @@ function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, on
         {tags.map(tag => (
           <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-warm-200 text-[11px] text-warm-700">
             {tag}
-            <button onClick={() => { setTags(prev => prev.filter(t => t !== tag)); setDirty(true); }} className="hover:text-red-500">×</button>
+            <button onClick={() => { setTags(prev => prev.filter(t => t !== tag)); setDirty(true); }} className="hover:text-status-error"><X size={12} /></button>
           </span>
         ))}
         <input
@@ -763,24 +755,24 @@ function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, on
           onClick={() => onSelectRawFile(sourceFile.relative_path)}
           className="mx-4 mt-2 inline-flex items-center gap-1.5 self-start px-2 py-0.5 rounded-full bg-warm-100 hover:bg-warm-200 text-[11px] text-warm-600 border border-warm-200"
         >
-          <FileText size={10} />
+          <FileText size={12} />
           {t('wiki.rawFile.openSiblings').replace('{n}', String(siblingCount))}
         </button>
       )}
 
       {/* Schema banner — when editing the wiki schema node, surface that this is special */}
       {isSchemaNode(node) && (
-        <div className="mx-4 mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+        <div className="mx-4 mt-2 rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-[11px] text-status-warning">
           <div className="font-semibold">{t('wiki.schemaBannerTitle')}</div>
-          <div className="mt-0.5 text-amber-700">{t('wiki.schemaBannerHint')}</div>
+          <div className="mt-0.5 text-status-warning">{t('wiki.schemaBannerHint')}</div>
         </div>
       )}
 
       {/* Index banner — auto-maintained, manual edits are overwritten */}
       {isIndexNode(node) && (
-        <div className="mx-4 mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
+        <div className="mx-4 mt-2 rounded-md border border-accent/30 bg-accent/10 px-3 py-2 text-[11px] text-accent">
           <div className="font-semibold">{t('wiki.indexBannerTitle')}</div>
-          <div className="mt-0.5 text-blue-700">{t('wiki.indexBannerHint')}</div>
+          <div className="mt-0.5 text-accent">{t('wiki.indexBannerHint')}</div>
         </div>
       )}
 
@@ -800,7 +792,7 @@ function InlineEditor({ node, allNodes, rawFiles, edges, onUpdated, onDelete, on
       {(assetUploading || assetError) && (
         <div className="px-4 py-1.5 border-t border-warm-100 text-[11px] flex items-center gap-2">
           {assetUploading && (
-            <span className="inline-flex items-center gap-1 text-warm-500"><Loader2 size={11} className="animate-spin" />{t('wiki.asset.uploading')}</span>
+            <span className="inline-flex items-center gap-1 text-warm-500"><Loader2 size={12} className="animate-spin" />{t('wiki.asset.uploading')}</span>
           )}
           {assetError && (
             <span className="text-status-error">{assetError}</span>
@@ -876,7 +868,7 @@ function RawSourceModal({ node, onClose }: RawSourceModalProps) {
           <pre className="text-xs text-warm-800 bg-warm-100 rounded-lg p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">{content}</pre>
         )}
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.close')}</button>
+          <Button size="md" onClick={onClose}>{t('wiki.close')}</Button>
         </div>
       </div>
     </Modal>
@@ -919,7 +911,7 @@ function ConnectionKindModal({ fromNode, toNode, onClose, onChoose }: Connection
           </button>
         </div>
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.cancel')}</button>
+          <Button size="md" onClick={onClose}>{t('wiki.cancel')}</Button>
         </div>
       </div>
     </Modal>
@@ -937,6 +929,7 @@ interface EdgeEditModalProps {
 
 function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [relation, setRelation] = useState<MemoryRelationType>(edge.relation_type);
   const [label, setLabel] = useState(edge.label ?? '');
   const [saving, setSaving] = useState(false);
@@ -957,11 +950,11 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
           </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={async () => { if (saving) return; setSaving(true); try { await onSave(edge.id, relation, label); } finally { setSaving(false); } }} disabled={saving} className="px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50">
+          <Button variant="primary" size="md" onClick={async () => { if (saving) return; setSaving(true); try { await onSave(edge.id, relation, label); } finally { setSaving(false); } }} disabled={saving}>
             {t('wiki.save')}
-          </button>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.cancel')}</button>
-          <button onClick={async () => { if (await confirmDialog(t('wiki.edge.deleteConfirm'))) await onDelete(edge.id); }} className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50">{t('wiki.delete')}</button>
+          </Button>
+          <Button size="md" onClick={onClose}>{t('wiki.cancel')}</Button>
+          <Button variant="danger" size="md" className="ml-auto" onClick={async () => { if (await confirm({ message: t('wiki.edge.deleteConfirm'), danger: true })) await onDelete(edge.id); }}>{t('wiki.delete')}</Button>
         </div>
       </div>
     </Modal>
@@ -1023,7 +1016,7 @@ function IngestResultView({ result }: { result: IngestResultData }) {
       {result.rawResponseSnippet && (
         <details className="mt-1">
           <summary className="cursor-pointer text-warm-500 hover:text-warm-700">{t('wiki.ingest.rawSnippet')}</summary>
-          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-warm-50 p-2 text-2xs text-warm-700 border border-warm-200">{result.rawResponseSnippet}</pre>
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-warm-50 p-2 text-2xs text-warm-700 border border-warm-200">{result.rawResponseSnippet}</pre>
         </details>
       )}
     </div>
@@ -1106,11 +1099,11 @@ function IngestModal({ projectId, onClose, onDone }: IngestModalProps) {
         {error && <p className="mt-3 text-xs text-status-error">{error}</p>}
         {result && <IngestResultView result={result} />}
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} disabled={running} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50">{t('wiki.cancel')}</button>
-          <button onClick={handleRun} disabled={!canRun || running} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-warm-700 text-warm-50 text-sm font-medium hover:bg-warm-800 disabled:opacity-50">
+          <Button size="md" onClick={onClose} disabled={running}>{t('wiki.cancel')}</Button>
+          <Button variant="primary" size="md" onClick={handleRun} disabled={!canRun || running}>
             {running && <Loader2 size={14} className="animate-spin" />}
             {running ? t('wiki.ingest.running') : t('wiki.ingest.run')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -1129,14 +1122,15 @@ interface LintModalProps {
 }
 
 const ISSUE_COLORS: Record<string, string> = {
-  contradiction: 'text-red-600 bg-red-50 border-warm-200',
+  contradiction: 'text-status-error bg-status-error/10 border-warm-200',
   orphan: 'text-warm-500 bg-warm-100 border-warm-200',
-  duplicate: 'text-amber-600 bg-amber-50 border-warm-200',
-  stale: 'text-blue-600 bg-blue-50 border-warm-200',
+  duplicate: 'text-status-warning bg-status-warning/10 border-warm-200',
+  stale: 'text-accent bg-accent/10 border-warm-200',
 };
 
 function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [running, setRunning] = useState(true);
   const [issues, setIssues] = useState<LintIssue[]>([]);
   const [error, setError] = useState('');
@@ -1165,7 +1159,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
   const handleDelete = async (idx: number, title: string) => {
     const node = findNode(title);
     if (!node) return;
-    if (!(await confirmDialog(t('wiki.deleteConfirm')))) return;
+    if (!(await confirm({ message: t('wiki.deleteConfirm'), danger: true }))) return;
     setBusyIdx(idx);
     try {
       await deleteMemoryNode(node.id);
@@ -1185,7 +1179,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
     const confirmMsg = t('wiki.lint.mergeConfirm')
       .replace('{keep}', keep.title)
       .replace('{absorb}', absorb.title);
-    if (!(await confirmDialog(confirmMsg))) return;
+    if (!(await confirm({ message: confirmMsg, danger: true }))) return;
     setBusyIdx(idx);
     try {
       await mergeMemoryNodes(keep.id, absorb.id);
@@ -1230,7 +1224,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
         {running ? (
           <div className="flex items-center gap-2 py-6 justify-center text-sm text-warm-500"><Loader2 size={16} className="animate-spin" />{t('wiki.lint.running')}</div>
         ) : error ? (
-          <div className="flex items-center gap-2 text-sm text-red-600 py-4"><AlertCircle size={16} />{error}</div>
+          <div className="flex items-center gap-2 text-sm text-status-error py-4"><AlertCircle size={16} />{error}</div>
         ) : issues.length === 0 ? (
           <p className="text-sm text-warm-600 py-4">{t('wiki.lint.empty')}</p>
         ) : (
@@ -1262,7 +1256,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
           </ul>
         )}
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.lint.close')}</button>
+          <Button size="md" onClick={onClose}>{t('wiki.lint.close')}</Button>
         </div>
       </div>
     </Modal>
@@ -1287,24 +1281,20 @@ function IssueActions({ issue, idx, busy, anyBusy, nodes, findNode, onDelete, on
   const titles = issue.node_titles;
   const disabled = anyBusy && !busy;
 
-  const btnBase = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors disabled:opacity-40';
-  const btnNeutral = `${btnBase} border-warm-300 bg-warm-50 text-warm-700 hover:bg-warm-100`;
-  const btnDanger = `${btnBase} border-warm-300 bg-warm-50 text-red-600 hover:bg-red-50`;
-
   if (issue.type === 'duplicate' && titles.length >= 2) {
     const a = titles[0];
     const b = titles[1];
     if (!findNode(a) || !findNode(b)) return null;
     return (
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <button disabled={disabled || busy} onClick={() => onMerge(idx, a, b)} className={btnNeutral}>
-          {busy ? <Loader2 size={10} className="animate-spin" /> : null}
+        <Button size="sm" disabled={disabled || busy} onClick={() => onMerge(idx, a, b)}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : null}
           {t('wiki.lint.action.mergeKeep').replace('{keep}', a).replace('{absorb}', b)}
-        </button>
-        <button disabled={disabled || busy} onClick={() => onMerge(idx, b, a)} className={btnNeutral}>
-          {busy ? <Loader2 size={10} className="animate-spin" /> : null}
+        </Button>
+        <Button size="sm" disabled={disabled || busy} onClick={() => onMerge(idx, b, a)}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : null}
           {t('wiki.lint.action.mergeKeep').replace('{keep}', b).replace('{absorb}', a)}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -1316,10 +1306,10 @@ function IssueActions({ issue, idx, busy, anyBusy, nodes, findNode, onDelete, on
     const otherNodes = nodes.filter(n => n.id !== orphan.id && !isSchemaNode(n));
     return (
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <button disabled={disabled || busy} onClick={() => onDelete(idx, orphanTitle)} className={btnDanger}>
-          {busy ? <Loader2 size={10} className="animate-spin" /> : null}
+        <Button variant="danger" size="sm" disabled={disabled || busy} onClick={() => onDelete(idx, orphanTitle)}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : null}
           {t('wiki.lint.action.delete')}
-        </button>
+        </Button>
         {otherNodes.length > 0 && (
           <>
             <select
@@ -1331,14 +1321,14 @@ function IssueActions({ issue, idx, busy, anyBusy, nodes, findNode, onDelete, on
               <option value="">{t('wiki.lint.action.linkTo')}</option>
               {otherNodes.map(n => <option key={n.id} value={n.id}>{n.title}</option>)}
             </select>
-            <button
+            <Button
+              size="sm"
               disabled={disabled || busy || !linkTarget}
               onClick={() => { if (linkTarget) { onAddLink(idx, orphanTitle, linkTarget); setLinkTarget(''); } }}
-              className={btnNeutral}
             >
-              {busy ? <Loader2 size={10} className="animate-spin" /> : null}
+              {busy ? <Loader2 size={12} className="animate-spin" /> : null}
               {t('wiki.lint.action.link')}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -1351,10 +1341,10 @@ function IssueActions({ issue, idx, busy, anyBusy, nodes, findNode, onDelete, on
     return (
       <div className="mt-2 flex flex-wrap gap-1.5">
         {valid.map(tt => (
-          <button key={tt} disabled={disabled || busy} onClick={() => onDelete(idx, tt)} className={btnDanger}>
-            {busy ? <Loader2 size={10} className="animate-spin" /> : null}
+          <Button key={tt} variant="danger" size="sm" disabled={disabled || busy} onClick={() => onDelete(idx, tt)}>
+            {busy ? <Loader2 size={12} className="animate-spin" /> : null}
             {t('wiki.lint.action.deleteTitle').replace('{title}', tt)}
-          </button>
+          </Button>
         ))}
       </div>
     );
@@ -1402,13 +1392,14 @@ function readNumber(key: string, fallback: number, lo: number, hi: number): numb
 // ── Disk diff modal (read-only comparison of .clitrigger/wiki/ vs DB) ──
 
 const DIFF_COLORS: Record<WikiDiskDiffEntry['type'], string> = {
-  modified: 'text-amber-700 bg-amber-50 border-amber-200',
-  missing: 'text-blue-700 bg-blue-50 border-blue-200',
+  modified: 'text-status-warning bg-status-warning/10 border-status-warning/30',
+  missing: 'text-accent bg-accent/10 border-accent/30',
   untracked: 'text-warm-700 bg-warm-100 border-warm-200',
 };
 
 function DiskDiffModal({ projectId, onClose, onRebuilt }: { projectId: string; onClose: () => void; onRebuilt: () => void; }) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [running, setRunning] = useState(true);
   const [diff, setDiff] = useState<WikiDiskDiffEntry[]>([]);
   const [error, setError] = useState('');
@@ -1427,7 +1418,7 @@ function DiskDiffModal({ projectId, onClose, onRebuilt }: { projectId: string; o
   useEffect(() => { runDiff(); }, [runDiff]);
 
   const handleRebuild = async () => {
-    if (!(await confirmDialog(t('wiki.diskDiff.rebuildConfirm')))) return;
+    if (!(await confirm(t('wiki.diskDiff.rebuildConfirm')))) return;
     setRebuilding(true);
     setRebuildResult(null);
     try {
@@ -1471,7 +1462,7 @@ function DiskDiffModal({ projectId, onClose, onRebuilt }: { projectId: string; o
             <Loader2 size={16} className="animate-spin" />{t('wiki.diskDiff.running')}
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 text-sm text-red-600 py-4"><AlertCircle size={16} />{error}</div>
+          <div className="flex items-center gap-2 text-sm text-status-error py-4"><AlertCircle size={16} />{error}</div>
         ) : diff.length === 0 ? (
           <p className="text-sm text-warm-600 py-4">{t('wiki.diskDiff.empty')}</p>
         ) : (
@@ -1513,23 +1504,25 @@ function DiskDiffModal({ projectId, onClose, onRebuilt }: { projectId: string; o
 
         <div className="flex items-center gap-2 mt-4">
           {diff.length > 0 && !running && (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleRebuild}
               disabled={rebuilding}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-warm-700 text-warm-50 text-xs font-medium hover:bg-warm-800 disabled:opacity-50"
               title={t('wiki.diskDiff.rebuildTooltip')}
             >
               {rebuilding && <Loader2 size={12} className="animate-spin" />}
               {t('wiki.diskDiff.rebuild')}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            size="md"
+            className="ml-auto"
             onClick={onClose}
             disabled={running || rebuilding}
-            className="ml-auto px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100 disabled:opacity-50"
           >
             {t('wiki.diskDiff.close')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -1553,8 +1546,8 @@ const SEVERITY_BAR: Record<MemoryLog['severity'], string> = {
 
 const SEVERITY_TEXT: Record<MemoryLog['severity'], string> = {
   info: 'text-warm-700',
-  warning: 'text-amber-700',
-  error: 'text-red-700',
+  warning: 'text-status-warning',
+  error: 'text-status-error',
 };
 
 interface ActivityPanelProps {
@@ -1609,13 +1602,15 @@ function ActivityPanel({ logs, loaded, allNodes, onReload, onSelectNode, onSelec
             </button>
           ))}
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
           onClick={onReload}
-          className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[11px] text-warm-600 hover:text-warm-800 hover:bg-warm-100 rounded-md"
           title={t('wiki.activity.refresh')}
         >
-          <RefreshCw size={11} /> {t('wiki.activity.refresh')}
-        </button>
+          <RefreshCw size={12} /> {t('wiki.activity.refresh')}
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -1681,7 +1676,7 @@ function ActivityRow({ log, expanded, onToggle, allNodes, onSelectNode, onSelect
             </span>
             <span className="text-[10px] text-warm-400">{formatRelativeTime(log.created_at)}</span>
             {log.source_type && (
-              <span className="text-[10px] text-warm-400 px-1 rounded bg-warm-100">{log.source_type}</span>
+              <span className="text-[10px] text-warm-400 px-1 rounded-md bg-warm-100">{log.source_type}</span>
             )}
             {log.source_title && (
               <span className="text-[10px] text-warm-500 truncate max-w-[260px]">{log.source_title}</span>
@@ -1705,7 +1700,7 @@ function ActivityRow({ log, expanded, onToggle, allNodes, onSelectNode, onSelect
             </button>
           )}
           {expanded && meta && (
-            <pre className="mt-2 text-[10px] text-warm-700 bg-warm-100 rounded p-2 overflow-auto max-h-48 font-mono whitespace-pre-wrap">
+            <pre className="mt-2 text-[10px] text-warm-700 bg-warm-100 rounded-md p-2 overflow-auto max-h-48 font-mono whitespace-pre-wrap">
               {JSON.stringify(meta, null, 2)}
             </pre>
           )}

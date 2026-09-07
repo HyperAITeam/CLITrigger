@@ -38,8 +38,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     title: '회의 노트',
     blocks: [
       h(1, '회의 노트'),
-      p('📅 날짜: '),
-      p('👥 참석자: '),
+      p('날짜: '),
+      p('참석자: '),
       h(2, '안건'),
       bullet(),
       h(2, '논의'),

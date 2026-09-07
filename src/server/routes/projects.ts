@@ -644,6 +644,28 @@ router.post('/:id/git-unstage', async (req: Request<{ id: string }>, res: Respon
   }
 });
 
+// POST /api/projects/:id/git-ignore — append one status path to the checkout's
+// root .gitignore (anchored with a leading "/" so only that exact path matches).
+// ponytail: append only — a tracked file also needs `git rm --cached` to disappear.
+router.post('/:id/git-ignore', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const dirPath = getProjectGitPath(req, res); if (!dirPath) return;
+    const filePath = typeof req.body?.path === 'string' ? req.body.path.trim() : '';
+    if (!filePath) { res.status(400).json({ error: 'path is required' }); return; }
+    const pattern = '/' + filePath.replace(/\\/g, '/');
+    const ignoreFile = nodePath.join(dirPath, '.gitignore');
+    const existing = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, 'utf8') : '';
+    const lines = existing.split(/\r?\n/).map(l => l.trim());
+    if (!lines.includes(pattern) && !lines.includes(pattern.slice(1))) {
+      const separator = existing === '' || existing.endsWith('\n') ? '' : '\n';
+      fs.appendFileSync(ignoreFile, `${separator}${pattern}\n`);
+    }
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
 // POST /api/projects/:id/git-commit
 router.post('/:id/git-commit', async (req: Request<{ id: string }>, res: Response) => {
   try {

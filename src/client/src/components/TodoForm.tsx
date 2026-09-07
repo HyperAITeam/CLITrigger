@@ -186,7 +186,7 @@ export default function TodoForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded text-2xs font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-2xs font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
           >
             <ImageIcon size={14} />
             {t('todoForm.addImage')}
@@ -231,7 +231,7 @@ export default function TodoForm({
                   onClick={() => removeExistingImage(img.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X size={12} strokeWidth={3} />
+                  <X size={12} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.originalName}</span>
@@ -251,7 +251,7 @@ export default function TodoForm({
                   onClick={() => removePendingImage(img.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X size={12} strokeWidth={3} />
+                  <X size={12} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.name}</span>

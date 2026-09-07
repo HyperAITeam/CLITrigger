@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff, TerminalSquare, ListPlus,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff, TerminalSquare, ListPlus, Square, SquareCheck,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile, moveFile } from '../../../api/files';
@@ -95,7 +95,7 @@ function TreeRow({
       }}
       onDoubleClick={() => { if (isDir) onSelect(fullPath, entry); }}
       onContextMenu={(e) => onContextMenu(e, fullPath, entry)}
-      className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded transition-colors ${
+      className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded-md transition-colors ${
         isDropTarget
           ? 'bg-accent/25 ring-1 ring-accent'
           : isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
@@ -201,7 +201,7 @@ function TreeBranch({
                   </div>
                 )}
                 {state.error && (
-                  <div className="flex items-center gap-1 text-xs text-red-500 py-0.5" style={{ paddingLeft: 8 + (depth + 1) * 12 }}>
+                  <div className="flex items-center gap-1 text-xs text-status-error py-0.5" style={{ paddingLeft: 8 + (depth + 1) * 12 }}>
                     <AlertCircle className="w-3 h-3" /> {state.error}
                   </div>
                 )}
@@ -268,13 +268,13 @@ function PinnedSection({
             type="button"
             onClick={() => onSelect(item.path, entry)}
             onContextMenu={(e) => onContextMenu(e, item.path, entry)}
-            className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded transition-colors ${
+            className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded-md transition-colors ${
               isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
             }`}
             style={{ paddingLeft: 4 }}
             title={item.path}
           >
-            <Pin className="w-3 h-3 shrink-0 text-amber-500" />
+            <Pin className="w-3 h-3 shrink-0 text-status-warning" />
             {iconFor(entry, false)}
             <span className="truncate">{item.name}</span>
           </button>
@@ -425,7 +425,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
               onClick={(e) => { e.stopPropagation(); onToggleIncludeLinks(); }}
               className="w-full text-left px-3 py-1 text-warm-600 flex items-center gap-2"
             >
-              <span>{includeLinks ? '☑' : '☐'}</span>
+              {includeLinks ? <SquareCheck size={14} /> : <Square size={14} />}
               <span>{t('files.includeLinks')} ({linkedCount})</span>
             </button>
           )}
@@ -672,14 +672,14 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
         <span className="text-warm-400 shrink-0">{totalEntries}</span>
         <button
           onClick={() => setShowHidden((v) => !v)}
-          className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+          className="p-1 rounded-md hover:bg-warm-100 text-warm-500 hover:text-warm-700"
           title={showHidden ? t('files.hideHidden') : t('files.showHidden')}
         >
           {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
         </button>
         <button
           onClick={loadRoot}
-          className="p-1 rounded hover:bg-warm-100 text-warm-500 hover:text-warm-700"
+          className="p-1 rounded-md hover:bg-warm-100 text-warm-500 hover:text-warm-700"
           title={t('files.refresh')}
           disabled={rootLoading}
         >
@@ -699,7 +699,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           </div>
         )}
         {rootError && (
-          <div className="flex items-center gap-1 text-xs text-red-500 px-2 py-1">
+          <div className="flex items-center gap-1 text-xs text-status-error px-2 py-1">
             <AlertCircle className="w-3 h-3" /> {rootError}
           </div>
         )}

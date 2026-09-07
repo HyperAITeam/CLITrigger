@@ -1,4 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+/* Pretendard Variable (OFL-1.1) — self-hosted; single variable file covers
+   Korean + Latin, so UI text no longer falls back to system fonts for Hangul.
+   License: /fonts/Pretendard-OFL.txt */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+}
 
 @tailwind base;
 @tailwind components;
@@ -34,8 +43,6 @@
     --shadow-card: 0 4px 6px -2px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03);
     --shadow-elevated: 0 8px 16px -4px rgba(0,0,0,0.08), 0 24px 48px -8px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
     --shadow-accent: 0 8px 20px -4px rgba(0, 113, 227, 0.2), 0 4px 12px -2px rgba(0, 113, 227, 0.1);
-    --color-bg-gradient: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,113,227,0.03), transparent 50%),
-                         radial-gradient(ellipse 60% 40% at 80% 50%, rgba(175,82,222,0.02), transparent 50%);
   }
 
   [data-theme="dark"] {
@@ -67,12 +74,10 @@
     --shadow-card: 0 4px 6px -2px rgba(0,0,0,0.3), 0 12px 24px -4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
     --shadow-elevated: 0 8px 16px -4px rgba(0,0,0,0.4), 0 24px 48px -8px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
     --shadow-accent: 0 8px 20px -4px rgba(75, 141, 255, 0.25), 0 4px 12px -2px rgba(75, 141, 255, 0.15);
-    --color-bg-gradient: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(75,141,255,0.06), transparent 50%),
-                         radial-gradient(ellipse 60% 40% at 80% 50%, rgba(175,82,222,0.04), transparent 50%);
   }
 
   html, body {
-    background: var(--color-bg-gradient), var(--color-bg-primary);
+    background: var(--color-bg-primary);
     color: var(--color-text-primary);
     @apply font-sans antialiased;
     font-size: 15px; /* Slightly larger base for better readability on desktop */
@@ -113,9 +118,11 @@
     @apply font-normal;
   }
 
-  /* Global smooth transitions for all interactive elements */
+  /* Global transitions for interactive elements — individual properties only.
+     `all` animates layout properties too (height on textarea resize, etc.). */
   a, button, input, select, textarea, .card {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s,
+                opacity 0.15s, transform 0.2s, box-shadow 0.2s;
   }
 
   /* Native form controls inherit the action accent — no browser-default magenta. */
@@ -150,7 +157,7 @@
     border: 1px solid var(--color-border-muted);
     box-shadow: var(--shadow-soft), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
     position: relative;
-    @apply rounded-xl transition-all duration-300 overflow-hidden;
+    @apply rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200 overflow-hidden;
   }
 
   /* Accent top line on hover */
@@ -170,6 +177,15 @@
 
   .card:hover::before {
     opacity: 1;
+  }
+
+  /* Card surface without the interactive hover lift/accent line — for layout
+     panes and toolbars that merely need the card background. */
+  .card-static {
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border-muted);
+    box-shadow: var(--shadow-soft), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+    @apply rounded-xl overflow-hidden;
   }
 
   /* Workspace tag-tinted card border (home view project cards) */
@@ -199,7 +215,7 @@
     color: var(--color-text-secondary);
     border: 1px solid var(--color-border-muted);
     @apply inline-flex items-center justify-center gap-2 font-medium
-           px-4 py-2 rounded-xl transition-all duration-300
+           px-4 py-2 rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-theme-bg-tertiary hover:text-theme-text hover:-translate-y-0.5
            active:scale-[0.97]
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
@@ -210,7 +226,7 @@
     color: var(--color-accent);
     border: 1px solid var(--color-border);
     @apply inline-flex items-center justify-center gap-2 font-semibold
-           px-6 py-2.5 rounded-xl transition-all duration-300 relative overflow-hidden
+           px-6 py-2.5 rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200 relative overflow-hidden
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:transform-none
            active:scale-[0.97];
   }
@@ -241,7 +257,7 @@
     border: 1px solid var(--color-border-muted);
     box-shadow: 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.04);
     @apply inline-flex items-center justify-center gap-2 font-semibold
-           px-6 py-2.5 rounded-xl transition-all duration-300
+           px-6 py-2.5 rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-theme-active hover:text-theme-text hover:shadow-soft hover:-translate-y-0.5
            active:scale-[0.97] active:brightness-90
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
@@ -251,7 +267,7 @@
     background-color: var(--color-bg-tertiary);
     border: 1px solid var(--color-border-muted);
     @apply inline-flex items-center justify-center gap-2 text-status-error font-semibold
-           px-6 py-2.5 rounded-xl transition-all duration-300
+           px-6 py-2.5 rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-status-error hover:border-status-error hover:text-white hover:-translate-y-0.5
            active:scale-[0.97] active:brightness-90
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
@@ -261,7 +277,7 @@
     color: var(--color-text-tertiary);
     border: 1px solid var(--color-border-muted);
     @apply inline-flex items-center justify-center gap-2 font-medium
-           px-3 py-2 rounded-xl transition-all duration-300
+           px-3 py-2 rounded-xl transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-theme-bg-tertiary hover:text-theme-text hover:-translate-y-0.5
            active:scale-[0.95] active:bg-theme-active
            disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:transform-none;
@@ -274,7 +290,7 @@
 
   /* Icon-only button */
   .btn-icon {
-    @apply inline-flex items-center justify-center rounded-lg transition-all duration-200
+    @apply inline-flex items-center justify-center rounded-lg transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-theme-hover active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed;
     color: var(--color-text-tertiary);
   }
@@ -302,7 +318,7 @@
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
     /* Not transition-all: `all` includes height, which animates the native
        resize-grip drag on textareas and makes it lag behind the cursor. */
-    transition: background-color 300ms, border-color 300ms, box-shadow 300ms, transform 300ms;
+    transition: background-color 200ms, border-color 200ms, box-shadow 200ms, transform 200ms;
     @apply w-full rounded-xl px-4 py-3 text-sm
            focus:outline-none focus:ring-4 focus:bg-white dark:focus:bg-black/20;
   }
@@ -328,19 +344,12 @@
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium whitespace-nowrap flex-shrink-0 cursor-default;
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-2xs font-medium whitespace-nowrap flex-shrink-0 cursor-default;
   }
 
   /* Section label for list headers */
   .section-label {
     @apply text-2xs font-semibold uppercase tracking-wider;
-    color: var(--color-text-tertiary);
-  }
-
-  /* Small metric chip for stats display */
-  .metric-chip {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium;
-    background-color: var(--color-bg-tertiary);
     color: var(--color-text-tertiary);
   }
 
@@ -354,7 +363,7 @@
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-tertiary);
     @apply flex items-center justify-center w-9 h-9 rounded-xl
-           font-bold text-2xs transition-all duration-300
+           font-bold text-2xs transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-200
            hover:bg-accent hover:text-white hover:shadow-accent hover:-translate-y-0.5
            active:scale-[0.9] active:brightness-90;
   }
@@ -386,7 +395,7 @@
   .markdown-content li { @apply mb-0.5; }
   .markdown-content code {
     background-color: var(--color-bg-tertiary);
-    @apply px-1 py-0.5 rounded text-xs font-mono;
+    @apply px-1 py-0.5 rounded-md text-xs font-mono;
   }
   .markdown-content pre {
     background-color: var(--color-bg-tertiary);
@@ -486,7 +495,7 @@
   .markdown-content-dark code {
     background: rgba(255,255,255,0.08);
     color: #ce9178;
-    @apply px-1 py-0.5 rounded text-xs;
+    @apply px-1 py-0.5 rounded-md text-xs;
   }
   .markdown-content-dark pre {
     background: rgba(0,0,0,0.3);
@@ -527,25 +536,6 @@
   .markdown-content-dark hr {
     border-color: #3c3c3c;
     @apply my-3;
-  }
-
-  .glass {
-    @apply backdrop-blur-md border border-white/20;
-    background: rgba(255, 255, 255, 0.7);
-  }
-  :is([data-theme="dark"] .glass) {
-    @apply border-white/10;
-    background: color-mix(in srgb, var(--color-bg-secondary) 85%, transparent);
-  }
-
-  .glass-card {
-    @apply backdrop-blur-xl border shadow-glass;
-    background: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
-    border-color: color-mix(in srgb, var(--color-bg-tertiary) 50%, transparent);
-  }
-  :is([data-theme="dark"] .glass-card) {
-    @apply border-white/10;
-    background: color-mix(in srgb, var(--color-bg-card) 85%, transparent);
   }
 
   /* Sidebar right edge */
@@ -595,7 +585,19 @@
    숨긴다. 실행 중인 CLI(예: Claude Code)는 자체 블록 커서를 입력창에 직접
    그리는데(이건 PTY 출력이라 우리가 못 숨김), composition-view가 그 커서
    오른쪽에 조합 중인 글자를 분리해 그려서 어색해 보였다. 조합 중인 글자는
-   SessionTerminal의 좌하단 IME 오버레이에서만 표시한다. */
+   SessionTerminal의 좌하단 IME 오버레이에서만 표시한다.
+   display:none은 쓰지 않는다 — xterm CompositionHelper가 이 요소의
+   getBoundingClientRect()로 helper textarea 크기를 정하므로 0×0이 되면
+   textarea가 1×1px/line-height 0으로 붕괴하고 Windows TSF 한글 조합이 첫
+   자모 직후 멈춘다(v0.2.51 회귀). visibility로 레이아웃은 남기고 그리기만 막는다. */
 .xterm .composition-view {
-  display: none !important;
+  visibility: hidden;
+}
+
+/* Single icon weight across the app. A CSS rule beats lucide's inline
+   stroke-width presentation attribute, so this holds without per-icon props.
+   Kept outside @layer: lucide attaches .lucide at runtime, so Tailwind's
+   content scan never sees the class and would drop the rule from a layer. */
+.lucide {
+  stroke-width: 1.5;
 }

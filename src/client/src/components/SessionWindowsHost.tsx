@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from 'react';
 import SessionWindow from './SessionWindow';
-import { confirmDialog } from '../lib/confirm';
 import {
   type LayoutNode,
   type Path,
@@ -44,6 +43,8 @@ import DockOverlay, {
 import * as sessionsApi from '../api/sessions';
 import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
+import { useToast } from '../hooks/useToast';
+import { useDialog } from '../hooks/useDialog';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import {
@@ -328,6 +329,8 @@ export default function SessionWindowsHost({
   children,
 }: HostProps) {
   const { t } = useI18n();
+  const { warning: toastWarning } = useToast();
+  const { confirm } = useDialog();
   // Read persisted state synchronously on the very first render. Previously
   // we left `groups` empty until a separate hydrate effect could run after
   // `sessions` arrived, but the persist effect (below) fires on the same
@@ -668,12 +671,12 @@ export default function SessionWindowsHost({
       .map(id => sessionsRef.current.find(s => s.id === id) || foreignSessionsRef.current[id])
       .filter((s): s is Session => !!s && s.status === 'running');
     if (running.length === 0) return true;
-    if (!(await confirmDialog(t('session.confirmStop')))) return false;
+    if (!(await confirm({ message: t('session.confirmStop'), danger: true }))) return false;
     for (const s of running) {
       sessionsApi.stopSession(s.id).catch(() => { /* swallow — UI tear-down proceeds */ });
     }
     return true;
-  }, [t]);
+  }, [t, confirm]);
 
   const close = useCallback(async (sessionId: string) => {
     if (!(await confirmRunningStop([sessionId]))) return;
@@ -1276,13 +1279,13 @@ export default function SessionWindowsHost({
       handoffCacheRef.current.delete(groupId);
       alivePopoutsRef.current.delete(popoutId);
       setGroups((prev) => prev.map(g => g.id === groupId ? { ...g, ownerWindowId: MAIN_WINDOW_ID } : g));
-      window.alert(t('session.popout.blocked') || 'Popup blocked. Allow popups for this site to use Pop Out.');
+      toastWarning(t('session.popout.blocked'));
       return;
     }
     // Keep the proxy so a later user click in main (dock chip) can raise the
     // popout via proxy.focus() — the popout can't raise itself on the web.
     registerPopoutWindow(popoutId, w);
-  }, [projectId, t]);
+  }, [projectId, t, toastWarning]);
   // Keep the forward ref pointed at the latest popOutGroup callback so
   // beginTabDrag (defined earlier) can invoke it for tear-out → OS window.
   popOutGroupRef.current = popOutGroup;

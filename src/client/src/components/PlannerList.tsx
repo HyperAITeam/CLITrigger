@@ -8,6 +8,7 @@ import PlannerCalendar from './PlannerCalendar';
 import EmptyState from './EmptyState';
 import CursorContextMenu, { ctxMenuItemClass, isNativeContextMenuTarget } from './CursorContextMenu';
 import { useI18n } from '../i18n';
+import { useToast } from '../hooks/useToast';
 import type { CalView } from './calendar/calendarShared';
 
 type SortField = 'title' | 'tags' | 'priority' | 'due_date' | 'status' | 'created_at';
@@ -44,6 +45,7 @@ export default function PlannerList({
   view, onChangeView,
 }: PlannerListProps) {
   const { t } = useI18n();
+  const { warning: toastWarning } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<PlannerItemType | null>(null);
   const [addDueDate, setAddDueDate] = useState<string | undefined>(undefined);
@@ -120,7 +122,7 @@ export default function PlannerList({
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (!isMarkdownFile(file)) {
-      window.alert(t('planner.dropInvalidFile'));
+      toastWarning(t('planner.dropInvalidFile'));
       return;
     }
     setIoBusy(true);
@@ -187,8 +189,8 @@ export default function PlannerList({
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return sortDir === 'asc'
-      ? <ArrowUp size={10} className="inline ml-0.5" />
-      : <ArrowDown size={10} className="inline ml-0.5" />;
+      ? <ArrowUp size={12} className="inline ml-0.5" />
+      : <ArrowDown size={12} className="inline ml-0.5" />;
   };
 
   return (
@@ -331,19 +333,19 @@ export default function PlannerList({
         {/* Table header — clickable for sort */}
         <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-t-xl select-none" style={{ backgroundColor: 'var(--color-bg-tertiary)', borderBottom: '1px solid var(--color-border-muted)' }}>
           <div className="w-[14px] flex-shrink-0" />
-          <div className="flex-1 text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
+          <div className="flex-1 section-label cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('title')}>
             {t('planner.col.title')}<SortIcon field="title" />
           </div>
-          <div className="w-[160px] text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('tags')}>
+          <div className="w-[160px] section-label cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('tags')}>
             {t('planner.col.tags')}<SortIcon field="tags" />
           </div>
-          <div className="w-12 text-center text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
+          <div className="w-12 text-center section-label cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('priority')}>
             {t('plannerForm.priority')}<SortIcon field="priority" />
           </div>
-          <div className="hidden md:block w-20 text-right text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('due_date')}>
+          <div className="hidden md:block w-20 text-right section-label cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('due_date')}>
             {t('planner.col.dueDate')}<SortIcon field="due_date" />
           </div>
-          <div className="w-16 text-2xs font-semibold text-warm-500 uppercase tracking-wider cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('status')}>
+          <div className="w-16 section-label cursor-pointer hover:text-warm-700 transition-colors" onClick={() => toggleSort('status')}>
             {t('planner.col.status')}<SortIcon field="status" />
           </div>
           <div className="w-8"></div>
@@ -354,7 +356,7 @@ export default function PlannerList({
           <EmptyState icon={LayoutList} title={t('planner.empty')} description={t('planner.emptyHint')} />
         ) : (
           filteredItems.map((item, index) => (
-            <div key={item.id} className="animate-slide-up" style={{ animationDelay: `${index * 20}ms` }}>
+            <div key={item.id}>
               <PlannerItemRow
                 item={item}
                 tagColors={tagColorMap}

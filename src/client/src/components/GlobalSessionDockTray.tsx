@@ -490,7 +490,7 @@ export default function GlobalSessionDockTray() {
                   : resolveProjectColor({ id: chip.colorProjectId }),
               }}
             />
-            {isPopped && <ExternalLink size={11} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
+            {isPopped && <ExternalLink size={12} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
             </span>
@@ -505,7 +505,7 @@ export default function GlobalSessionDockTray() {
                   justifyContent: 'center', borderRadius: 3,
                 }}
               >
-                <Maximize2 size={11} />
+                <Maximize2 size={12} />
               </button>
             )}
             <button

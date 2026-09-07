@@ -163,7 +163,7 @@ export default function SessionAliasInserter({ sessionId, sendMessage }: Session
         title="Insert saved command (alias) (Ctrl+Shift+A)"
         style={btnStyle}
       >
-        <Command size={13} />
+        <Command size={14} />
       </button>
       {open && createPortal(
         <div
@@ -260,7 +260,7 @@ export default function SessionAliasInserter({ sessionId, sendMessage }: Session
                     onClick={() => { setAddOpen(false); setError(null); }}
                     style={ghostBtnStyle}
                   >
-                    <X size={10} /> Cancel
+                    <X size={12} /> Cancel
                   </button>
                   <button
                     type="button"

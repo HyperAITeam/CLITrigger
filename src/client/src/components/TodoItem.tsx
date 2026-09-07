@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -9,6 +8,7 @@ import StatusBadge from './StatusBadge';
 import LogViewer from './LogViewer';
 import TodoForm from './TodoForm';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import { getToolConfig, type CliTool } from '../cli-tools';
 import {
   MoreVertical,
@@ -113,7 +113,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
       {open && createPortal(
         <div
           ref={dropRef}
-          className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+          className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? '' : ''}`}
           style={{
             top: pos.top,
             left: pos.left,
@@ -210,6 +210,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
   // Right-click menu offering the same actions as the buttons/MoreMenu.
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const { t } = useI18n();
+  const { confirm } = useDialog();
 
   const canStart = todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped';
   const canSchedule = (todo.status === 'pending' || todo.status === 'failed' || todo.status === 'stopped') && !!onSchedule;
@@ -320,7 +321,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
   const handleCleanup = async () => {
     const deleteBranch = todo.branch_name
-      ? await confirmDialog(t('cleanup.confirmDeleteBranch').replace('{name}', todo.branch_name))
+      ? await confirm({ message: t('cleanup.confirmDeleteBranch').replace('{name}', todo.branch_name), danger: true })
       : false;
     setCleaning(true);
     setCleanError(null);
@@ -419,10 +420,10 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
   };
 
   const fileStatusLabel: Record<string, { label: string; color: string }> = {
-    A: { label: 'Added', color: 'text-green-500' },
-    M: { label: 'Modified', color: 'text-amber-500' },
-    D: { label: 'Deleted', color: 'text-red-500' },
-    R: { label: 'Renamed', color: 'text-blue-500' },
+    A: { label: 'Added', color: 'text-status-success' },
+    M: { label: 'Modified', color: 'text-status-warning' },
+    D: { label: 'Deleted', color: 'text-status-error' },
+    R: { label: 'Renamed', color: 'text-status-merged' },
     C: { label: 'Copied', color: 'text-theme-text-secondary' },
   };
 
@@ -561,7 +562,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                 className="ml-0.5 h-3.5 w-3.5 rounded-full hover:bg-theme-hover inline-flex items-center justify-center opacity-0 group-hover/dep:opacity-100 transition-opacity"
                 title={t('dnd.removeDep')}
               >
-                <X size={10} />
+                <X size={12} />
               </button>
             )}
           </span>
@@ -719,7 +720,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Schedule Picker (inline, below header) */}
       {showSchedulePicker && (
-        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50">
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs font-medium text-theme-text-secondary">{t('todo.scheduleAt')}</label>
             <input
@@ -747,7 +748,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                 type="checkbox"
                 checked={keepOriginalOnSchedule}
                 onChange={(e) => setKeepOriginalOnSchedule(e.target.checked)}
-                className="rounded border-accent/40 text-accent focus:ring-accent"
+                className="rounded-md border-accent/40 text-accent focus:ring-accent"
               />
               {t('todo.scheduleKeepOriginal')}
             </label>
@@ -757,7 +758,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Continue Input (inline, below header) */}
       {showContinueInput && (
-        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50">
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-theme-text-secondary">
               {t('todo.continuePromptLabel')}
@@ -798,7 +799,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Reset Schedule Input (inline, below header) */}
       {showResetSchedule && resetsAt && (
-        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50 animate-fade-in">
+        <div className="border-t border-theme-border px-5 py-3 bg-theme-bg-secondary/50">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-theme-text-secondary">{t('todo.scheduleOnResetLabel')}</label>
@@ -837,12 +838,12 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Expanded content */}
       {expanded && (
-        <div className="animate-fade-in overflow-hidden border-t border-theme-border">
+        <div className="overflow-hidden border-t border-theme-border">
           <div className="px-4 py-3 space-y-3">
 
             {/* Description */}
             <section>
-              <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+              <h4 className="section-label mb-1.5">
                 {t('todo.description')}
               </h4>
               <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2">
@@ -857,7 +858,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             {/* Attached Images */}
             {existingImages.length > 0 && (
               <section>
-                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                <h4 className="section-label mb-1.5">
                   {t('todo.attachedImages')} <span className="text-warm-400 normal-case">({existingImages.length})</span>
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
@@ -873,14 +874,14 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             {/* Branch / Worktree / Dependencies */}
             {(parentTodo || todo.branch_name || childTodo) && (
               <section>
-                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                <h4 className="section-label mb-1.5">
                   {t('todo.branch')}
                 </h4>
                 <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 space-y-1.5">
                   {parentTodo && (
                     <div className="flex items-start gap-2 text-xs">
                       <span className="text-warm-400 w-24 flex-shrink-0 pt-0.5">{t('todo.dependsOn')}</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-accent/10 text-accent text-2xs font-medium">{parentTodo.title}</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-2xs font-medium">{parentTodo.title}</span>
                     </div>
                   )}
                   {todo.branch_name && (
@@ -948,7 +949,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             {/* Result Summary */}
             {hasResult && resultData && (
               <section>
-                <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider mb-1.5">
+                <h4 className="section-label mb-1.5">
                   {t('todo.result')}
                 </h4>
                 <div className="rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 space-y-2.5">
@@ -985,7 +986,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                       let levelLabel: string;
                       let levelClass: string;
                       if (totalAll >= 500000) { levelLabel = t('result.levelHeavy'); levelClass = 'text-status-error'; }
-                      else if (totalAll >= 300000) { levelLabel = t('result.levelHigh'); levelClass = 'text-orange-500'; }
+                      else if (totalAll >= 300000) { levelLabel = t('result.levelHigh'); levelClass = 'text-status-warning'; }
                       else if (totalAll >= 100000) { levelLabel = t('result.levelModerate'); levelClass = 'text-status-warning'; }
                       else { levelLabel = t('result.levelLight'); levelClass = 'text-status-info'; }
                       return (
@@ -1007,7 +1008,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                       <h5 className="text-2xs font-semibold text-warm-400 uppercase tracking-wider mb-1">{t('result.commitHistory')}</h5>
                       <div className="space-y-0.5">
                         {resultData.commits.map((c, i) => (
-                          <div key={i} className="flex items-center gap-2 px-1.5 py-1 text-xs rounded hover:bg-theme-hover">
+                          <div key={i} className="flex items-center gap-2 px-1.5 py-1 text-xs rounded-md hover:bg-theme-hover">
                             <code className="font-mono text-accent flex-shrink-0">{c.hash.slice(0, 7) || '-------'}</code>
                             <span className="text-warm-700 truncate flex-1">{c.message}</span>
                             <span className="text-2xs text-warm-400 flex-shrink-0">{new Date(c.date).toLocaleTimeString()}</span>
@@ -1028,7 +1029,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                             disabled={diffLoading}
                             className="flex items-center gap-1 text-2xs text-warm-500 hover:text-accent transition-colors disabled:opacity-30"
                           >
-                            <ChevronRight size={10} className={`transition-transform ${showDiff ? 'rotate-90' : ''}`} />
+                            <ChevronRight size={12} className={`transition-transform ${showDiff ? 'rotate-90' : ''}`} />
                             <span>{showDiff ? t('todo.hideDiff') : t('todo.viewDiff')}</span>
                           </button>
                         )}
@@ -1042,7 +1043,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
                             'bg-warm-200 text-warm-600';
                           return (
                             <div key={i} className="flex items-center gap-2 px-1.5 py-0.5 text-xs">
-                              <span className={`inline-flex items-center justify-center w-5 h-4 rounded text-[10px] font-bold ${statusClass}`}>{f.status}</span>
+                              <span className={`inline-flex items-center justify-center w-5 h-4 rounded-md text-[10px] font-bold ${statusClass}`}>{f.status}</span>
                               <span className="text-warm-700 font-mono text-2xs break-all flex-1">{f.file}</span>
                               {f.renamedFrom && <span className="text-warm-400 text-2xs flex-shrink-0">← {f.renamedFrom}</span>}
                             </div>
@@ -1065,13 +1066,13 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
             {showDiff && diffData && (
               <section>
                 <div className="flex items-center justify-between mb-1.5">
-                  <h4 className="text-2xs font-semibold text-warm-500 uppercase tracking-wider">
+                  <h4 className="section-label">
                     {t('todo.diffOutput')}
                   </h4>
                   <div className="flex items-center gap-1.5 text-2xs">
                     <span className="text-warm-500">{diffData.stats.files_changed} {t('todo.files')}</span>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-mono">+{diffData.stats.insertions}</span>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-mono">-{diffData.stats.deletions}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-success/10 text-status-success font-mono">+{diffData.stats.insertions}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-error/10 text-status-error font-mono">-{diffData.stats.deletions}</span>
                   </div>
                 </div>
                 <div className="max-h-80 overflow-y-auto rounded-lg border border-theme-border bg-theme-card/50 px-3 py-2 font-mono text-xs leading-tight">
@@ -1110,15 +1111,15 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
       {/* Drop zone indicator */}
       {dropZoneActive && (
-        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-accent/50 bg-accent/5 animate-fade-in">
+        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-accent/50 bg-accent/5">
           <Link size={14} className="text-accent flex-shrink-0" />
           <span className="text-xs font-medium text-accent">{t('dnd.dropHint')}</span>
         </div>
       )}
       {dropZoneInvalid && (
-        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-warm-300 bg-red-50/50 animate-fade-in">
-          <Ban size={14} className="text-red-400 flex-shrink-0" />
-          <span className="text-xs font-medium text-red-400">{t('dnd.cyclicWarning')}</span>
+        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-warm-300 bg-status-error/10">
+          <Ban size={14} className="text-status-error flex-shrink-0" />
+          <span className="text-xs font-medium text-status-error">{t('dnd.cyclicWarning')}</span>
         </div>
       )}
 

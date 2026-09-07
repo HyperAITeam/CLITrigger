@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { confirmDialog } from '../../lib/confirm';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../hooks/useDialog';
+import Button from '../../components/Button';
 import McpServerForm from './McpServerForm';
 import type { McpServer } from './types';
 
@@ -26,6 +27,7 @@ function summarize(server: McpServer): string {
 
 export default function McpServerList({ servers, saving, onUpsert, onRemove }: McpServerListProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [editing, setEditing] = useState<McpServer | null>(null);
   const [open, setOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function McpServerList({ servers, saving, onUpsert, onRemove }: M
   };
 
   const handleRemove = async (alias: string) => {
-    if (!(await confirmDialog(t('harness.mcp.confirmRemove').replace('{alias}', alias)))) return;
+    if (!(await confirm({ message: t('harness.mcp.confirmRemove').replace('{alias}', alias), danger: true }))) return;
     setRemoving(alias);
     try {
       await onRemove(alias);
@@ -60,13 +62,9 @@ export default function McpServerList({ servers, saving, onUpsert, onRemove }: M
     <div className="space-y-3 p-4 border border-warm-200 rounded-xl">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-warm-700">{t('harness.section.mcp')}</h4>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="px-3 py-1 text-xs rounded-lg bg-accent text-white hover:bg-accent-dark transition-colors"
-        >
+        <Button variant="primary" size="sm" onClick={handleAdd}>
           + {t('harness.mcp.add')}
-        </button>
+        </Button>
       </div>
 
       {servers.length === 0 ? (
@@ -84,11 +82,11 @@ export default function McpServerList({ servers, saving, onUpsert, onRemove }: M
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <code className="text-xs font-semibold text-warm-700">{server.alias}</code>
-                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-warm-200 text-warm-500">
+                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded-md bg-warm-200 text-warm-500">
                       {server.transport}
                     </span>
                     {hasSecrets && (
-                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-warm-150 text-warm-500">
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded-md bg-warm-150 text-warm-500">
                         env
                       </span>
                     )}
@@ -105,21 +103,17 @@ export default function McpServerList({ servers, saving, onUpsert, onRemove }: M
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(server)}
-                    className="px-2 py-1 text-xs rounded bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => handleEdit(server)}>
                     {t('harness.edit')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => handleRemove(server.alias)}
                     disabled={removing === server.alias}
-                    className="px-2 py-1 text-xs rounded bg-warm-100 text-status-error hover:bg-status-error/10 disabled:opacity-50 transition-colors"
                   >
                     {removing === server.alias ? '…' : t('harness.delete')}
-                  </button>
+                  </Button>
                 </div>
               </li>
             );

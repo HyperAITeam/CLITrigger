@@ -123,7 +123,7 @@ export default function SessionThemePicker({ sessionId }: SessionThemePickerProp
           height: '100%',
         }}
       >
-        <Palette size={13} />
+        <Palette size={14} />
       </button>
       {open && createPortal(
         <div
@@ -276,7 +276,7 @@ function PresetCard({
         <span style={{ fontWeight: 600, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {preset.name}
         </span>
-        {selected && <Check size={10} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+        {selected && <Check size={12} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
       </div>
       <div style={{ fontSize: 9, opacity: 0.85, fontFamily: CMD_FONT }}>
         <span style={{ color: preset.theme.green }}>$</span>{' '}
@@ -329,7 +329,7 @@ function CustomCard({
           }}
         />
         <span style={{ fontWeight: 600, fontSize: 11 }}>Custom</span>
-        {selected && <Check size={10} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+        {selected && <Check size={12} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
       </div>
       <div style={{ fontSize: 9, opacity: 0.7 }}>edit colors</div>
     </button>

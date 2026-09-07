@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import Modal from '../Modal';
+import Button from '../Button';
 import { getVaultIgnore, saveVaultIgnore } from '../../api/vault';
 
 interface Props {
@@ -24,32 +25,15 @@ export function VaultIgnoreHelpModal({ open, onClose, onOpenEditor }: {
   onClose: () => void;
   onOpenEditor: () => void;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-modal flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--color-bg-card)] border border-warm-200 rounded-lg shadow-elevated w-[min(560px,90vw)] max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <Modal open={open} onClose={onClose} size="xl">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated max-h-[80vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-200">
           <div className="text-sm font-semibold text-warm-800">.vaultignore 사용법</div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded hover:bg-warm-200 text-warm-500 hover:text-warm-800"
+            className="p-1 rounded-md hover:bg-warm-200 text-warm-500 hover:text-warm-800"
             aria-label="close"
           >
             <X className="w-4 h-4" />
@@ -83,24 +67,15 @@ private/**        # 폴더 전체 숨김
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-warm-200">
-          <button
-            type="button"
-            onClick={onOpenEditor}
-            className="px-3 py-1.5 rounded-md text-xs text-warm-700 hover:bg-warm-200"
-          >
+          <Button variant="ghost" size="sm" onClick={onOpenEditor}>
             .vaultignore 직접 편집
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs bg-accent text-white hover:bg-accent-dark"
-          >
+          </Button>
+          <Button variant="primary" size="sm" onClick={onClose}>
             닫기
-          </button>
+          </Button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 
@@ -120,15 +95,6 @@ export function VaultIgnoreModal({ open, projectId, onClose, onSaved }: Props) {
       .finally(() => setLoading(false));
   }, [open, projectId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -143,23 +109,15 @@ export function VaultIgnoreModal({ open, projectId, onClose, onSaved }: Props) {
     }
   };
 
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-modal flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--color-bg-card)] border border-warm-200 rounded-lg shadow-elevated w-[min(600px,90vw)] max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <Modal open={open} onClose={onClose} size="xl">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated max-h-[80vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-200">
           <div className="text-sm font-semibold text-warm-800">.vaultignore</div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded hover:bg-warm-200 text-warm-500 hover:text-warm-800"
+            className="p-1 rounded-md hover:bg-warm-200 text-warm-500 hover:text-warm-800"
             aria-label="close"
           >
             <X className="w-4 h-4" />
@@ -187,24 +145,19 @@ export function VaultIgnoreModal({ open, projectId, onClose, onSaved }: Props) {
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-warm-200">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs text-warm-700 hover:bg-warm-200"
-          >
+          <Button variant="ghost" size="sm" onClick={onClose}>
             취소
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSave}
             disabled={loading || saving}
-            className="px-3 py-1.5 rounded-md text-xs bg-accent text-white hover:bg-accent-dark disabled:opacity-50"
           >
             {saving ? '저장 중…' : '저장'}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

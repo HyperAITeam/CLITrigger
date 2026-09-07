@@ -23,7 +23,7 @@ interface DiscussionListProps {
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warm-200 text-warm-600',
   running: 'bg-status-success/10 text-status-success',
-  paused: 'bg-amber-100 text-amber-700',
+  paused: 'bg-status-warning/10 text-status-warning',
   completed: 'bg-accent/10 text-accent',
   failed: 'bg-status-error/10 text-status-error',
   merged: 'bg-accent/10 text-accent',
@@ -75,7 +75,7 @@ export default function DiscussionList({
     <div
       // min-h so the blank space under a short list still catches the
       // right-click → "new discussion" menu.
-      className="space-y-4 animate-fade-in min-h-[50vh]"
+      className="space-y-4 min-h-[50vh]"
       onContextMenu={(e) => {
         if (isNativeContextMenuTarget(e)) return;
         e.preventDefault();
@@ -133,15 +133,14 @@ export default function DiscussionList({
             return (
               <div
                 key={discussion.id}
-                className="card p-4 hover:shadow-md transition-all cursor-pointer animate-slide-up"
+                className="card p-4 hover:shadow-md transition-all cursor-pointer"
                 onClick={() => navigate(`/projects/${projectId}/discussions/${discussion.id}`)}
-                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-warm-700 truncate">{discussion.title}</h3>
-                      <span className={`px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${STATUS_COLORS[discussion.status] || ''}`}>
+                      <span className={`px-1.5 py-0.5 rounded-md text-2xs font-semibold uppercase ${STATUS_COLORS[discussion.status] || ''}`}>
                         {t(`status.${discussion.status}`) || discussion.status}
                       </span>
                     </div>
@@ -168,7 +167,7 @@ export default function DiscussionList({
                     {canStart && (
                       <button
                         onClick={() => onStartDiscussion(discussion.id)}
-                        className="p-1.5 text-status-success hover:bg-status-success/10 rounded transition-colors"
+                        className="p-1.5 text-status-success hover:bg-status-success/10 rounded-md transition-colors"
                         title={t('header.runAll')}
                       >
                         <Play size={16} />
@@ -177,7 +176,7 @@ export default function DiscussionList({
                     {canStop && (
                       <button
                         onClick={() => onStopDiscussion(discussion.id)}
-                        className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                        className="p-1.5 text-status-warning hover:bg-status-warning/10 rounded-md transition-colors"
                         title={t('discussions.pause')}
                       >
                         <Pause size={16} />
@@ -185,7 +184,7 @@ export default function DiscussionList({
                     )}
                     <button
                       onClick={() => onDeleteDiscussion(discussion.id)}
-                      className="p-1.5 text-warm-400 hover:text-status-error rounded transition-colors"
+                      className="p-1.5 text-warm-400 hover:text-status-error rounded-md transition-colors"
                       title={t('todo.delete')}
                     >
                       <Trash2 size={16} />

@@ -16,7 +16,6 @@
 //   - heartbeat every HEARTBEAT_MS so main can detect a crashed popout
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { confirmDialog } from '../../lib/confirm';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink, Minus, X } from 'lucide-react';
 import StackView from '../group/StackView';
@@ -26,6 +25,7 @@ import { assignColor } from '../group/colors';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import * as sessionsApi from '../../api/sessions';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../hooks/useDialog';
 import {
   openBus,
   holdPopoutLock,
@@ -79,6 +79,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const [searchParams] = useSearchParams();
   const popoutId = searchParams.get('wid') || '';
   const { t } = useI18n();
+  const { confirm } = useDialog();
 
   const [group, setGroup] = useState<PopoutGroup | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -333,11 +334,11 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const handleTabClose = useCallback(async (sid: string) => {
     const session = sessions.find(s => s.id === sid);
     if (session?.status === 'running') {
-      if (!(await confirmDialog(t('session.confirmStop') || 'Stop this running session?'))) return;
+      if (!(await confirm({ message: t('session.confirmStop'), danger: true }))) return;
       sessionsApi.stopSession(sid).catch(() => { /* swallow */ });
     }
     removeTabFromGroup(sid);
-  }, [sessions, t, removeTabFromGroup]);
+  }, [sessions, t, removeTabFromGroup, confirm]);
 
   // ── In-popout tab drag → dock ────────────────────────────────────────────
   //
@@ -642,12 +643,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     if (!g || !busRef.current) { window.close(); return; }
     const ids = allSessionIds(g.root);
     const running = ids.filter(id => sessions.find(s => s.id === id)?.status === 'running');
-    if (running.length && !(await confirmDialog(t('session.confirmStop') || 'Stop this running session?'))) return;
+    if (running.length && !(await confirm({ message: t('session.confirmStop'), danger: true }))) return;
     running.forEach(id => sessionsApi.stopSession(id).catch(() => { /* swallow */ }));
     intentionalCloseRef.current = true;
     busRef.current.post({ t: 'group-close', from: popoutId, groupId: g.id });
     setTimeout(() => window.close(), 50);
-  }, [sessions, t, popoutId]);
+  }, [sessions, t, popoutId, confirm]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
@@ -734,7 +735,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             aria-label="minimize-popout"
             title={t('session.popout.minimize') || 'Minimize'}
           >
-            <Minus size={13} />
+            <Minus size={14} />
           </button>
         )}
         <button
@@ -743,7 +744,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           aria-label="redock"
           title={t('session.popout.redock') || 'Re-dock to main window'}
         >
-          <ExternalLink size={13} style={{ transform: 'scaleX(-1)' }} />
+          <ExternalLink size={14} style={{ transform: 'scaleX(-1)' }} />
           <span style={{ marginLeft: 4 }}>{t('session.popout.redockShort') || 'Re-dock'}</span>
         </button>
         <button
@@ -752,7 +753,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           aria-label="close-popout"
           title={t('session.popout.closeWindow') || 'Close window'}
         >
-          <X size={13} />
+          <X size={14} />
         </button>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>

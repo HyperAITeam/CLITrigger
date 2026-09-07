@@ -14,6 +14,14 @@ export const TAG_COLOR_MAP: Record<string, { bg: string; text: string; swatch: s
 
 export const TAG_COLOR_KEYS = Object.keys(TAG_COLOR_MAP);
 
+// Shared planner item status → badge classes, on the status-* theme tokens.
+export const PLANNER_STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-warm-200 text-warm-500',
+  in_progress: 'bg-status-running/10 text-status-running',
+  done: 'bg-status-success/10 text-status-success',
+  moved: 'bg-status-merged/10 text-status-merged',
+};
+
 export function getTagStyle(color: string): string {
   const c = TAG_COLOR_MAP[color] || TAG_COLOR_MAP.default;
   return `${c.bg} ${c.text}`;

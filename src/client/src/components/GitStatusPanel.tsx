@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
 import type { GitLogEntry, GitRef, GitStatusFile, CommitFile } from '../api/projects';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { WsEvent } from '../hooks/useWebSocket';
 import Modal from './Modal';
 import PushDialog from './PushDialog';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 import ConflictResolver from './ConflictResolver';
+import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
 
 interface GitStatusPanelProps {
   project: Project;
@@ -121,18 +122,18 @@ function RefBadge({ refStr }: { refStr: string }) {
 
   if (isTag) {
     label = refStr.replace('tag: ', '');
-    classes = 'bg-violet-500/10 text-violet-600 dark:text-violet-400';
+    classes = 'bg-status-merged/10 text-status-merged';
   } else if (isHead) {
     label = refStr.replace('HEAD -> ', '');
-    classes = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold';
+    classes = 'bg-status-success/10 text-status-success font-semibold';
   } else if (isRemote) {
-    classes = 'bg-sky-500/10 text-sky-700 dark:text-sky-400';
+    classes = 'bg-status-running/10 text-status-running';
   } else {
-    classes = 'bg-amber-500/10 text-amber-700 dark:text-amber-400';
+    classes = 'bg-status-warning/10 text-status-warning';
   }
 
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium whitespace-nowrap ${classes}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-2xs font-medium whitespace-nowrap ${classes}`}>
       {label}
     </span>
   );
@@ -228,6 +229,7 @@ function ActionToolbar({
   worktreePath?: string;
 }) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [inputValue2, setInputValue2] = useState('');
@@ -255,7 +257,7 @@ function ActionToolbar({
     <button
       onClick={onClick}
       disabled={busy}
-      className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded hover:bg-warm-50 transition-colors disabled:opacity-50 relative"
+      className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-md hover:bg-warm-50 transition-colors disabled:opacity-50 relative"
       title={label}
     >
       <div className="h-5 w-5 flex items-center justify-center text-warm-500">{icon}</div>
@@ -270,7 +272,7 @@ function ActionToolbar({
 
   const GitModal = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Modal open onClose={closeModal} size="sm">
-      <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
           <span className="text-sm font-semibold text-warm-700">{title}</span>
           <button onClick={closeModal} className="text-warm-400 hover:text-warm-600">
@@ -336,7 +338,7 @@ function ActionToolbar({
         } />
         <ToolbarBtn label={t('git.discard')} onClick={async () => {
           if (statusFiles.length === 0) return;
-          if (await confirmDialog(t('git.confirmDiscard'))) {
+          if (await confirm({ message: t('git.confirmDiscard'), danger: true })) {
             exec(() => projectsApi.gitDiscard(projectId, undefined, true, worktreePath));
           }
         }} icon={
@@ -364,7 +366,7 @@ function ActionToolbar({
       {activeModal === 'commit' && (
         <GitModal title={t('git.commit')}>
           <textarea
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
             rows={3}
             placeholder={t('git.commitMessage')}
             value={inputValue}
@@ -384,7 +386,7 @@ function ActionToolbar({
       {activeModal === 'branch' && (
         <GitModal title={t('git.newBranch')}>
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.branchName')}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
@@ -404,7 +406,7 @@ function ActionToolbar({
               <p className="text-2xs text-warm-400 uppercase tracking-wider mb-1">{t('git.selectBranch')}</p>
               <div className="max-h-32 overflow-y-auto space-y-px">
                 {localBranches.filter(b => !b.current).map(b => (
-                  <div key={b.name} className="flex items-center justify-between px-2 py-1 text-xs hover:bg-warm-50 rounded group">
+                  <div key={b.name} className="flex items-center justify-between px-2 py-1 text-xs hover:bg-warm-50 rounded-md group">
                     <button
                       className="truncate text-warm-600 hover:text-accent"
                       onClick={() => exec(() => projectsApi.gitCheckout(projectId, b.name))}
@@ -413,7 +415,7 @@ function ActionToolbar({
                     </button>
                     <button
                       className="text-warm-300 hover:text-status-error opacity-0 group-hover:opacity-100 transition-opacity text-2xs"
-                      onClick={async () => { if (await confirmDialog(`Delete branch ${b.name}?`)) exec(() => projectsApi.gitDeleteBranch(projectId, b.name)); }}
+                      onClick={async () => { if (await confirm({ message: t('git.confirmDelete').replace('{name}', b.name), danger: true })) exec(() => projectsApi.gitDeleteBranch(projectId, b.name)); }}
                     >
                       {t('git.delete')}
                     </button>
@@ -432,7 +434,7 @@ function ActionToolbar({
             {localBranches.filter(b => !b.current).map(b => (
               <button
                 key={b.name}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-warm-50 rounded text-warm-600 truncate"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-warm-50 rounded-md text-warm-600 truncate"
                 disabled={busy}
                 onClick={() => exec(() => projectsApi.gitMerge(projectId, b.name))}
               >
@@ -450,14 +452,14 @@ function ActionToolbar({
       {activeModal === 'tag' && (
         <GitModal title={t('git.tag')}>
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.tagName')}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             autoFocus
           />
           <input
-            className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             placeholder={t('git.tagMessage')}
             value={inputValue2}
             onChange={e => setInputValue2(e.target.value)}
@@ -493,14 +495,14 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
 
   return (
     <Modal open onClose={() => setInputValue('')} size="sm">
-      <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
         <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
           <span className="text-sm font-semibold text-warm-700">{t('git.stash')}</span>
         </div>
         <div className="p-4 space-y-3">
           <div className="flex gap-2">
             <input
-              className="flex-1 border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              className="flex-1 border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
               placeholder={t('git.stashMessage')}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
@@ -518,7 +520,7 @@ function StashModal({ projectId, busy, exec, inputValue, setInputValue }: {
           {stashes.length > 0 ? (
             <div className="space-y-px max-h-40 overflow-y-auto">
               {stashes.map(s => (
-                <div key={s.index} className="flex items-center justify-between px-2 py-1.5 text-xs hover:bg-warm-50 rounded">
+                <div key={s.index} className="flex items-center justify-between px-2 py-1.5 text-xs hover:bg-warm-50 rounded-md">
                   <span className="text-warm-600 truncate flex-1">{s.message || `stash@{${s.index}}`}</span>
                   <button
                     className="text-accent hover:underline text-[11px] ml-2 shrink-0"
@@ -551,8 +553,8 @@ function fileStatusName(index: string, working_dir: string): { label: string; co
   let label = ch;
   if (ch === 'A') color = 'text-status-success';
   else if (ch === 'D') color = 'text-status-error';
-  else if (ch === 'R') color = 'text-violet-600 dark:text-violet-400';
-  else if (ch === 'C') color = 'text-blue-500';
+  else if (ch === 'R') color = 'text-status-merged';
+  else if (ch === 'C') color = 'text-accent';
   else { color = 'text-accent'; label = 'M'; }
   return { label, color, type: staged ? 'staged' : 'unstaged' };
 }
@@ -564,6 +566,7 @@ function ChangedFileRow({
   checked,
   onClick,
   onToggleCheck,
+  onContextMenu,
 }: {
   file: GitStatusFile;
   pane: 'staged' | 'unstaged';
@@ -571,6 +574,7 @@ function ChangedFileRow({
   checked: boolean;
   onClick: () => void;
   onToggleCheck: (e: React.MouseEvent | React.ChangeEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const status = pane === 'staged'
     ? fileStatusName(file.index, ' ')
@@ -582,6 +586,7 @@ function ChangedFileRow({
   return (
     <div
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`flex items-center gap-2 px-3 py-1 cursor-pointer text-xs select-none transition-colors ${
         selected ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 text-warm-700'
       }`}
@@ -594,8 +599,8 @@ function ChangedFileRow({
         className="h-3 w-3 shrink-0 cursor-pointer"
         aria-label={file.path}
       />
-      <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold ${
-        pane === 'staged' ? 'bg-emerald-500/15' : 'bg-warm-200'
+      <span className={`shrink-0 w-4 h-4 flex items-center justify-center rounded-md text-[10px] font-mono font-bold ${
+        pane === 'staged' ? 'bg-status-success/15' : 'bg-warm-200'
       } ${finalStatus.color}`}>
         {pane === 'staged' ? '+' : finalStatus.label === 'U' ? '+' : '−'}
       </span>
@@ -797,6 +802,14 @@ function WorkingChangesView({
     try { await fn(); onRefresh(); } catch (err) { onError(err instanceof Error ? err.message : 'Operation failed'); } finally { setBusy(false); }
   };
 
+  // Right-click menu on a changed-file row (desktop only)
+  const [fileMenu, setFileMenu] = useState<{ file: GitStatusFile; x: number; y: number } | null>(null);
+  const openFileMenu = (e: React.MouseEvent, file: GitStatusFile) => {
+    e.preventDefault();
+    if (isMobile) return;
+    setFileMenu({ file, x: e.clientX, y: e.clientY });
+  };
+
   const handleCommit = async () => {
     if (!commitMessage.trim() || staged.length === 0) return;
     setCommitting(true);
@@ -851,10 +864,10 @@ function WorkingChangesView({
                     selectedKey === `conflict::${f.path}` ? 'bg-accent/15 text-accent' : 'hover:bg-warm-50 text-warm-700'
                   }`}
                 >
-                  <span className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] font-mono font-bold bg-status-error/15 text-status-error">C</span>
+                  <span className="shrink-0 w-4 h-4 flex items-center justify-center rounded-md text-[10px] font-mono font-bold bg-status-error/15 text-status-error">C</span>
                   <span className="truncate flex-1" title={f.path}>{f.path}</span>
                   <button
-                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
+                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded-md border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
                     disabled={busy}
                     onClick={e => {
                       e.stopPropagation();
@@ -864,7 +877,7 @@ function WorkingChangesView({
                     {t('git.acceptOurs')}
                   </button>
                   <button
-                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
+                    className="shrink-0 text-2xs px-1.5 py-0.5 rounded-md border border-warm-300 text-warm-600 hover:bg-warm-100 disabled:opacity-40"
                     disabled={busy}
                     onClick={e => {
                       e.stopPropagation();
@@ -914,6 +927,7 @@ function WorkingChangesView({
                   checked={stagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`staged::${f.path}`)}
                   onToggleCheck={() => toggleStagedCheck(f.path)}
+                  onContextMenu={e => openFileMenu(e, f)}
                 />
               ))
             )}
@@ -955,6 +969,7 @@ function WorkingChangesView({
                   checked={unstagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`unstaged::${f.path}`)}
                   onToggleCheck={() => toggleUnstagedCheck(f.path)}
+                  onContextMenu={e => openFileMenu(e, f)}
                 />
               ))
             )}
@@ -1015,6 +1030,18 @@ function WorkingChangesView({
           <WorkingDiffViewer diff={diff} loading={diffLoading} file={selectedFile} />
         )}
       </div>
+
+      {fileMenu && (
+        <CursorContextMenu x={fileMenu.x} y={fileMenu.y} onClose={() => setFileMenu(null)}>
+          <button
+            className={ctxMenuItemClass}
+            disabled={busy}
+            onClick={() => exec(() => projectsApi.gitIgnore(projectId, fileMenu.file.path, worktreePath))}
+          >
+            {t('git.addToGitignore')}
+          </button>
+        </CursorContextMenu>
+      )}
     </div>
   );
 }
@@ -1040,6 +1067,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
   onError: (msg: string | null) => void;
 }) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['local', 'remote'])
   );
@@ -1156,8 +1184,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
           {localBranches.map(b => (
             <div
               key={b.name}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs truncate cursor-context-menu select-none ${
-                b.current ? 'text-sky-700 dark:text-sky-300 font-semibold bg-sky-500/10' : 'text-warm-600 hover:bg-warm-50'
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs truncate cursor-context-menu select-none ${
+                b.current ? 'text-status-running font-semibold bg-status-running/10' : 'text-warm-600 hover:bg-warm-50'
               }`}
               onContextMenu={e => handleContextMenu(e, b.name, false, !!b.current)}
             >
@@ -1170,10 +1198,10 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
               {(!!b.ahead || !!b.behind) && (
                 <span className="ml-auto shrink-0 flex items-center gap-1 px-1.5 rounded-full border border-warm-300 dark:border-warm-600 text-[10px] font-semibold leading-tight">
                   {!!b.ahead && (
-                    <span className="text-emerald-700 dark:text-emerald-400" title={`${b.ahead} ${t('git.ahead')}`}>{b.ahead}↑</span>
+                    <span className="text-status-success" title={`${b.ahead} ${t('git.ahead')}`}>{b.ahead}↑</span>
                   )}
                   {!!b.behind && (
-                    <span className="text-amber-700 dark:text-amber-400" title={`${b.behind} ${t('git.behind')}`}>{b.behind}↓</span>
+                    <span className="text-status-warning" title={`${b.behind} ${t('git.behind')}`}>{b.behind}↓</span>
                   )}
                 </span>
               )}
@@ -1190,7 +1218,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
               {remoteBranches.map(b => (
                 <div
                   key={b.name}
-                  className="px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded cursor-context-menu select-none"
+                  className="px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded-md cursor-context-menu select-none"
                   onContextMenu={e => handleContextMenu(e, b.name, true, false)}
                 >
                   {b.name.replace('remotes/', '')}
@@ -1207,8 +1235,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
           {expandedSections.has('tags') && (
             <div className="pl-1 space-y-px">
               {tags.map(tag => (
-                <div key={tag} className="flex items-center gap-1.5 px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded">
-                  <svg className="h-3 w-3 text-violet-600/80 dark:text-violet-400/80 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div key={tag} className="flex items-center gap-1.5 px-2 py-1 text-xs text-warm-500 truncate hover:bg-warm-50 rounded-md">
+                  <svg className="h-3 w-3 text-status-merged shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
                   </svg>
@@ -1228,9 +1256,9 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
               {worktrees.map(wt => (
                 <div
                   key={wt.path}
-                  className="group flex items-center gap-1.5 px-2 py-1 text-xs text-warm-600 hover:bg-warm-50 dark:hover:bg-warm-800/50 rounded"
+                  className="group flex items-center gap-1.5 px-2 py-1 text-xs text-warm-600 hover:bg-warm-50 dark:hover:bg-warm-800/50 rounded-md"
                 >
-                  <svg className="h-3 w-3 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-3 w-3 text-status-warning shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                   <span className="truncate flex-1" title={wt.path}>{wt.branch}</span>
@@ -1239,7 +1267,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                     disabled={busy || cleaningWorktree === wt.path}
                     title={t('git.cleanupWorktree')}
                     onClick={async () => {
-                      if (await confirmDialog(t('git.confirmCleanupWorktree').replace('{name}', wt.branch))) {
+                      if (await confirm({ message: t('git.confirmCleanupWorktree').replace('{name}', wt.branch), danger: true })) {
                         setCleaningWorktree(wt.path);
                         setBusy(true);
                         onError(null);
@@ -1355,10 +1383,9 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                       danger
                       label={`${t('git.deleteWorktreeAndBranch')} ${contextMenu.branch}`}
                       onClick={async () => {
-                        if (await confirmDialog(t('git.confirmDeleteWorktreeAndBranch').replace('{name}', contextMenu.branch))) {
+                        setContextMenu(null);
+                        if (await confirm({ message: t('git.confirmDeleteWorktreeAndBranch').replace('{name}', contextMenu.branch), danger: true })) {
                           exec(() => projectsApi.cleanupWorktree(projectId, wt.path, contextMenu.branch));
-                        } else {
-                          setContextMenu(null);
                         }
                       }}
                     />
@@ -1370,17 +1397,15 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                     danger
                     label={`${t('git.delete')} ${branchName}`}
                     onClick={async () => {
-                      if (!(await confirmDialog(t('git.confirmDelete').replace('{name}', branchName)))) {
-                        setContextMenu(null);
-                        return;
-                      }
+                      setContextMenu(null);
+                      if (!(await confirm({ message: t('git.confirmDelete').replace('{name}', branchName), danger: true }))) return;
                       exec(async () => {
                         try {
                           await projectsApi.gitDeleteBranch(projectId, branchName);
                         } catch (err) {
                           const msg = err instanceof Error ? err.message : '';
                           if (/not fully merged/i.test(msg)) {
-                            if (await confirmDialog(t('git.confirmForceDelete').replace('{name}', branchName))) {
+                            if (await confirm({ message: t('git.confirmForceDelete').replace('{name}', branchName), danger: true })) {
                               await projectsApi.gitDeleteBranch(projectId, branchName, true);
                               return;
                             }
@@ -1401,7 +1426,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
       {/* Rename branch modal */}
       {renaming && (
         <Modal open onClose={() => setRenaming(null)} size="sm">
-          <div className="bg-theme-card rounded-lg shadow-xl w-80 max-w-[90vw]">
+          <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated w-80 max-w-[90vw]">
             <div className="flex items-center justify-between px-4 py-3 border-b border-warm-100">
               <span className="text-sm font-semibold text-warm-700">{t('git.renameBranch')}</span>
               <button onClick={() => setRenaming(null)} className="text-warm-400 hover:text-warm-600">
@@ -1413,7 +1438,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
             <div className="p-4 space-y-3">
               <p className="text-xs text-warm-500">{renaming} →</p>
               <input
-                className="w-full border border-warm-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent bg-transparent"
+                className="w-full border border-warm-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent bg-transparent"
                 placeholder={t('git.newBranchName')}
                 value={renameValue}
                 onChange={e => setRenameValue(e.target.value)}
@@ -1479,7 +1504,7 @@ function WorkspaceMenu({
     return (
       <button
         onClick={() => onChange(id)}
-        className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded transition-colors ${
+        className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
           horizontal ? 'flex-1 justify-center' : 'w-full'
         } ${
           active
@@ -1547,7 +1572,7 @@ function Resizer({ axis, onResize }: { axis: 'x' | 'y'; onResize: (clientX: numb
       aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
       className={
         axis === 'x'
-          ? 'w-1 mx-1 shrink-0 cursor-col-resize bg-warm-200/60 hover:bg-accent transition-colors rounded'
+          ? 'w-1 mx-1 shrink-0 cursor-col-resize bg-warm-200/60 hover:bg-accent transition-colors rounded-md'
           : 'h-1 my-0.5 shrink-0 cursor-row-resize bg-warm-200/60 hover:bg-accent transition-colors'
       }
     />
@@ -1610,6 +1635,7 @@ function readNumber(key: string, fallback: number, lo: number, hi: number): numb
 
 export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendMessage, connected }: GitStatusPanelProps) {
   const { t } = useI18n();
+  const { confirm, prompt } = useDialog();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const [refsOpen, setRefsOpen] = useState(false);
   const [pressTooltip, setPressTooltip] = useState<{ message: string; x: number; y: number } | null>(null);
@@ -1966,9 +1992,9 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
   const graphNodes = useMemo(() => computeGraphLanes(commits), [commits]);
 
   return (
-    <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: '400px' }}>
       {/* Action Toolbar */}
-      <div className="card mb-2 overflow-hidden">
+      <div className="card-static mb-2">
         <ActionToolbar
           projectId={project.id}
           projectName={project.name}
@@ -1983,7 +2009,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
 
       {/* In-progress merge/rebase + conflicts */}
       {(opState.merging || opState.rebasing || opState.conflicted.length > 0) && (
-        <div className="mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2 rounded border border-amber-200 dark:border-amber-800">
+        <div className="mb-2 px-3 py-2 bg-status-warning/10 text-status-warning text-xs flex items-center gap-2 rounded-md border border-status-warning/30">
           <span className="font-semibold shrink-0">
             {opState.merging ? t('git.conflictMergeInProgress')
               : opState.rebasing ? t('git.conflictRebaseInProgress')
@@ -1996,7 +2022,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
           </span>
           {view !== 'fileStatus' && opState.conflicted.length > 0 && (
             <button
-              className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+              className="shrink-0 px-2 py-1 rounded-md border border-status-warning/30 hover:bg-status-warning/10"
               onClick={() => setView('fileStatus')}
             >
               {t('git.viewConflicts')}
@@ -2005,17 +2031,17 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
           {(opState.merging || opState.rebasing) && (
             <>
               <button
-                className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40"
+                className="shrink-0 px-2 py-1 rounded-md border border-status-warning/30 hover:bg-status-warning/10 disabled:opacity-40"
                 disabled={busy || opState.conflicted.length > 0}
                 onClick={() => runConflictAction(() => projectsApi.gitConflictContinue(project.id))}
               >
                 {t('git.conflictContinue')}
               </button>
               <button
-                className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40"
+                className="shrink-0 px-2 py-1 rounded-md border border-status-warning/30 hover:bg-status-warning/10 disabled:opacity-40"
                 disabled={busy}
                 onClick={async () => {
-                  if (await confirmDialog(t('git.confirmConflictAbort'))) {
+                  if (await confirm({ message: t('git.confirmConflictAbort'), danger: true })) {
                     runConflictAction(() => projectsApi.gitConflictAbort(project.id));
                   }
                 }}
@@ -2029,9 +2055,9 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
 
       {/* Sidebar error (branch/tag actions) */}
       {sidebarError && (
-        <div className="mb-2 px-3 py-2 bg-status-error/5 text-status-error text-xs flex items-center justify-between rounded">
+        <div className="mb-2 px-3 py-2 bg-status-error/10 text-status-error text-xs flex items-center justify-between rounded-md">
           <span>{sidebarError}</span>
-          <button onClick={() => setSidebarError(null)} className="ml-2 shrink-0 hover:text-red-800 dark:hover:text-red-300">&times;</button>
+          <button onClick={() => setSidebarError(null)} className="ml-2 shrink-0 hover:text-status-error">&times;</button>
         </div>
       )}
 
@@ -2042,7 +2068,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
           className={`shrink-0 flex flex-col gap-2 ${isMobile ? '' : 'min-h-0'}`}
         >
           {isMobile ? (
-            <div className="card p-2 flex items-center gap-2">
+            <div className="card-static p-2 flex items-center gap-2">
               <div className="flex-1 min-w-0">
                 <WorkspaceMenu
                   view={view}
@@ -2063,7 +2089,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
               </button>
             </div>
           ) : (
-            <div className="card p-3 shrink-0">
+            <div className="card-static p-3 shrink-0">
               <WorkspaceMenu
                 view={view}
                 onChange={setView}
@@ -2084,7 +2110,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
         {!isMobile && <Resizer axis="x" onResize={handleSidebarResize} />}
 
         {/* Main view */}
-        <div className="card flex-1 overflow-hidden flex flex-col min-h-0">
+        <div className="card-static flex-1 overflow-hidden flex flex-col min-h-0">
           {view === 'fileStatus' ? (
             <>
               {/* Checkout selector — main checkout vs session worktrees.
@@ -2094,7 +2120,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
                 <div className="flex items-center gap-2 px-4 py-2 border-b border-warm-100 shrink-0">
                   <span className="text-2xs text-warm-400 uppercase tracking-wider shrink-0">{t('git.statusTarget')}</span>
                   <select
-                    className="text-xs border border-warm-200 rounded px-2 py-1 text-warm-700 focus:outline-none focus:ring-1 focus:ring-accent min-w-0 max-w-full"
+                    className="text-xs border border-warm-200 rounded-md px-2 py-1 text-warm-700 focus:outline-none focus:ring-1 focus:ring-accent min-w-0 max-w-full"
                     style={{ backgroundColor: 'var(--color-bg-card)' }}
                     value={statusWorktree ?? ''}
                     onChange={(e) => setStatusWorktree(e.target.value || null)}
@@ -2325,7 +2351,9 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
               const msg = mode === 'hard'
                 ? t('git.confirmResetHard').replace('{hash}', short)
                 : t('git.confirmReset').replace('{hash}', short).replace('{mode}', mode);
-              if (!(await confirmDialog(msg))) { setCommitMenu(null); return; }
+              // Close the menu before awaiting so the dialog isn't stacked on it.
+              setCommitMenu(null);
+              if (!(await confirm({ message: msg, danger: mode === 'hard' }))) return;
               runCommitAction(() => projectsApi.gitReset(project.id, commit.hash, mode));
             }, mode === 'hard');
           return (
@@ -2336,26 +2364,28 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
             >
               {item(t('git.copySha'), () => { navigator.clipboard.writeText(commit.hash); setCommitMenu(null); })}
               <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
-              {item(t('git.createBranchHere'), () => {
-                const name = window.prompt(t('git.promptBranchName').replace('{hash}', short));
+              {item(t('git.createBranchHere'), async () => {
+                setCommitMenu(null);
+                const name = await prompt(t('git.promptBranchName').replace('{hash}', short));
                 if (name && name.trim()) runCommitAction(() => projectsApi.gitCreateBranch(project.id, name.trim(), commit.hash));
-                else setCommitMenu(null);
               })}
-              {item(t('git.createTagHere'), () => {
-                const name = window.prompt(t('git.promptTagName').replace('{hash}', short));
+              {item(t('git.createTagHere'), async () => {
+                setCommitMenu(null);
+                const name = await prompt(t('git.promptTagName').replace('{hash}', short));
                 if (name && name.trim()) runCommitAction(() => projectsApi.gitCreateTag(project.id, name.trim(), undefined, commit.hash));
-                else setCommitMenu(null);
               })}
               <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
               {item(t('git.cherryPick'), async () => {
-                if (!(await confirmDialog(t('git.confirmCherryPick').replace('{hash}', short)))) { setCommitMenu(null); return; }
+                setCommitMenu(null);
+                if (!(await confirm(t('git.confirmCherryPick').replace('{hash}', short)))) return;
                 runCommitAction(async () => {
                   const r = await projectsApi.gitCherryPick(project.id, commit.hash);
                   if (r.conflict) setView('fileStatus');
                 });
               })}
               {item(t('git.revertCommit'), async () => {
-                if (!(await confirmDialog(t('git.confirmRevert').replace('{hash}', short)))) { setCommitMenu(null); return; }
+                setCommitMenu(null);
+                if (!(await confirm(t('git.confirmRevert').replace('{hash}', short)))) return;
                 runCommitAction(async () => {
                   const r = await projectsApi.gitRevert(project.id, commit.hash);
                   if (r.conflict) setView('fileStatus');

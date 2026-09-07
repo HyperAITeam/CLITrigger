@@ -57,7 +57,7 @@ function ToastEntry({ toast, onDismiss }: ToastItemProps) {
         type="button"
         aria-label="Dismiss notification"
         onClick={() => onDismiss(toast.id)}
-        className="p-0.5 rounded text-theme-muted hover:text-theme-text transition-colors flex-shrink-0"
+        className="p-0.5 rounded-md text-theme-muted hover:text-theme-text transition-colors flex-shrink-0"
       >
         <X size={12} />
       </button>

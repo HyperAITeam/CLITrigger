@@ -150,7 +150,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
           <h3 className="text-sm text-warm-800 font-medium truncate">{schedule.title}</h3>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-warm-400">
             <span className="inline-flex items-center gap-1 font-mono">
-              <Clock size={11} />
+              <Clock size={12} />
               {isOnce ? formatRunAt(schedule.run_at) : schedule.cron_expression}
             </span>
             <span aria-hidden="true">·</span>
@@ -172,7 +172,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
           <button
             onClick={handleTrigger}
             disabled={triggering}
-            className="p-1.5 text-amber-500/60 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-30"
+            className="p-1.5 text-status-warning hover:text-status-warning hover:bg-status-warning/10 rounded-lg transition-colors disabled:opacity-30"
             title={t('schedule.trigger')}
           >
             <Play size={14} />
@@ -217,7 +217,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-warm-200 px-5 py-5 space-y-4 animate-fade-in bg-warm-50/50">
+        <div className="border-t border-warm-200 px-5 py-5 space-y-4 bg-warm-50/50">
           {/* Description */}
           {schedule.description && (
             <div>
@@ -283,7 +283,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
                           <button
                             onClick={() => handleMergeRun(run)}
                             disabled={isActing}
-                            className="p-1 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded transition-colors disabled:opacity-30"
+                            className="p-1 text-status-merged/60 hover:text-status-merged hover:bg-status-merged/10 rounded-md transition-colors disabled:opacity-30"
                             title={t('todo.merge')}
                           >
                             <GitMerge size={12} />
@@ -293,7 +293,7 @@ export default function ScheduleItem({ schedule, onToggle, onDelete, onEdit, onT
                           <button
                             onClick={() => handleCleanupRun(run)}
                             disabled={isActing}
-                            className="p-1 text-status-warning/60 hover:text-status-warning hover:bg-status-warning/10 rounded transition-colors disabled:opacity-30"
+                            className="p-1 text-status-warning/60 hover:text-status-warning hover:bg-status-warning/10 rounded-md transition-colors disabled:opacity-30"
                             title={t('todo.cleanup')}
                           >
                             <Trash2 size={12} />

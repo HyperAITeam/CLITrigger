@@ -108,7 +108,7 @@ describe('LoginPage', () => {
     await userEvent.type(input, 'test');
     await userEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
-    expect(screen.getByText('Authenticating...')).toBeInTheDocument();
+    expect(screen.getByText('Authenticating…')).toBeInTheDocument();
     resolveLogin!();
   });
 });

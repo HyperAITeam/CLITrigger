@@ -7,8 +7,8 @@ CLITrigger is a **developer-focused task automation dashboard** built on an Appl
 - Two-accent system: blue for interactive elements, pink for point text and special callouts.
 - Surface-color change (light ↔ dark tile) creates hierarchy — not shadows or borders.
 - Consistent `rounded-xl` (12px) for cards and inputs; `rounded-full` pill for primary CTAs and badges.
-- Inter for UI text; JetBrains Mono for code, terminal output, and the brand mark.
-- Micro-interactions on every interactive element: 300ms ease, 2px lift on hover, scale(0.97) on press.
+- Pretendard Variable (self-hosted, OFL) for UI text — one face covers Korean and Latin; system monospace stack for code, terminal output, and the brand mark.
+- Micro-interactions on every interactive element: 150–200ms, individual transition properties only (never `transition: all`), 2px lift on hover, scale(0.97) on press.
 
 ---
 
@@ -49,13 +49,16 @@ CLITrigger is a **developer-focused task automation dashboard** built on an Appl
 - **Border Strong** (`{colors.border-strong}` — light `#C7C7CC`): Input focus ring base.
 - **Border Muted** (`{colors.border-muted}` — `rgba(0,0,0,0.10)`): Subtle dividers.
 
+### Tailwind aliases
+In code these tokens surface as Tailwind classes. **Prefer the explicit `theme-*` family** (`bg-theme-card`, `text-theme-muted`, `border-theme-border`, …). The numeric `warm-0`–`warm-900` scale is a legacy alias for the same CSS variables (`warm-0` = card surface) — fine to keep where it exists, avoid in new code. Raw Tailwind palette colors (`blue-500`, `emerald-600`, …) are reserved for genuinely semantic cases (diff +/-, conflict ours/theirs, user-picked tag colors); status meaning uses `status-*` tokens.
+
 ---
 
 ## Typography
 
 ### Font Families
-- **UI / Body**: `Inter, system-ui, -apple-system, sans-serif` — weights 300, 400, 500, 600, 700, 800.
-- **Code / Terminal / Brand**: `JetBrains Mono, Fira Code, monospace` — weights 400, 500, 700. Used for log output, diffs, inline code, and the `>_ CLI Trigger` wordmark.
+- **UI / Body**: `"Pretendard Variable", Pretendard, system-ui, -apple-system, sans-serif` — one self-hosted variable file (`/fonts/PretendardVariable.woff2`, OFL-1.1, license alongside), weight range 45–920. Covers Hangul and Latin in a single face; no web-font CDN requests.
+- **Code / Terminal / Brand**: system monospace stack `"Cascadia Code", "Cascadia Mono", ui-monospace, SFMono-Regular, Consolas, D2Coding, monospace` — the same family the terminal (`terminal-theme.ts`) uses, so all monospace in the app reads as one voice. Used for log output, diffs, inline code, and the `>_ CLI Trigger` wordmark (plain HTML spans with `font-mono`, not SVG text).
 
 ### Hierarchy
 
@@ -141,7 +144,7 @@ Base unit: 4px. All structural spacing snaps to multiples of 4.
 | `{rounded.2xl}` | 16px | Modals, large panels |
 | `{rounded.pill}` | 9999px | Badges (`.badge`), primary CTA pills, search input |
 
-**Grammar rule**: `rounded-xl` (12px) is the default shape for all interactive and container elements. `rounded-full` (pill) is reserved for badges and pill-style CTAs — it signals "category label" or "primary action," not generic content.
+**Grammar rule — two tiers**: containers (cards, modals, inputs, default buttons) use `rounded-xl` (12px, modals `rounded-2xl`); compact elements (`btn-sm`, `btn-icon`, chips, dropdown menus, code blocks) use `rounded-lg`/`rounded-md`. `rounded-full` (pill) is reserved for badges and pill-style CTAs — it signals "category label" or "primary action," not generic content. Pick the tier by element class, then stay consistent within a visual group.
 
 ---
 
@@ -194,8 +197,14 @@ Horizontal strip, `border-b border-[{colors.border-muted}]`. Tab items: `px-4 py
 ### Panel (`{component.panel}`)
 `p-4 rounded-xl border border-[{colors.border}]`. No shadow by default. Used for sub-sections within a larger card.
 
+### Static Card (`.card-static`)
+The `.card` surface without the interactive hover lift / accent top-line. Use for layout panes, toolbars, and banners that merely need the card background — `.card` is for content cards the user can point at.
+
 ### Modal (`{component.modal}`)
-Background `{colors.card}`, `rounded-2xl`, `shadow-elevated`, backdrop `rgba(0,0,0,0.4)`. Close button: `{component.button-icon}` top-right. Renders via `createPortal` into `document.body`. `z-modal` (100).
+Always the shared `Modal.tsx` shell (portal, backdrop `bg-black/50 backdrop-blur-sm`, ESC/backdrop close, `z-modal` 100, size `sm`–`2xl`). Interior standard: `bg-theme-card border border-theme-border rounded-2xl shadow-elevated`. Never re-implement a `fixed inset-0` overlay for a dialog; the only exceptions are non-dialog overlays (image lightbox, drag layers).
+
+### Stats (`{component.stats}`)
+Summary numbers render as a quiet inline row inside a `.panel` — label above (`text-xs`, muted, sentence case), value below (`text-lg font-semibold tabular-nums`), left-aligned, `gap-x-8` between stats. Not a grid of centered KPI tiles.
 
 ### Toast (`{component.toast}`)
 `rounded-xl`, `shadow-elevated`, 4 variants (success/error/warning/info) using status token tints. Progress bar at bottom. `z-toast` (150). Renders via portal.
@@ -226,3 +235,6 @@ Inline text or label in `{colors.pink}` (`#FF2D55` light / `#FF375F` dark). Used
 - Don't use monospace (JetBrains Mono) for UI labels, navigation, or body copy.
 - Don't round full-bleed log output panels — they use `rounded-none` for terminal authenticity.
 - Don't mix `rounded-md` (8px) and `rounded-xl` (12px) within the same visual group — pick one tier and stay consistent.
+- Don't use glass/backdrop-blur surfaces — panels and sidebars are opaque. The modal backdrop's blur is the only exception.
+- Don't use `transition: all` — list the properties (color, background-color, border-color, opacity, transform, box-shadow).
+- Don't use native `window.confirm/alert/prompt` — use the `useDialog` hook (confirm/prompt) and `useToast` (result notifications).

@@ -154,21 +154,21 @@ export default function SessionDiffPanel({ sessionId, onClose, projectId, onEven
             onClick={capture}
             disabled={capturing || !available}
             title={t('session.diff.capture') || 'Capture snapshot'}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500 disabled:opacity-40"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500 disabled:opacity-40"
           >
-            <Camera size={13} className={capturing ? 'animate-pulse' : ''} />
+            <Camera size={14} className={capturing ? 'animate-pulse' : ''} />
           </button>
           <button
             onClick={refresh}
             title={t('common.refresh') || 'Refresh'}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500"
           >
-            <RefreshCw size={13} className={filesLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={filesLoading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={onClose}
             title={t('common.close') || 'Close'}
-            className="p-1 rounded hover:bg-warm-100 text-warm-500"
+            className="p-1 rounded-md hover:bg-warm-100 text-warm-500"
           >
             <X size={14} />
           </button>
@@ -217,7 +217,7 @@ function PageChip({ active, onClick, label }: { active: boolean; onClick: () => 
   return (
     <button
       onClick={onClick}
-      className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap shrink-0 ${
+      className={`px-2 py-0.5 rounded-md text-[11px] whitespace-nowrap shrink-0 ${
         active ? 'bg-warm-600 text-white' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
       }`}
     >

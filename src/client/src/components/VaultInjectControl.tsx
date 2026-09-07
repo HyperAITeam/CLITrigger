@@ -219,7 +219,7 @@ export default function VaultInjectControl({
                               </span>
                               {includeLinked && linkedCount > 0 && (
                                 <span
-                                  className="text-[10px] text-warm-600 bg-warm-200 px-1.5 py-0.5 rounded shrink-0"
+                                  className="text-[10px] text-warm-600 bg-warm-200 px-1.5 py-0.5 rounded-md shrink-0"
                                   title={f.wikilinks.join(', ')}
                                 >
                                   {t('vaultInject.linkedAdded').replace('{n}', String(linkedCount))}

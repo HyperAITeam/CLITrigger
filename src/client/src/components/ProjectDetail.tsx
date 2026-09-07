@@ -14,6 +14,7 @@ import ProjectHeader from './ProjectHeader';
 import TodoList from './TodoList';
 import ProgressBar from './ProgressBar';
 import { useI18n } from '../i18n';
+import { useToast } from '../hooks/useToast';
 import { useNotification } from '../hooks/useNotification';
 import ScheduleList from './ScheduleList';
 import GitStatusPanel from './GitStatusPanel';
@@ -22,6 +23,7 @@ import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
 import SessionWindowsHost from './SessionWindowsHost';
 import PlannerWorkspace from './PlannerWorkspace';
+import WebPanel from './WebPanel';
 
 // Heavy tab panels are code-split so their deps (recharts, @xyflow/react,
 // codemirror) stay out of the initial bundle — they load on first tab open.
@@ -76,6 +78,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
   const [gitRefreshTrigger, setGitRefreshTrigger] = useState(0);
   const { t } = useI18n();
+  const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
   const { sendNotification } = useNotification();
   const discussionsRef = useRef<Discussion[]>([]);
   useEffect(() => { discussionsRef.current = discussions; }, [discussions]);
@@ -550,13 +553,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       URL.revokeObjectURL(url);
       const hasImages = plannerItems.some((i) => i.images);
       if (hasImages) {
-        window.alert(t('planner.importNoImages'));
+        toastInfo(t('planner.importNoImages'));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      window.alert(`${t('planner.exportError')}: ${msg}`);
+      toastError(`${t('planner.exportError')}: ${msg}`);
     }
-  }, [id, plannerItems, t]);
+  }, [id, plannerItems, t, toastInfo, toastError]);
 
   const handleImportPlanner = useCallback(async (file: File) => {
     if (!id) return;
@@ -569,12 +572,12 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       const [tags, items] = await Promise.all([plannerApi.getPlannerTags(id), plannerApi.getPlannerItems(id)]);
       setPlannerTags(tags);
       setPlannerItems(items);
-      window.alert(t('planner.importSuccess').replace('{items}', String(result.imported_items)).replace('{tags}', String(result.imported_tags)));
+      toastSuccess(t('planner.importSuccess').replace('{items}', String(result.imported_items)).replace('{tags}', String(result.imported_tags)));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      window.alert(`${t('planner.importError')}: ${msg}`);
+      toastError(`${t('planner.importError')}: ${msg}`);
     }
-  }, [id, t]);
+  }, [id, t, toastSuccess, toastError]);
 
   // Discussion handlers
   const handleAddDiscussion = useCallback((discussion: Discussion) => {
@@ -643,9 +646,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     if (!res.worktreeRemoved) failures.push(`worktree: ${res.worktreeError || 'unknown error'}`);
     if (deleteBranch && !res.branchDeleted) failures.push(`branch: ${res.branchError || 'unknown error'}`);
     if (failures.length > 0) {
-      alert(`Cleanup partially failed:\n${failures.join('\n')}`);
+      toastError(t('projects.cleanupPartialFailed').replace('{details}', failures.join('; ')), 7000);
     }
-  }, []);
+  }, [t, toastError]);
 
   const handleStartAll = useCallback(async () => {
     if (!id) return;
@@ -725,7 +728,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   if (notFound || !project) {
     return (
       <div className="px-6 py-6 sm:px-8 sm:py-8">
-        <div className="card p-16 text-center animate-fade-in">
+        <div className="card p-16 text-center">
           <p className="text-status-error font-medium text-lg">{t('detail.notFound')}</p>
           <Link
             to="/"
@@ -768,6 +771,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
       >
         {[
+          { key: 'web', label: t('tabs.web'), help: t('tabs.web.help') },
           { key: 'files', label: t('tabs.files'), help: t('tabs.files.help') },
           { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
           { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
@@ -927,6 +931,15 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onCleanupRun={handleCleanupTodo}
         />
       )}
+      {/* Always mounted, display:none when inactive: unmounting the <webview>
+          reloads the guest page. Electron's webview is an OOPIF, so display:none
+          no longer recreates it. Class toggle, not the hidden attribute: the
+          `flex` utility would override [hidden]. card-static, not card:
+          .card:hover's transform would become the containing block for the
+          panel's fixed fullscreen. */}
+      <div className={activeTab === 'web' ? 'card-static flex flex-col h-[calc(100vh-220px)]' : 'hidden'}>
+        <WebPanel />
+      </div>
       {activeTab === 'planner' && (
         <PlannerWorkspace
           plannerItems={plannerItems}

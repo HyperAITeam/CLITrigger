@@ -155,7 +155,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
   };
 
   return (
-    <div className="card p-5 animate-slide-up" style={{ borderColor: 'var(--color-accent)', borderWidth: '1px' }}>
+    <div className="card p-5" style={{ borderColor: 'var(--color-accent)', borderWidth: '1px' }}>
       <input
         ref={titleRef}
         className="input-field text-sm w-full mb-3"
@@ -179,7 +179,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
         >
           <ImageIcon size={14} />
           {t('plannerForm.addImage')}
@@ -215,9 +215,9 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
                 <button
                   type="button"
                   onClick={() => removeExistingImage(img.id)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X size={12} strokeWidth={3} />
+                  <X size={12} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.originalName}</span>
@@ -226,13 +226,13 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
             ))}
             {pendingImages.map(img => (
               <div key={img.id} className="relative group">
-                <img src={img.preview} alt={img.name} onClick={() => setLightboxSrc(img.preview)} className="h-20 w-20 object-cover rounded-lg border border-blue-300/30 cursor-zoom-in" />
+                <img src={img.preview} alt={img.name} onClick={() => setLightboxSrc(img.preview)} className="h-20 w-20 object-cover rounded-lg border border-accent/30 cursor-zoom-in" />
                 <button
                   type="button"
                   onClick={() => removePendingImage(img.id)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X size={12} strokeWidth={3} />
+                  <X size={12} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                   <span className="text-[8px] text-white truncate block">{img.name}</span>
@@ -248,9 +248,9 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
         <label className="text-xs font-medium text-warm-500 mb-1.5 block">{t('plannerForm.tags')}</label>
         <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl" style={{ backgroundColor: 'var(--color-bg-input)', border: '1px solid var(--color-border-strong)' }}>
           {tags.map((tag) => (
-            <span key={tag} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${getTagStyle(tagColorMap.get(tag) || 'default')}`}>
+            <span key={tag} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${getTagStyle(tagColorMap.get(tag) || 'default')}`}>
               {tag}
-              <button onClick={() => removeTag(tag)} className="opacity-60 hover:opacity-100"><X size={10} /></button>
+              <button onClick={() => removeTag(tag)} className="opacity-60 hover:opacity-100"><X size={12} /></button>
             </span>
           ))}
           <div className="relative flex-1 min-w-[120px]">
@@ -272,7 +272,7 @@ export default function PlannerForm({ existingTags, editItem, initialDueDate, on
               <AnchoredPopover anchorRef={tagInputRef} width={208} onClose={() => setShowTagDrop(false)} className="rounded-lg shadow-elevated z-tooltip py-1.5 max-h-48 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                 {suggestions.slice(0, 10).map((tagObj) => (
                   <button key={tagObj.name} className="flex items-center w-full px-2.5 py-1 hover:bg-warm-100/50 transition-colors text-left" onMouseDown={() => addTag(tagObj.name)}>
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${getTagStyle(tagObj.color)}`}>{tagObj.name}</span>
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${getTagStyle(tagObj.color)}`}>{tagObj.name}</span>
                   </button>
                 ))}
                 {tagInput.trim() && !existingTags.some(t => t.name === tagInput.trim()) && (

@@ -280,7 +280,7 @@ export default function StackView({
                   flexShrink: 0,
                 }}
               >
-                <X size={11} />
+                <X size={12} />
               </button>
             </div>
           );
@@ -309,7 +309,7 @@ export default function StackView({
               height: '100%',
             }}
           >
-            <Plus size={13} />
+            <Plus size={14} />
           </button>
         )}
         {/* Spacer so group action buttons (when present) sit at the right
@@ -353,7 +353,7 @@ export default function StackView({
           title={`${t('session.fontDecrease') || 'Decrease font size'} (${activeFontSize}px) · Ctrl+- · Ctrl+wheel`}
           style={groupBtnStyle}
         >
-          <ZoomOut size={13} />
+          <ZoomOut size={14} />
         </button>
         <button
           data-no-drag
@@ -363,7 +363,7 @@ export default function StackView({
           title={`${t('session.fontIncrease') || 'Increase font size'} (${activeFontSize}px) · Ctrl+= · Ctrl+wheel`}
           style={groupBtnStyle}
         >
-          <ZoomIn size={13} />
+          <ZoomIn size={14} />
         </button>
         <SessionThemePicker sessionId={stack.activeTab} />
         {groupActions && (
@@ -374,16 +374,16 @@ export default function StackView({
                   <Square size={12} />
                 </button>
                 <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => groupActions.onApplyLayoutPreset?.('columns')} aria-label="two-columns" title={t('session.layout.columns')} style={groupBtnStyle}>
-                  <Columns2 size={13} />
+                  <Columns2 size={14} />
                 </button>
                 <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={() => groupActions.onApplyLayoutPreset?.('grid')} aria-label="grid-layout" title={t('session.layout.grid')} style={groupBtnStyle}>
-                  <Grid2X2 size={13} />
+                  <Grid2X2 size={14} />
                 </button>
               </>
             )}
             {groupActions.onToggleMaximize && (
               <button data-no-drag onMouseDown={(e) => e.stopPropagation()} onClick={groupActions.onToggleMaximize} aria-label="toggle-maximize" title={`${groupActions.isMaximized ? t('session.restoreSize') : t('session.maximize')} · ${t('session.maximizeHint')}`} style={groupBtnStyle}>
-                {groupActions.isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                {groupActions.isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
             )}
             {groupActions.onPopOutGroup && (
@@ -395,7 +395,7 @@ export default function StackView({
                 title={`${t('session.popOut') || 'Pop out to separate window'} (Ctrl+Shift+O)`}
                 style={groupBtnStyle}
               >
-                <ExternalLink size={13} />
+                <ExternalLink size={14} />
               </button>
             )}
             <button
@@ -406,7 +406,7 @@ export default function StackView({
               title={`${t('session.minimize') || 'Minimize'} (Ctrl+Shift+M)`}
               style={groupBtnStyle}
             >
-              <Minus size={13} />
+              <Minus size={14} />
             </button>
             <button
               data-no-drag
@@ -416,7 +416,7 @@ export default function StackView({
               title={`${t('session.close') || 'Close'} (Ctrl+Shift+X)`}
               style={groupBtnStyle}
             >
-              <X size={13} />
+              <X size={14} />
             </button>
           </>
         )}

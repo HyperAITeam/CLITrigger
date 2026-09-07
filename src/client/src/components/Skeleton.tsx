@@ -18,7 +18,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   const baseClasses = 'animate-pulse bg-warm-200';
   
   const variantClasses = {
-    text: 'rounded h-3 mb-2 last:mb-0',
+    text: 'rounded-md h-3 mb-2 last:mb-0',
     circular: 'rounded-full',
     rectangular: 'rounded-none',
     rounded: 'rounded-xl',

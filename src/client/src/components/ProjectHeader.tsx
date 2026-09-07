@@ -225,7 +225,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 order-3 basis-full text-2xs text-warm-400 lg:order-none lg:basis-auto">
             {project.is_git_repo ? (
               <span className="inline-flex items-center gap-1 font-mono">
-                <GitBranch size={11} />
+                <GitBranch size={12} />
                 {project.default_branch}
               </span>
             ) : (
@@ -247,7 +247,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
           <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {runningSessions > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-status-running font-medium" title={t('tabs.sessions')}>
-                <Terminal size={12} strokeWidth={2} className="flex-shrink-0" />
+                <Terminal size={12} className="flex-shrink-0" />
                 {runningSessions}
               </span>
             )}
@@ -275,7 +275,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="mt-3 card p-6 animate-fade-in">
+        <div className="mt-3 card p-6">
           {/* Settings section tabs */}
           <div className="flex gap-1 mb-5 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {[
@@ -383,7 +383,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                       <p className="text-xs font-medium text-status-warning">
                         {t('header.cliNotInstalled').replace('{tool}', CLI_TOOLS.find((c) => c.value === cliTool)?.label || cliTool)}
                       </p>
-                      <code className="block mt-1 text-2xs text-warm-500 bg-warm-100 px-2 py-1 rounded select-all">
+                      <code className="block mt-1 text-2xs text-warm-500 bg-warm-100 px-2 py-1 rounded-md select-all">
                         {t(`header.cliInstallHint.${cliTool}`)}
                       </code>
                     </div>
@@ -457,7 +457,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 type="checkbox"
                 checked={!!autoDelegate}
                 onChange={(e) => setAutoDelegate(e.target.checked ? { from: 'claude', to: 'codex' } : null)}
-                className="rounded border-warm-300"
+                className="rounded-md border-warm-300"
               />
               <span className="text-xs text-warm-600">{t('header.autoReviewerEnable')}</span>
             </label>
@@ -601,7 +601,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                     checked={npmAutoInstall}
                     disabled={!useWorktree}
                     onChange={(e) => setNpmAutoInstall(e.target.checked)}
-                    className="mt-0.5 rounded"
+                    className="mt-0.5 rounded-md"
                   />
                   <div>
                     <div className="text-xs font-medium text-warm-700">{t('header.npmAutoInstallLabel')}</div>
@@ -621,7 +621,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 type="checkbox"
                 checked={showTokenUsage}
                 onChange={(e) => setShowTokenUsage(e.target.checked)}
-                className="rounded"
+                className="rounded-md"
               />
               <span className="text-xs text-warm-600">{t('header.showTokenUsageEnable')}</span>
             </label>
@@ -636,7 +636,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 type="checkbox"
                 checked={debugLogging}
                 onChange={(e) => setDebugLogging(e.target.checked)}
-                className="rounded"
+                className="rounded-md"
               />
               <span className="text-xs text-warm-600">{t('header.debugLoggingEnable')}</span>
             </label>
@@ -657,7 +657,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 type="checkbox"
                 checked={svnEnabled}
                 onChange={(e) => setSvnEnabled(e.target.checked)}
-                className="rounded"
+                className="rounded-md"
               />
               <span className="text-xs text-warm-600">{t('header.svnEnable')}</span>
             </label>

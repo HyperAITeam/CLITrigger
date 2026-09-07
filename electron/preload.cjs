@@ -38,6 +38,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('terminal:zoom', listener);
     return () => ipcRenderer.removeListener('terminal:zoom', listener);
   },
+  // A guest's window.open / target=_blank is denied in main
+  // (setWindowOpenHandler) and its URL forwarded here so the web panel can
+  // open it as a new tab instead of leaking to the OS browser. Returns an
+  // unsubscribe fn.
+  onWebPanelOpenUrl: (cb) => {
+    const listener = (_e, url) => cb(url);
+    ipcRenderer.on('webpanel:open-url', listener);
+    return () => ipcRenderer.removeListener('webpanel:open-url', listener);
+  },
   // Resolve a dropped File to its absolute OS path (terminal drag-drop).
   // File.path was removed in Electron 30; webUtils is the supported path.
   getDroppedFilePath: (file) => webUtils.getPathForFile(file),

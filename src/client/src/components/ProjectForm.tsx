@@ -43,7 +43,7 @@ export default function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
 
   return (
     <Modal open onClose={onCancel} size="md">
-      <div className="card p-8 shadow-2xl rounded-2xl">
+      <div className="bg-theme-card border border-theme-border rounded-2xl shadow-elevated p-8">
           <h2 className="text-lg font-semibold text-warm-800 mb-6">
             {t('form.newProject')}
           </h2>

@@ -1,27 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MoreVertical, ArrowRight, Clock, Terminal, Trash2, ChevronRight, X, Image as ImageIcon, MessagesSquare } from 'lucide-react';
 import type { PlannerItem as PlannerItemType, ImageMeta } from '../types';
 import { useI18n } from '../i18n';
-import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS } from './plannerTagColors';
+import { useDialog } from '../hooks/useDialog';
+import { getTagStyle, TAG_COLOR_MAP, TAG_COLOR_KEYS, PLANNER_STATUS_STYLES } from './plannerTagColors';
 import { uploadPlannerImages, deletePlannerImage, getPlannerImageUrl } from '../api/planner';
 import ImageLightbox from './ImageLightbox';
 import { AnchoredPopover } from './AnchoredPopover';
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-warm-200 text-warm-500',
-  in_progress: 'bg-blue-500/10 text-blue-600',
-  done: 'bg-emerald-500/10 text-emerald-600',
-  moved: 'bg-purple-500/10 text-purple-600',
-};
-
 const PRIORITY_LABELS: Record<number, { label: string; style: string }> = {
   0: { label: '—', style: 'text-warm-300' },
   1: { label: '●', style: 'text-warm-500' },
-  2: { label: '●●', style: 'text-amber-500' },
-  3: { label: '●●●', style: 'text-red-500' },
+  2: { label: '●●', style: 'text-status-warning' },
+  3: { label: '●●●', style: 'text-status-error' },
 };
 
 interface PlannerItemProps {
@@ -38,6 +31,7 @@ interface PlannerItemProps {
 
 export default function PlannerItem({ item, tagColors, existingTags, onSave, onDelete, onConvertToTodo, onConvertToSchedule, onConvertToSession, onUpdateTag }: PlannerItemProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [positioned, setPositioned] = useState(false);
@@ -248,7 +242,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             {item.title}
           </span>
           {isMoved && item.converted_type && (
-            <span className="text-2xs text-purple-500">
+            <span className="text-2xs text-status-merged">
               → {item.converted_type === 'todo' ? t('planner.movedToTodo') : item.converted_type === 'session' ? t('planner.movedToSession') : t('planner.movedToSchedule')}
             </span>
           )}
@@ -259,7 +253,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
               className="inline-flex items-center gap-1 text-2xs text-accent hover:underline mt-0.5"
               title={t('planner.fromDiscussion')}
             >
-              <MessagesSquare size={11} />
+              <MessagesSquare size={12} />
               {t('planner.fromDiscussion')}
             </Link>
           )}
@@ -268,12 +262,12 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
         {/* Tags */}
         <div className="hidden sm:flex items-center gap-1 w-[160px] flex-shrink-0 overflow-hidden">
           {images.length > 0 && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warm-100 text-warm-500 whitespace-nowrap">
-              <ImageIcon size={10} />{images.length}
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-warm-100 text-warm-500 whitespace-nowrap">
+              <ImageIcon size={12} />{images.length}
             </span>
           )}
           {tags.map((tag) => (
-            <span key={tag} className={`px-2 py-0.5 rounded text-2xs font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
+            <span key={tag} className={`px-2 py-0.5 rounded-md text-2xs font-medium whitespace-nowrap ${getTagStyle(tagColors.get(tag) || 'default')}`}>{tag}</span>
           ))}
         </div>
 
@@ -287,7 +281,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
         {/* Due date */}
         <div className="hidden md:block w-20 text-right flex-shrink-0">
           {item.due_date ? (
-            <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-warm-500'}`}>
+            <span className={`text-xs ${isOverdue ? 'text-status-error font-medium' : 'text-warm-500'}`}>
               {new Date(item.due_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
             </span>
           ) : (
@@ -297,7 +291,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
         {/* Status */}
         <div className="w-16 flex-shrink-0">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${STATUS_STYLES[item.status] || STATUS_STYLES.pending}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${PLANNER_STATUS_STYLES[item.status] || PLANNER_STATUS_STYLES.pending}`}>
             {t(`plannerStatus.${item.status}`)}
           </span>
         </div>
@@ -308,7 +302,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
             <MoreVertical size={14} />
           </button>
           {menuOpen && createPortal(
-            <div ref={dropRef} className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? ' animate-scale-in' : ''}`}
+            <div ref={dropRef} className={`fixed z-tooltip min-w-[160px] rounded-xl py-1 shadow-elevated${positioned ? '' : ''}`}
               style={{ top: pos.top, left: pos.left, opacity: positioned ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
               onClick={() => setMenuOpen(false)}
             >
@@ -325,7 +319,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                   </button>
                 </>
               )}
-              <button onClick={async () => { if (await confirmDialog(t('planner.deleteConfirm'))) onDelete(); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
+              <button onClick={async () => { if (await confirm({ message: t('planner.deleteConfirm'), danger: true })) onDelete(); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-status-error hover:bg-status-error/10 rounded-md transition-colors text-left">
                 <Trash2 size={12} /> {t('planner.delete')}
               </button>
             </div>,
@@ -336,7 +330,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
 
       {/* Expanded inline-edit panel */}
       {expanded && (
-        <div className="px-4 pb-3 pt-1 ml-8 animate-fade-in">
+        <div className="px-4 pb-3 pt-1 ml-8">
           <div className="rounded-lg px-4 py-3 space-y-3" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
             {/* Title edit */}
             <input
@@ -368,7 +362,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-colors"
                 >
                   <ImageIcon size={12} />
                   {t('plannerForm.addImage')}
@@ -399,9 +393,9 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                       <button
                         type="button"
                         onClick={() => handleDeleteImage(img.id)}
-                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-status-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <X size={12} strokeWidth={3} />
+                        <X size={12} />
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 bg-black/50 rounded-b-lg px-1 py-0.5">
                         <span className="text-[8px] text-white truncate block">{img.originalName}</span>
@@ -419,11 +413,11 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                 {editTags.map((tag) => (
                   <div key={tag} className="relative">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-medium cursor-pointer hover:ring-1 hover:ring-warm-400 transition-all ${getTagStyle(tagColors.get(tag) || 'default')}`}
                       onClick={(e) => { colorPickAnchorRef.current = e.currentTarget; setColorPickTag(colorPickTag === tag ? null : tag); }}
                     >
                       {tag}
-                      <button onClick={(e) => { e.stopPropagation(); removeTag(tag); }} className="opacity-60 hover:opacity-100"><X size={9} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); removeTag(tag); }} className="opacity-60 hover:opacity-100"><X size={12} /></button>
                     </span>
                     {colorPickTag === tag && (
                       <AnchoredPopover anchorRef={colorPickAnchorRef} width={180} onClose={() => setColorPickTag(null)} className="p-2 rounded-lg shadow-elevated z-tooltip" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
@@ -439,7 +433,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                               className={`aspect-square rounded-md flex items-center justify-center transition-all ${tagColors.get(tag) === colorKey ? 'ring-2 ring-accent ring-offset-1' : 'hover:scale-110'}`}
                               title={t(`plannerTag.color.${colorKey}`)}
                             >
-                              <div className={`w-5 h-5 rounded ${TAG_COLOR_MAP[colorKey].swatch}`} />
+                              <div className={`w-5 h-5 rounded-md ${TAG_COLOR_MAP[colorKey].swatch}`} />
                             </button>
                           ))}
                         </div>
@@ -466,7 +460,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                     <AnchoredPopover anchorRef={tagRef} width={160} onClose={() => setShowTagDrop(false)} className="rounded-lg shadow-elevated z-tooltip py-1 max-h-32 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                       {tagSuggestions.slice(0, 8).map((s) => (
                         <button key={s} className="flex items-center w-full px-2 py-1 hover:bg-warm-100/50 transition-colors text-left" onMouseDown={() => addTag(s)}>
-                          <span className={`px-2 py-0.5 rounded text-2xs font-medium ${getTagStyle(tagColors.get(s) || 'default')}`}>{s}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-2xs font-medium ${getTagStyle(tagColors.get(s) || 'default')}`}>{s}</span>
                         </button>
                       ))}
                     </AnchoredPopover>

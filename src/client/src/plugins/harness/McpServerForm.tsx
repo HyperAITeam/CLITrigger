@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../../components/Modal';
+import Button from '../../components/Button';
 import { useI18n } from '../../i18n';
 import type { McpServer, McpTransport } from './types';
 
@@ -195,21 +196,12 @@ export default function McpServerForm({
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-warm-150">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            className="px-3 py-1.5 text-xs rounded-lg bg-warm-100 text-warm-600 hover:bg-warm-200 disabled:opacity-50 transition-colors"
-          >
+          <Button variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
             {t('harness.cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent-dark disabled:opacity-50 transition-colors"
-          >
+          </Button>
+          <Button type="submit" variant="primary" size="sm" disabled={saving}>
             {saving ? t('harness.saving') : t('harness.save')}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

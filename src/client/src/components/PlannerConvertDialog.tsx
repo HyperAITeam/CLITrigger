@@ -52,7 +52,7 @@ export default function PlannerConvertDialog({
   };
 
   return (
-    <Modal open onClose={onClose} size="md" position="top" animation="slide-up">
+    <Modal open onClose={onClose} size="md" position="top">
       <div className="card p-6">
         <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
           {mode === 'todo' ? t('plannerConvert.toTask') : mode === 'session' ? t('plannerConvert.toTerminal') : t('plannerConvert.toSchedule')}
@@ -100,11 +100,11 @@ export default function PlannerConvertDialog({
               <label className="text-xs font-medium text-warm-500 mb-1.5 block">{t('plannerConvert.scheduleType')}</label>
               <div className="flex gap-1 p-0.5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
                 <button
-                  className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${scheduleType === 'once' ? 'bg-amber-500 text-white' : 'text-warm-500'}`}
+                  className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${scheduleType === 'once' ? 'bg-accent text-white' : 'text-warm-500'}`}
                   onClick={() => setScheduleType('once')}
                 >{t('plannerConvert.once')}</button>
                 <button
-                  className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${scheduleType === 'recurring' ? 'bg-amber-500 text-white' : 'text-warm-500'}`}
+                  className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${scheduleType === 'recurring' ? 'bg-accent text-white' : 'text-warm-500'}`}
                   onClick={() => setScheduleType('recurring')}
                 >{t('plannerConvert.recurring')}</button>
               </div>

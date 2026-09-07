@@ -65,7 +65,7 @@ export function OutgoingLinksPanel({ files, activeFile, onSelectFile }: Props) {
         <div key={i} className="px-2 py-1.5">
           <div className="flex items-center gap-1.5 text-xs">
             <ArrowRight className="w-3 h-3 text-warm-400 shrink-0" />
-            <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+            <AlertCircle className="w-3 h-3 text-status-warning shrink-0" />
             <span className="text-warm-500 truncate italic">[[{link}]]</span>
           </div>
           <div className="text-[10px] text-warm-400 truncate pl-[26px] mt-0.5">unresolved</div>

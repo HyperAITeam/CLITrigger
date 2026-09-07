@@ -88,13 +88,13 @@ function TaskNodeComponent({ data }: NodeProps) {
         {/* Meta row */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {todo.cli_tool && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-theme-bg-tertiary text-theme-muted">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-mono font-medium bg-theme-bg-tertiary text-theme-muted">
               {getToolConfig((todo.cli_tool as CliTool) || 'claude').label}
             </span>
           )}
           {parentTodo && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono bg-theme-bg-tertiary text-theme-text-secondary">
-              <Link size={10} />
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-mono bg-theme-bg-tertiary text-theme-text-secondary">
+              <Link size={12} />
               {parentTodo.title.length > 15 ? parentTodo.title.slice(0, 15) + '...' : parentTodo.title}
             </span>
           )}
@@ -106,7 +106,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {canStart && (
           <button
             onClick={(e) => { e.stopPropagation(); onStart(todo.id, 'headless'); }}
-            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded transition-colors"
+            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-md transition-colors"
             title={hasUnsatisfiedDep ? t('todo.startWithDependency') : t('todo.startHeadless')}
           >
             <Play size={12} />
@@ -115,7 +115,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {canStop && (
           <button
             onClick={(e) => { e.stopPropagation(); onStop(todo.id); }}
-            className="p-1 text-status-error/60 hover:text-status-error hover:bg-status-error/10 rounded transition-colors"
+            className="p-1 text-status-error/60 hover:text-status-error hover:bg-status-error/10 rounded-md transition-colors"
             title={t('todo.stop')}
           >
             <Square size={12} />
@@ -124,7 +124,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {canMerge && (
           <button
             onClick={(e) => { e.stopPropagation(); onMerge(todo.id); }}
-            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded transition-colors"
+            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-md transition-colors"
             title={t('todo.merge')}
           >
             <GitMerge size={12} />
@@ -133,7 +133,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {canCleanup && (
           <button
             onClick={(e) => { e.stopPropagation(); onCleanup(todo.id); }}
-            className="p-1 text-theme-muted hover:text-theme-text hover:bg-theme-hover rounded transition-colors"
+            className="p-1 text-theme-muted hover:text-theme-text hover:bg-theme-hover rounded-md transition-colors"
             title={t('todo.cleanup')}
           >
             <Archive size={12} />
@@ -142,7 +142,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {canRetry && (
           <button
             onClick={(e) => { e.stopPropagation(); onRetry(todo.id, 'headless'); }}
-            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded transition-colors"
+            className="p-1 text-theme-muted hover:text-accent hover:bg-theme-hover rounded-md transition-colors"
             title={t('todo.retry')}
           >
             <RotateCcw size={12} />
@@ -150,7 +150,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(todo.id); }}
-          className="p-1 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded transition-colors"
+          className="p-1 text-warm-400 hover:text-status-error hover:bg-status-error/10 rounded-md transition-colors"
           title={t('todo.delete')}
         >
           <Trash2 size={12} />

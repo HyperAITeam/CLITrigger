@@ -85,7 +85,7 @@ export function FindReplaceBar({
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className={`p-1 rounded inline-flex items-center justify-center ${active
+      className={`p-1 rounded-md inline-flex items-center justify-center ${active
         ? 'bg-warm-200 text-warm-800'
         : 'text-warm-500 hover:bg-warm-100 hover:text-warm-700'}`}
     >
@@ -108,7 +108,7 @@ export function FindReplaceBar({
           type="button"
           onClick={onToggleReplace}
           title={t('find.toggleReplace')}
-          className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700"
+          className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700"
         >
           {showReplace
             ? <ChevronDown className="w-3 h-3" />
@@ -121,7 +121,7 @@ export function FindReplaceBar({
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={onSearchKeyDown}
           placeholder={t('find.placeholder')}
-          className={`w-56 px-2 py-1 rounded outline-none border bg-transparent text-warm-800 ${invalidRegex ? 'border-red-400' : 'border-warm-200 focus:border-warm-400'}`}
+          className={`w-56 px-2 py-1 rounded-md outline-none border bg-transparent text-warm-800 ${invalidRegex ? 'border-status-error/30' : 'border-warm-200 focus:border-warm-400'}`}
         />
         {toggleBtn(options.caseSensitive, () => toggle('caseSensitive'), t('find.case'), CaseSensitive)}
         {toggleBtn(options.wholeWord, () => toggle('wholeWord'), t('find.word'), WholeWord)}
@@ -134,7 +134,7 @@ export function FindReplaceBar({
           onClick={onPrev}
           disabled={!query || matchCount.total === 0}
           title={t('find.prev')}
-          className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
@@ -143,7 +143,7 @@ export function FindReplaceBar({
           onClick={onNext}
           disabled={!query || matchCount.total === 0}
           title={t('find.next')}
-          className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
@@ -151,7 +151,7 @@ export function FindReplaceBar({
           type="button"
           onClick={onClose}
           title={t('find.close')}
-          className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700"
+          className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700"
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -166,14 +166,14 @@ export function FindReplaceBar({
             onKeyDown={onReplaceKeyDown}
             placeholder={t('find.replacePlaceholder')}
             disabled={!canReplace}
-            className="w-56 px-2 py-1 rounded outline-none border border-warm-200 bg-transparent text-warm-800 focus:border-warm-400 disabled:opacity-50"
+            className="w-56 px-2 py-1 rounded-md outline-none border border-warm-200 bg-transparent text-warm-800 focus:border-warm-400 disabled:opacity-50"
           />
           <button
             type="button"
             onClick={onReplace}
             disabled={!canReplace || !query || matchCount.total === 0}
             title={t('find.replace')}
-            className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center justify-center"
+            className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center justify-center"
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
@@ -182,7 +182,7 @@ export function FindReplaceBar({
             onClick={onReplaceAll}
             disabled={!canReplace || !query || matchCount.total === 0}
             title={t('find.replaceAll')}
-            className="p-1 rounded text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center justify-center"
+            className="p-1 rounded-md text-warm-500 hover:bg-warm-100 hover:text-warm-700 disabled:opacity-40 disabled:hover:bg-transparent inline-flex items-center justify-center"
           >
             <ArrowDownToLine className="w-3.5 h-3.5" />
           </button>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { confirmDialog } from '../lib/confirm';
 import { ArrowRight, ExternalLink, FileText, FolderOpen, Loader2, Trash2 } from 'lucide-react';
 import type { MemoryNode } from '../types';
 import { type RawFileEntry, getRawFileByPath, openRawFileExternal, parseMemoryTags, deleteWikiRawFile } from '../api/memory';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 
 interface RawFileViewerProps {
   projectId: string;
@@ -30,6 +30,7 @@ function formatMtime(iso: string): string {
 
 export default function RawFileViewer({ projectId, file, allNodes, onSelectNode, onDeleted }: RawFileViewerProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode,
     const msg = n > 0
       ? t('wiki.rawFile.deleteConfirmDerived').replace('{n}', String(n))
       : t('wiki.rawFile.deleteConfirm');
-    if (!(await confirmDialog(msg))) return;
+    if (!(await confirm({ message: msg, danger: true }))) return;
     setDeleting(true);
     try {
       await deleteWikiRawFile(projectId, file.relative_path);
@@ -76,25 +77,25 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode,
         </span>
         <button
           onClick={() => openRawFileExternal(projectId, file.relative_path, 'open').catch(err => console.error(err))}
-          className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+          className="p-1.5 rounded-md hover:bg-warm-200 text-warm-500"
           title={t('wiki.rawFile.openExternal')}
         >
-          <ExternalLink size={13} />
+          <ExternalLink size={14} />
         </button>
         <button
           onClick={() => openRawFileExternal(projectId, file.relative_path, 'reveal').catch(err => console.error(err))}
-          className="p-1.5 rounded hover:bg-warm-200 text-warm-500"
+          className="p-1.5 rounded-md hover:bg-warm-200 text-warm-500"
           title={t('wiki.rawFile.revealInFolder')}
         >
-          <FolderOpen size={13} />
+          <FolderOpen size={14} />
         </button>
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="p-1.5 rounded hover:bg-red-100 text-red-500 disabled:opacity-50"
+          className="p-1.5 rounded-md hover:bg-status-error/10 text-status-error disabled:opacity-50"
           title={t('wiki.rawFile.delete')}
         >
-          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+          {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
         </button>
       </div>
       <div className="px-4 py-1 border-b border-warm-100">
@@ -130,11 +131,11 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode,
                 <button
                   key={n.id}
                   onClick={() => onSelectNode(n.id)}
-                  className="w-full flex items-center gap-2 text-left px-2 py-1 rounded hover:bg-warm-100 group"
+                  className="w-full flex items-center gap-2 text-left px-2 py-1 rounded-md hover:bg-warm-100 group"
                 >
                   <span className="flex-1 text-[12px] text-warm-800 truncate min-w-0">{n.title}</span>
                   {firstTag && (
-                    <span className="text-[10px] text-warm-500 px-1.5 py-0.5 rounded bg-warm-100 group-hover:bg-warm-200 flex-shrink-0">
+                    <span className="text-[10px] text-warm-500 px-1.5 py-0.5 rounded-md bg-warm-100 group-hover:bg-warm-200 flex-shrink-0">
                       {firstTag}
                     </span>
                   )}
