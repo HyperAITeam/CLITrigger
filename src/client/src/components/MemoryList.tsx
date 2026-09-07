@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import {
   ChevronDown, ChevronRight, Edit2, Trash2, Pin, Network,
   Download, Wrench, Loader2, AlertCircle, Save, FileText, Database, Activity, RefreshCw, FolderSync,
@@ -146,7 +147,7 @@ export default function MemoryList({ projectId }: MemoryListProps) {
   };
 
   const handleDelete = async (node: MemoryNode) => {
-    if (!window.confirm(t('wiki.deleteConfirm'))) return;
+    if (!(await confirmDialog(t('wiki.deleteConfirm')))) return;
     await deleteMemoryNode(node.id);
     setNodes(prev => prev.filter(n => n.id !== node.id));
     setEdges(prev => prev.filter(e => e.from_node_id !== node.id && e.to_node_id !== node.id));
@@ -960,7 +961,7 @@ function EdgeEditModal({ edge, onClose, onSave, onDelete }: EdgeEditModalProps) 
             {t('wiki.save')}
           </button>
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-warm-300 text-warm-700 text-sm hover:bg-warm-100">{t('wiki.cancel')}</button>
-          <button onClick={async () => { if (window.confirm(t('wiki.edge.deleteConfirm'))) await onDelete(edge.id); }} className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50">{t('wiki.delete')}</button>
+          <button onClick={async () => { if (await confirmDialog(t('wiki.edge.deleteConfirm'))) await onDelete(edge.id); }} className="ml-auto px-4 py-2 rounded-lg text-red-600 text-sm hover:bg-red-50">{t('wiki.delete')}</button>
         </div>
       </div>
     </Modal>
@@ -1128,10 +1129,10 @@ interface LintModalProps {
 }
 
 const ISSUE_COLORS: Record<string, string> = {
-  contradiction: 'text-red-600 bg-red-50 border-red-200',
+  contradiction: 'text-red-600 bg-red-50 border-warm-200',
   orphan: 'text-warm-500 bg-warm-100 border-warm-200',
-  duplicate: 'text-amber-600 bg-amber-50 border-amber-200',
-  stale: 'text-blue-600 bg-blue-50 border-blue-200',
+  duplicate: 'text-amber-600 bg-amber-50 border-warm-200',
+  stale: 'text-blue-600 bg-blue-50 border-warm-200',
 };
 
 function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
@@ -1164,7 +1165,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
   const handleDelete = async (idx: number, title: string) => {
     const node = findNode(title);
     if (!node) return;
-    if (!window.confirm(t('wiki.deleteConfirm'))) return;
+    if (!(await confirmDialog(t('wiki.deleteConfirm')))) return;
     setBusyIdx(idx);
     try {
       await deleteMemoryNode(node.id);
@@ -1184,7 +1185,7 @@ function LintModal({ projectId, nodes, onClose, onChanged }: LintModalProps) {
     const confirmMsg = t('wiki.lint.mergeConfirm')
       .replace('{keep}', keep.title)
       .replace('{absorb}', absorb.title);
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
     setBusyIdx(idx);
     try {
       await mergeMemoryNodes(keep.id, absorb.id);
@@ -1288,7 +1289,7 @@ function IssueActions({ issue, idx, busy, anyBusy, nodes, findNode, onDelete, on
 
   const btnBase = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors disabled:opacity-40';
   const btnNeutral = `${btnBase} border-warm-300 bg-warm-50 text-warm-700 hover:bg-warm-100`;
-  const btnDanger = `${btnBase} border-red-200 bg-red-50 text-red-600 hover:bg-red-100`;
+  const btnDanger = `${btnBase} border-warm-300 bg-warm-50 text-red-600 hover:bg-red-50`;
 
   if (issue.type === 'duplicate' && titles.length >= 2) {
     const a = titles[0];
@@ -1426,7 +1427,7 @@ function DiskDiffModal({ projectId, onClose, onRebuilt }: { projectId: string; o
   useEffect(() => { runDiff(); }, [runDiff]);
 
   const handleRebuild = async () => {
-    if (!window.confirm(t('wiki.diskDiff.rebuildConfirm'))) return;
+    if (!(await confirmDialog(t('wiki.diskDiff.rebuildConfirm')))) return;
     setRebuilding(true);
     setRebuildResult(null);
     try {

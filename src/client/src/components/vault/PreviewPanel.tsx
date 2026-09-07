@@ -1,4 +1,5 @@
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
+import { confirmDialog } from '../../lib/confirm';
 import { createPortal } from 'react-dom';
 import {
   FolderOpen, Loader2, AlertCircle, Copy, ExternalLink,
@@ -238,8 +239,8 @@ export function PreviewPanel({
     setEditMode(true);
   }, [editable]);
 
-  const handleCancelEdit = useCallback(() => {
-    if (dirty && !window.confirm(t('files.editor.discardConfirm'))) return;
+  const handleCancelEdit = useCallback(async () => {
+    if (dirty && !(await confirmDialog(t('files.editor.discardConfirm')))) return;
     setEditorValue(savedValue);
     setEditMode(false);
     setDraftRestored(false);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../../lib/confirm';
 import { useI18n } from '../../i18n';
 import McpServerForm from './McpServerForm';
 import type { McpServer } from './types';
@@ -46,7 +47,7 @@ export default function McpServerList({ servers, saving, onUpsert, onRemove }: M
   };
 
   const handleRemove = async (alias: string) => {
-    if (!confirm(t('harness.mcp.confirmRemove').replace('{alias}', alias))) return;
+    if (!(await confirmDialog(t('harness.mcp.confirmRemove').replace('{alias}', alias)))) return;
     setRemoving(alias);
     try {
       await onRemove(alias);

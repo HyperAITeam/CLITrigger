@@ -16,6 +16,7 @@
 //   - heartbeat every HEARTBEAT_MS so main can detect a crashed popout
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { confirmDialog } from '../../lib/confirm';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink, Minus, X } from 'lucide-react';
 import StackView from '../group/StackView';
@@ -329,10 +330,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     });
   }, [postUpdate, popoutId]);
 
-  const handleTabClose = useCallback((sid: string) => {
+  const handleTabClose = useCallback(async (sid: string) => {
     const session = sessions.find(s => s.id === sid);
     if (session?.status === 'running') {
-      if (!window.confirm(t('session.confirmStop') || 'Stop this running session?')) return;
+      if (!(await confirmDialog(t('session.confirmStop') || 'Stop this running session?'))) return;
       sessionsApi.stopSession(sid).catch(() => { /* swallow */ });
     }
     removeTabFromGroup(sid);
@@ -636,12 +637,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // Close (X): terminate this window's sessions and close, rather than docking
   // the group back to main (that's Re-dock's job). Confirms first if anything
   // is still running, mirroring handleTabClose / the main window's close.
-  const handleCloseWindow = useCallback(() => {
+  const handleCloseWindow = useCallback(async () => {
     const g = groupRef.current;
     if (!g || !busRef.current) { window.close(); return; }
     const ids = allSessionIds(g.root);
     const running = ids.filter(id => sessions.find(s => s.id === id)?.status === 'running');
-    if (running.length && !window.confirm(t('session.confirmStop') || 'Stop this running session?')) return;
+    if (running.length && !(await confirmDialog(t('session.confirmStop') || 'Stop this running session?'))) return;
     running.forEach(id => sessionsApi.stopSession(id).catch(() => { /* swallow */ }));
     intentionalCloseRef.current = true;
     busRef.current.post({ t: 'group-close', from: popoutId, groupId: g.id });

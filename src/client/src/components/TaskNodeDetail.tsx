@@ -372,8 +372,8 @@ export default function TaskNodeDetail({
           const errorLogs = logs.filter(l => l.log_type === 'error');
           if (errorLogs.length === 0) return null;
           return (
-            <div className="rounded-lg border border-status-error/30 bg-status-error/5 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-status-error/10 border-b border-status-error/20">
+            <div className="rounded-lg bg-status-error/5 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-status-error/10">
                 <h4 className="text-2xs font-semibold text-status-error uppercase tracking-wider">{t('failure.title')}</h4>
                 {onFix && (
                   <button

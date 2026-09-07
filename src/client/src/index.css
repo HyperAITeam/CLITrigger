@@ -248,10 +248,11 @@
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 bg-status-error/10 text-status-error font-semibold
-           border border-status-error/20
+    background-color: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-muted);
+    @apply inline-flex items-center justify-center gap-2 text-status-error font-semibold
            px-6 py-2.5 rounded-xl transition-all duration-300
-           hover:bg-status-error hover:text-white hover:shadow-lg hover:shadow-status-error/20 hover:-translate-y-0.5
+           hover:bg-status-error hover:border-status-error hover:text-white hover:-translate-y-0.5
            active:scale-[0.97] active:brightness-90
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none;
   }

@@ -439,8 +439,8 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
         const failedMessage = discussion.messages.find((m) => m.status === 'failed');
         const failedAgent = failedMessage ? agentMap.get(failedMessage.agent_id) : null;
         return (
-          <div className="mb-4 rounded-xl border border-status-error/30 bg-status-error/5 overflow-hidden animate-slide-up">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-status-error/10 border-b border-status-error/20">
+          <div className="mb-4 rounded-xl bg-status-error/5 overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-status-error/10">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-status-error" />
                 <h4 className="text-xs font-semibold text-status-error uppercase tracking-wider">
@@ -611,7 +611,7 @@ export default function DiscussionDetail({ onEvent, connected }: DiscussionDetai
                           isUser
                             ? 'bg-accent/10 text-warm-700 ml-auto'
                             : message.status === 'failed'
-                            ? 'bg-status-error/5 border border-status-error/20'
+                            ? 'bg-status-error/5 border border-warm-150'
                             : 'bg-warm-50 border border-warm-150'
                         } ${canCollapse ? 'cursor-pointer' : ''}`}
                         onClick={canCollapse ? () => {

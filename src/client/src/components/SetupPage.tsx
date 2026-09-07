@@ -87,7 +87,7 @@ export default function SetupPage({ onSetup }: SetupPageProps) {
             )}
 
             {error && (
-              <div className="mt-4 py-2.5 px-4 bg-status-error/5 border border-status-error/20 rounded-xl text-sm text-status-error">
+              <div className="mt-4 py-2.5 px-4 bg-status-error/5 rounded-xl text-sm text-status-error">
                 {error}
               </div>
             )}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MoreVertical, ArrowRight, Clock, Terminal, Trash2, ChevronRight, X, Image as ImageIcon, MessagesSquare } from 'lucide-react';
@@ -324,7 +325,7 @@ export default function PlannerItem({ item, tagColors, existingTags, onSave, onD
                   </button>
                 </>
               )}
-              <button onClick={() => { if (confirm(t('planner.deleteConfirm'))) onDelete(); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
+              <button onClick={async () => { if (await confirmDialog(t('planner.deleteConfirm'))) onDelete(); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
                 <Trash2 size={12} /> {t('planner.delete')}
               </button>
             </div>,

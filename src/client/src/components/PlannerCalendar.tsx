@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Plus, MoreVertical, ArrowRight, Clock, Terminal, Trash2 } from 'lucide-react';
 import type { PlannerItem as PlannerItemType } from '../types';
@@ -339,7 +340,7 @@ function PlannerCalendarCard({ item, tagColors, onEdit, onConvert, onDelete }: {
                 </button>
               </>
             )}
-            <button onClick={() => { if (confirm(t('planner.deleteConfirm'))) onDelete(item.id); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
+            <button onClick={async () => { if (await confirmDialog(t('planner.deleteConfirm'))) onDelete(item.id); }} className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-colors text-left">
               <Trash2 size={12} /> {t('planner.delete')}
             </button>
           </div>,

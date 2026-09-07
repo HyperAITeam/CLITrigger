@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Check, RotateCcw, FolderGit2, Clock, Maximize2, Minimize2, Settings, ExternalLink, Download, Image as ImageIcon, X } from 'lucide-react';
 import type { PersonalItem, Agenda, JiraAgendaEntry, AgendaJiraConfig, ImageMeta, Project } from '../types';
@@ -520,7 +521,7 @@ export default function PersonalAgenda() {
     personalApi.updatePersonalItem(id, { start_at: start, end_at: end }).then(load);
   };
   const remove = async (p: PersonalItem) => {
-    if (!window.confirm(t('agenda.confirmDelete') || 'Delete this item?')) return false;
+    if (!(await confirmDialog(t('agenda.confirmDelete') || 'Delete this item?'))) return false;
     await personalApi.deletePersonalItem(p.id);
     load();
     return true;

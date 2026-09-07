@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, FolderOpen, X, Terminal, ListTodo } from 'lucide-react';
 import type { Project, Session, Todo } from '../types';
@@ -112,7 +113,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const handleDeleteProject = async (id: string, e: React.MouseEvent, skipConfirm = false) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!skipConfirm && !confirm(t('projects.deleteConfirm'))) return;
+    if (!skipConfirm && !(await confirmDialog(t('projects.deleteConfirm')))) return;
     try {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -199,8 +200,10 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
             const CardWrapper = pathMissing ? 'div' : Link;
             const cardProps = pathMissing
               ? {
-                  onClick: (e: React.MouseEvent) => {
-                    if (confirm(t('projects.pathMissingConfirm'))) {
+                  onClick: async (e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (await confirmDialog(t('projects.pathMissingConfirm'))) {
                       handleDeleteProject(project.id, e, true);
                     }
                   },

@@ -126,7 +126,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
   return (
     <div className="space-y-4">
       {error && (
-        <div className="p-3 border border-status-error/30 rounded-lg bg-status-error/5 text-xs text-status-error">
+        <div className="p-3 rounded-lg bg-status-error/5 text-xs text-status-error">
           {error}
         </div>
       )}

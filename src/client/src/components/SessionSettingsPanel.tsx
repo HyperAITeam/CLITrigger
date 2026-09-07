@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { Plus, Pencil, Trash2, Check, X, GitBranch, Type, Bug } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
@@ -176,7 +177,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   };
 
   const handleDelete = async (tag: SessionTag) => {
-    if (!confirm(t('sessionSettings.tags.deleteConfirm').replace('{name}', tag.name))) return;
+    if (!(await confirmDialog(t('sessionSettings.tags.deleteConfirm').replace('{name}', tag.name)))) return;
     try {
       await tagsApi.deleteSessionTag(tag.id);
       setTags((prev) => prev.filter((x) => x.id !== tag.id));
@@ -235,7 +236,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   };
 
   const handleDeleteAlias = async (alias: SessionAlias) => {
-    if (!confirm(`Delete alias "${alias.name}"? Sessions using it will fall back to OS default shell.`)) return;
+    if (!(await confirmDialog(`Delete alias "${alias.name}"? Sessions using it will fall back to OS default shell.`))) return;
     try {
       await aliasesApi.deleteSessionAlias(alias.id);
       setAliases((prev) => prev.filter((x) => x.id !== alias.id));

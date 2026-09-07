@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Moon, Sun, Bell, BellOff, LogOut, Plus, X, Inbox, CalendarDays, Terminal, FileCode, Link as LinkIcon, Edit2, Settings, Cloud, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { Project, Favorite, FavoriteType } from '../types';
@@ -135,7 +136,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const handleDeleteFavorite = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(t('favorites.deleteConfirm'))) return;
+    if (!(await confirmDialog(t('favorites.deleteConfirm')))) return;
     try {
       await favoritesApi.deleteFavorite(id);
       setFavorites((prev) => prev.filter((f) => f.id !== id));
@@ -371,7 +372,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(t('projects.deleteConfirm'))) return;
+    if (!(await confirmDialog(t('projects.deleteConfirm')))) return;
     try {
       await projectsApi.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { Inbox, RefreshCw, X } from 'lucide-react';
 import type { ReviewItem, ReviewSummary, TaskLog } from '../types';
 import * as reviewApi from '../api/review';
@@ -145,7 +146,7 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
   }, [t]);
 
   const handleDiscard = useCallback(async (item: ReviewItem) => {
-    if (!confirm(t('review.discardConfirm'))) return;
+    if (!(await confirmDialog(t('review.discardConfirm')))) return;
     setBusy(item.id, true);
     try {
       // Discard = scrap the todo: clean its worktree/branch, then delete the

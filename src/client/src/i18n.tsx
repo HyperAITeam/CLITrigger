@@ -1156,6 +1156,8 @@ const translations = {
     'session.stopping': 'stopping…',
     'session.startFailed': 'Failed to start',
     'session.confirmStop': 'End this terminal? The running task will be terminated.',
+    'confirm.ok': 'OK',
+    'confirm.cancel': 'Cancel',
     'session.diff.capture': 'Capture snapshot',
     'session.diff.pageStart': 'From start',
     'session.minimize': 'Minimize',
@@ -2573,6 +2575,8 @@ const translations = {
     'session.stopping': '중지하는 중…',
     'session.startFailed': '시작 실패',
     'session.confirmStop': '이 터미널을 종료할까요? 진행 중인 작업이 종료됩니다.',
+    'confirm.ok': '확인',
+    'confirm.cancel': '취소',
     'session.diff.capture': '스냅샷 캡처',
     'session.diff.pageStart': '시작부터',
     'session.minimize': '최소화',
@@ -2884,4 +2888,11 @@ export function useI18n() {
   const ctx = useContext(I18nContext);
   if (!ctx) throw new Error('useI18n must be used within I18nProvider');
   return ctx;
+}
+
+/** Provider-free lookup for code that runs outside the React tree (e.g. lib/confirm). */
+export function translateStatic(key: string): string {
+  const saved = localStorage.getItem('clitrigger-lang');
+  const lang: Lang = saved === 'en' ? 'en' : 'ko';
+  return (translations[lang] as Record<string, string>)[key] ?? key;
 }

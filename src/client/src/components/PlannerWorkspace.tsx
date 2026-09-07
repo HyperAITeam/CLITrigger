@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, FileText, Calendar, List } from 'lucide-react';
 import type { PlannerPage } from '../types';
@@ -94,7 +95,7 @@ export default function PlannerWorkspace({ projectId, ...itemProps }: PlannerWor
   };
 
   const handleDeletePage = async (id: string) => {
-    if (!confirm(t('planner.pages.deleteConfirm'))) return;
+    if (!(await confirmDialog(t('planner.pages.deleteConfirm')))) return;
     await plannerApi.deletePlannerPage(id);
     setPages((list) => list.filter((p) => p.id !== id));
     setSelection((cur) => (cur.kind === 'page' && cur.id === id ? { kind: 'work' } : cur));

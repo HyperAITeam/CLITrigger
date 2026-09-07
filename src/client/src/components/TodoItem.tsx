@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -319,7 +320,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
 
   const handleCleanup = async () => {
     const deleteBranch = todo.branch_name
-      ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', todo.branch_name))
+      ? await confirmDialog(t('cleanup.confirmDeleteBranch').replace('{name}', todo.branch_name))
       : false;
     setCleaning(true);
     setCleanError(null);
@@ -1115,7 +1116,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         </div>
       )}
       {dropZoneInvalid && (
-        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-red-300 bg-red-50/50 animate-fade-in">
+        <div className="mt-1.5 flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-warm-300 bg-red-50/50 animate-fade-in">
           <Ban size={14} className="text-red-400 flex-shrink-0" />
           <span className="text-xs font-medium text-red-400">{t('dnd.cyclicWarning')}</span>
         </div>

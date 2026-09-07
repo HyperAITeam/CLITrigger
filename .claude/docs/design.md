@@ -162,7 +162,7 @@ Background `{colors.card}`, `rounded-xl`, `shadow-soft`. Status dot left-aligned
 
 **`{component.button-secondary}`** — Background `{colors.surface-3}`, text `{colors.ink-2}`, `shadow-soft`, `rounded-xl`. Hover: background `{colors.active}`, text `{colors.ink}`, lifts 2px.
 
-**`{component.button-danger}`** — Background `{colors.error}` at 10% opacity, text `{colors.error}`, `rounded-xl`. Hover: solid `{colors.error}` background, white text, `shadow-accent` tinted red.
+**`{component.button-danger}`** — Same neutral chassis as `{component.button-secondary}` (background `{colors.surface-3}`, muted border), text `{colors.error}`, `rounded-xl`. Hover: solid `{colors.error}` background, white text. No red border, no red glow — destructive intent is carried by the label color only.
 
 **`{component.button-ghost}`** — Background transparent, text `{colors.ink-3}`, `rounded-xl`, `px-3 py-2`. Hover: background `{colors.surface-3}`, text `{colors.ink}`.
 

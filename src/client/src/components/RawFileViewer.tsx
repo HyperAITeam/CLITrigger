@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { ArrowRight, ExternalLink, FileText, FolderOpen, Loader2, Trash2 } from 'lucide-react';
 import type { MemoryNode } from '../types';
 import { type RawFileEntry, getRawFileByPath, openRawFileExternal, parseMemoryTags, deleteWikiRawFile } from '../api/memory';
@@ -53,7 +54,7 @@ export default function RawFileViewer({ projectId, file, allNodes, onSelectNode,
     const msg = n > 0
       ? t('wiki.rawFile.deleteConfirmDerived').replace('{n}', String(n))
       : t('wiki.rawFile.deleteConfirm');
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog(msg))) return;
     setDeleting(true);
     try {
       await deleteWikiRawFile(projectId, file.relative_path);

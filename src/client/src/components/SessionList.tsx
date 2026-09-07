@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus } from 'lucide-react';
 import CursorContextMenu, {
   CtxMenuSeparator,
@@ -388,9 +389,9 @@ export default function SessionList({
                       )}
                       {session.status !== 'running' && (!!session.worktree_path || !!session.branch_name) && (
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const deleteBranch = session.branch_name
-                              ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
+                              ? await confirmDialog(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
                               : false;
                             onCleanupSession(session.id, deleteBranch);
                           }}
@@ -507,9 +508,9 @@ export default function SessionList({
             {canCleanup && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const deleteBranch = session.branch_name
-                    ? confirm(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
+                    ? await confirmDialog(t('cleanup.confirmDeleteBranch').replace('{name}', session.branch_name))
                     : false;
                   onCleanupSession(session.id, deleteBranch);
                 }}

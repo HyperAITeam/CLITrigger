@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { confirmDialog } from '../lib/confirm';
 import { createPortal } from 'react-dom';
 import type { Project } from '../types';
 import * as projectsApi from '../api/projects';
@@ -333,9 +334,9 @@ function ActionToolbar({
             <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
           </svg>
         } />
-        <ToolbarBtn label={t('git.discard')} onClick={() => {
+        <ToolbarBtn label={t('git.discard')} onClick={async () => {
           if (statusFiles.length === 0) return;
-          if (confirm(t('git.confirmDiscard'))) {
+          if (await confirmDialog(t('git.confirmDiscard'))) {
             exec(() => projectsApi.gitDiscard(projectId, undefined, true, worktreePath));
           }
         }} icon={
@@ -412,7 +413,7 @@ function ActionToolbar({
                     </button>
                     <button
                       className="text-warm-300 hover:text-status-error opacity-0 group-hover:opacity-100 transition-opacity text-2xs"
-                      onClick={() => { if (confirm(`Delete branch ${b.name}?`)) exec(() => projectsApi.gitDeleteBranch(projectId, b.name)); }}
+                      onClick={async () => { if (await confirmDialog(`Delete branch ${b.name}?`)) exec(() => projectsApi.gitDeleteBranch(projectId, b.name)); }}
                     >
                       {t('git.delete')}
                     </button>
@@ -1237,8 +1238,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                     className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 text-warm-400 hover:text-status-error transition-all"
                     disabled={busy || cleaningWorktree === wt.path}
                     title={t('git.cleanupWorktree')}
-                    onClick={() => {
-                      if (confirm(t('git.confirmCleanupWorktree').replace('{name}', wt.branch))) {
+                    onClick={async () => {
+                      if (await confirmDialog(t('git.confirmCleanupWorktree').replace('{name}', wt.branch))) {
                         setCleaningWorktree(wt.path);
                         setBusy(true);
                         onError(null);
@@ -1353,8 +1354,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                     <MenuItem
                       danger
                       label={`${t('git.deleteWorktreeAndBranch')} ${contextMenu.branch}`}
-                      onClick={() => {
-                        if (confirm(t('git.confirmDeleteWorktreeAndBranch').replace('{name}', contextMenu.branch))) {
+                      onClick={async () => {
+                        if (await confirmDialog(t('git.confirmDeleteWorktreeAndBranch').replace('{name}', contextMenu.branch))) {
                           exec(() => projectsApi.cleanupWorktree(projectId, wt.path, contextMenu.branch));
                         } else {
                           setContextMenu(null);
@@ -1368,8 +1369,8 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                   <MenuItem
                     danger
                     label={`${t('git.delete')} ${branchName}`}
-                    onClick={() => {
-                      if (!confirm(t('git.confirmDelete').replace('{name}', branchName))) {
+                    onClick={async () => {
+                      if (!(await confirmDialog(t('git.confirmDelete').replace('{name}', branchName)))) {
                         setContextMenu(null);
                         return;
                       }
@@ -1379,7 +1380,7 @@ function RefsSidebar({ branches, tags, stashCount, projectId, busy, setBusy, onR
                         } catch (err) {
                           const msg = err instanceof Error ? err.message : '';
                           if (/not fully merged/i.test(msg)) {
-                            if (confirm(t('git.confirmForceDelete').replace('{name}', branchName))) {
+                            if (await confirmDialog(t('git.confirmForceDelete').replace('{name}', branchName))) {
                               await projectsApi.gitDeleteBranch(projectId, branchName, true);
                               return;
                             }
@@ -2013,8 +2014,8 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
               <button
                 className="shrink-0 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40"
                 disabled={busy}
-                onClick={() => {
-                  if (window.confirm(t('git.confirmConflictAbort'))) {
+                onClick={async () => {
+                  if (await confirmDialog(t('git.confirmConflictAbort'))) {
                     runConflictAction(() => projectsApi.gitConflictAbort(project.id));
                   }
                 }}
@@ -2028,7 +2029,7 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
 
       {/* Sidebar error (branch/tag actions) */}
       {sidebarError && (
-        <div className="mb-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between rounded border border-red-200 dark:border-red-800">
+        <div className="mb-2 px-3 py-2 bg-status-error/5 text-status-error text-xs flex items-center justify-between rounded">
           <span>{sidebarError}</span>
           <button onClick={() => setSidebarError(null)} className="ml-2 shrink-0 hover:text-red-800 dark:hover:text-red-300">&times;</button>
         </div>
@@ -2320,11 +2321,11 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
             </button>
           );
           const resetItem = (mode: 'soft' | 'mixed' | 'hard') =>
-            item(`${t('git.resetHere')} (${mode})`, () => {
+            item(`${t('git.resetHere')} (${mode})`, async () => {
               const msg = mode === 'hard'
                 ? t('git.confirmResetHard').replace('{hash}', short)
                 : t('git.confirmReset').replace('{hash}', short).replace('{mode}', mode);
-              if (!window.confirm(msg)) { setCommitMenu(null); return; }
+              if (!(await confirmDialog(msg))) { setCommitMenu(null); return; }
               runCommitAction(() => projectsApi.gitReset(project.id, commit.hash, mode));
             }, mode === 'hard');
           return (
@@ -2346,15 +2347,15 @@ export default function GitStatusPanel({ project, refreshTrigger, onEvent, sendM
                 else setCommitMenu(null);
               })}
               <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
-              {item(t('git.cherryPick'), () => {
-                if (!window.confirm(t('git.confirmCherryPick').replace('{hash}', short))) { setCommitMenu(null); return; }
+              {item(t('git.cherryPick'), async () => {
+                if (!(await confirmDialog(t('git.confirmCherryPick').replace('{hash}', short)))) { setCommitMenu(null); return; }
                 runCommitAction(async () => {
                   const r = await projectsApi.gitCherryPick(project.id, commit.hash);
                   if (r.conflict) setView('fileStatus');
                 });
               })}
-              {item(t('git.revertCommit'), () => {
-                if (!window.confirm(t('git.confirmRevert').replace('{hash}', short))) { setCommitMenu(null); return; }
+              {item(t('git.revertCommit'), async () => {
+                if (!(await confirmDialog(t('git.confirmRevert').replace('{hash}', short)))) { setCommitMenu(null); return; }
                 runCommitAction(async () => {
                   const r = await projectsApi.gitRevert(project.id, commit.hash);
                   if (r.conflict) setView('fileStatus');
