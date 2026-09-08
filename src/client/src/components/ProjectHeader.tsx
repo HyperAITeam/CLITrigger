@@ -40,6 +40,8 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const [hiddenTabs, setHiddenTabs] = useState<string[]>(() => {
     try { return project.hidden_tabs ? JSON.parse(project.hidden_tabs) : []; } catch { return []; }
   });
+  // Each gets its own settings section (like SVN). Terminals/Automation stay fixed.
+  const toggleableTabs = ['web', 'files', 'planner', ...(project.is_git_repo ? ['git'] : [])];
   // True when the project folder is detected as an SVN working copy. Drives
   // the SVN settings tab — shown for any SVN working copy regardless of git
   // presence (a folder can be both), or when SVN is already enabled so the
@@ -286,6 +288,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             {[
               { key: 'harness', label: t('tabs.harness') },
               { key: 'execution', label: t('header.execConfig') },
+              ...toggleableTabs.map((key) => ({ key, label: t(`tabs.${key}`) })),
               ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
             ].map((s) => (
               <button
@@ -647,26 +650,24 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
             </label>
           </div>
 
-          {/* Tab visibility (default all on). Terminals/Automation are fixed; SVN has its own section. */}
-          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
-            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.tabVisibilityTitle')}</h4>
-            <p className="text-2xs text-warm-500 mb-3">{t('header.tabVisibilityHint')}</p>
-            <div className="flex flex-wrap gap-4">
-              {['web', 'files', 'planner', ...(project.is_git_repo ? ['git'] : [])].map((key) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenTabs.includes(key)}
-                    onChange={(e) => setHiddenTabs((prev) => (e.target.checked ? prev.filter((k) => k !== key) : [...prev, key]))}
-                    className="rounded-md"
-                  />
-                  <span className="text-xs text-warm-600">{t(`tabs.${key}`)}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           </>
+          )}
+
+          {/* One settings tab per hideable primary tab (web/files/planner/git), same shape as SVN below. */}
+          {toggleableTabs.includes(settingsSection) && (
+          <div className="p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t(`tabs.${settingsSection}`)}</h4>
+            <p className="text-2xs text-warm-500 mb-3">{t('header.tabShowHint')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!hiddenTabs.includes(settingsSection)}
+                onChange={(e) => setHiddenTabs((prev) => (e.target.checked ? prev.filter((k) => k !== settingsSection) : [...prev, settingsSection]))}
+                className="rounded-md"
+              />
+              <span className="text-xs text-warm-600">{t('header.tabShowEnable').replace('{tab}', t(`tabs.${settingsSection}`))}</span>
+            </label>
+          </div>
           )}
 
           {settingsSection === 'svn' && (
