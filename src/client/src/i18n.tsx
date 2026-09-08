@@ -773,6 +773,8 @@ const translations = {
     'header.svnTitle': 'SVN (Subversion)',
     'header.svnHint': 'Off by default. When enabled, the project is checked for a .svn/ working copy and an SVN tab is shown when found.',
     'header.svnEnable': 'Enable SVN for this project',
+    'header.tabVisibilityTitle': 'Tab Visibility',
+    'header.tabVisibilityHint': 'Uncheck a tab to hide it in this project. Terminals and Automation are always shown; SVN has its own setting.',
     'tabs.files.help': 'Markdown document wiki: browse the file tree, preview/edit notes, and explore wikilinks between .md files through graph, backlinks, outline, tags, and search panels.',
     'tabs.analytics.help': 'Execution and cost analytics. Token usage by CLI, status distribution, and daily cost trends in interactive charts.',
 
@@ -2255,6 +2257,8 @@ const translations = {
     'header.svnTitle': 'SVN (Subversion)',
     'header.svnHint': '기본값 OFF. 켜면 프로젝트에 .svn/ 워킹카피가 있는지 검사하고, 발견 시 SVN 탭이 표시됩니다.',
     'header.svnEnable': '이 프로젝트에서 SVN 활성화',
+    'header.tabVisibilityTitle': '탭 표시',
+    'header.tabVisibilityHint': '체크를 해제하면 이 프로젝트에서 해당 탭이 숨겨집니다. 터미널과 자동화 탭은 항상 표시되며, SVN은 별도 설정을 따릅니다.',
     'tabs.files.help': '마크다운 문서 위키: 파일 트리 탐색, 노트 미리보기/편집, 그래프·백링크·개요·태그·검색 패널로 .md 파일 간 위키링크 탐색.',
     'tabs.analytics.help': '실행 통계와 비용 분석. CLI별 토큰 사용량, 상태 분포, 일별 비용 추이를 차트로 시각화합니다.',
 

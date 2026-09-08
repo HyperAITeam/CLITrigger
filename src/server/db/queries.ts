@@ -11,6 +11,7 @@ export interface Project {
   is_git_repo: number;
   vcs_type: string | null;
   svn_enabled: number;
+  hidden_tabs: string | null;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
@@ -67,7 +68,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'auto_delegate' | 'color'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'hidden_tabs' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'debug_logging' | 'use_worktree' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'auto_delegate' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -78,6 +79,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.is_git_repo !== undefined) { fields.push('is_git_repo = ?'); values.push(updates.is_git_repo); }
   if (updates.vcs_type !== undefined) { fields.push('vcs_type = ?'); values.push(updates.vcs_type); }
   if (updates.svn_enabled !== undefined) { fields.push('svn_enabled = ?'); values.push(updates.svn_enabled); }
+  if (updates.hidden_tabs !== undefined) { fields.push('hidden_tabs = ?'); values.push(updates.hidden_tabs); }
   if (updates.max_concurrent !== undefined) { fields.push('max_concurrent = ?'); values.push(updates.max_concurrent); }
   if (updates.claude_model !== undefined) { fields.push('claude_model = ?'); values.push(updates.claude_model); }
   if (updates.claude_options !== undefined) { fields.push('claude_options = ?'); values.push(updates.claude_options); }

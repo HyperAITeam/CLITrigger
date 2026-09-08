@@ -36,6 +36,10 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
   const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
   const [svnEnabled, setSvnEnabled] = useState(!!project.svn_enabled);
+  // Primary tabs hidden for this project (JSON array in projects.hidden_tabs; [] = all visible).
+  const [hiddenTabs, setHiddenTabs] = useState<string[]>(() => {
+    try { return project.hidden_tabs ? JSON.parse(project.hidden_tabs) : []; } catch { return []; }
+  });
   // True when the project folder is detected as an SVN working copy. Drives
   // the SVN settings tab — shown for any SVN working copy regardless of git
   // presence (a folder can be both), or when SVN is already enabled so the
@@ -137,6 +141,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         use_worktree: useWorktree ? 1 : 0,
         npm_auto_install: npmAutoInstall ? 1 : 0,
         svn_enabled: svnEnabled ? 1 : 0,
+        hidden_tabs: hiddenTabs.length > 0 ? JSON.stringify(hiddenTabs) : null,
         show_token_usage: showTokenUsage ? 1 : 0,
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
@@ -640,6 +645,25 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               />
               <span className="text-xs text-warm-600">{t('header.debugLoggingEnable')}</span>
             </label>
+          </div>
+
+          {/* Tab visibility (default all on). Terminals/Automation are fixed; SVN has its own section. */}
+          <div className="mt-6 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.tabVisibilityTitle')}</h4>
+            <p className="text-2xs text-warm-500 mb-3">{t('header.tabVisibilityHint')}</p>
+            <div className="flex flex-wrap gap-4">
+              {['web', 'files', 'planner', ...(project.is_git_repo ? ['git'] : [])].map((key) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenTabs.includes(key)}
+                    onChange={(e) => setHiddenTabs((prev) => (e.target.checked ? prev.filter((k) => k !== key) : [...prev, key]))}
+                    className="rounded-md"
+                  />
+                  <span className="text-xs text-warm-600">{t(`tabs.${key}`)}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           </>

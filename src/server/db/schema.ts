@@ -400,6 +400,8 @@ export function initDatabase(db: Database.Database): void {
     { table: 'sessions', column: 'session_alias_id', definition: 'TEXT' },
     { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
+    // UI-only: JSON array of primary tab keys hidden for this project. NULL = all visible.
+    { table: 'projects', column: 'hidden_tabs', definition: 'TEXT' },
     { table: 'projects', column: 'is_svn_wc', definition: 'INTEGER DEFAULT 0' },
     { table: 'projects', column: 'color', definition: 'TEXT' },
     { table: 'projects', column: 'sort_order', definition: 'INTEGER NOT NULL DEFAULT 0' },

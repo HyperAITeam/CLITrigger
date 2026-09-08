@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import TabHoverHelp from './HoverHelp';
 import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag } from '../types';
@@ -73,6 +73,23 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setAutomationSubState(sub);
     setSearchParams(sub === 'tasks' ? {} : { tab: sub }, { replace: true });
   }, [setSearchParams]);
+  // Tabs not rendered for this project: user-hidden (projects.hidden_tabs JSON)
+  // plus the git/svn gates, so the tab bar, the fallback below and the Web
+  // panel share one list. Empty until the project loads so a deep link is not
+  // redirected before we know what is visible.
+  const hiddenTabs = useMemo<string[]>(() => {
+    if (!project) return [];
+    let hidden: string[] = [];
+    try { hidden = JSON.parse(project.hidden_tabs || '[]'); } catch { /* corrupt → show all */ }
+    if (!project.is_git_repo) hidden.push('git');
+    if (!project.svn_enabled) hidden.push('svn');
+    return hidden;
+  }, [project]);
+  // Active tab hidden (deep link into a hidden tab, or the user just switched
+  // it off in settings) → fall back to the always-visible automation hub.
+  useEffect(() => {
+    if (hiddenTabs.includes(activeTab)) setActiveTab('automation');
+  }, [hiddenTabs, activeTab, setActiveTab]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
@@ -776,9 +793,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           { key: 'planner', label: t('tabs.planner'), help: t('tabs.planner.help'), count: plannerItems.length },
           { key: 'sessions', label: t('tabs.sessions'), help: t('tabs.sessions.help'), count: sessions.length },
           { key: 'automation', label: t('tabs.automation'), help: t('tabs.automation.help'), count: todos.length + discussions.length + schedules.length },
-          ...(project.is_git_repo ? [{ key: 'git', label: t('tabs.git'), help: t('tabs.git.help') }] : []),
-          ...(project.svn_enabled ? [{ key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') }] : []),
-        ].map((tab) => (
+          { key: 'git', label: t('tabs.git'), help: t('tabs.git.help') },
+          { key: 'svn', label: t('tabs.svn'), help: t('tabs.svn.help') },
+        ].filter((tab) => !hiddenTabs.includes(tab.key)).map((tab) => (
           <TabHoverHelp key={tab.key} title={tab.label} body={tab.help}>
             <button
               type="button"
@@ -936,10 +953,13 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           no longer recreates it. Class toggle, not the hidden attribute: the
           `flex` utility would override [hidden]. card-static, not card:
           .card:hover's transform would become the containing block for the
-          panel's fixed fullscreen. */}
-      <div className={activeTab === 'web' ? 'card-static flex flex-col h-[calc(100vh-220px)]' : 'hidden'}>
-        <WebPanel />
-      </div>
+          panel's fixed fullscreen. Only unmounted when the Web tab is switched
+          off in project settings — a reload on re-enable is acceptable there. */}
+      {!hiddenTabs.includes('web') && (
+        <div className={activeTab === 'web' ? 'card-static flex flex-col h-[calc(100vh-220px)]' : 'hidden'}>
+          <WebPanel />
+        </div>
+      )}
       {activeTab === 'planner' && (
         <PlannerWorkspace
           plannerItems={plannerItems}

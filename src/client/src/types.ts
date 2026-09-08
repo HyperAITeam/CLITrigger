@@ -6,6 +6,7 @@ export interface Project {
   is_git_repo: number;
   vcs_type: string | null;
   svn_enabled: number;
+  hidden_tabs: string | null;
   max_concurrent: number;
   claude_model: string | null;
   claude_options: string | null;
