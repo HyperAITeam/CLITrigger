@@ -3,7 +3,7 @@ import { step, initialState, QUIET_MS, AgentStateTracker, type DetectorState } f
 import { getAdapter } from '../cli-adapters.js';
 
 const hints = getAdapter('claude').agentStateHints!;
-const at = (state: DetectorState['state'], lastWorkingAt = 0): DetectorState => ({ state, lastWorkingAt, reason: 'test' });
+const at = (state: DetectorState['state'], lastWorkingAt = 0, titleSeen = false): DetectorState => ({ state, lastWorkingAt, reason: 'test', titleSeen });
 
 describe('agent-state-detector', () => {
   describe('step', () => {
@@ -81,6 +81,43 @@ describe('agent-state-detector', () => {
       expect(step(done, '✻ Thinking… (esc to interrupt)', 1, hints)).toBe(done);
     });
 
+    it('terminal title: spinner glyph → working/title, idle glyph after working → blocked/title', () => {
+      // Real OSC 0 titles from a Claude Code 2.1.263 session.
+      const working = step(at('idle'), '\x1b]0;\u25D0 volumetric-light-beam-thickness-fix\x07', 5, hints);
+      expect(working).toMatchObject({ state: 'working', reason: 'title', titleSeen: true, lastWorkingAt: 5 });
+      const blocked = step(working, '\x1b]0;\u2733 volumetric-light-beam-thickness-fix\x07', 9, hints);
+      expect(blocked).toMatchObject({ state: 'blocked', reason: 'title', titleSeen: true });
+    });
+
+    it('terminal title: idle glyph while not working (startup) → state unchanged, titleSeen', () => {
+      const next = step(at('idle'), '\x1b]0;\u2733 Claude Code\x07', 1, hints);
+      expect(next).toMatchObject({ state: 'idle', titleSeen: true });
+    });
+
+    it('terminal title: unrelated titles (cmd.exe, bare "claude") are ignored', () => {
+      const prev = at('idle');
+      expect(step(prev, '\x1b]0;C:\\WINDOWS\\SYSTEM32\\cmd.exe\x07', 1, hints)).toBe(prev);
+      expect(step(prev, '\x1b]0;claude\x07', 1, hints)).toBe(prev);
+    });
+
+    it('once a title was seen, quiet ticks and screen spinner frames no longer move the state', () => {
+      const working = at('working', 0, true);
+      expect(step(working, null, QUIET_MS * 60, hints)).toBe(working);
+      const blocked = { ...at('blocked', 0, true), reason: 'title' };
+      expect(step(blocked, '\x1b[103;1H\u273B Baked for 6m 45s · done\x1b[107;3H', 1, hints)).toBe(blocked);
+    });
+
+    it('with a title seen, a screen spinner still lifts a dialog block', () => {
+      const dialog = { ...at('blocked', 0, true), reason: 'dialog' };
+      const next = step(dialog, '\x1b[103;1H\u273B\x1b[107;3H', 7, hints);
+      expect(next).toMatchObject({ state: 'working', reason: 'spinner', titleSeen: true });
+    });
+
+    it('dialog text wins over a working title in the same chunk', () => {
+      const next = step(at('working', 0, true), '\x1b]0;\u25D1 x\x07Do you want to proceed?\n❯ 1. Yes', 3, hints);
+      expect(next).toMatchObject({ state: 'blocked', reason: 'dialog' });
+    });
+
     it('initialState is idle with hints, unknown without', () => {
       expect(initialState(hints, 0).state).toBe('idle');
       expect(initialState(undefined, 0).state).toBe('unknown');
@@ -109,6 +146,20 @@ describe('agent-state-detector', () => {
       tracker.exit('exit');
       tracker.exit('exit');
       expect(emits).toEqual([['working', 'spinner'], ['blocked', 'quiet'], ['done', 'exit']]);
+    });
+
+    it('reassembles an OSC title split across two PTY chunks and skips the quiet timer afterwards', () => {
+      vi.useFakeTimers();
+      const states: string[] = [];
+      const tracker = new AgentStateTracker(hints, (state) => states.push(state));
+      tracker.feed('\x1b[2K\x1b]0;◐ volumetric-light');
+      expect(tracker.state).toBe('idle');
+      tracker.feed('-beam-thickness-fix\x07\x1b[103;1H');
+      expect(tracker.state).toBe('working');
+      vi.advanceTimersByTime(QUIET_MS * 10);
+      expect(tracker.state).toBe('working');
+      tracker.feed('\x1b]0;✳ volumetric-light-beam-thickness-fix\x07');
+      expect(states).toEqual(['working', 'blocked']);
     });
 
     it('without hints stays unknown until exit', () => {

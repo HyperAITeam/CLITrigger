@@ -207,6 +207,11 @@ const claudeAdapter: CliAdapter = {
   ],
   // `Yes, I trust` is deliberately absent from `blocked`: the auto-respond rule
   // above answers it within milliseconds, so nothing would flip the state back.
+  // `title` is the primary signal (same rules as herdr's claude.toml): Claude
+  // Code sets the terminal title to "◐ <name>"/"◑ <name>" while a turn runs and
+  // "✳ <name>" when it is back at the prompt. Sticky and independent of how the
+  // spinner line is painted, so a minutes-long thinking pause stays `working`.
+  // The `working` regex below is the fallback for PTYs where no title arrives.
   // `working` alternatives, in order: legacy "(esc to interrupt)" hint; the
   // long-thinking status "still thinking with xhigh effort", which Claude Code
   // 2.1.x repaints colour-pulsing several times a second with or without the
@@ -218,6 +223,7 @@ const claudeAdapter: CliAdapter = {
   // Those last rules are anchored to the whole chunk so prose never matches;
   // ASCII `*`/`·` only take single letters so markdown bullets stay out.
   agentStateHints: {
+    title: { working: /^[⠀-⣿◐-◓] /, idle: /^✳ / },
     working: /esc to interrupt|still thinking|[✶✻✽✢✧✦✱✳⊹◈⟡⋆✸✹✺⊛⊕⊗]\s*\S[^\n]{0,60}…|⎿\s*(?:Running|Waiting|Thinking|Working)|^\s*[✶✻✽✢✧✦✱✳](?:\s+\S+){0,8}\s*$|^\s*[·*+](?:\s+\S){0,6}\s*$/,
     blocked: /Do you want to|Would you like to|Yes, allow|Allow once|Yes, I accept|❯\s*1\.|\(y\/n\)|Esc to cancel/i,
   },
