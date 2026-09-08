@@ -74,7 +74,23 @@ function advanceBlockState(line: string, state: PtyFilterState): boolean {
 
 // ── Noise detection patterns ──
 
-const SPINNER_CHARS = '✶✻✽✢✧✦✱·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖';
+export const SPINNER_CHARS = '✶✻✽✢✧✦✱✳·⊹◈⟡⋆✸✹✺⊛⊕⊗*+＋＊✚✕✖';
+
+/**
+ * ANSI escape code stripper — replaces cursor movement with spaces to preserve
+ * word gaps. Shared by the PTY auto-respond path, the agent-state detector and
+ * the MCP output reader.
+ */
+export function stripAnsi(str: string): string {
+  // Step 1: Replace cursor movement/positioning sequences with a space
+  // C=forward, G=column absolute, H/f=row;col position
+  let result = str.replace(/\x1B\[\d*[CG]|\x1B\[\d+;\d+[Hf]/g, ' ');
+  // Step 2: Strip all remaining ANSI sequences
+  result = result.replace(/\x1B\[[0-9;]*[A-Za-z]|\x1B\].*?(?:\x07|\x1B\\)|\x1B[()][A-Z0-9]|\x1B[>=<]|\x1B\[[\?]?[0-9;]*[hlJKm]/g, '');
+  // Step 3: Collapse runs of multiple spaces into one
+  result = result.replace(/ {2,}/g, ' ');
+  return result;
+}
 
 const NOISE_PATTERNS: RegExp[] = [
   // Box drawing / separator lines (allow trailing prompt chars like > $ %)

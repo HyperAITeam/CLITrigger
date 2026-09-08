@@ -93,7 +93,7 @@ router.get('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respons
       return;
     }
     const sessions = queries.getSessionsByProjectId(req.params.id);
-    res.json(sessions);
+    res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id) })));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -108,7 +108,7 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    res.json(session);
+    res.json({ ...session, agent_state: sessionManager.getAgentState(session.id) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

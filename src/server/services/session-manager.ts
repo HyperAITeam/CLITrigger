@@ -1,6 +1,7 @@
 import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
+import { AgentStateTracker, type AgentState, type AgentStateHints } from './agent-state-detector.js';
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
@@ -50,6 +51,15 @@ export class SessionManager {
   // instead of falling back to a HEAD-only diff that hides untracked files.
   private pendingBaseSnapshots: Map<string, Promise<void>> = new Map();
 
+  // sessionId → heuristic agent-state tracker for the current/last PTY run.
+  // Entries survive process exit so REST keeps answering `done` afterwards;
+  // a restart replaces the entry.
+  private agentTrackers: Map<string, AgentStateTracker> = new Map();
+
+  getAgentState(sessionId: string): AgentState {
+    return this.agentTrackers.get(sessionId)?.state ?? 'unknown';
+  }
+
   /** Resolves once the session's diff-base snapshot (if in flight) is in the DB. */
   async waitForBaseSnapshot(sessionId: string): Promise<void> {
     const pending = this.pendingBaseSnapshots.get(sessionId);
@@ -64,11 +74,16 @@ export class SessionManager {
    * Memory-bounded by the upstream ring buffer in claudeManager and by
    * `trimSessionRawChunks` (~2MB rolling) on the DB side.
    */
-  private subscribeRawForSession(sessionId: string, pid: number): void {
+  private subscribeRawForSession(sessionId: string, pid: number, hints?: AgentStateHints): void {
     let pending: Buffer[] = [];
     let pendingBytes = 0;
     let bytesSinceTrim = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tracker = new AgentStateTracker(hints, (state, reason) => {
+      broadcaster.broadcast({ type: 'session:agent-state', sessionId, state, reason });
+    });
+    this.agentTrackers.set(sessionId, tracker);
 
     const flush = (): void => {
       if (timer) { clearTimeout(timer); timer = null; }
@@ -95,6 +110,7 @@ export class SessionManager {
       try {
         broadcaster.sendBinaryToSubscribers(sessionId, encodeSessionFrame(sessionId, buf));
       } catch { /* ignore */ }
+      tracker.feed(chunk);
 
       if (pendingBytes >= RAW_FLUSH_BYTES) {
         flush();
@@ -298,7 +314,7 @@ export class SessionManager {
       // The legacy stripped-text streamToSessionLogs path is intentionally
       // skipped — Sessions now show the real terminal, and storing classified
       // session_logs on every spinner frame is wasted DB churn.
-      this.subscribeRawForSession(sessionId, pid);
+      this.subscribeRawForSession(sessionId, pid, adapter.agentStateHints);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.startupInputBuffer.delete(sessionId);
@@ -353,7 +369,10 @@ export class SessionManager {
       // session immediately shows the final output.
       this.flushAndForgetRaw(sessionId);
       // Guard: a stop-then-restart may have already mapped a NEW pid.
-      if (this.livePids.get(sessionId) === pid) this.livePids.delete(sessionId);
+      if (this.livePids.get(sessionId) === pid) {
+        this.livePids.delete(sessionId);
+        this.agentTrackers.get(sessionId)?.exit('exit');
+      }
       this.pendingInitialPrompts.delete(sessionId);
       this.startupInputBuffer.delete(sessionId);
       const current = queries.getSessionById(sessionId);
@@ -377,7 +396,10 @@ export class SessionManager {
       }
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);
-      if (this.livePids.get(sessionId) === pid) this.livePids.delete(sessionId);
+      if (this.livePids.get(sessionId) === pid) {
+        this.livePids.delete(sessionId);
+        this.agentTrackers.get(sessionId)?.exit('exit');
+      }
       this.pendingInitialPrompts.delete(sessionId);
       this.startupInputBuffer.delete(sessionId);
       try {
@@ -400,6 +422,7 @@ export class SessionManager {
     // Mark stopped + broadcast BEFORE the (up to 7s) graceful kill so the UI
     // updates immediately; the exit handler's guards then skip this session.
     this.livePids.delete(sessionId);
+    this.agentTrackers.get(sessionId)?.exit('stopped');
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');

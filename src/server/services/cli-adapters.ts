@@ -1,6 +1,7 @@
 import path from 'path';
 import { execFile } from 'child_process';
 import { isModelSupported } from '../db/queries.js';
+import type { AgentStateHints } from './agent-state-detector.js';
 
 export type CliTool = 'claude' | 'antigravity' | 'codex' | 'raw-shell';
 export type CliMode = 'headless' | 'interactive' | 'verbose';
@@ -170,6 +171,11 @@ export interface CliAdapter {
    */
   stdinSubmitSequence?: string;
   /**
+   * Regexes the agent-state detector runs over stripped PTY output to tell
+   * working (spinner) from blocked (dialog). Absent → state stays `unknown`.
+   */
+  agentStateHints?: AgentStateHints;
+  /**
    * Best-effort probe for currently supported models. Returns null when the
    * CLI is unreachable or its help output yields no recognizable model ids;
    * callers should fall back to the bundled registry.
@@ -199,6 +205,12 @@ const claudeAdapter: CliAdapter = {
       blocksInitialPrompt: true,
     },
   ],
+  // `Yes, I trust` is deliberately absent from `blocked`: the auto-respond rule
+  // above answers it within milliseconds, so nothing would flip the state back.
+  agentStateHints: {
+    working: /esc to interrupt|[✶✻✽✢✧✦✱✳⊹◈⟡⋆✸✹✺⊛⊕⊗]\s*\S[^\n]{0,60}…|⎿\s*(?:Running|Waiting|Thinking|Working)/,
+    blocked: /Do you want to|Would you like to|Yes, allow|Allow once|Yes, I accept|❯\s*1\.|\(y\/n\)|Esc to cancel/i,
+  },
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession }) {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];

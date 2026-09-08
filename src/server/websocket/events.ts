@@ -1,4 +1,5 @@
 import type { Todo } from '../db/queries.js';
+import type { AgentState } from '../services/agent-state-detector.js';
 
 export type WSEvent =
   | { type: 'todo:status-changed'; todoId: string; status: string; mode?: string; worktree_path?: string | null; branch_name?: string | null }
@@ -17,6 +18,7 @@ export type WSEvent =
   | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }
+  | { type: 'session:agent-state'; sessionId: string; state: AgentState; reason?: string }
   | { type: 'rate-limit:updated'; resetsAt: number; status: string | null }
   | { type: 'vault:changed'; projectId: string }
   | { type: 'git:changed'; projectId: string }

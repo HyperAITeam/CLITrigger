@@ -161,6 +161,8 @@ export function initWebSocket(server: Server): void {
               sendBatch();
             } catch { /* ignore replay errors */ }
             ws.send(JSON.stringify({ type: 'session:replay-end', sessionId: msg.sessionId }));
+            // Current agent state so a (re)connecting client doesn't wait for the next transition.
+            ws.send(JSON.stringify({ type: 'session:agent-state', sessionId: msg.sessionId, state: sessionManager.getAgentState(msg.sessionId) }));
           }
         }
 
