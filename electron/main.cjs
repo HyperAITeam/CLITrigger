@@ -332,6 +332,12 @@ function createWindow(port) {
       return { action: 'deny' };
     });
     guest.on('will-navigate', (e, navUrl) => { if (!isWebScheme(navUrl)) e.preventDefault(); });
+    // Electron only *reports* Ctrl+wheel as a zoom request (zoom-changed); apply
+    // it to the guest. 0.5-level step matches Electron's zoomIn/zoomOut menu roles.
+    guest.on('zoom-changed', (_e, dir) => {
+      const next = guest.getZoomLevel() + (dir === 'in' ? 0.5 : -0.5);
+      guest.setZoomLevel(Math.max(-4, Math.min(6, next))); // ~48%-299%
+    });
   });
 
   // Chromium handles Ctrl+wheel / pinch as a page-zoom gesture in the browser
