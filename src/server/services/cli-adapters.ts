@@ -208,12 +208,17 @@ const claudeAdapter: CliAdapter = {
   // `Yes, I trust` is deliberately absent from `blocked`: the auto-respond rule
   // above answers it within milliseconds, so nothing would flip the state back.
   // `working` alternatives, in order: legacy "(esc to interrupt)" hint; the
-  // first spinner paint "✻ Kneading…" (glyph + verb + ellipsis); tool status
-  // sub-lines; and the ~10Hz repaint frames, which after ANSI stripping are
-  // just the glyph plus a few recoloured single letters (" ✽ d g ") — that
-  // last rule is anchored to the whole chunk so prose never matches it.
+  // long-thinking status "still thinking with xhigh effort", which Claude Code
+  // 2.1.x repaints colour-pulsing several times a second with or without the
+  // glyph (nothing else matched those frames → 1s quiet timer flapped
+  // working→blocked and spammed notifications); the first spinner paint
+  // "✻ Kneading…" (glyph + verb + ellipsis); tool status sub-lines; and the
+  // ~10Hz repaint frames, which after ANSI stripping are the glyph plus a few
+  // words or recoloured single letters (" ✽ d g ", " ✢ still thinking … ").
+  // Those last rules are anchored to the whole chunk so prose never matches;
+  // ASCII `*`/`·` only take single letters so markdown bullets stay out.
   agentStateHints: {
-    working: /esc to interrupt|[✶✻✽✢✧✦✱✳⊹◈⟡⋆✸✹✺⊛⊕⊗]\s*\S[^\n]{0,60}…|⎿\s*(?:Running|Waiting|Thinking|Working)|^\s*[✶✻✽✢✧✦✱✳·*+](?:\s+\S){0,6}\s*$/,
+    working: /esc to interrupt|still thinking|[✶✻✽✢✧✦✱✳⊹◈⟡⋆✸✹✺⊛⊕⊗]\s*\S[^\n]{0,60}…|⎿\s*(?:Running|Waiting|Thinking|Working)|^\s*[✶✻✽✢✧✦✱✳](?:\s+\S+){0,8}\s*$|^\s*[·*+](?:\s+\S){0,6}\s*$/,
     blocked: /Do you want to|Would you like to|Yes, allow|Allow once|Yes, I accept|❯\s*1\.|\(y\/n\)|Esc to cancel/i,
   },
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession }) {

@@ -25,6 +25,15 @@ describe('agent-state-detector', () => {
       expect(step(at('idle'), '\x1b[31;1H*\x1b[34;3H', 1, hints).state).toBe('working');
     });
 
+    it('long-thinking colour-pulse frames (Claude Code 2.1.x) → working', () => {
+      // Real frames from a 7-minute "thinking with xhigh effort" turn: the phrase alone
+      // recoloured, the glyph plus the phrase, and the glyph plus a timer digit. Before
+      // these matched, the quiet timer flapped working→blocked and spammed notifications.
+      expect(step(at('idle'), '\x1b[?25l\x1b[38;2;223;184;68m\x1b[103;48Hstill thinking with xhigh effort\x1b[107;3H\x1b[?25h\x1b[m', 1, hints).state).toBe('working');
+      expect(step(at('idle'), '\x1b[?25l\x1b[38;2;240;165;37m\x1b[1m\x1b[103;1H✢\x1b[38;2;220;181;65m\x1b[22m\x1b[46Cstill thinking with xhigh effort\x1b[107;3H\x1b[?25h\x1b[m', 1, hints).state).toBe('working');
+      expect(step(at('idle'), '\x1b[?25l\x1b[38;2;215;119;87m\x1b[103;1H✽\x1b[38;2;153;153;153m\x1b[24C9\x1b[107;3H\x1b[?25h\x1b[m', 1, hints).state).toBe('working');
+    });
+
     it('status/banner lines with "·" and "…" are not spinner paints', () => {
       const prev = at('idle');
       expect(step(prev, '⚠ Transcript saving is off — inherited marker · restart with CLAUDE_CODE_FORCE_SESSION_PE…', 1, hints)).toBe(prev);
