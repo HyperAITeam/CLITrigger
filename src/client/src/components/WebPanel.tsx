@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import Button from './Button';
 
@@ -47,6 +47,10 @@ export default function WebPanel() {
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
   const [draft, setDraft] = useState(active.url);
   const [fullscreen, setFullscreen] = useState(false);
+  // Fullscreen-only: folds the tab bar + address bar away so the guest gets
+  // the whole screen. A small handle at the top edge brings them back.
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const collapsed = fullscreen && chromeHidden;
   const inputRef = useRef<HTMLInputElement>(null);
   const guestAreaRef = useRef<HTMLDivElement>(null);
 
@@ -148,7 +152,7 @@ export default function WebPanel() {
       className={fullscreen ? 'fixed inset-0 z-modal flex flex-col' : 'flex flex-col flex-1 min-h-0'}
       style={fullscreen ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
     >
-      <div role="tablist" className="flex items-end gap-0.5 px-2 border-b border-theme-border overflow-x-auto">
+      <div role="tablist" className={`${collapsed ? 'hidden' : 'flex'} items-end gap-0.5 px-2 border-b border-theme-border overflow-x-auto`}>
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -181,7 +185,7 @@ export default function WebPanel() {
           <Plus size={14} />
         </button>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); go(); }} className="flex items-center gap-2 p-2 border-b border-theme-border">
+      <form onSubmit={(e) => { e.preventDefault(); go(); }} className={`${collapsed ? 'hidden' : 'flex'} items-center gap-2 p-2 border-b border-theme-border`}>
         <input
           ref={inputRef}
           value={draft}
@@ -191,15 +195,37 @@ export default function WebPanel() {
           spellCheck={false}
         />
         <Button type="submit" size="sm">{t('web.go')}</Button>
+        {fullscreen && (
+          <button
+            type="button"
+            onClick={() => setChromeHidden(true)}
+            className="p-1 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-md transition-colors flex-shrink-0"
+            title={t('web.hideBar')}
+            aria-label={t('web.hideBar')}
+          >
+            <ChevronUp size={14} />
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setFullscreen((v) => !v)}
+          onClick={() => { setFullscreen((v) => !v); setChromeHidden(false); }}
           className="p-1 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-md transition-colors flex-shrink-0"
           title={fullscreen ? t('web.exitFullscreen') : t('web.fullscreen')}
         >
           {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
       </form>
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => setChromeHidden(false)}
+          className="absolute top-0 left-1/2 -translate-x-1/2 z-10 px-3 py-0.5 rounded-b-md bg-theme-card border border-t-0 border-theme-border shadow-card text-warm-400 hover:text-warm-600 transition-colors"
+          title={t('web.showBar')}
+          aria-label={t('web.showBar')}
+        >
+          <ChevronDown size={14} />
+        </button>
+      )}
       <div ref={guestAreaRef} className="flex-1 min-h-0 flex flex-col">
         {isElectron ? (
           tabs.map((tab) => (tab.src
