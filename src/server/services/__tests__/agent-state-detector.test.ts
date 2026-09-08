@@ -18,6 +18,19 @@ describe('agent-state-detector', () => {
       expect(step(at('idle'), 'Running tests… (esc to interrupt)', 1, hints).state).toBe('working');
     });
 
+    it('glyph-only repaint frames (Claude Code 2.1.x) → working', () => {
+      // Real frames: cursor-positioned single glyph, sometimes with recoloured letters of the verb.
+      expect(step(at('idle'), '\x1b[?25l\x1b[38;2;215;119;87m\x1b[31;1H✻\x1b[34;3H\x1b[?25h\x1b[m', 1, hints).state).toBe('working');
+      expect(step(at('idle'), '\x1b[31;1H✽\x1b[38;2;235;159;127m\x1b[5Cd\x1b[38;2;215;119;87m\x1b[2Cg\x1b[34;3H', 1, hints).state).toBe('working');
+      expect(step(at('idle'), '\x1b[31;1H*\x1b[34;3H', 1, hints).state).toBe('working');
+    });
+
+    it('status/banner lines with "·" and "…" are not spinner paints', () => {
+      const prev = at('idle');
+      expect(step(prev, '⚠ Transcript saving is off — inherited marker · restart with CLAUDE_CODE_FORCE_SESSION_PE…', 1, hints)).toBe(prev);
+      expect(step(prev, '▝▜██████▀ Fable 5.1 with xhigh effort · Claude Team', 1, hints)).toBe(prev);
+    });
+
     it('response bullet while idle → unchanged (● is not a spinner glyph)', () => {
       const prev = at('idle');
       expect(step(prev, '● Here is the answer…', 1, hints)).toBe(prev);

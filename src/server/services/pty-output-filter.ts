@@ -86,7 +86,8 @@ export function stripAnsi(str: string): string {
   // C=forward, G=column absolute, H/f=row;col position
   let result = str.replace(/\x1B\[\d*[CG]|\x1B\[\d+;\d+[Hf]/g, ' ');
   // Step 2: Strip all remaining ANSI sequences
-  result = result.replace(/\x1B\[[0-9;]*[A-Za-z]|\x1B\].*?(?:\x07|\x1B\\)|\x1B[()][A-Z0-9]|\x1B[>=<]|\x1B\[[\?]?[0-9;]*[hlJKm]/g, '');
+  // CSI may carry a private-parameter prefix (`\x1B[?25l`, `\x1B[>0q`).
+  result = result.replace(/\x1B\[[?>=<]?[0-9;]*[A-Za-z]|\x1B\].*?(?:\x07|\x1B\\)|\x1B[()][A-Z0-9]|\x1B[>=<]|\x1B\[[\?]?[0-9;]*[hlJKm]/g, '');
   // Step 3: Collapse runs of multiple spaces into one
   result = result.replace(/ {2,}/g, ' ');
   return result;

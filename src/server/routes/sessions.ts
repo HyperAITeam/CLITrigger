@@ -542,6 +542,10 @@ router.get('/sessions/:id/output', (req: Request<{ id: string }>, res: Response)
     const raw = Buffer.concat(queries.getSessionRawChunks(req.params.id).map(c => c.bytes));
     let text = raw.subarray(-HARD_CAP).toString('utf8');
     if (req.query.strip !== '0') {
+      // Ink repaints by absolute cursor positioning (CSI row;col H) instead of
+      // newlines — turn each jump into a line break so the screen reads as
+      // lines rather than one run-on paragraph.
+      text = text.replace(/\x1B\[\d+;\d+[Hf]/g, '\n');
       text = filterInteractivePtyOutput(stripAnsi(text) + '\n', createPtyFilterState());
     }
     // ponytail: tail slices UTF-16 chars after stripping, not exact bytes
