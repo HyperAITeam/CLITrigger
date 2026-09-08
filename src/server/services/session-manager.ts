@@ -60,6 +60,47 @@ export class SessionManager {
     return this.agentTrackers.get(sessionId)?.state ?? 'unknown';
   }
 
+  /**
+   * Resolve when the agent state reaches `target`, the process leaves
+   * `running`, or `timeoutMs` elapses — whichever comes first. Backs the MCP
+   * `wait_session_state` long-poll so a lead agent can block on a helper.
+   */
+  waitForAgentState(
+    sessionId: string,
+    target: 'blocked' | 'done' | 'idle',
+    timeoutMs: number,
+  ): Promise<{ matched: boolean; status: string | null; agent_state: AgentState }> {
+    const snapshot = () => {
+      const agentState = this.getAgentState(sessionId);
+      return {
+        matched: agentState === target,
+        status: queries.getSessionById(sessionId)?.status ?? null,
+        agent_state: agentState,
+      };
+    };
+    const now = snapshot();
+    if (now.matched || now.status !== 'running') return Promise.resolve(now);
+
+    return new Promise((resolve) => {
+      const finish = (): void => {
+        clearTimeout(timer);
+        broadcaster.off('session:agent-state', onState);
+        broadcaster.off('session:status-changed', onStatus);
+        resolve(snapshot());
+      };
+      const onState = (e: { sessionId: string; state: AgentState }): void => {
+        if (e.sessionId === sessionId && e.state === target) finish();
+      };
+      const onStatus = (e: { sessionId: string; status: string }): void => {
+        if (e.sessionId === sessionId && e.status !== 'running') finish();
+      };
+      // ponytail: no res.close handling; an abandoned waiter is freed by the ≤10min route timeout cap
+      const timer = setTimeout(finish, timeoutMs);
+      broadcaster.on('session:agent-state', onState);
+      broadcaster.on('session:status-changed', onStatus);
+    });
+  }
+
   /** Resolves once the session's diff-base snapshot (if in flight) is in the DB. */
   async waitForBaseSnapshot(sessionId: string): Promise<void> {
     const pending = this.pendingBaseSnapshots.get(sessionId);

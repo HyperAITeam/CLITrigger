@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { WebSocket } from 'ws';
 import type { WSEvent } from './events.js';
 
@@ -23,9 +24,17 @@ export function encodeSessionFrame(sessionId: string, payload: Buffer | Uint8Arr
   return out;
 }
 
-class Broadcaster {
+// Also an EventEmitter keyed by `event.type`, so in-process code (e.g. the
+// MCP `wait_session_state` long-poll) can await the same transitions that
+// go out to WS clients without a second event bus.
+class Broadcaster extends EventEmitter {
   private clients: Set<WebSocket> = new Set();
   private subscriptions: WeakMap<WebSocket, Set<string>> = new WeakMap();
+
+  constructor() {
+    super();
+    this.setMaxListeners(0);
+  }
 
   addClient(ws: WebSocket): void {
     this.clients.add(ws);
@@ -63,6 +72,7 @@ class Broadcaster {
         client.send(data);
       }
     }
+    this.emit(event.type, event);
   }
 
   /** Send a pre-encoded binary frame only to clients subscribed to sessionId. */

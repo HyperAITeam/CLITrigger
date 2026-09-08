@@ -22,6 +22,12 @@ beforeAll(async () => {
   app.get('/api/projects', (_req, res) => {
     res.json([{ id: 'p1', name: 'demo' }]);
   });
+  app.post('/api/sessions/:id/input', (req, res) => {
+    res.json({ id: req.params.id, body: req.body });
+  });
+  app.get('/api/sessions/:id/output', (req, res) => {
+    res.json({ id: req.params.id, query: req.query });
+  });
   mountMcp(app);
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
@@ -65,11 +71,41 @@ describe('MCP endpoint', () => {
       'delete_session',
       'delete_wiki_node',
       'get_project_status',
+      'get_session_state',
       'get_todo_logs',
       'list_projects',
+      'read_session_output',
+      'send_session_input',
+      'start_session',
       'start_todo',
+      'stop_session',
       'stop_todo',
+      'wait_session_state',
     ]);
+    await client.close();
+  });
+
+  it('send_session_input forwards text/submit to the input route', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: 'send_session_input',
+      arguments: { session_id: 's1', text: 'hi', submit: true },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(JSON.parse(text)).toEqual({ id: 's1', body: { text: 'hi', submit: true } });
+    await client.close();
+  });
+
+  it('read_session_output maps tail_bytes/strip_ansi to query params', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: 'read_session_output',
+      arguments: { session_id: 's1', tail_bytes: 100, strip_ansi: false },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(JSON.parse(text)).toEqual({ id: 's1', query: { tail: '100', strip: '0' } });
     await client.close();
   });
 

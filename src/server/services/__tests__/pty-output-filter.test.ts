@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNoiseLine, filterInteractivePtyOutput, createPtyFilterState, isPlainTextNoise } from '../pty-output-filter.js';
+import { isNoiseLine, filterInteractivePtyOutput, createPtyFilterState, isPlainTextNoise, stripAnsi } from '../pty-output-filter.js';
 
 describe('pty-output-filter', () => {
   describe('isNoiseLine', () => {
@@ -447,6 +447,16 @@ describe('pty-output-filter', () => {
       expect(isNoiseLine('  s3 {')).toBe(true);
       expect(isNoiseLine('  position: 31,')).toBe(true);
       expect(isNoiseLine('  abort: false')).toBe(true);
+    });
+  });
+
+  describe('stripAnsi', () => {
+    it('removes CSI/OSC sequences and private-mode toggles', () => {
+      expect(stripAnsi('\x1b[?25l\x1b[2Kfoo\x1b[1;31mbar\x1b[0m\x1b]0;t\x07')).toBe('foobar');
+    });
+
+    it('turns cursor movement into a single space', () => {
+      expect(stripAnsi('a\x1b[5Cb\x1b[3;4Hc')).toBe('a b c');
     });
   });
 });

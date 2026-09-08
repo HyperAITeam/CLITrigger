@@ -220,6 +220,94 @@ function buildServer(baseUrl: string): McpServer {
     ({ session_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/sessions/${session_id}`)),
   );
 
+  // Session orchestration — lets a lead agent drive helper sessions
+  // (Herdr `pane run / read / wait` equivalents).
+  server.registerTool(
+    'start_session',
+    {
+      description: '세션의 터미널(PTY)을 시작합니다. cols/rows는 둘 다 주거나 둘 다 생략합니다(기본 100x30).',
+      inputSchema: {
+        session_id: z.string(),
+        cols: z.number().int().optional(),
+        rows: z.number().int().optional(),
+      },
+    },
+    ({ session_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/start`, body)),
+  );
+
+  server.registerTool(
+    'stop_session',
+    {
+      description: '실행 중인 세션을 중지합니다.',
+      inputSchema: { session_id: z.string() },
+    },
+    ({ session_id }) => run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/stop`)),
+  );
+
+  server.registerTool(
+    'send_session_input',
+    {
+      description:
+        '실행 중인 세션의 터미널(PTY)에 키 입력을 그대로 씁니다 — 임의 명령 실행이 가능하므로 주의. submit=true면 Enter를 덧붙여 제출합니다(빈 text + submit=true는 Enter만 보내 다이얼로그 확인에 사용). 초기 프롬프트가 대기 중이면 409.',
+      inputSchema: {
+        session_id: z.string(),
+        text: z.string(),
+        submit: z.boolean().optional(),
+      },
+    },
+    ({ session_id, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/input`, body)),
+  );
+
+  server.registerTool(
+    'read_session_output',
+    {
+      description:
+        '세션 터미널의 최근 출력을 읽습니다. 기본은 ANSI 이스케이프와 TUI 노이즈를 제거한 텍스트(strip_ansi=false로 원문). tail_bytes 기본 16384, 최대 262144. 종료된 세션의 마지막 화면도 읽을 수 있습니다.',
+      inputSchema: {
+        session_id: z.string(),
+        tail_bytes: z.number().int().optional(),
+        strip_ansi: z.boolean().optional(),
+      },
+    },
+    ({ session_id, tail_bytes, strip_ansi }) => {
+      const query = new URLSearchParams();
+      if (tail_bytes !== undefined) query.set('tail', String(tail_bytes));
+      if (strip_ansi === false) query.set('strip', '0');
+      const suffix = query.toString();
+      return run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}/output${suffix ? `?${suffix}` : ''}`));
+    },
+  );
+
+  server.registerTool(
+    'get_session_state',
+    {
+      description:
+        '세션 정보와 에이전트 상태(agent_state: working=작업 중, blocked=사용자 입력 대기, idle=시작 직후 대기, done=종료, unknown=감지 불가)를 반환합니다.',
+      inputSchema: { session_id: z.string() },
+    },
+    ({ session_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}`)),
+  );
+
+  server.registerTool(
+    'wait_session_state',
+    {
+      description:
+        '세션의 agent_state가 지정 상태가 될 때까지(또는 프로세스가 끝날 때까지) 대기합니다. timeout_ms 기본 55000, 최대 600000. 타임아웃이어도 200으로 { matched: false, status, agent_state }를 돌려주므로 matched가 true가 될 때까지 반복 호출하세요.',
+      inputSchema: {
+        session_id: z.string(),
+        state: z.enum(['blocked', 'done', 'idle']),
+        timeout_ms: z.number().int().optional(),
+      },
+    },
+    ({ session_id, state, timeout_ms }) => {
+      // ponytail: 55s default stays under the usual 60s MCP client per-call timeout
+      const query = new URLSearchParams({ state, timeout: String(timeout_ms ?? 55_000) });
+      return run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}/wait?${query}`));
+    },
+  );
+
   // ── Wiki (내부적으로는 memory node) ────────────────────────────────────────
   server.registerTool(
     'create_wiki_node',

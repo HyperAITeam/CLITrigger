@@ -85,4 +85,15 @@ describe('Broadcaster', () => {
     expect(openWs.send).toHaveBeenCalled();
     expect(closedWs.send).not.toHaveBeenCalled();
   });
+
+  it('real broadcaster re-emits every event by type for in-process listeners', async () => {
+    const { broadcaster } = await import('../broadcaster.js');
+    const spy = vi.fn();
+    broadcaster.on('session:agent-state', spy);
+    const event = { type: 'session:agent-state' as const, sessionId: 's1', state: 'blocked' as const };
+    broadcaster.broadcast(event);
+    broadcaster.off('session:agent-state', spy);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(event);
+  });
 });

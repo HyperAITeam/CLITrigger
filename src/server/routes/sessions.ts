@@ -8,6 +8,8 @@ import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
 import { claudeManager } from '../services/claude-manager.js';
+import { getAdapter, type CliTool } from '../services/cli-adapters.js';
+import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi } from '../services/pty-output-filter.js';
 import { createGit } from '../lib/git.js';
 import { listDiffFiles, snapshotWorkingTree } from '../lib/git-diff.js';
 
@@ -477,6 +479,102 @@ router.post('/sessions/:id/stop', async (req: Request<{ id: string }>, res: Resp
 
     const updated = queries.getSessionById(req.params.id);
     res.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// ── MCP orchestration surface (send_session_input / read_session_output /
+// wait_session_state). Same auth as every other route; the MCP server calls
+// back over loopback with its bearer token.
+
+// POST /api/sessions/:id/input — write keystrokes to the running PTY.
+// { text, submit? } — submit=true appends the adapter's Enter sequence.
+router.post('/sessions/:id/input', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { text?: unknown; submit?: unknown };
+    if (typeof body.text !== 'string' || body.text.length > 64 * 1024) {
+      res.status(400).json({ error: 'text must be a string of at most 64KB' });
+      return;
+    }
+    if (session.status !== 'running') {
+      res.status(400).json({ error: 'Session is not running' });
+      return;
+    }
+    // Mirror the WS terminal-input gate: type-ahead must not leak past the Send/Skip pre-flight.
+    if (sessionManager.hasPendingPrompt(req.params.id)) {
+      res.status(409).json({ error: 'Initial prompt pending — submit or skip it first, or create the session without a description' });
+      return;
+    }
+    const submit = body.submit === true;
+    const enter = getAdapter((session.cli_tool || 'claude') as CliTool).stdinSubmitSequence ?? '\r';
+    sessionManager.writeTerminalInput(req.params.id, submit ? body.text + enter : body.text);
+    if (body.text) queries.createSessionLog(req.params.id, 'input', body.text);
+    res.json({ written: true, submitted: submit });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/sessions/:id/output?tail=16384&strip=1 — recent terminal output.
+// Reads the persisted raw chunks (not the in-memory ring) so a finished
+// session's final screen is still readable. strip=1 (default) removes ANSI
+// sequences and Ink TUI chrome so an LLM can consume it.
+router.get('/sessions/:id/output', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const HARD_CAP = 256 * 1024;
+    const tailParam = parseInt(String(req.query.tail ?? ''), 10);
+    const tail = Math.min(HARD_CAP, Math.max(1, Number.isFinite(tailParam) ? tailParam : 16 * 1024));
+
+    sessionManager.flushPendingRaw(req.params.id);
+    const raw = Buffer.concat(queries.getSessionRawChunks(req.params.id).map(c => c.bytes));
+    let text = raw.subarray(-HARD_CAP).toString('utf8');
+    if (req.query.strip !== '0') {
+      text = filterInteractivePtyOutput(stripAnsi(text) + '\n', createPtyFilterState());
+    }
+    // ponytail: tail slices UTF-16 chars after stripping, not exact bytes
+    res.json({
+      text: text.slice(-tail),
+      status: session.status,
+      agent_state: sessionManager.getAgentState(session.id),
+      total_bytes: raw.length,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/sessions/:id/wait?state=blocked|done|idle&timeout=120000 — long-poll
+// until the agent state matches (or the process ends / timeout). Always 200;
+// `matched: false` on timeout so the caller just loops.
+router.get('/sessions/:id/wait', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const session = queries.getSessionById(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const state = String(req.query.state ?? '');
+    if (state !== 'blocked' && state !== 'done' && state !== 'idle') {
+      res.status(400).json({ error: 'state must be one of blocked, done, idle' });
+      return;
+    }
+    const timeoutParam = parseInt(String(req.query.timeout ?? ''), 10);
+    const timeout = Math.min(600_000, Math.max(0, Number.isFinite(timeoutParam) ? timeoutParam : 120_000));
+    res.json(await sessionManager.waitForAgentState(req.params.id, state, timeout));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
