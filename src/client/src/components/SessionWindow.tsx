@@ -21,10 +21,10 @@ import DockOverlay, {
 import { CMD, CMD_FONT } from './terminal-theme';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
-import { activeSessionIds, allSessionIds } from './group/groupTree';
+import { activeSessionIds, allSessionIds, findStackContaining, getNode, neighborStack } from './group/groupTree';
 import { useSessionWindows, type OpenGroup } from './SessionWindowsHost';
 import SessionPane from './group/SessionPane';
-import type { Path, DockSide } from './group/groupTree';
+import type { Path, DockSide, NavDir } from './group/groupTree';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 
@@ -529,6 +529,18 @@ export default function SessionWindow({
     setFocusedSessionId(activeIds[0] || allIds[0] || null);
   }, [focusedSessionId, activeIds, allIds]);
 
+  // Pane zoom (Ctrl+Shift+Z): temporarily show only the stack holding this
+  // session. Window-local like isMaximized — never persisted. Drops itself
+  // when the tab leaves the group or the split collapses to a single stack.
+  const [zoomedSessionId, setZoomedSessionId] = useState<string | null>(null);
+  const zoomPath = zoomedSessionId && group.root.kind === 'split'
+    ? findStackContaining(group.root, zoomedSessionId)
+    : null;
+  const zoomLost = !!zoomedSessionId && !zoomPath;
+  useEffect(() => {
+    if (zoomLost) setZoomedSessionId(null);
+  }, [zoomLost]);
+
   const toggleMaximize = useCallback(() => {
     if (isMaximized) {
       const restore = restoreGeomRef.current;
@@ -549,9 +561,10 @@ export default function SessionWindow({
   }, [api, group.id, isMaximized, group.dock]);
 
   // Group-chrome shortcuts (Ctrl+Shift, Cmd+Shift on Mac): O → pop out,
-  // M → minimize, X → close. Bound on the wrapper so keydowns bubbling out
-  // of any stack (single or split) reach it; SessionTerminal swallows the
-  // same combos so the PTY never sees them.
+  // M → minimize, X → close, Z → pane zoom, Arrows → focus neighbouring
+  // pane. Bound on the wrapper so keydowns bubbling out of any stack (single
+  // or split) reach it; SessionTerminal swallows the same combos so the PTY
+  // never sees them.
   const onWrapperKeyDown = (e: React.KeyboardEvent) => {
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -561,6 +574,29 @@ export default function SessionWindow({
     if (key === 'o') { e.preventDefault(); api.popOutGroup(group.id); }
     else if (key === 'm') { e.preventDefault(); api.minimizeGroup(group.id); }
     else if (key === 'x') { e.preventDefault(); api.closeGroup(group.id); }
+    else if (key === 'z') {
+      e.preventDefault();
+      // ponytail: nothing to zoom inside a single stack; window maximize is the nearest useful thing
+      if (group.root.kind === 'split') setZoomedSessionId((z) => (z ? null : focusedSessionId));
+      else toggleMaximize();
+    }
+    else if (key.startsWith('arrow')) {
+      e.preventDefault();
+      const from = focusedSessionId ? findStackContaining(group.root, focusedSessionId) : null;
+      const to = from ? neighborStack(group.root, from, key.slice('arrow'.length) as NavDir) : null;
+      const target = to ? getNode(group.root, to) : null;
+      if (!to || !target || target.kind !== 'stack') return;
+      handleFocusStack(target.activeTab);
+      if (zoomedSessionId) setZoomedSessionId(target.activeTab);
+      // Move DOM focus into that pane's xterm so typing lands there. Only the
+      // visible (active-tab) helper textarea has a layout box; wait a frame so
+      // a zoom hand-off has un-hidden the target first.
+      const selector = `[data-stack-path="${to.join('.')}"] .xterm-helper-textarea`;
+      requestAnimationFrame(() => {
+        const textareas = Array.from(wrapperRef.current?.querySelectorAll<HTMLElement>(selector) ?? []);
+        textareas.find((el) => el.offsetParent !== null)?.focus();
+      });
+    }
   };
 
   // ── Mobile: fullscreen single active session, no chrome interactions ─────
@@ -749,6 +785,7 @@ export default function SessionWindow({
             onPaneAutoClose={handlePaneAutoClose}
             registerRect={() => { /* hit-test uses elementFromPoint, no registry needed */ }}
             onSplitSizes={handleSplitSizes}
+            zoomPath={zoomPath ?? undefined}
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}

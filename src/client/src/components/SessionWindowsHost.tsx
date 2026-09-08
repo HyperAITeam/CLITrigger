@@ -24,6 +24,7 @@ import {
   setSplitSizes as treeSetSplitSizes,
   pruneInvalid,
   allSessionIds,
+  activeSessionIds,
   simplify,
   applyLayoutPreset as treeApplyLayoutPreset,
   type LayoutPreset,
@@ -45,6 +46,8 @@ import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
 import { useDialog } from '../hooks/useDialog';
+import { useNotification } from '../hooks/useNotification';
+import { AgentStatesContext, useAgentStates } from '../hooks/useAgentStates';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import {
@@ -331,6 +334,7 @@ export default function SessionWindowsHost({
   const { t } = useI18n();
   const { warning: toastWarning } = useToast();
   const { confirm } = useDialog();
+  const { sendNotification } = useNotification();
   // Read persisted state synchronously on the very first render. Previously
   // we left `groups` empty until a separate hydrate effect could run after
   // `sessions` arrived, but the persist effect (below) fires on the same
@@ -1219,14 +1223,20 @@ export default function SessionWindowsHost({
   // Last focus time, reported in probe results so the sender can prefer the
   // most recently focused (≈ topmost) window when several overlap the cursor.
   const focusAtRef = useRef(typeof document !== 'undefined' && document.hasFocus() ? Date.now() : 0);
+  // Whether this OS window has focus — a state change in the topmost pane
+  // only counts as "seen" while the user is actually looking at this window.
+  const [winFocused, setWinFocused] = useState(() => typeof document !== 'undefined' && document.hasFocus());
   useEffect(() => {
-    const onFocus = () => { focusAtRef.current = Date.now(); };
+    const onFocus = () => { focusAtRef.current = Date.now(); setWinFocused(true); };
+    const onBlur = () => setWinFocused(false);
     window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
     // Keep the screen→client offset fresh from real mouse events so a
     // cross-window dock-probe from a popout hit-tests at the right spot here.
     const stopTrack = startViewportTracking();
     return () => {
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
       stopTrack();
       if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
     };
@@ -1772,9 +1782,28 @@ export default function SessionWindowsHost({
     { id: null, z: -Infinity },
   ).id;
 
+  // Agent attention: sessions "in plain sight" are the active tabs of the
+  // topmost group while this window is focused; anything else that turns
+  // blocked/done gets a tab badge + browser notification.
+  // ponytail: every active tab of the topmost group counts as focused (which split pane has DOM focus is ignored)
+  const topmostGroup = visibleGroups.find((g) => g.id === topmostGroupId);
+  const focusedKey = winFocused && topmostGroup ? activeSessionIds(topmostGroup.root).join(',') : '';
+  const focusedIds = useMemo(() => new Set(focusedKey ? focusedKey.split(',') : []), [focusedKey]);
+  const agentStates = useAgentStates(onEvent, focusedIds, (sid, state) => {
+    // Only sessions whose tab THIS window renders — minimized groups belong
+    // to the dock tray, popped groups to their popout window.
+    const g = findGroupBySessionId(groupsRef.current, sid);
+    if (!g || g.minimized || (g.ownerWindowId || MAIN_WINDOW_ID) !== MAIN_WINDOW_ID) return;
+    sendNotification(
+      t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
+      sessionsById.get(sid)?.title || sid,
+    );
+  });
+
   return (
     <SessionWindowsContext.Provider value={api}>
       <SessionWindowStateContext.Provider value={windowStates}>
+      <AgentStatesContext.Provider value={agentStates}>
       {children}
       {(() => {
         // Compact CSS stacking rank (1..n) from the logical z order. group.z
@@ -1818,6 +1847,7 @@ export default function SessionWindowsHost({
       {remoteDock && (
         <DockOverlay targetRect={remoteDock.rect} activeZone={remoteDock.zone} />
       )}
+      </AgentStatesContext.Provider>
       </SessionWindowStateContext.Provider>
     </SessionWindowsContext.Provider>
   );

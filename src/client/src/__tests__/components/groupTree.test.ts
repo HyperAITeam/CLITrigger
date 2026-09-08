@@ -4,9 +4,45 @@ import {
   makeStack,
   allSessionIds,
   applyLayoutPreset,
+  neighborStack,
   type LayoutNode,
   type LayoutSplit,
 } from '../../components/group/groupTree';
+
+describe('neighborStack', () => {
+  const h = (children: LayoutNode[], sizes?: number[]): LayoutSplit =>
+    ({ kind: 'split', orientation: 'horizontal', children, sizes: sizes ?? children.map(() => 100 / children.length) });
+  const v = (children: LayoutNode[], sizes?: number[]): LayoutSplit =>
+    ({ kind: 'split', orientation: 'vertical', children, sizes: sizes ?? children.map(() => 100 / children.length) });
+  const s = (id: string) => makeStack([id]);
+
+  it('moves between columns and stops at the edge', () => {
+    const root = h([s('a'), s('b')]);
+    expect(neighborStack(root, [0], 'right')).toEqual([1]);
+    expect(neighborStack(root, [1], 'left')).toEqual([0]);
+    expect(neighborStack(root, [0], 'left')).toBeNull();
+    expect(neighborStack(root, [0], 'up')).toBeNull();
+  });
+
+  it('in a 2x2 grid picks the pane overlapping the source, not the first child', () => {
+    const grid = v([h([s('a'), s('b')]), h([s('c'), s('d')])]);
+    expect(neighborStack(grid, [1, 1], 'up')).toEqual([0, 1]);   // d → b
+    expect(neighborStack(grid, [0, 0], 'down')).toEqual([1, 0]); // a → c
+    expect(neighborStack(grid, [0, 1], 'right')).toBeNull();     // b is the right edge
+  });
+
+  it('climbs past a same-axis dead end to reach an outer sibling', () => {
+    // H[A, V(30/70)[B, H[C, D]]]
+    const root = h([s('A'), v([s('B'), h([s('C'), s('D')])], [30, 70])]);
+    expect(neighborStack(root, [1, 1, 0], 'left')).toEqual([0]);      // C → A
+    expect(neighborStack(root, [0], 'right')).toEqual([1, 1, 0]);     // A (centre 0.5 lands in the 70% child) → C
+    expect(neighborStack(root, [1, 1, 0], 'up')).toEqual([1, 0]);     // C → B
+  });
+
+  it('returns null for a single stack root', () => {
+    expect(neighborStack(makeStack(['a', 'b']), [], 'right')).toBeNull();
+  });
+});
 
 describe('dockTab', () => {
   it('splits a stack by side-docking one of its own tabs', () => {

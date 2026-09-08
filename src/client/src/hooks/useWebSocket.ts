@@ -25,6 +25,7 @@ export interface WsEvent {
   reason?: string;
   // Session events
   sessionId?: string;
+  state?: string; // session:agent-state
   // Discussion events
   discussionId?: string;
   messageId?: string;

@@ -41,8 +41,11 @@ import {
   HEARTBEAT_MS, HEARTBEAT_TIMEOUT_MS, type PopoutBus,
 } from './popout/popoutBus';
 import { useI18n } from '../i18n';
+import { useNotification } from '../hooks/useNotification';
+import { useAgentStates } from '../hooks/useAgentStates';
 import * as projectsApi from '../api/projects';
 import type { Project } from '../types';
+import type { WsEvent } from '../hooks/useWebSocket';
 import { resolveProjectColor } from '../lib/projectColor';
 
 interface MinimizedChip {
@@ -172,8 +175,17 @@ function getCurrentProjectId(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-export default function GlobalSessionDockTray() {
+// Chips are never "focused", so every blocked/done transition on a minimized
+// session raises attention here.
+const NO_FOCUSED_SESSIONS: ReadonlySet<string> = new Set();
+
+interface GlobalSessionDockTrayProps {
+  onEvent: (cb: (event: WsEvent) => void) => () => void;
+}
+
+export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTrayProps) {
   const { t } = useI18n();
+  const { sendNotification } = useNotification();
   const navigate = useNavigate();
   const location = useLocation();
   const [chips, setChips] = useState<MinimizedChip[]>(() => readAllMinimized());
@@ -304,6 +316,17 @@ export default function GlobalSessionDockTray() {
   // project IS mounted are left to that host so we don't race its persist.
   const chipsRef = useRef<MinimizedChip[]>(chips);
   chipsRef.current = chips;
+  // Agent attention for minimized chips (the host only notifies for visible
+  // groups, the popout for its own). Badge = a dot in the state colour.
+  // ponytail: popped chips skip the badge — the popout's own tab bar shows it
+  const { states: agentStates, attention } = useAgentStates(onEvent, NO_FOCUSED_SESSIONS, (sid, state) => {
+    const chip = chipsRef.current.find((c) => c.kind === 'minimized' && c.sessionIds.includes(sid));
+    if (!chip) return;
+    sendNotification(
+      t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
+      chip.titles[sid] || sid,
+    );
+  });
   const missingSinceRef = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     if (!webLocksAvailable()) return;
@@ -452,6 +475,8 @@ export default function GlobalSessionDockTray() {
           : `${labels[0]} +${labels.length - 1}`;
         const isOther = chip.projectId !== currentProjectId;
         const isPopped = chip.kind === 'popped';
+        const attentionId = isPopped ? undefined : chip.sessionIds.find((id) => attention.has(id));
+        const attentionState = attentionId ? agentStates[attentionId] : undefined;
         return (
           <div
             key={`${chip.projectId}:${chip.groupId}`}
@@ -461,7 +486,7 @@ export default function GlobalSessionDockTray() {
             onDrop={(e) => { e.preventDefault(); handleChipDrop(chipKeyOf(chip)); }}
             onDragEnd={() => { dragKeyRef.current = null; }}
             onClick={() => handleRestore(chip)}
-            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}${isPopped ? ` — ${t('session.dock.poppedHint')}` : ''}`}
+            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}${isPopped ? ` — ${t('session.dock.poppedHint')}` : ''}${attentionState ? ` — ${attentionState}` : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -491,6 +516,15 @@ export default function GlobalSessionDockTray() {
               }}
             />
             {isPopped && <ExternalLink size={12} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
+            {attentionState && (
+              <span
+                aria-label={attentionState}
+                style={{
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: attentionState === 'blocked' ? CMD.warning : CMD.info,
+                }}
+              />
+            )}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
             </span>

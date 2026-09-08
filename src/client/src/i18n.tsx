@@ -1479,6 +1479,8 @@ const translations = {
     'notification.discussionFailed': 'Discussion Failed',
     'notification.toggle': 'Toggle notifications',
     'notification.blocked': 'Notifications blocked by browser',
+    'notification.sessionBlocked': 'Session is waiting for input',
+    'notification.sessionDone': 'Session finished',
   },
   ko: {
     // Login
@@ -2955,6 +2957,8 @@ const translations = {
     'notification.discussionFailed': '토론 실패',
     'notification.toggle': '알림 토글',
     'notification.blocked': '브라우저에서 알림이 차단되었습니다',
+    'notification.sessionBlocked': '세션이 입력을 기다립니다',
+    'notification.sessionDone': '세션 작업이 끝났습니다',
   },
 } as const;
 

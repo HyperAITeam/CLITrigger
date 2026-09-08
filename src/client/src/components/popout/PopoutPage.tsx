@@ -26,6 +26,8 @@ import { CMD, CMD_FONT } from '../terminal-theme';
 import * as sessionsApi from '../../api/sessions';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../hooks/useDialog';
+import { useNotification } from '../../hooks/useNotification';
+import { AgentStatesContext, useAgentStates } from '../../hooks/useAgentStates';
 import {
   openBus,
   holdPopoutLock,
@@ -39,6 +41,7 @@ import {
   type LayoutNode,
   type Path,
   type DockSide,
+  activeSessionIds,
   allSessionIds,
   dockTab,
   getNode,
@@ -110,15 +113,22 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         setFocusFlashKey((k) => k + 1);
       }
     };
-    const onFocus = () => { lastFocusAtRef.current = Date.now(); tryFlash(); };
+    const onFocus = () => { lastFocusAtRef.current = Date.now(); setWinFocused(true); tryFlash(); };
+    const onBlur = () => setWinFocused(false);
     const onPointerDown = () => { lastPointerAtRef.current = Date.now(); tryFlash(); };
     window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
     window.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
       window.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, []);
+  // Agent attention (same rules as the main window's host): the active tabs
+  // are "seen" only while this OS window is focused.
+  const [winFocused, setWinFocused] = useState(() => typeof document !== 'undefined' && document.hasFocus());
+  const { sendNotification } = useNotification();
   const groupRef = useRef<PopoutGroup | null>(null);
   groupRef.current = group;
   const busRef = useRef<ReturnType<typeof openBus> | null>(null);
@@ -656,6 +666,17 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     return map;
   }, [sessions]);
 
+  const focusedKey = winFocused && group ? activeSessionIds(group.root).join(',') : '';
+  const focusedIds = useMemo(() => new Set(focusedKey ? focusedKey.split(',') : []), [focusedKey]);
+  const agentStates = useAgentStates(onEvent, focusedIds, (sid, state) => {
+    const g = groupRef.current;
+    if (!g || !allSessionIds(g.root).includes(sid)) return;
+    sendNotification(
+      t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
+      sessionsById.get(sid)?.title || sid,
+    );
+  });
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (error) {
@@ -757,6 +778,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         </button>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
+        <AgentStatesContext.Provider value={agentStates}>
         {group.root.kind === 'split' ? (
           <LayoutNodeView
             node={group.root}
@@ -795,6 +817,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             // popout can't pop itself out further.
           />
         )}
+        </AgentStatesContext.Provider>
       </div>
       {/* Tab drag visual: dock overlay over the hovered stack */}
       {drag && drag.hoveredRect && (

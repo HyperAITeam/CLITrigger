@@ -244,6 +244,10 @@ export interface DiscussionWithMessages extends Discussion {
 
 // ── Sessions ──
 
+// Server-side heuristic read of what the CLI agent in a session is doing.
+// blocked = waiting for a human (prompt idle, question, approval dialog).
+export type AgentState = 'working' | 'blocked' | 'idle' | 'done' | 'unknown';
+
 export interface Session {
   id: string;
   project_id: string;
@@ -266,6 +270,7 @@ export interface Session {
   created_at: string;
   updated_at: string;
   is_git_repo?: number; // joined from the owning project (read-only)
+  agent_state?: AgentState; // live, not persisted — present on REST reads only
 }
 
 export interface SessionTag {

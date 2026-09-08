@@ -15,26 +15,31 @@ interface LayoutNodeViewProps extends StackViewLeafProps {
   node: LayoutNode;
   path: Path;
   onSplitSizes: (path: Path, sizes: number[]) => void;
+  // Pane zoom: when set, only the branch leading to this stack is shown.
+  // Siblings stay mounted (display:none, like inactive tabs) so PTY output
+  // keeps flowing into their xterm buffers.
+  zoomPath?: Path;
 }
 
 export default function LayoutNodeView(props: LayoutNodeViewProps) {
-  const { node, path, onSplitSizes, ...stackProps } = props;
+  const { node, path, onSplitSizes, zoomPath, ...stackProps } = props;
   if (node.kind === 'stack') {
     return <StackView stack={node} path={path} {...stackProps} />;
   }
-  return <SplitView split={node} path={path} onSplitSizes={onSplitSizes} stackProps={stackProps} />;
+  return <SplitView split={node} path={path} onSplitSizes={onSplitSizes} zoomPath={zoomPath} stackProps={stackProps} />;
 }
 
 interface SplitViewProps {
   split: LayoutSplit;
   path: Path;
   onSplitSizes: (path: Path, sizes: number[]) => void;
+  zoomPath?: Path;
   stackProps: StackViewLeafProps;
 }
 
 const MIN_PANE_PX = 80;
 
-function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
+function SplitView({ split, path, onSplitSizes, zoomPath, stackProps }: SplitViewProps) {
   const isHoriz = split.orientation === 'horizontal';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const childRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -65,8 +70,8 @@ function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
           <div
             ref={(el) => { childRefs.current[i] = el; }}
             style={{
-              flex: `0 0 ${split.sizes[i]}%`,
-              display: 'flex',
+              flex: zoomPath ? '1 1 0%' : `0 0 ${split.sizes[i]}%`,
+              display: zoomPath && zoomPath[path.length] !== i ? 'none' : 'flex',
               flexDirection: 'column',
               minWidth: 0,
               minHeight: 0,
@@ -77,10 +82,11 @@ function SplitView({ split, path, onSplitSizes, stackProps }: SplitViewProps) {
               node={child}
               path={[...path, i]}
               onSplitSizes={onSplitSizes}
+              zoomPath={zoomPath}
               {...stackProps}
             />
           </div>
-          {i < split.children.length - 1 && (
+          {!zoomPath && i < split.children.length - 1 && (
             <Splitter
               orientation={split.orientation}
               onDragStart={() => {

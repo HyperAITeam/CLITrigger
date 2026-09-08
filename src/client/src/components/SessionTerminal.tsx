@@ -128,6 +128,11 @@ interface SessionTerminalProps {
    */
   onCycleTab?: (dir: 'next' | 'prev') => void;
   /**
+   * Ctrl+1..9 (Cmd on Mac) → activate the Nth tab of the parent stack.
+   * Bound only for multi-tab stacks; otherwise the chord reaches the PTY.
+   */
+  onSelectTab?: (index: number) => void;
+  /**
    * Toggle the session Diff panel. Invoked by Ctrl+Shift+D (Cmd+Shift+D on
    * Mac) while the terminal has focus. Undefined → shortcut falls through.
    */
@@ -203,6 +208,7 @@ export default function SessionTerminal({
   onRequestRefresh,
   disableImagePaste = false,
   onCycleTab,
+  onSelectTab,
   onToggleDiff,
 }: SessionTerminalProps) {
   // Latest theme prop is consumed once on mount (xterm Terminal init takes
@@ -220,6 +226,8 @@ export default function SessionTerminal({
   // changes, but the handler is registered once per session mount).
   const onCycleTabRef = useRef(onCycleTab);
   onCycleTabRef.current = onCycleTab;
+  const onSelectTabRef = useRef(onSelectTab);
+  onSelectTabRef.current = onSelectTab;
   const onToggleDiffRef = useRef(onToggleDiff);
   onToggleDiffRef.current = onToggleDiff;
   // Ref'd so the debounced alt-screen refresh timer always calls the latest
@@ -486,6 +494,14 @@ export default function SessionTerminal({
         return false;
       }
 
+      // Ctrl+1..9 (Cmd+1..9 on Mac) → jump straight to the Nth tab. Same
+      // gating as Ctrl+Tab: single-tab stacks let it through to the PTY.
+      if (onlyMod && /^[1-9]$/.test(key) && onSelectTabRef.current) {
+        ev.preventDefault();
+        onSelectTabRef.current(Number(key) - 1);
+        return false;
+      }
+
       // Ctrl+F (Cmd+F on Mac) → open the word-search overlay. Swallowed so the
       // combo doesn't reach the PTY (readline's forward-char). Escape/close
       // returns focus to the terminal.
@@ -523,12 +539,13 @@ export default function SessionTerminal({
         return false;
       }
 
-      // Ctrl+Shift+A/P/O/M/X (Cmd+Shift on Mac) → stack/group chrome
-      // shortcuts: alias inserter, theme picker, pop out, minimize, close.
-      // Handled by StackView / SessionWindow as the keydown bubbles up;
-      // swallowed here so the PTY never receives them. Plain Ctrl+letter
-      // (^A ^P ^O ^M ^X) stays untouched for shells/TUIs.
-      if (modWithShift && ['a', 'p', 'o', 'm', 'x'].includes(key)) {
+      // Ctrl+Shift+A/P/O/M/X/Z and Ctrl+Shift+Arrows (Cmd+Shift on Mac) →
+      // stack/group chrome shortcuts: alias inserter, theme picker, pop out,
+      // minimize, close, pane zoom, pane navigation. Handled by StackView /
+      // SessionWindow as the keydown bubbles up; swallowed here so the PTY
+      // never receives them (Ctrl+Shift+Z would otherwise send ^Z = SIGTSTP).
+      // Plain Ctrl+letter (^A ^P ^O ^M ^X ^Z) stays untouched for shells/TUIs.
+      if (modWithShift && (['a', 'p', 'o', 'm', 'x', 'z'].includes(key) || key.startsWith('arrow'))) {
         ev.preventDefault();
         return false;
       }

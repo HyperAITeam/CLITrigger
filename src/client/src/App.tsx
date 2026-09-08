@@ -223,7 +223,7 @@ function App() {
               {/* Renders minimized session chips for every project so they stay
                   visible across workspace switches. Lives inside BrowserRouter so
                   it can use useNavigate/useLocation to route restore clicks. */}
-              <GlobalSessionDockTray />
+              <GlobalSessionDockTray onEvent={onEvent} />
             </>
           }
         />
