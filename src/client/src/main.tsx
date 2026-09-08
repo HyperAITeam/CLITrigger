@@ -15,6 +15,20 @@ import './index.css';
 
 initPlugins();
 
+// Electron exe: Ctrl+wheel arrives as a forwarded 'terminal:zoom' event (see
+// electron/main.cjs). A hovered terminal turns it into font zoom in
+// SessionTerminal; anywhere else it is page zoom, the same thing the
+// View-menu Ctrl+=/- roles do outside a terminal. One listener per window.
+const zoomApi = (window as unknown as {
+  electronAPI?: {
+    onTerminalZoom?: (cb: (dir: 'in' | 'out') => void) => () => void;
+    zoomPage?: (dir: 'in' | 'out') => void;
+  };
+}).electronAPI;
+zoomApi?.onTerminalZoom?.((dir) => {
+  if (!document.querySelector('[data-term-container]:hover')) zoomApi.zoomPage?.(dir);
+});
+
 function GlobalToasts() {
   const { toasts, error, dismiss } = useToast();
   const { t } = useI18n();

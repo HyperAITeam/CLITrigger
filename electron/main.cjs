@@ -332,22 +332,19 @@ function createWindow(port) {
       return { action: 'deny' };
     });
     guest.on('will-navigate', (e, navUrl) => { if (!isWebScheme(navUrl)) e.preventDefault(); });
-    // Electron only *reports* Ctrl+wheel as a zoom request (zoom-changed); apply
-    // it to the guest. 0.5-level step matches Electron's zoomIn/zoomOut menu roles.
-    guest.on('zoom-changed', (_e, dir) => {
-      const next = guest.getZoomLevel() + (dir === 'in' ? 0.5 : -0.5);
-      guest.setZoomLevel(Math.max(-4, Math.min(6, next))); // ~48%-299%
-    });
+    // Nothing else can be under the pointer inside a guest, so apply directly.
+    guest.on('zoom-changed', (_e, dir) => stepPageZoom(guest, dir));
   });
 
-  // Chromium handles Ctrl+wheel / pinch as a page-zoom gesture in the browser
-  // process and never dispatches a DOM `wheel` event to the renderer, so the
-  // terminal's own Ctrl+wheel font-zoom can't see it. Cancel the page zoom
-  // (pin the level to 0) and forward the direction so the focused terminal can
-  // bump its font size instead.
+  // In the exe, Ctrl+wheel never reaches the renderer as a DOM `wheel` event;
+  // Chromium reports it browser-side as zoom-changed and Electron applies no
+  // zoom itself. Forward the direction and let the renderer route it: over a
+  // terminal → font size, elsewhere → page zoom (window:zoom below). Do NOT
+  // touch the zoom level here — the old setZoomLevel(0) reset any page zoom
+  // the user had set via Ctrl+=/- to 100% on every wheel tick (ime-debug
+  // 2026-09-08).
   const wireTerminalZoom = (contents, label) => {
     contents.on('zoom-changed', (_e, zoomDirection) => {
-      contents.setZoomLevel(0);
       contents.send('terminal:zoom', zoomDirection);
       imeDebugLog(label, { event: 'zoom-changed', dir: zoomDirection });
     });
@@ -397,6 +394,18 @@ ipcMain.on('ime:set-debug', (_event, enabled) => {
     imeDebugEnabled = on;
   }
 });
+
+// One Ctrl+wheel tick of page zoom. 0.5-level step matches Electron's
+// zoomIn/zoomOut menu roles (Ctrl+=/-), so wheel and keys share one scale.
+function stepPageZoom(contents, dir) {
+  const next = contents.getZoomLevel() + (dir === 'in' ? 0.5 : -0.5);
+  contents.setZoomLevel(Math.max(-4, Math.min(6, next))); // ~48%-299%
+}
+
+// Renderer decided the forwarded Ctrl+wheel (terminal:zoom) landed outside a
+// terminal → zoom the sender's page. Done main-side so it hits the same
+// per-host zoom store the menu roles write, and persists across restarts.
+ipcMain.on('window:zoom', (event, dir) => stepPageZoom(event.sender, dir));
 
 // Raise the sender's OS window to the front. Renderers can't do this
 // themselves: window.focus() without user activation is ignored by Chromium,

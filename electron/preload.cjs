@@ -31,13 +31,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Ctrl+wheel / pinch is consumed by Chromium's browser process as a page-zoom
   // gesture and never reaches the renderer as a DOM `wheel` event, so the
   // terminal's own Ctrl+wheel font-zoom silently never fires in the exe. Main
-  // forwards the gesture ('in'/'out') here instead; the focused SessionTerminal
-  // subscribes and bumps its font size. Returns an unsubscribe fn.
+  // forwards the gesture ('in'/'out') here instead; the hovered SessionTerminal
+  // bumps its font size, and main.tsx zooms the page when no terminal is
+  // hovered (zoomPage). Returns an unsubscribe fn.
   onTerminalZoom: (cb) => {
     const listener = (_e, dir) => cb(dir);
     ipcRenderer.on('terminal:zoom', listener);
     return () => ipcRenderer.removeListener('terminal:zoom', listener);
   },
+  // Step this window's page zoom by one Ctrl+wheel tick ('in'/'out'). Applied
+  // main-side so it shares the View-menu Ctrl+=/- zoom store.
+  zoomPage: (dir) => ipcRenderer.send('window:zoom', dir),
   // A guest's window.open / target=_blank is denied in main
   // (setWindowOpenHandler) and its URL forwarded here so the web panel can
   // open it as a new tab instead of leaking to the OS browser. Returns an
