@@ -1250,6 +1250,8 @@ const translations = {
     'analytics.period.30d': '30D',
     'analytics.period.90d': '90D',
     'analytics.period.all': 'All',
+    'analytics.clear': 'Clear',
+    'analytics.clearConfirm': 'Reset analytics? Tasks are kept, but only tasks created from now on will be counted.',
 
     // Discussions
     'discussions.title': 'Discussions',
@@ -2728,6 +2730,8 @@ const translations = {
     'analytics.period.30d': '30일',
     'analytics.period.90d': '90일',
     'analytics.period.all': '전체',
+    'analytics.clear': '초기화',
+    'analytics.clearConfirm': '통계를 초기화할까요? 작업은 삭제되지 않으며, 지금 이후에 생성된 작업만 집계됩니다.',
 
     // Discussions
     'discussions.title': '에이전트 토론',

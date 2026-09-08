@@ -41,13 +41,16 @@ function getPeriodFilter(period: string): string {
   }
 }
 
+// ponytail: created_at-based watermark — a todo created before Clear but finished after stays hidden.
+const CLEAR_FILTER = "AND t.created_at > COALESCE((SELECT analytics_cleared_at FROM projects WHERE id = t.project_id), '')";
+
 // GET /api/projects/:id/analytics?period=7d|30d|90d|all
 router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Response) => {
   try {
     const db = getDatabase();
     const projectId = req.params.id;
     const period = (req.query.period as string) || 'all';
-    const periodFilter = getPeriodFilter(period);
+    const periodFilter = `${getPeriodFilter(period)} ${CLEAR_FILTER}`;
 
     // Summary stats
     const summaryRow = db.prepare(`
@@ -134,6 +137,17 @@ router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Respon
     res.json({ summary, byCliTool: cliTools, byDate: daily, byStatus });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch analytics';
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/projects/:id/analytics/clear — reset analytics without deleting todos
+router.post('/projects/:id/analytics/clear', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    getDatabase().prepare(`UPDATE projects SET analytics_cleared_at = datetime('now') WHERE id = ?`).run(req.params.id);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to clear analytics';
     res.status(500).json({ error: message });
   }
 });

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
+import { useDialog } from '../hooks/useDialog';
 import { Skeleton } from './Skeleton';
 import * as analyticsApi from '../api/analytics';
 import type { AnalyticsData } from '../api/analytics';
@@ -98,6 +99,7 @@ function TokenTooltip({ active, payload, label }: ChartTooltipProps) {
 
 export default function AnalyticsPanel({ projectId }: AnalyticsPanelProps) {
   const { t } = useI18n();
+  const { confirm } = useDialog();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [period, setPeriod] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -171,7 +173,7 @@ export default function AnalyticsPanel({ projectId }: AnalyticsPanelProps) {
         <h3 className="text-sm font-semibold uppercase tracking-wider text-theme-muted">
           {t('analytics.title')}
         </h3>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
           {PERIODS.map((p) => (
             <button
               key={p}
@@ -185,6 +187,16 @@ export default function AnalyticsPanel({ projectId }: AnalyticsPanelProps) {
               {t(`analytics.period.${p}`)}
             </button>
           ))}
+          <button
+            onClick={async () => {
+              if (!(await confirm({ message: t('analytics.clearConfirm'), danger: true }))) return;
+              await analyticsApi.clearAnalytics(projectId);
+              setData(await analyticsApi.getAnalytics(projectId, period));
+            }}
+            className="ml-2 px-3 py-1 text-xs rounded-md font-medium transition-colors hover:bg-theme-hover text-theme-muted"
+          >
+            {t('analytics.clear')}
+          </button>
         </div>
       </div>
 

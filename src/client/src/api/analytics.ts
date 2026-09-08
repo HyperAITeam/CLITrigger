@@ -1,4 +1,4 @@
-import { get } from './client';
+import { get, post } from './client';
 
 export interface AnalyticsSummary {
   totalTasks: number;
@@ -43,4 +43,8 @@ export interface AnalyticsData {
 
 export function getAnalytics(projectId: string, period: string = 'all'): Promise<AnalyticsData> {
   return get(`/api/projects/${projectId}/analytics?period=${period}`);
+}
+
+export function clearAnalytics(projectId: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${projectId}/analytics/clear`);
 }

@@ -416,6 +416,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'auto_delegate', definition: 'TEXT' },
     // Parent todo id when this todo was auto-created as a delegated review task.
     { table: 'todos', column: 'delegated_from', definition: 'TEXT' },
+    // Analytics "clear" watermark: todos created at/before this are hidden from
+    // the analytics tab. NULL = never cleared. Non-destructive.
+    { table: 'projects', column: 'analytics_cleared_at', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {
