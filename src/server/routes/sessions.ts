@@ -376,7 +376,7 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
         res.status(400).json({ error: 'Resume is only supported for Claude sessions' });
         return;
       }
-      if (!session.use_worktree || !session.worktree_path) {
+      if (!session.cli_session_id && (!session.use_worktree || !session.worktree_path)) {
         res.status(400).json({ error: 'Resume requires a worktree session' });
         return;
       }

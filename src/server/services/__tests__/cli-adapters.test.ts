@@ -49,6 +49,20 @@ describe('cli-adapters', () => {
     expect(args).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
   });
 
+  it('pins Claude to --session-id on start and --resume <id> when continuing', () => {
+    const adapter = getAdapter('claude');
+    const id = '11111111-2222-4333-8444-555555555555';
+    const base = { mode: 'interactive' as const, prompt: '' };
+
+    expect(adapter.buildArgs({ ...base, cliSessionId: id }))
+      .toEqual(['--dangerously-skip-permissions', '--session-id', id]);
+    expect(adapter.buildArgs({ ...base, continueSession: true, cliSessionId: id }))
+      .toEqual(['--dangerously-skip-permissions', '--resume', id]);
+    // Legacy sessions without a stored id keep the old --continue path.
+    expect(adapter.buildArgs({ ...base, continueSession: true }))
+      .toEqual(['--dangerously-skip-permissions', '--continue']);
+  });
+
   it('uses exec resume --last for Codex when continuing a session', () => {
     const adapter = getAdapter('codex');
     const args = adapter.buildArgs({

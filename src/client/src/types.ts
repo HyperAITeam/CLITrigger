@@ -268,6 +268,7 @@ export interface Session {
   memory_node_ids?: string | null;
   memory_raw_file_paths?: string | null;
   tag_id?: string | null;
+  cli_session_id?: string | null; // Claude conversation UUID; set once the session has started
   created_at: string;
   updated_at: string;
   is_git_repo?: number; // joined from the owning project (read-only)

@@ -130,7 +130,7 @@ export class ClaudeManager {
    * Uses node-pty for tools that require a TTY (e.g. Codex),
    * falls back to child_process.spawn for others.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number, cliSessionId?: string): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -140,7 +140,7 @@ export class ClaudeManager {
     args: string[];
   }> {
     const adapter = getAdapter(tool);
-    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession });
+    const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession, cliSessionId });
 
     // Pre-flight on Windows only: spawn goes through cmd.exe (shell:true), so
     // a missing CLI never fires ENOENT — cmd exits 1 with a localized (often

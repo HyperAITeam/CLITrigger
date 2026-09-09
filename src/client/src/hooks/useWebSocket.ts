@@ -19,6 +19,7 @@ export interface WsEvent {
   mode?: string;
   worktree_path?: string | null;
   branch_name?: string | null;
+  cli_session_id?: string | null;
   scheduleId?: string;
   runId?: string;
   isActive?: boolean;

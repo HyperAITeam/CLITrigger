@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
@@ -219,13 +220,17 @@ export class SessionManager {
       if (cliTool !== 'claude') {
         throw new Error('Resume is only supported for Claude sessions');
       }
-      // claude --continue picks the latest conversation in the cwd. If the
-      // session runs at the project root, that latest can easily be a todo
-      // executor's conversation — refuse and force a worktree session.
-      if (!useWorktree || !session.worktree_path) {
+      // --resume <id> targets this session's own conversation, so any cwd is
+      // fine. Sessions started before the id was stored fall back to
+      // --continue, which picks the latest conversation in the cwd — at the
+      // project root that can easily be a todo executor's, so require a
+      // worktree for those.
+      if (!session.cli_session_id && (!useWorktree || !session.worktree_path)) {
         throw new Error('Resume requires a worktree session');
       }
     }
+    const cliSessionId = cliTool !== 'claude' ? undefined
+      : resume ? (session.cli_session_id ?? undefined) : randomUUID();
 
     const adapter = getAdapter(cliTool);
     // Model selection was removed — always the CLI's default model; legacy
@@ -346,7 +351,7 @@ export class SessionManager {
       const result = await claudeManager.startClaude(
         workDir, '', cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, undefined, resume,
-        opts?.cols ?? 100, opts?.rows ?? 30,
+        opts?.cols ?? 100, opts?.rows ?? 30, cliSessionId,
       );
       pid = result.pid;
       exitPromise = result.exitPromise;
@@ -398,10 +403,14 @@ export class SessionManager {
       queries.createSessionLog(
         sessionId,
         'output',
-        `Resumed Claude session via --continue (cwd: ${workDir}) — picks latest conversation in this directory`,
+        cliSessionId
+          ? `Resumed Claude session via --resume ${cliSessionId}`
+          : `Resumed Claude session via --continue (cwd: ${workDir}) — picks latest conversation in this directory`,
       );
+    } else if (cliSessionId) {
+      queries.updateSession(sessionId, { cli_session_id: cliSessionId });
     }
-    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running', worktree_path: worktreePath, branch_name: branchName });
+    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'running', worktree_path: worktreePath, branch_name: branchName, cli_session_id: cliSessionId });
     broadcastProjectStatus(session.project_id);
 
     // Handle process exit

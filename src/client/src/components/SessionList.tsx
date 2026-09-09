@@ -271,7 +271,7 @@ export default function SessionList({
             const canResume =
               ['stopped', 'failed', 'completed'].includes(session.status) &&
               (session.cli_tool ?? 'claude') === 'claude' &&
-              !!session.worktree_path;
+              (!!session.worktree_path || !!session.cli_session_id);
             const isEditing = editingId === session.id;
             const winState = windowStates[session.id] ?? 'closed';
             const isPopped = winState === 'popped';
@@ -443,7 +443,7 @@ export default function SessionList({
         const canResume =
           ['stopped', 'failed', 'completed'].includes(session.status) &&
           (session.cli_tool ?? 'claude') === 'claude' &&
-          !!session.worktree_path;
+          (!!session.worktree_path || !!session.cli_session_id);
         const canCleanup = session.status !== 'running' && (!!session.worktree_path || !!session.branch_name);
         const winState = windowStates[session.id] ?? 'closed';
         const isPopped = winState === 'popped';

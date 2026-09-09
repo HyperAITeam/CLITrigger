@@ -140,7 +140,7 @@ export interface CliAdapter {
   /** Whether this CLI supports long-lived interactive sessions */
   supportsInteractive?: boolean;
   /** Build the args array for spawning */
-  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode; continueSession?: boolean }): string[];
+  buildArgs(opts: { mode: CliMode; prompt: string; model?: string; extraOptions?: string; maxTurns?: number; workDir?: string; projectPath?: string; sandboxMode?: SandboxMode; continueSession?: boolean; cliSessionId?: string }): string[];
   /** Whether this mode needs stdin pipe */
   needsStdin(mode: CliMode): boolean;
   /** Format prompt for stdin delivery */
@@ -227,7 +227,7 @@ const claudeAdapter: CliAdapter = {
     working: /esc to interrupt|still thinking|[✶✻✽✢✧✦✱✳⊹◈⟡⋆✸✹✺⊛⊕⊗]\s*\S[^\n]{0,60}…|⎿\s*(?:Running|Waiting|Thinking|Working)|^\s*[✶✻✽✢✧✦✱✳](?:\s+\S+){0,8}\s*$|^\s*[·*+](?:\s+\S){0,6}\s*$/,
     blocked: /Do you want to|Would you like to|Yes, allow|Allow once|Yes, I accept|❯\s*1\.|\(y\/n\)|Esc to cancel/i,
   },
-  buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession }) {
+  buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession, cliSessionId }) {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
     if (sandboxMode === 'strict') {
@@ -238,7 +238,14 @@ const claudeAdapter: CliAdapter = {
     if (mode !== 'interactive') {
       args.push('--print', '--verbose', '--output-format', 'stream-json');
     }
-    if (continueSession) args.push('--continue');
+    // Pin the conversation UUID on start so resume can target it exactly;
+    // sessions started before the id was stored fall back to --continue.
+    if (continueSession) {
+      if (cliSessionId) args.push('--resume', cliSessionId);
+      else args.push('--continue');
+    } else if (cliSessionId) {
+      args.push('--session-id', cliSessionId);
+    }
     if (normalizedModel) args.push('--model', normalizedModel);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {

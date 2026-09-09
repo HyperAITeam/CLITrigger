@@ -398,6 +398,10 @@ export function initDatabase(db: Database.Database): void {
     { table: 'sessions', column: 'memory_raw_file_paths', definition: 'TEXT' },
     { table: 'sessions', column: 'tag_id', definition: 'TEXT' },
     { table: 'sessions', column: 'session_alias_id', definition: 'TEXT' },
+    // Claude conversation UUID passed as --session-id at start; resume uses
+    // --resume <id>, so root (non-worktree) sessions never hit --continue's
+    // "latest conversation in cwd" ambiguity.
+    { table: 'sessions', column: 'cli_session_id', definition: 'TEXT' },
     { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
     // UI-only: JSON array of primary tab keys hidden for this project. NULL = all visible.

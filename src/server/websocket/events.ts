@@ -15,7 +15,7 @@ export type WSEvent =
   | { type: 'discussion:message-changed'; discussionId: string; messageId: string; agentId: string; agentName: string; round: number; status: string }
   | { type: 'discussion:log'; discussionId: string; messageId: string; message: string; logType: string; agentName: string }
   | { type: 'discussion:commit'; discussionId: string; messageId: string; commitHash: string; message: string }
-  | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null }
+  | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null; cli_session_id?: string | null }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }
   | { type: 'session:agent-state'; sessionId: string; state: AgentState; reason?: string }
