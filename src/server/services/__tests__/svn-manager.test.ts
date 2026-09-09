@@ -90,6 +90,17 @@ describe('svnManager.update conflict parsing', () => {
     expect(result.revision).toBe('42');
     expect(result.conflicts).toEqual(['src/충돌.c', 'props-conflict.txt', 'tree-dir']);
   });
+
+  it('relativizes progress lines passed to onLine and leaves other lines intact', async () => {
+    const seen: string[] = [];
+    vi.mocked(runSvn).mockImplementationOnce(async (_args, _cwd, onLine) => {
+      UPDATE_STDOUT.split('\n').forEach((line) => onLine!(line));
+      return { stdout: UPDATE_STDOUT, stderr: '' };
+    });
+    await svnManager.update('C:/wc', undefined, (line) => seen.push(line));
+    expect(seen).toContain('U    src/plain.ts');
+    expect(seen).toContain("Updating 'C:/wc':");
+  });
 });
 
 // ── Property-only changes (e.g. an svn:externals bump on a directory) ──────

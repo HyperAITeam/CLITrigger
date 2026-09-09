@@ -248,8 +248,24 @@ router.post('/:id/svn-update', async (req: Request<{ id: string }>, res: Respons
       res.status(400).json({ error: 'revision must be a number or HEAD' });
       return;
     }
-    const result = await svnManager.update(r.path, revision !== undefined ? String(revision) : undefined);
-    res.json({ ok: true, ...result });
+    // NDJSON stream so the UI can show progress: {"line":"U  src/a.cpp"} per
+    // svn output line, then a final {"done":…} or {"error":…}.
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    const send = (obj: unknown) => res.write(`${JSON.stringify(obj)}\n`);
+    try {
+      const result = await svnManager.update(
+        r.path,
+        revision !== undefined ? String(revision) : undefined,
+        (line) => send({ line }),
+      );
+      send({ done: { ok: true, ...result } });
+    } catch (err) {
+      // Headers are already flushed — the error travels as a stream line.
+      send({ error: err instanceof Error ? err.message : 'svn update failed' });
+    }
+    res.end();
   } catch (err) { fail(res, err); }
 });
 

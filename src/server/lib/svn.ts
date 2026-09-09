@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import fs from 'fs';
 import nodePath from 'path';
 import { promisify } from 'util';
@@ -53,9 +53,18 @@ export interface SvnRunResult {
  * `--non-interactive` and `--trust-server-cert-failures=unknown-ca` are
  * appended only when the subcommand is one that contacts a server, to avoid
  * polluting commands like `svn info` against pure local working copies.
+ *
+ * With `onLine`, the command is spawned instead of buffered so each stdout
+ * line surfaces while it runs (long `svn update` progress); the full stdout
+ * is still returned so callers parse it exactly as before.
  */
-export async function runSvn(args: string[], cwd?: string): Promise<SvnRunResult> {
+export async function runSvn(
+  args: string[],
+  cwd?: string,
+  onLine?: (line: string) => void,
+): Promise<SvnRunResult> {
   const finalArgs = ['--non-interactive', ...args];
+  if (onLine) return streamSvn(finalArgs, cwd, onLine);
   const { stdout, stderr } = await execFileAsync('svn', finalArgs, {
     cwd,
     env: SVN_ENV,
@@ -63,4 +72,28 @@ export async function runSvn(args: string[], cwd?: string): Promise<SvnRunResult
     windowsHide: true,
   });
   return { stdout, stderr };
+}
+
+function streamSvn(finalArgs: string[], cwd: string | undefined, onLine: (line: string) => void): Promise<SvnRunResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('svn', finalArgs, { cwd, env: SVN_ENV, windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    let partial = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      const lines = (partial + chunk).split(/\r?\n/);
+      partial = lines.pop() ?? '';
+      for (const line of lines) if (line) onLine(line);
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (partial) onLine(partial);
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr.trim() || `svn ${finalArgs[1]} failed (exit ${code})`));
+    });
+  });
 }

@@ -190,6 +190,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       setError(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setActionBusy(false);
+      setUpdateProgress(null);
     }
   };
 
@@ -213,9 +214,19 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
     }
   };
+  // Live `svn update` progress — latest line plus how many files it touched.
+  // Non-null while an update runs, which is also why the commands go dim.
+  const [updateProgress, setUpdateProgress] = useState<{ count: number; line: string } | null>(null);
+  const trackUpdateLine = (line: string) =>
+    setUpdateProgress((prev) => ({
+      count: (prev?.count ?? 0) + (/^[ ADUCGE]{1,4}\s+\S/.test(line) ? 1 : 0),
+      line,
+    }));
+
   const handleUpdate = () =>
     runAction(async () => {
-      applyUpdateResult(await svnApi.svnUpdate(project.id));
+      setUpdateProgress({ count: 0, line: '' });
+      applyUpdateResult(await svnApi.svnUpdate(project.id, undefined, trackUpdateLine));
     });
 
   const [showRevDialog, setShowRevDialog] = useState(false);
@@ -225,7 +236,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     if (!rev) return;
     setShowRevDialog(false);
     runAction(async () => {
-      applyUpdateResult(await svnApi.svnUpdate(project.id, rev));
+      setUpdateProgress({ count: 0, line: '' });
+      applyUpdateResult(await svnApi.svnUpdate(project.id, rev, trackUpdateLine));
       setRevInput('');
     });
   };
@@ -395,6 +407,17 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       {svnInstalled === false && (
         <div className="card mb-2 px-3 py-2 bg-status-warning/10 border border-status-warning/30 text-2xs text-status-warning">
           {t('svn.cliMissing')}
+        </div>
+      )}
+      {updateProgress && (
+        <div className="card mb-2 px-3 py-2 bg-accent/10 border border-accent/30 text-2xs text-accent flex items-center gap-2">
+          <span className="shrink-0 font-semibold">
+            {t('svn.updating')}
+            {updateProgress.count > 0 && ` (${t('svn.updateProgress').replace('{n}', String(updateProgress.count))})`}
+          </span>
+          <span className="flex-1 min-w-0 truncate font-mono" title={updateProgress.line}>
+            {updateProgress.line}
+          </span>
         </div>
       )}
       {updateConflicts && updateConflicts.length > 0 && (
