@@ -273,6 +273,7 @@ export interface Session {
   updated_at: string;
   is_git_repo?: number; // joined from the owning project (read-only)
   agent_state?: AgentState; // live, not persisted — present on REST reads only
+  resumable?: boolean; // live, not persisted — REST reads and status broadcasts; true when a saved Claude conversation exists
 }
 
 export interface SessionTag {

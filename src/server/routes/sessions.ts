@@ -96,7 +96,7 @@ router.get('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respons
       return;
     }
     const sessions = queries.getSessionsByProjectId(req.params.id);
-    res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id) })));
+    res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id), resumable: sessionManager.isResumable(s, project) })));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -139,7 +139,7 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    res.json({ ...session, agent_state: sessionManager.getAgentState(session.id) });
+    res.json({ ...session, agent_state: sessionManager.getAgentState(session.id), resumable: sessionManager.isResumable(session) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -400,13 +400,9 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
     }
 
     if (body.continueSession === true) {
-      const cliTool = session.cli_tool || 'claude';
-      if (cliTool !== 'claude') {
-        res.status(400).json({ error: 'Resume is only supported for Claude sessions' });
-        return;
-      }
-      if (!session.cli_session_id && (!session.use_worktree || !session.worktree_path)) {
-        res.status(400).json({ error: 'Resume requires a worktree session' });
+      const blocker = sessionManager.resumeBlocker(session);
+      if (blocker) {
+        res.status(400).json({ error: blocker });
         return;
       }
       opts = { ...(opts ?? {}), continueSession: true };

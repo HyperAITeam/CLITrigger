@@ -8,6 +8,7 @@ import { applyMemoryInjection } from './memory-inject-hook.js';
 import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
 import { broadcastProjectStatus } from './project-status.js';
 import { snapshotWorkingTree } from '../lib/git-diff.js';
+import { hasClaudeConversation } from '../lib/claude-conversations.js';
 import * as queries from '../db/queries.js';
 
 const RAW_FLUSH_BYTES = 4 * 1024;
@@ -59,6 +60,37 @@ export class SessionManager {
 
   getAgentState(sessionId: string): AgentState {
     return this.agentTrackers.get(sessionId)?.state ?? 'unknown';
+  }
+
+  /**
+   * Why `claude --resume` cannot run for this session, or null when it can.
+   * Live, not persisted: checks that the saved conversation exists on disk.
+   * Single source of truth for the REST guard, startSession and the
+   * `resumable` flag the client uses to show the resume button.
+   */
+  resumeBlocker(session: queries.Session, project = queries.getProjectById(session.project_id)): string | null {
+    if (!project) return 'Project not found';
+    const cliTool = (session.cli_tool || project.cli_tool || 'claude') as CliTool;
+    if (cliTool === 'raw-shell') return 'Resume is not supported for raw shell sessions';
+    // Antigravity/Codex have the adapter flag but their interactive resume is
+    // not yet validated.
+    if (cliTool !== 'claude') return 'Resume is only supported for Claude sessions';
+    const worktreeDir = session.use_worktree && project.is_git_repo && session.worktree_path ? session.worktree_path : null;
+    if (!session.cli_session_id) {
+      // Sessions started before the id was stored fall back to --continue,
+      // which picks the latest conversation in the cwd — at the project root
+      // that can easily be a todo executor's, so only allow it in a worktree.
+      return worktreeDir ? null : 'Resume requires a worktree session';
+    }
+    // Claude writes the conversation file on the first message; a session
+    // stopped before that has nothing to resume.
+    return hasClaudeConversation(worktreeDir ?? project.path, session.cli_session_id)
+      ? null
+      : 'No saved conversation for this session yet — send a message in the session first';
+  }
+
+  isResumable(session: queries.Session, project?: queries.Project): boolean {
+    return this.resumeBlocker(session, project) === null;
   }
 
   /**
@@ -211,23 +243,8 @@ export class SessionManager {
     const useWorktree = !!session.use_worktree && !!project.is_git_repo;
     const resume = !!opts?.continueSession;
     if (resume) {
-      if (isRawShell) {
-        throw new Error('Resume is not supported for raw shell sessions');
-      }
-      // --continue is currently only wired for Claude in interactive mode.
-      // Antigravity/Codex have the adapter flag but their interactive resume is
-      // not yet validated, so reject early with a clear message.
-      if (cliTool !== 'claude') {
-        throw new Error('Resume is only supported for Claude sessions');
-      }
-      // --resume <id> targets this session's own conversation, so any cwd is
-      // fine. Sessions started before the id was stored fall back to
-      // --continue, which picks the latest conversation in the cwd — at the
-      // project root that can easily be a todo executor's, so require a
-      // worktree for those.
-      if (!session.cli_session_id && (!useWorktree || !session.worktree_path)) {
-        throw new Error('Resume requires a worktree session');
-      }
+      const blocker = this.resumeBlocker(session, project);
+      if (blocker) throw new Error(blocker);
     }
     const cliSessionId = cliTool !== 'claude' ? undefined
       : resume ? (session.cli_session_id ?? undefined) : randomUUID();
@@ -441,7 +458,7 @@ export class SessionManager {
           try { queries.updateSessionStatus(sessionId, status); } catch { /* ignore */ }
         }
         broadcaster.broadcast({ type: 'session:log', sessionId, message: msg, logType: exitCode === 0 ? 'output' : 'error' });
-        broadcaster.broadcast({ type: 'session:status-changed', sessionId, status });
+        broadcaster.broadcast({ type: 'session:status-changed', sessionId, status, resumable: this.isResumable(current, project) });
         broadcastProjectStatus(session.project_id);
       }
     }).catch(() => {
@@ -456,7 +473,10 @@ export class SessionManager {
         queries.updateSessionStatus(sessionId, 'failed');
         queries.updateSession(sessionId, { process_pid: 0 });
       } catch { /* ignore */ }
-      broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'failed' });
+      broadcaster.broadcast({
+        type: 'session:status-changed', sessionId, status: 'failed',
+        resumable: this.isResumable(queries.getSessionById(sessionId) ?? session, project),
+      });
       broadcastProjectStatus(session.project_id);
     });
   }
@@ -476,7 +496,7 @@ export class SessionManager {
     queries.updateSessionStatus(sessionId, 'stopped');
     queries.updateSession(sessionId, { process_pid: 0 });
     queries.createSessionLog(sessionId, 'output', 'Session stopped by user.');
-    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped' });
+    broadcaster.broadcast({ type: 'session:status-changed', sessionId, status: 'stopped', resumable: this.isResumable(session) });
     broadcastProjectStatus(session.project_id);
 
     if (pid) {

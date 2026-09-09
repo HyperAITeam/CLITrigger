@@ -246,6 +246,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
             if (event.worktree_path !== undefined) patch.worktree_path = event.worktree_path;
             if (event.branch_name !== undefined) patch.branch_name = event.branch_name;
             if (event.cli_session_id !== undefined) patch.cli_session_id = event.cli_session_id;
+            if (event.resumable !== undefined) patch.resumable = event.resumable;
             return { ...s, ...patch };
           })
         );
