@@ -151,6 +151,15 @@ export default function WebPanel() {
     <div
       className={fullscreen ? 'fixed inset-0 z-modal flex flex-col' : 'flex flex-col flex-1 min-h-0'}
       style={fullscreen ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+      // Ctrl/Cmd+T opens a tab like a browser. Only reaches here while focus is
+      // on the host side (tab strip, address bar) — keys inside the guest page
+      // stay in the guest's own process.
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 't') {
+          e.preventDefault();
+          newTab();
+        }
+      }}
     >
       <div role="tablist" className={`${collapsed ? 'hidden' : 'flex'} items-end gap-0.5 px-2 border-b border-theme-border overflow-x-auto`}>
         {tabs.map((tab) => (
@@ -159,6 +168,10 @@ export default function WebPanel() {
             role="tab"
             aria-selected={tab.id === activeId}
             onClick={() => setState((s) => ({ ...s, activeId: tab.id }))}
+            // Middle-click closes the tab like a browser; mousedown is
+            // prevented so Windows/Linux do not enter autoscroll mode.
+            onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
+            onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); closeTab(tab.id); } }}
             className={`flex items-center gap-1 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer transition-colors ${
               tab.id === activeId ? 'border-b-2 border-accent text-accent font-medium' : 'text-theme-text-secondary hover:text-theme-text'
             }`}
