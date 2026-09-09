@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Folder, FolderTree, List, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderTree, List, Loader2, X } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
 import type { SvnFile, SvnStatusResult } from '../api/svn';
@@ -104,6 +104,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [workingDiffLoading, setWorkingDiffLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
+  // Non-null while any command runs — which is also why the sidebar commands
+  // go dim. `count`/`line` are filled by commands that stream progress.
+  const [progress, setProgress] = useState<{ label: string; count: number; line: string } | null>(null);
 
   const applyStatus = useCallback((s: SvnStatusResult) => {
     statusCache.set(project.id, s);
@@ -178,8 +181,12 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     });
   };
 
-  const runAction = async (action: () => Promise<unknown>, successMsg?: string) => {
+  // Every command in this panel funnels through here, so the running-command
+  // banner and the disabled state are set in one place. `label` names the
+  // command for the banner.
+  const runAction = async (label: string, action: () => Promise<unknown>, successMsg?: string) => {
     setActionBusy(true);
+    setProgress({ label, count: 0, line: '' });
     setError(null);
     setActionFlash(null);
     try {
@@ -190,18 +197,21 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       setError(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setActionBusy(false);
-      setUpdateProgress(null);
+      setProgress(null);
     }
   };
 
   // ── File-level operations (LOCAL) — invoked from the row context menu ─────
-  const doAdd = (files: string[]) => runAction(() => svnApi.svnAdd(project.id, files));
-  const doRevert = (files: string[]) => runAction(() => svnApi.svnRevert(project.id, files));
-  const doDelete = (files: string[]) => runAction(() => svnApi.svnDelete(project.id, files));
+  const doAdd = (files: string[]) => runAction(t('svn.add'), () => svnApi.svnAdd(project.id, files));
+  const doRevert = (files: string[]) => runAction(t('svn.revert'), () => svnApi.svnRevert(project.id, files));
+  const doDelete = (files: string[]) => runAction(t('svn.delete'), () => svnApi.svnDelete(project.id, files));
   const doResolve = (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') =>
-    runAction(() => svnApi.svnResolve(project.id, files, accept));
+    runAction(t('svn.resolve'), () => svnApi.svnResolve(project.id, files, accept));
   const doChangelist = (name: string | null, files: string[]) =>
-    runAction(() => svnApi.svnChangelist(project.id, name, files));
+    runAction(
+      t(name ? 'svn.moveToChangelist' : 'svn.removeFromChangelist'),
+      () => svnApi.svnChangelist(project.id, name, files),
+    );
 
   // ── Global commands ───────────────────────────────────────────────────────
   // Files `svn update` reported as conflicted ('C' in any status column) —
@@ -215,17 +225,15 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     }
   };
   // Live `svn update` progress — latest line plus how many files it touched.
-  // Non-null while an update runs, which is also why the commands go dim.
-  const [updateProgress, setUpdateProgress] = useState<{ count: number; line: string } | null>(null);
   const trackUpdateLine = (line: string) =>
-    setUpdateProgress((prev) => ({
-      count: (prev?.count ?? 0) + (/^[ ADUCGE]{1,4}\s+\S/.test(line) ? 1 : 0),
+    setProgress((prev) => prev && {
+      ...prev,
+      count: prev.count + (/^[ ADUCGE]{1,4}\s+\S/.test(line) ? 1 : 0),
       line,
-    }));
+    });
 
   const handleUpdate = () =>
-    runAction(async () => {
-      setUpdateProgress({ count: 0, line: '' });
+    runAction(t('svn.update'), async () => {
       applyUpdateResult(await svnApi.svnUpdate(project.id, undefined, trackUpdateLine));
     });
 
@@ -235,15 +243,14 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     const rev = revInput.trim();
     if (!rev) return;
     setShowRevDialog(false);
-    runAction(async () => {
-      setUpdateProgress({ count: 0, line: '' });
+    runAction(`${t('svn.update')} r${rev}`, async () => {
       applyUpdateResult(await svnApi.svnUpdate(project.id, rev, trackUpdateLine));
       setRevInput('');
     });
   };
 
   const handleCleanup = () =>
-    runAction(() => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
+    runAction(t('svn.cleanup'), () => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
 
   // ── New changelist dialog. Non-null = files pending assignment; an empty
   // array (from clicking empty space) creates a client-side empty changelist.
@@ -287,7 +294,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       return;
     }
     const files = selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined;
-    runAction(async () => {
+    runAction(t('svn.commit'), async () => {
       const r = await svnApi.svnCommit(project.id, commitMessage.trim(), files);
       setCommitMessage('');
       if (r.revision) setActionFlash(t('svn.commitSuccess').replace('{rev}', r.revision));
@@ -409,14 +416,15 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           {t('svn.cliMissing')}
         </div>
       )}
-      {updateProgress && (
+      {progress && (
         <div className="card mb-2 px-3 py-2 bg-accent/10 border border-accent/30 text-2xs text-accent flex items-center gap-2">
+          <Loader2 size={12} className="shrink-0 animate-spin" />
           <span className="shrink-0 font-semibold">
-            {t('svn.updating')}
-            {updateProgress.count > 0 && ` (${t('svn.updateProgress').replace('{n}', String(updateProgress.count))})`}
+            {t('svn.running').replace('{cmd}', progress.label)}
+            {progress.count > 0 && ` (${t('svn.updateProgress').replace('{n}', String(progress.count))})`}
           </span>
-          <span className="flex-1 min-w-0 truncate font-mono" title={updateProgress.line}>
-            {updateProgress.line}
+          <span className="flex-1 min-w-0 truncate font-mono" title={progress.line}>
+            {progress.line}
           </span>
         </div>
       )}
