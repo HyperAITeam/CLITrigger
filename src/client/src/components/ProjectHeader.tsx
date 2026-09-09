@@ -291,7 +291,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               { key: 'execution', label: t('header.execConfig') },
               ...toggleableTabs.map((key) => ({ key, label: t(`tabs.${key}`) })),
               ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
-              { key: 'processes', label: t('header.processes') },
             ].map((s) => (
               <button
                 key={s.key}
@@ -672,6 +671,13 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
           </div>
           )}
 
+          {/* Terminal tab only: on-demand process view for running sessions. */}
+          {settingsSection === 'sessions' && (
+            <div className="mt-3">
+              <ProjectProcessesPanel projectId={project.id} />
+            </div>
+          )}
+
           {settingsSection === 'svn' && (
           /* SVN (opt-in per project, default off). Tab is visible whenever
              the folder is an SVN working copy — git presence is irrelevant,
@@ -693,10 +699,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
 
           {settingsSection === 'harness' && (
             <HarnessPanel project={project} onImportAsTask={() => {}} />
-          )}
-
-          {settingsSection === 'processes' && (
-            <ProjectProcessesPanel projectId={project.id} />
           )}
 
           {!project.is_git_repo && (
