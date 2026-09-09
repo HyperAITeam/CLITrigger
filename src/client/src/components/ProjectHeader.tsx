@@ -8,6 +8,7 @@ import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
+import ProjectProcessesPanel from './ProjectProcessesPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch } from 'lucide-react';
 import IconButton from './IconButton';
 
@@ -290,6 +291,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               { key: 'execution', label: t('header.execConfig') },
               ...toggleableTabs.map((key) => ({ key, label: t(`tabs.${key}`) })),
               ...(showSvnTab ? [{ key: 'svn', label: t('tabs.svn') || 'SVN' }] : []),
+              { key: 'processes', label: t('header.processes') },
             ].map((s) => (
               <button
                 key={s.key}
@@ -691,6 +693,10 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
 
           {settingsSection === 'harness' && (
             <HarnessPanel project={project} onImportAsTask={() => {}} />
+          )}
+
+          {settingsSection === 'processes' && (
+            <ProjectProcessesPanel projectId={project.id} />
           )}
 
           {!project.is_git_repo && (

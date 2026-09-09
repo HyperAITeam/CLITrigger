@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus, ListTree, RefreshCw } from 'lucide-react';
+import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus } from 'lucide-react';
 import CursorContextMenu, {
   CtxMenuSeparator,
   ctxMenuItemClass,
@@ -11,7 +11,6 @@ import type { Session, MemoryInjectMode, SessionTag } from '../types';
 import { useI18n } from '../i18n';
 import { useDialog } from '../hooks/useDialog';
 import * as sessionsApi from '../api/sessions';
-import type { ProcessNode, SessionProcessTrees } from '../api/sessions';
 import * as projectsApi from '../api/projects';
 import * as tagsApi from '../api/sessionTags';
 import { parseMemoryNodeIds } from '../api/memory';
@@ -80,28 +79,6 @@ export default function SessionList({
   // Right-click menu state. sessionId === null → empty-area menu (new
   // terminal only); otherwise the session's state-appropriate actions.
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; sessionId: string | null } | null>(null);
-  // On-demand process trees for running sessions. One OS enumeration per
-  // click (1.5–2.5 s on Windows), never polled.
-  const [processesOpen, setProcessesOpen] = useState(false);
-  const [processesLoading, setProcessesLoading] = useState(false);
-  const [processes, setProcesses] = useState<SessionProcessTrees | null>(null);
-  const hasRunning = sessions.some((s) => s.status === 'running');
-
-  const loadProcesses = useCallback(() => {
-    setProcessesLoading(true);
-    sessionsApi.getSessionProcessTrees(projectId)
-      .then(setProcesses)
-      .catch((err) => setProcesses({ available: false, reason: err instanceof Error ? err.message : String(err) }))
-      .finally(() => setProcessesLoading(false));
-  }, [projectId]);
-
-  const toggleProcesses = useCallback(() => {
-    if (processesOpen) { setProcessesOpen(false); return; }
-    setProcessesOpen(true);
-    loadProcesses();
-  }, [processesOpen, loadProcesses]);
-
-  useEffect(() => { setProcessesOpen(false); setProcesses(null); }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,38 +218,13 @@ export default function SessionList({
         <h2 className="text-sm font-semibold text-warm-700 tracking-wide uppercase">
           {t('tabs.sessions')}
         </h2>
-        <div className="flex items-center gap-1.5">
-          {processesOpen && processes && processes.available && (
-            <span className="text-2xs text-warm-400" title={t('session.processes.snapshotAt')}>
-              {new Date(processes.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          )}
-          {processesOpen && (
-            <button
-              onClick={loadProcesses}
-              disabled={processesLoading}
-              className="btn-icon btn-icon-sm"
-              title={t('session.processes.refresh')}
-            >
-              <RefreshCw size={14} className={processesLoading ? 'animate-spin' : ''} />
-            </button>
-          )}
-          <button
-            onClick={toggleProcesses}
-            disabled={!hasRunning && !processesOpen}
-            className={`btn-icon btn-icon-sm ${processesOpen ? 'text-accent' : ''}`}
-            title={!hasRunning && !processesOpen ? t('session.processes.noneRunning') : processesOpen ? t('session.processes.hide') : t('session.processes.show')}
-          >
-            <ListTree size={16} />
-          </button>
-          <button
-            onClick={startCreate}
-            className="btn-primary text-xs py-2"
-            disabled={creating}
-          >
-            + {t('session.new')}
-          </button>
-        </div>
+        <button
+          onClick={startCreate}
+          className="btn-primary text-xs py-2"
+          disabled={creating}
+        >
+          + {t('session.new')}
+        </button>
       </div>
 
       {showForm && (
@@ -459,20 +411,6 @@ export default function SessionList({
                     </div>
                   </div>
                 </div>
-                {processesOpen && canStop && (
-                  <div className="border-t border-warm-100 bg-warm-50/60 px-3 py-2 font-mono text-2xs overflow-hidden">
-                    {(() => {
-                      if (!processes) return <span className="text-warm-400">{t('session.processes.loading')}</span>;
-                      if (!processes.available) {
-                        return <span className="text-status-error">{t('session.processes.failed').replace('{reason}', processes.reason)}</span>;
-                      }
-                      // null = root pid gone from the dump; undefined = session started after the snapshot.
-                      const tree = processes.trees[session.id];
-                      if (!tree) return <span className="text-warm-400">{t('session.processes.notFound')}</span>;
-                      return <ProcessTreeRows node={tree} depth={0} />;
-                    })()}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -595,25 +533,5 @@ export default function SessionList({
         );
       })()}
     </div>
-  );
-}
-
-// Flat rows indented by depth (same idiom as the vault file explorer);
-// hovering a row shows the full command line.
-function ProcessTreeRows({ node, depth }: { node: ProcessNode; depth: number }) {
-  return (
-    <>
-      <div
-        className="flex items-center gap-2 py-0.5 min-w-0 whitespace-nowrap"
-        style={{ paddingLeft: depth * 12 }}
-        title={node.command}
-      >
-        <span className="text-warm-700 shrink-0">{node.name}</span>
-        <span className="text-warm-400 shrink-0">{node.pid}</span>
-        <span className="text-warm-400 shrink-0">{Math.round(node.memoryBytes / 1048576)} MB</span>
-        <span className="text-warm-400 truncate">{node.command}</span>
-      </div>
-      {node.children.map((child) => <ProcessTreeRows key={child.pid} node={child} depth={depth + 1} />)}
-    </>
   );
 }

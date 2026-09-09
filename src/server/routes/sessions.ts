@@ -113,11 +113,18 @@ router.get('/projects/:id/sessions/processes', async (req: Request<{ id: string 
       res.status(404).json({ error: 'Project not found' });
       return;
     }
-    const roots: Record<string, number> = {};
-    for (const session of queries.getSessionsByProjectId(req.params.id)) {
-      if (session.status === 'running' && session.process_pid) roots[session.id] = session.process_pid;
+    const running = queries.getSessionsByProjectId(req.params.id)
+      .filter((session) => session.status === 'running' && session.process_pid);
+    const result = await getProcessTrees(Object.fromEntries(running.map((session) => [session.id, session.process_pid as number])));
+    if (!result.available) {
+      res.json(result);
+      return;
     }
-    res.json(await getProcessTrees(roots));
+    res.json({
+      available: true,
+      generatedAt: result.generatedAt,
+      sessions: running.map((session) => ({ id: session.id, title: session.title, tree: result.trees[session.id] ?? null })),
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

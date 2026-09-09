@@ -124,7 +124,7 @@ export interface ProcessNode {
 }
 
 export type SessionProcessTrees =
-  | { available: true; generatedAt: string; trees: Record<string, ProcessNode | null> }
+  | { available: true; generatedAt: string; sessions: Array<{ id: string; title: string; tree: ProcessNode | null }> }
   | { available: false; reason: string };
 
 export function getSessionProcessTrees(projectId: string): Promise<SessionProcessTrees> {
