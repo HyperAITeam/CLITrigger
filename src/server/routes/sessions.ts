@@ -12,6 +12,7 @@ import { getAdapter, type CliTool } from '../services/cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi } from '../services/pty-output-filter.js';
 import { createGit } from '../lib/git.js';
 import { listDiffFiles, snapshotWorkingTree } from '../lib/git-diff.js';
+import { getProcessTrees } from '../lib/process-tree.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -96,6 +97,27 @@ router.get('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respons
     }
     const sessions = queries.getSessionsByProjectId(req.params.id);
     res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id) })));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/projects/:id/sessions/processes — one OS enumeration, a process
+// tree per running session (rooted at its PTY pid). On-demand only: the
+// enumeration costs 1.5–2.5 s on Windows, so the client never polls this.
+router.get('/projects/:id/sessions/processes', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const roots: Record<string, number> = {};
+    for (const session of queries.getSessionsByProjectId(req.params.id)) {
+      if (session.status === 'running' && session.process_pid) roots[session.id] = session.process_pid;
+    }
+    res.json(await getProcessTrees(roots));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

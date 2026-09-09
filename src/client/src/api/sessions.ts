@@ -114,3 +114,19 @@ export function pasteImage(id: string, data: string, name?: string): Promise<{ p
 export function getClipboardImagePath(id: string): Promise<{ path: string | null }> {
   return get(`/api/sessions/${id}/clipboard-image-path`);
 }
+
+export interface ProcessNode {
+  pid: number;
+  name: string;
+  command: string;
+  memoryBytes: number;
+  children: ProcessNode[];
+}
+
+export type SessionProcessTrees =
+  | { available: true; generatedAt: string; trees: Record<string, ProcessNode | null> }
+  | { available: false; reason: string };
+
+export function getSessionProcessTrees(projectId: string): Promise<SessionProcessTrees> {
+  return get(`/api/projects/${projectId}/sessions/processes`);
+}
