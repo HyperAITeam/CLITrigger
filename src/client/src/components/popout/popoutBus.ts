@@ -31,20 +31,28 @@
 // (mousemove keeps firing on the source window while the button is held,
 // even outside its bounds — the same capture behavior main's tear-out
 // already relies on):
-//   dock-probe        — source → all, cursor screen position while outside
+// The same protocol drives a single-stack popout's whole-window drag (its tab
+// bar moves the OS window, like the in-app floating window) — there the
+// commit carries every tab of the group.
+//   dock-probe        — source → all, cursor screen position
 //   dock-probe-result — receiver → source, whether the point hits one of its
 //                       stacks, plus its last-focus time (arbitrates when
-//                       overlapping windows both report a hit)
+//                       overlapping windows both report a hit). On a hit also
+//                       the stack rect (screen DIPs) + zone so the source can
+//                       draw the same diamond on its own side — the dragged
+//                       OS window may be covering the receiver's copy.
 //   dock-commit       — source → chosen receiver on mouseup; carries the
-//                       session id + color/intent so the receiver can adopt
+//                       session ids + color/intent so the receiver can adopt
 //   dock-commit-ack   — receiver → source; only on accepted:true does the
-//                       source remove the tab from its own tree (the session
+//                       source remove the tabs from its own tree (a session
 //                       can never silently vanish on a dropped message)
 //   dock-end          — source → all, gesture over; receivers clear overlays
 //
 // OpenGroup is intentionally typed as `unknown` here to avoid pulling the
 // SessionWindowsHost.tsx import cycle into a low-level utility module.
 // Callers cast on receive.
+
+import type { DockSide } from '../group/groupTree';
 
 export type BusMessage =
   | { t: 'hello'; from: string; groupId: string }
@@ -62,9 +70,11 @@ export type BusMessage =
   | { t: 'heartbeat'; from: string; ownedGroupIds: string[] }
   | { t: 'bye'; from: string }
   | { t: 'dock-probe'; from: string; x: number; y: number }
-  | { t: 'dock-probe-result'; from: string; to: string; hit: boolean; focusAt: number }
-  | { t: 'dock-commit'; from: string; to: string; x: number; y: number; sessionId: string; color?: string; intentInfo?: unknown }
-  | { t: 'dock-commit-ack'; from: string; to: string; sessionId: string; accepted: boolean }
+  | { t: 'dock-probe-result'; from: string; to: string; hit: boolean; focusAt: number;
+      rect?: { x: number; y: number; w: number; h: number }; zone?: DockSide | null }
+  | { t: 'dock-commit'; from: string; to: string; x: number; y: number; commitId: string;
+      sessions: { id: string; color?: string; intentInfo?: unknown }[]; activeId?: string }
+  | { t: 'dock-commit-ack'; from: string; to: string; commitId: string; accepted: boolean }
   | { t: 'dock-end'; from: string };
 
 export interface PopoutBus {
@@ -153,7 +163,7 @@ export const HEARTBEAT_TIMEOUT_MS = 15000;
 // CSS px = DIP / pageZoom. So the client origin in screen space is
 // `screen − client·zoom`, and it moves 1:1 with window.screenX/Y.
 //
-// Tracking window.screenX/Y matters: a popout is moved by its
+// Tracking window.screenX/Y matters: a split popout is moved by its
 // `-webkit-app-region: drag` top bar, the OS drags the window and the
 // renderer sees NO mousemove, so a mouse-only anchor goes stale by exactly the
 // move delta (the "dock zone lights up at the wrong spot" bug on popouts).
@@ -162,7 +172,7 @@ let lastSample: { ox: number; oy: number; wx: number; wy: number } | null = null
 
 // Page zoom (1 = 100%) via the preload bridge; a plain browser has no such
 // API → assume 100%.
-function pageZoom(): number {
+export function pageZoom(): number {
   const api = (window as unknown as { electronAPI?: { getZoomFactor?: () => number } }).electronAPI;
   const z = api?.getZoomFactor?.();
   return typeof z === 'number' && z > 0 ? z : 1;
@@ -185,25 +195,37 @@ export function startViewportTracking(): () => void {
   return () => window.removeEventListener('mousemove', onMove);
 }
 
-// Convert an OS-screen point to this window's client coordinates:
-//   client = (screen − clientOrigin) / zoom
-// where clientOrigin is the sampled one shifted by however far the window has
-// moved since. Falls back to a chrome estimate only before any mouse event
-// was seen. Mixed-DPI multi-monitor can still skew across monitors — the same
-// trade-off the tear-out threshold accepts.
-export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
-  const z = pageZoom();
+// Where this window's client (0,0) sits in OS-screen DIPs right now: the
+// sampled origin shifted by however far the window has moved since. Falls back
+// to a chrome estimate only before any mouse event was seen. Mixed-DPI
+// multi-monitor can still skew across monitors — the same trade-off the
+// tear-out threshold accepts.
+function clientOrigin(): { ox: number; oy: number } {
   if (lastSample) {
-    const ox = lastSample.ox + (window.screenX - lastSample.wx);
-    const oy = lastSample.oy + (window.screenY - lastSample.wy);
-    return { x: (screenX - ox) / z, y: (screenY - oy) / z };
+    return {
+      ox: lastSample.ox + (window.screenX - lastSample.wx),
+      oy: lastSample.oy + (window.screenY - lastSample.wy),
+    };
   }
+  const z = pageZoom();
   const borderX = Math.max(0, (window.outerWidth - window.innerWidth * z) / 2);
   const chromeTop = Math.max(0, window.outerHeight - window.innerHeight * z - borderX);
-  return {
-    x: (screenX - window.screenX - borderX) / z,
-    y: (screenY - window.screenY - chromeTop) / z,
-  };
+  return { ox: window.screenX + borderX, oy: window.screenY + chromeTop };
+}
+
+// OS-screen point → this window's client coordinates: (screen − origin) / zoom.
+export function screenToClient(screenX: number, screenY: number): { x: number; y: number } {
+  const z = pageZoom();
+  const { ox, oy } = clientOrigin();
+  return { x: (screenX - ox) / z, y: (screenY - oy) / z };
+}
+
+// Inverse: this window's client point → OS-screen DIPs. Widths/heights scale
+// by pageZoom() alone.
+export function clientToScreen(clientX: number, clientY: number): { x: number; y: number } {
+  const z = pageZoom();
+  const { ox, oy } = clientOrigin();
+  return { x: ox + clientX * z, y: oy + clientY * z };
 }
 
 export function isClientPointInWindow(p: { x: number; y: number }): boolean {

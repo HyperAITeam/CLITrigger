@@ -152,6 +152,24 @@ export function insertAtSide(
   });
 }
 
+// Docks a batch of sessions at a zone of the stack at `path`: `center`
+// appends them as tabs, a side wraps them in a new stack beside it. Activates
+// `activeId` (must be one of `ids`; defaults to the last). Used by the
+// cross-window dock receivers; same rules as SessionWindowsHost.dockGroup.
+export function insertSessionsAt(
+  root: LayoutNode,
+  path: Path,
+  side: DockSide,
+  ids: string[],
+  activeId?: string,
+): LayoutNode {
+  const active = activeId && ids.includes(activeId) ? activeId : ids[ids.length - 1];
+  const inserted = side === 'center'
+    ? ids.reduce((r, id) => insertIntoStack(r, path, id), root)
+    : insertAtSide(root, path, side, makeStack(ids, active));
+  return setActiveTab(inserted, active);
+}
+
 // Replaces the node at `path` with the result of `transform`, applying
 // simplification along the way (1-child splits collapse, same-orientation
 // nested splits flatten).

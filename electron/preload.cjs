@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // titlebar buttons, so their own top bar needs this bridge — the web
   // platform has no window.minimize().
   windowMinimize: () => ipcRenderer.send('window:minimize-self'),
+  // Move this window by dragging its tab bar (single-stack popouts). The
+  // renderer drives the gesture from mousemove screen deltas; main anchors on
+  // the bounds captured at 'start', so deltas never accumulate error.
+  windowMoveStart: () => ipcRenderer.send('window:move-self', { phase: 'start' }),
+  windowMoveBy: (dx, dy) => ipcRenderer.send('window:move-self', { phase: 'move', dx, dy }),
   // Ctrl+wheel / pinch is consumed by Chromium's browser process as a page-zoom
   // gesture and never reaches the renderer as a DOM `wheel` event, so the
   // terminal's own Ctrl+wheel font-zoom silently never fires in the exe. Main

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { screenToClient, startViewportTracking } from './popoutBus';
+import { screenToClient, clientToScreen, pageZoom, startViewportTracking } from './popoutBus';
 
 type W = Window & { electronAPI?: { getZoomFactor?: () => number } };
 
@@ -36,5 +36,34 @@ describe('screenToClient', () => {
     (window as W).electronAPI = { getZoomFactor: () => 1.25 };
     mouseAt(1500, 900, 80, 48); // client origin = (1500 − 100, 900 − 60)
     expect(screenToClient(1600, 950)).toEqual({ x: 160, y: 88 });
+  });
+});
+
+describe('clientToScreen', () => {
+  let stop: () => void;
+  beforeEach(() => {
+    setWindowOrigin(1000, 500);
+    delete (window as W).electronAPI;
+    stop = startViewportTracking();
+  });
+  afterEach(() => stop());
+
+  it('inverts screenToClient after a sample and a window move', () => {
+    mouseAt(1500, 900, 100, 60);
+    setWindowOrigin(1300, 550);
+    const p = screenToClient(1600, 950);
+    expect(clientToScreen(p.x, p.y)).toEqual({ x: 1600, y: 950 });
+  });
+
+  it('multiplies client deltas by the page zoom', () => {
+    (window as W).electronAPI = { getZoomFactor: () => 1.25 };
+    mouseAt(1500, 900, 80, 48);
+    expect(pageZoom()).toBe(1.25);
+    expect(clientToScreen(160, 88)).toEqual({ x: 1600, y: 950 });
+  });
+
+  it('round-trips through the no-sample fallback', () => {
+    const p = screenToClient(1234, 777);
+    expect(clientToScreen(p.x, p.y)).toEqual({ x: 1234, y: 777 });
   });
 });

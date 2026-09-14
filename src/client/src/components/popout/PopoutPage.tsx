@@ -1,9 +1,12 @@
 // Child OS-window entry point. Opened via window.open() from the main app
 // when the user clicks a group's "Pop out" button. Renders exactly one
-// OpenGroup full-screen, with a thin top bar carrying only the group label
-// and a "Re-dock to main" button. OS-window chrome (move/resize/min/max) is
-// handled by the OS / browser; this component intentionally does not
-// implement React-side drag or resize.
+// OpenGroup full-screen. A split group gets a thin top bar (label, re-dock,
+// close) that doubles as the OS drag handle. A single-stack group has no top
+// bar — like the in-app floating window its tab bar IS the title bar: the
+// window buttons live there, and dragging it moves the OS window
+// (renderer-driven, see handleWindowDragMouseDown) while probing the other
+// windows for a dock target, exactly like dragging a floating window in-app.
+// Resize/min/max stay with the OS / browser.
 //
 // Communication with the main window goes through `popoutBus` (a project-
 // scoped BroadcastChannel):
@@ -32,6 +35,8 @@ import {
   openBus,
   holdPopoutLock,
   screenToClient,
+  clientToScreen,
+  pageZoom,
   isClientPointInWindow,
   startViewportTracking,
   HEARTBEAT_MS,
@@ -39,15 +44,15 @@ import {
 } from './popoutBus';
 import {
   type LayoutNode,
+  type LayoutPreset,
   type Path,
   type DockSide,
   activeSessionIds,
   allSessionIds,
+  applyLayoutPreset as treeApplyLayoutPreset,
   dockTab,
   getNode,
-  insertAtSide,
-  insertIntoStack,
-  makeStack,
+  insertSessionsAt,
   removeTab,
   setActiveTab as treeSetActiveTab,
   setSplitSizes as treeSetSplitSizes,
@@ -207,12 +212,13 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         const payload = msg.group as PopoutGroup;
         // Reset geometry to fill the popout's own viewport — the OS window
         // is now in charge of size; the original main-window coords would
-        // render mostly off-screen if we kept them.
+        // render mostly off-screen if we kept them. Only split groups have
+        // the top bar (see render).
         setGroup({
           ...payload,
           x: 0, y: 0,
           w: window.innerWidth,
-          h: Math.max(0, window.innerHeight - CHROME_HEIGHT),
+          h: Math.max(0, window.innerHeight - (payload.root.kind === 'split' ? CHROME_HEIGHT : 0)),
           minimized: false,
           ownerWindowId: popoutId,
         });
@@ -324,8 +330,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       if (!prev) return prev;
       const newRoot = removeTab(prev.root, sid);
       if (!newRoot) {
-        // Last tab in the popout — close the OS window. Main was already
-        // told via group-close; the bus listener on main side will drop it.
+        // Last tab in the popout — tell main to drop the group and close the
+        // OS window. Flag the close as intentional so beforeunload doesn't
+        // race a group-return that would resurrect the group in main.
+        intentionalCloseRef.current = true;
         busRef.current?.post({ t: 'group-close', from: popoutId, groupId: prev.id });
         setTimeout(() => window.close(), 50);
         return null;
@@ -350,15 +358,16 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     removeTabFromGroup(sid);
   }, [sessions, t, removeTabFromGroup, confirm]);
 
-  // ── In-popout tab drag → dock ────────────────────────────────────────────
+  // ── In-popout tab drag → dock (split groups) ─────────────────────────────
   //
-  // Same-tree docking only: drag a tab over any stack (including its own) and
-  // drop on a dock zone to move it / create a split — the same gesture the
-  // main window offers. There is no tear-out: a popout IS already a separate
-  // OS window, and cross-window drag isn't possible with DOM mouse events.
-  // Unlike main, docking onto the tab's OWN stack with a side zone is allowed
-  // (that's how a single-stack popout creates its first split; main does this
-  // via the floating-window detach intermediate, which doesn't exist here).
+  // Drag a tab over any stack (including its own) and drop on a dock zone to
+  // move it / create a split — the same gesture the main window offers; once
+  // the cursor leaves this OS window the drag probes the other windows over
+  // the bus instead. There is no tear-out: a popout IS already a separate OS
+  // window. Unlike main, docking onto the tab's OWN stack with a side zone is
+  // allowed. Single-stack groups never get here: like in-app, their tab
+  // mousedown bubbles to the whole-window drag below (StackView's
+  // `groupActions` branch), and they enter a split via the layout presets.
   const [drag, setDrag] = useState<{
     sessionId: string;
     fromPath: Path;
@@ -369,11 +378,46 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const dragRef = useRef<typeof drag>(null);
   dragRef.current = drag;
 
-  // Cross-window dock, sender side: latest dock-probe-result per window and
-  // the commit awaiting its ack (the tab is removed locally only on an
-  // accepted ack, so a dead receiver can't make the session vanish).
-  const remoteHitsRef = useRef<Map<string, { hit: boolean; focusAt: number; at: number }>>(new Map());
-  const pendingDockAckRef = useRef<{ to: string; sessionId: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  // Cross-window dock, sender side — shared by the tab drag and the whole-
+  // window drag. Latest dock-probe-result per window (with the hit rect in
+  // screen coords so the dragged window can draw the diamond on its own side)
+  // and the commit awaiting its ack (tabs are removed locally only on an
+  // accepted ack, so a dead receiver can't make a session vanish).
+  const remoteHitsRef = useRef<Map<string, {
+    hit: boolean; focusAt: number; at: number; rect?: DockTargetRect; zone?: DockSide | null;
+  }>>(new Map());
+  const pendingDockAckRef = useRef<{ to: string; commitId: string; ids: string[]; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const lastProbeAtRef = useRef(0);
+  const remote = useMemo(() => ({
+    begin() { remoteHitsRef.current.clear(); lastProbeAtRef.current = 0; },
+    // Cursor screen position → every other window hit-tests its own stacks.
+    probe(ev: MouseEvent) {
+      if (Date.now() - lastProbeAtRef.current < 33) return;
+      lastProbeAtRef.current = Date.now();
+      busRef.current?.post({ t: 'dock-probe', from: popoutId, x: ev.screenX, y: ev.screenY });
+    },
+    // Freshest hit, preferring the most recently focused window (best proxy
+    // for "on top" when windows overlap).
+    best(): { id: string; rect?: DockTargetRect; zone?: DockSide | null } | null {
+      const now = Date.now();
+      let best: { id: string; focusAt: number; rect?: DockTargetRect; zone?: DockSide | null } | null = null;
+      for (const [id, info] of remoteHitsRef.current) {
+        if (!info.hit || now - info.at > 500) continue;
+        if (!best || info.focusAt > best.focusAt) best = { id, focusAt: info.focusAt, rect: info.rect, zone: info.zone };
+      }
+      return best;
+    },
+    commit(to: string, ev: MouseEvent, sessions: { id: string; color?: string; intentInfo?: unknown }[], activeId?: string) {
+      const commitId = `${popoutId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      if (pendingDockAckRef.current) clearTimeout(pendingDockAckRef.current.timer);
+      pendingDockAckRef.current = {
+        to, commitId, ids: sessions.map(s => s.id),
+        timer: setTimeout(() => { pendingDockAckRef.current = null; }, 600),
+      };
+      busRef.current?.post({ t: 'dock-commit', from: popoutId, to, x: ev.screenX, y: ev.screenY, commitId, sessions, activeId });
+    },
+    end() { remoteHitsRef.current.clear(); busRef.current?.post({ t: 'dock-end', from: popoutId }); },
+  }), [popoutId]);
   // Receiver side: overlay for a tab being dragged in FROM another window.
   const [remoteDock, setRemoteDock] = useState<{ rect: DockTargetRect; zone: DockSide | null; path: Path } | null>(null);
   const remoteDockRef = useRef(remoteDock);
@@ -404,7 +448,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     const startX = e.clientX;
     const startY = e.clientY;
     let active = false;
-    let lastProbeAt = 0;
+    remote.begin();
 
     const onMove = (ev: MouseEvent) => {
       if (!active) {
@@ -419,10 +463,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         && ev.clientX <= window.innerWidth && ev.clientY <= window.innerHeight;
       if (!inWindow) {
         setDrag({ sessionId, fromPath, hoveredPath: null, hoveredRect: null, zone: null });
-        if (Date.now() - lastProbeAt > 33) {
-          lastProbeAt = Date.now();
-          busRef.current?.post({ t: 'dock-probe', from: popoutId, x: ev.screenX, y: ev.screenY });
-        }
+        remote.probe(ev);
         return;
       }
       let hoveredPath: Path | null = null;
@@ -466,8 +507,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     const onAbort = () => {
       detach();
       setDrag(null);
-      remoteHitsRef.current.clear();
-      busRef.current?.post({ t: 'dock-end', from: popoutId });
+      remote.end();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onAbort(); };
     const onVis = () => { if (document.hidden) onAbort(); };
@@ -475,12 +515,12 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       detach();
       const cur = dragRef.current;
       setDrag(null);
-      busRef.current?.post({ t: 'dock-end', from: popoutId });
-      if (!cur) { remoteHitsRef.current.clear(); return; }
+      const best = remote.best();
+      remote.end();
+      if (!cur) return;
 
       // Local dock (cursor over a zone inside this window).
       if (cur.hoveredPath && cur.zone) {
-        remoteHitsRef.current.clear();
         const g = groupRef.current;
         if (!g) return;
         const newRoot = dockTab(g.root, cur.sessionId, cur.hoveredPath, cur.zone);
@@ -490,42 +530,132 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         return;
       }
 
-      // Remote dock: pick the freshest-hit window, preferring the most
-      // recently focused one (best proxy for "on top" when windows overlap),
-      // then hand the session over and wait for the ack before removing it
-      // from our own tree.
-      const now = Date.now();
-      let best: { id: string; focusAt: number } | null = null;
-      for (const [id, info] of remoteHitsRef.current) {
-        if (!info.hit || now - info.at > 500) continue;
-        if (!best || info.focusAt > best.focusAt) best = { id, focusAt: info.focusAt };
-      }
-      remoteHitsRef.current.clear();
+      // Remote dock: hand the session over to the best-hit window and wait
+      // for the ack before removing it from our own tree.
       if (!best) return;
       const g = groupRef.current;
-      if (pendingDockAckRef.current) clearTimeout(pendingDockAckRef.current.timer);
-      pendingDockAckRef.current = {
-        to: best.id,
-        sessionId: cur.sessionId,
-        timer: setTimeout(() => { pendingDockAckRef.current = null; }, 600),
-      };
-      busRef.current?.post({
-        t: 'dock-commit',
-        from: popoutId,
-        to: best.id,
-        x: ev.screenX,
-        y: ev.screenY,
-        sessionId: cur.sessionId,
-        color: g?.colors[cur.sessionId],
-        intentInfo: g?.intents[cur.sessionId],
-      });
+      remote.commit(
+        best.id, ev,
+        [{ id: cur.sessionId, color: g?.colors[cur.sessionId], intentInfo: g?.intents[cur.sessionId] }],
+        cur.sessionId,
+      );
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('blur', onAbort);
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVis);
-  }, [postUpdate, popoutId]);
+  }, [postUpdate, remote]);
+
+  // ── Whole-window drag (single-stack groups) ─────────────────────────────
+  //
+  // Mirrors the in-app floating window: the tab bar is the title bar. Dragging
+  // it moves the OS window — renderer-driven, Electron through the move IPC,
+  // plain browser through window.moveTo (allowed: this is a popup we opened) —
+  // while probing the other windows for a dock target. Dropping on a zone
+  // hands the WHOLE group over; the emptied popout then closes itself.
+  const [winDragHover, setWinDragHover] = useState<{ rect: DockTargetRect; zone: DockSide | null } | null>(null);
+  const handleWindowDragMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    const g0 = groupRef.current;
+    if (!g0 || g0.root.kind !== 'stack') return;
+    e.preventDefault();
+    const startSX = e.screenX;
+    const startSY = e.screenY;
+    // Browser fallback anchor; Electron anchors main-side on 'start'.
+    const startWinX = window.screenX;
+    const startWinY = window.screenY;
+    const eapi = (window as unknown as {
+      electronAPI?: { windowMoveStart?: () => void; windowMoveBy?: (dx: number, dy: number) => void };
+    }).electronAPI;
+    eapi?.windowMoveStart?.();
+    remote.begin();
+    let moved = false;
+    let pending: { dx: number; dy: number } | null = null;
+    let raf = 0;
+    // mousemove can fire at 1kHz; move the window once per frame.
+    const flush = () => {
+      raf = 0;
+      if (!pending) return;
+      if (eapi?.windowMoveBy) eapi.windowMoveBy(pending.dx, pending.dy);
+      else { try { window.moveTo(startWinX + pending.dx, startWinY + pending.dy); } catch { /* not a movable popup */ } }
+    };
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.screenX - startSX;
+      const dy = ev.screenY - startSY;
+      if (!moved) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        moved = true;
+      }
+      pending = { dx, dy };
+      if (!raf) raf = requestAnimationFrame(flush);
+      // The window follows the cursor, so the cursor is always inside us —
+      // the only possible dock targets are other windows.
+      remote.probe(ev);
+      const b = remote.best();
+      if (b?.rect) {
+        // Screen → our client space via THIS event's (screen, client) pair:
+        // window.screenX lags a programmatic move by a frame, so the tracked
+        // anchor would double-count the motion and make the diamond jitter.
+        const z = pageZoom();
+        setWinDragHover({
+          rect: {
+            x: ev.clientX + (b.rect.x - ev.screenX) / z,
+            y: ev.clientY + (b.rect.y - ev.screenY) / z,
+            w: b.rect.w / z,
+            h: b.rect.h / z,
+          },
+          zone: b.zone ?? null,
+        });
+      } else {
+        setWinDragHover(null);
+      }
+    };
+    let cleaned = false;
+    const finish = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', finish);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVis);
+      if (raf) cancelAnimationFrame(raf);
+      setWinDragHover(null);
+      remote.end();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') finish(); };
+    const onVis = () => { if (document.hidden) finish(); };
+    const onUp = (ev: MouseEvent) => {
+      const b = remote.best();
+      finish();
+      if (!moved || !b?.zone) return;
+      const cur = groupRef.current;
+      if (!cur || cur.root.kind !== 'stack') return;
+      remote.commit(
+        b.id, ev,
+        cur.root.tabs.map(id => ({ id, color: cur.colors[id], intentInfo: cur.intents[id] })),
+        cur.root.activeTab,
+      );
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', finish);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
+  }, [remote]);
+
+  // Layout presets are the single-stack popout's way into a split — a tab
+  // drag there moves the window instead of detaching (see groupActions).
+  const handleLayoutPreset = useCallback((preset: LayoutPreset) => {
+    setGroup((prev) => {
+      if (!prev) return prev;
+      const next: PopoutGroup = { ...prev, root: treeApplyLayoutPreset(prev.root, preset) };
+      postUpdate({ root: next.root });
+      return next;
+    });
+  }, [postUpdate]);
 
   // ── Cross-window dock message handling ───────────────────────────────────
   // Stored through a ref so the mount-once bus subscription always calls the
@@ -547,24 +677,31 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         // crashed / message dropped) so it can't get stuck on screen.
         if (remoteDockClearTimerRef.current) clearTimeout(remoteDockClearTimerRef.current);
         remoteDockClearTimerRef.current = setTimeout(() => setRemoteDock(null), 800);
-        bus.post({ t: 'dock-probe-result', from: popoutId, to: msg.from, hit: true, focusAt: focusAtRef.current });
+        // Hit rect in screen DIPs so the dragged window can mirror the diamond.
+        const z = pageZoom();
+        bus.post({
+          t: 'dock-probe-result', from: popoutId, to: msg.from, hit: true, focusAt: focusAtRef.current,
+          rect: { ...clientToScreen(hit.rect.x, hit.rect.y), w: hit.rect.w * z, h: hit.rect.h * z },
+          zone: hit.zone,
+        });
       } else {
         if (remoteDockRef.current) setRemoteDock(null);
         bus.post({ t: 'dock-probe-result', from: popoutId, to: msg.from, hit: false, focusAt: focusAtRef.current });
       }
     } else if (msg.t === 'dock-probe-result' && msg.to === popoutId) {
       // Sender: remember each window's verdict for the mouseup arbitration.
-      remoteHitsRef.current.set(msg.from, { hit: msg.hit, focusAt: msg.focusAt, at: Date.now() });
+      remoteHitsRef.current.set(msg.from, { hit: msg.hit, focusAt: msg.focusAt, at: Date.now(), rect: msg.rect, zone: msg.zone });
     } else if (msg.t === 'dock-end' && msg.from !== popoutId) {
       setRemoteDock(null);
     } else if (msg.t === 'dock-commit' && msg.to === popoutId) {
-      // Receiver: adopt the session into our tree at the committed point
+      // Receiver: adopt the session(s) into our tree at the committed point
       // (recomputed for accuracy; falls back to the last probed hover).
       const g = groupRef.current;
       let accepted = false;
-      // Reject when we already hold this session — a side-insert would put a
+      const ids = msg.sessions.map(s => s.id);
+      // Reject when we already hold any of them — a side-insert would put a
       // second pane of the same PTY into the tree (double subscribe).
-      if (g && !allSessionIds(g.root).includes(msg.sessionId)) {
+      if (g && !ids.some(id => allSessionIds(g.root).includes(id))) {
         const p = screenToClient(msg.x, msg.y);
         const hit = isClientPointInWindow(p) ? hitTestStackAt(p.x, p.y) : null;
         const target = (hit && hit.groupId === g.id && hit.zone)
@@ -573,32 +710,31 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             ? { path: remoteDockRef.current.path, zone: remoteDockRef.current.zone }
             : null;
         if (target) {
-          const inserted = target.zone === 'center'
-            ? insertIntoStack(g.root, target.path, msg.sessionId)
-            : insertAtSide(g.root, target.path, target.zone, makeStack([msg.sessionId]));
-          const newRoot = treeSetActiveTab(inserted, msg.sessionId);
+          const newRoot = insertSessionsAt(g.root, target.path, target.zone, ids, msg.activeId);
           const colors = { ...g.colors };
-          if (!colors[msg.sessionId]) colors[msg.sessionId] = msg.color || assignColor(Object.values(colors));
-          const intents = {
-            ...g.intents,
-            [msg.sessionId]: (msg.intentInfo as { intent: PaneIntent; nonce: number } | undefined)
-              ?? { intent: 'open' as PaneIntent, nonce: 0 },
-          };
+          const intents = { ...g.intents };
+          for (const s of msg.sessions) {
+            if (!colors[s.id]) colors[s.id] = s.color || assignColor(Object.values(colors));
+            intents[s.id] = (s.intentInfo as { intent: PaneIntent; nonce: number } | undefined)
+              ?? { intent: 'open' as PaneIntent, nonce: 0 };
+          }
           setGroup({ ...g, root: newRoot, colors, intents });
           postUpdate({ root: newRoot, colors, intents });
           accepted = true;
         }
       }
       setRemoteDock(null);
-      bus.post({ t: 'dock-commit-ack', from: popoutId, to: msg.from, sessionId: msg.sessionId, accepted });
+      bus.post({ t: 'dock-commit-ack', from: popoutId, to: msg.from, commitId: msg.commitId, accepted });
     } else if (msg.t === 'dock-commit-ack' && msg.to === popoutId) {
-      // Sender: the receiver took the session — drop our copy. On a rejected
-      // or missing ack the tab simply stays where it was.
+      // Sender: the receiver took the sessions — drop our copies. On a
+      // rejected or missing ack the tabs simply stay where they were. The
+      // functional updates apply in order; when the last one empties the
+      // tree, removeTabFromGroup closes this window.
       const pending = pendingDockAckRef.current;
-      if (pending && pending.sessionId === msg.sessionId && pending.to === msg.from) {
+      if (pending && pending.commitId === msg.commitId && pending.to === msg.from) {
         clearTimeout(pending.timer);
         pendingDockAckRef.current = null;
-        if (msg.accepted) removeTabFromGroup(msg.sessionId);
+        if (msg.accepted) for (const id of pending.ids) removeTabFromGroup(id);
       }
     }
   };
@@ -712,6 +848,10 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   const groupLabel = allIds.length === 1
     ? firstTitle
     : `${firstTitle} +${allIds.length - 1}`;
+  // Split groups keep a thin top bar as the OS drag handle (like the in-app
+  // unified chrome). A single-stack group has none: its tab bar is the title
+  // bar, dragged via handleWindowDragMouseDown on the body below.
+  const isSplit = group.root.kind === 'split';
 
   return (
     <div
@@ -724,6 +864,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       }}
     >
       {focusFlashKey > 0 && <div key={focusFlashKey} className="popout-focus-flash" aria-hidden />}
+      {isSplit && (
       <div
         style={{
           height: CHROME_HEIGHT,
@@ -777,7 +918,11 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
           <X size={14} />
         </button>
       </div>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
+      )}
+      <div
+        onMouseDown={isSplit ? undefined : handleWindowDragMouseDown}
+        style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}
+      >
         <AgentStatesContext.Provider value={agentStates}>
         {group.root.kind === 'split' ? (
           <LayoutNodeView
@@ -813,8 +958,15 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             sendMessage={sendMessage}
             subscribeBinary={subscribeBinary}
             onEvent={onEvent}
-            // No groupActions in the popout — OS provides min/close, and a
-            // popout can't pop itself out further.
+            // Single-stack: the tab bar is the title bar, like the in-app
+            // floating window — tab mousedown bubbles to the window drag on
+            // the body, and the window buttons live in the tab bar.
+            groupActions={{
+              onMinimizeGroup: canMinimize ? handleMinimize : undefined,
+              onReDockGroup: handleReDock,
+              onCloseGroup: handleCloseWindow,
+              onApplyLayoutPreset: handleLayoutPreset,
+            }}
           />
         )}
         </AgentStatesContext.Provider>
@@ -822,6 +974,11 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       {/* Tab drag visual: dock overlay over the hovered stack */}
       {drag && drag.hoveredRect && (
         <DockOverlay targetRect={drag.hoveredRect} activeZone={drag.zone} />
+      )}
+      {/* Whole-window drag: mirror of the receiver's diamond, drawn here too
+          because this OS window may be covering it. */}
+      {winDragHover && (
+        <DockOverlay targetRect={winDragHover.rect} activeZone={winDragHover.zone} />
       )}
       {/* Receiver-side overlay: a tab dragged in from another OS window */}
       {remoteDock && (
