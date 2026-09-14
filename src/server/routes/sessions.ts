@@ -12,6 +12,7 @@ import { getAdapter, type CliTool } from '../services/cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi } from '../services/pty-output-filter.js';
 import { createGit } from '../lib/git.js';
 import { listDiffFiles, snapshotWorkingTree } from '../lib/git-diff.js';
+import { getProcessTrees } from '../lib/process-tree.js';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
@@ -95,7 +96,35 @@ router.get('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respons
       return;
     }
     const sessions = queries.getSessionsByProjectId(req.params.id);
-    res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id) })));
+    res.json(sessions.map(s => ({ ...s, agent_state: sessionManager.getAgentState(s.id), resumable: sessionManager.isResumable(s, project) })));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /api/projects/:id/sessions/processes — one OS enumeration, a process
+// tree per running session (rooted at its PTY pid). On-demand only: the
+// enumeration costs 1.5–2.5 s on Windows, so the client never polls this.
+router.get('/projects/:id/sessions/processes', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const project = queries.getProjectById(req.params.id);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    const running = queries.getSessionsByProjectId(req.params.id)
+      .filter((session) => session.status === 'running' && session.process_pid);
+    const result = await getProcessTrees(Object.fromEntries(running.map((session) => [session.id, session.process_pid as number])));
+    if (!result.available) {
+      res.json(result);
+      return;
+    }
+    res.json({
+      available: true,
+      generatedAt: result.generatedAt,
+      sessions: running.map((session) => ({ id: session.id, title: session.title, tree: result.trees[session.id] ?? null })),
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -110,7 +139,7 @@ router.get('/sessions/:id', (req: Request<{ id: string }>, res: Response) => {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    res.json({ ...session, agent_state: sessionManager.getAgentState(session.id) });
+    res.json({ ...session, agent_state: sessionManager.getAgentState(session.id), resumable: sessionManager.isResumable(session) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -371,13 +400,9 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
     }
 
     if (body.continueSession === true) {
-      const cliTool = session.cli_tool || 'claude';
-      if (cliTool !== 'claude') {
-        res.status(400).json({ error: 'Resume is only supported for Claude sessions' });
-        return;
-      }
-      if (!session.use_worktree || !session.worktree_path) {
-        res.status(400).json({ error: 'Resume requires a worktree session' });
+      const blocker = sessionManager.resumeBlocker(session);
+      if (blocker) {
+        res.status(400).json({ error: blocker });
         return;
       }
       opts = { ...(opts ?? {}), continueSession: true };

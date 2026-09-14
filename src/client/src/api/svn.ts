@@ -1,4 +1,4 @@
-import { get, post } from './client';
+import { ApiError, get, post } from './client';
 import type { CommitFile, GitStatusFile, GitLogEntry, GitLogResult } from './projects';
 
 // SVN reuses git-shaped types so DiffViewer/CommitFileList work unchanged.
@@ -104,8 +104,52 @@ export function svnCommit(id: string, message: string, files?: string[]): Promis
   return post(`/api/projects/${id}/svn-commit`, { message, files });
 }
 
-export function svnUpdate(id: string, revision?: string): Promise<{ ok: boolean; revision: string | null; output: string; conflicts: string[] }> {
-  return post(`/api/projects/${id}/svn-update`, { revision });
+// Reads the NDJSON progress stream: every {"line":…} goes to `onLine`, the
+// final {"done":…} is the result, {"error":…} throws.
+export async function svnUpdate(
+  id: string,
+  revision?: string,
+  onLine?: (line: string) => void,
+): Promise<{ ok: boolean; revision: string | null; output: string; conflicts: string[] }> {
+  const res = await fetch(`/api/projects/${id}/svn-update`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision }),
+  });
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    throw new ApiError(401, 'Unauthorized');
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let message = '';
+    try { message = JSON.parse(text).error ?? ''; } catch { /* not JSON */ }
+    throw new ApiError(res.status, message || `HTTP ${res.status}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let done: { ok: boolean; revision: string | null; output: string; conflicts: string[] } | null = null;
+  const handle = (raw: string) => {
+    if (!raw.trim()) return;
+    const msg = JSON.parse(raw) as { line?: string; done?: typeof done; error?: string };
+    if (msg.error) throw new Error(msg.error);
+    if (msg.done) done = msg.done;
+    else if (msg.line !== undefined) onLine?.(msg.line);
+  };
+  for (;;) {
+    const { value, done: finished } = await reader.read();
+    if (finished) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    lines.forEach(handle);
+  }
+  handle(buffer);
+  if (!done) throw new Error('svn update ended without a result');
+  return done;
 }
 
 export function svnCleanup(id: string): Promise<{ ok: boolean }> {

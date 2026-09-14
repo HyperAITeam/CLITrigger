@@ -382,11 +382,20 @@ class SvnManager {
     return { revision: revMatch?.[1] ?? null, output: stdout };
   }
 
-  async update(dirPath: string, revision?: string): Promise<{ revision: string | null; output: string; conflicts: string[] }> {
+  // `onLine` receives each progress line as svn prints it, with the working
+  // copy prefix stripped so the UI can show "U  src/foo.cpp" while it runs.
+  async update(
+    dirPath: string,
+    revision?: string,
+    onLine?: (line: string) => void,
+  ): Promise<{ revision: string | null; output: string; conflicts: string[] }> {
     const args = ['update'];
     if (revision) args.push('-r', revision);
     args.push(dirPath);
-    const { stdout } = await runSvn(args);
+    const { stdout } = await runSvn(args, undefined, onLine && ((line) => {
+      const m = /^([ ADUCGE]{1,4})\s+(.+)$/.exec(line);
+      onLine(m ? `${m[1]} ${relativizePath(m[2], dirPath)}` : line);
+    }));
     const revMatch = /(?:At revision|Updated to revision) (\d+)\./.exec(stdout);
     // Update lines are "<up to 4 status columns>   <path>"; a 'C' in any
     // column is a text/prop/tree conflict. Summary lines ("Updated to

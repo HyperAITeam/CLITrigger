@@ -949,6 +949,7 @@ export interface Session {
   memory_node_ids: string | null;
   memory_raw_file_paths: string | null;
   tag_id: string | null;
+  cli_session_id: string | null;
   created_at: string;
   updated_at: string;
   is_git_repo?: number; // joined from projects (read-only); not a sessions column
@@ -1000,7 +1001,7 @@ export function getSessionById(id: string): Session | undefined {
   return db.prepare('SELECT s.*, p.is_git_repo FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(id) as Session | undefined;
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'base_commit' | 'snapshots' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id'>>): Session | undefined {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'description' | 'cli_tool' | 'cli_model' | 'process_pid' | 'branch_name' | 'worktree_path' | 'base_commit' | 'snapshots' | 'use_worktree' | 'token_usage' | 'total_cost_usd' | 'total_tokens' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'tag_id' | 'cli_session_id'>>): Session | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -1022,6 +1023,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
   if (updates.memory_raw_file_paths !== undefined) { fields.push('memory_raw_file_paths = ?'); values.push(updates.memory_raw_file_paths); }
   if (updates.tag_id !== undefined) { fields.push('tag_id = ?'); values.push(updates.tag_id); }
+  if (updates.cli_session_id !== undefined) { fields.push('cli_session_id = ?'); values.push(updates.cli_session_id); }
 
   if (fields.length === 0) return getSessionById(id);
 

@@ -8,6 +8,7 @@ import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
+import ProjectProcessesPanel from './ProjectProcessesPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch } from 'lucide-react';
 import IconButton from './IconButton';
 
@@ -41,7 +42,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
     try { return project.hidden_tabs ? JSON.parse(project.hidden_tabs) : []; } catch { return []; }
   });
   // Each gets its own settings section (like SVN). Terminals/Automation stay fixed.
-  const toggleableTabs = ['web', 'files', 'planner', ...(project.is_git_repo ? ['git'] : [])];
+  const toggleableTabs = ['web', 'files', 'planner', 'sessions', ...(project.is_git_repo ? ['git'] : [])];
   // True when the project folder is detected as an SVN working copy. Drives
   // the SVN settings tab — shown for any SVN working copy regardless of git
   // presence (a folder can be both), or when SVN is already enabled so the
@@ -653,7 +654,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
           </>
           )}
 
-          {/* One settings tab per hideable primary tab (web/files/planner/git), same shape as SVN below. */}
+          {/* One settings tab per hideable primary tab (web/files/planner/sessions/git), same shape as SVN below. */}
           {toggleableTabs.includes(settingsSection) && (
           <div className="p-4 border border-warm-200 rounded-xl">
             <h4 className="text-sm font-semibold text-warm-700 mb-2">{t(`tabs.${settingsSection}`)}</h4>
@@ -668,6 +669,13 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               <span className="text-xs text-warm-600">{t('header.tabShowEnable').replace('{tab}', t(`tabs.${settingsSection}`))}</span>
             </label>
           </div>
+          )}
+
+          {/* Terminal tab only: on-demand process view for running sessions. */}
+          {settingsSection === 'sessions' && (
+            <div className="mt-3">
+              <ProjectProcessesPanel projectId={project.id} />
+            </div>
           )}
 
           {settingsSection === 'svn' && (
