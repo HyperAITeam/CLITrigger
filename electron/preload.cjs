@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webFrame, webUtils } = require('electron');
 
 // `imeReset` calls `webContents.focus()` in the main process to recover the
 // native HWND keyboard focus when it gets stuck on xterm's helper textarea
@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Step this window's page zoom by one Ctrl+wheel tick ('in'/'out'). Applied
   // main-side so it shares the View-menu Ctrl+=/- zoom store.
   zoomPage: (dir) => ipcRenderer.send('window:zoom', dir),
+  // Current page zoom (1 = 100%). Cross-window dock geometry needs it:
+  // screenX is DIPs but clientX is CSS px, so screen deltas divide by zoom.
+  getZoomFactor: () => webFrame.getZoomFactor(),
   // A guest's window.open / target=_blank is denied in main
   // (setWindowOpenHandler) and its URL forwarded here so the web panel can
   // open it as a new tab instead of leaking to the OS browser. Returns an
