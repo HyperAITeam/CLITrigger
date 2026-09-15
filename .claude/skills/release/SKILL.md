@@ -84,7 +84,7 @@ git tag --sort=-v:refname | head -1
 Release date: YYYY-MM-DD
 Previous version: v<prev-version>
 
-## TL;DR
+## Summary
 
 3–5 lines. Users should immediately understand what changes in this version.
 
