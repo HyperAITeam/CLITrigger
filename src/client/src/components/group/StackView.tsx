@@ -43,11 +43,14 @@ export interface StackViewProps {
   // chrome is hidden and the stack's tab bar carries the group's
   // minimize/close buttons. Otherwise these are undefined.
   groupActions?: {
-    onMinimizeGroup: () => void;
+    // Absent in a plain-browser popout (no window.minimize API).
+    onMinimizeGroup?: () => void;
     onCloseGroup: () => void;
     // Optional: present only in the main app window, not inside a popout
     // (a popout can't pop itself out further).
     onPopOutGroup?: () => void;
+    // Optional: present only inside a popout — hand the group back to main.
+    onReDockGroup?: () => void;
     onToggleMaximize?: () => void;
     isMaximized?: boolean;
     onApplyLayoutPreset?: (preset: LayoutPreset) => void;
@@ -419,16 +422,30 @@ export default function StackView({
                 <ExternalLink size={14} />
               </button>
             )}
-            <button
-              data-no-drag
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={groupActions.onMinimizeGroup}
-              aria-label="minimize"
-              title={`${t('session.minimize') || 'Minimize'} (Ctrl+Shift+M)`}
-              style={groupBtnStyle}
-            >
-              <Minus size={14} />
-            </button>
+            {groupActions.onReDockGroup && (
+              <button
+                data-no-drag
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={groupActions.onReDockGroup}
+                aria-label="redock"
+                title={t('session.popout.redock') || 'Re-dock to main window'}
+                style={groupBtnStyle}
+              >
+                <ExternalLink size={14} style={{ transform: 'scaleX(-1)' }} />
+              </button>
+            )}
+            {groupActions.onMinimizeGroup && (
+              <button
+                data-no-drag
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={groupActions.onMinimizeGroup}
+                aria-label="minimize"
+                title={`${t('session.minimize') || 'Minimize'} (Ctrl+Shift+M)`}
+                style={groupBtnStyle}
+              >
+                <Minus size={14} />
+              </button>
+            )}
             <button
               data-no-drag
               onMouseDown={(e) => e.stopPropagation()}

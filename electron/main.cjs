@@ -434,6 +434,22 @@ ipcMain.on('window:minimize-self', (event) => {
   win.minimize();
 });
 
+// Move the sender's OS window (popout tab-bar drag). 'start' snapshots the
+// bounds; each 'move' carries the TOTAL cursor delta since then (renderer
+// screenX DIPs = bounds DIPs), so a dropped or reordered IPC can't drift the
+// window. setBounds rather than setPosition keeps the size pinned — under
+// fractional display scaling repeated setPosition can grow/shrink by 1px.
+const moveStartBounds = new WeakMap(); // BrowserWindow → bounds at gesture start
+ipcMain.on('window:move-self', (event, p) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || win === mainWindow) return;
+  if (win.isMaximized() || win.isFullScreen()) return;
+  if (!p || p.phase === 'start') { moveStartBounds.set(win, win.getBounds()); return; }
+  const s = moveStartBounds.get(win);
+  if (!s || !Number.isFinite(p.dx) || !Number.isFinite(p.dy)) return;
+  win.setBounds({ ...s, x: Math.round(s.x + p.dx), y: Math.round(s.y + p.dy) }, false);
+});
+
 ipcMain.on('ime:reset', (event, payload) => {
   // Route the focus call to the sender's webContents so popout child
   // windows reclaim their own keyboard focus, not the main window's.
