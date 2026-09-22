@@ -1,7 +1,10 @@
 import { createGit } from '../lib/git.js';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export interface PushBranchSpec {
   local: string;
@@ -144,7 +147,9 @@ export class WorktreeManager {
     // Root-level dependencies
     if (fs.existsSync(path.join(worktreePath, 'package.json'))) {
       try {
-        execSync('npm install', { cwd: worktreePath, stdio: 'ignore', timeout: 120_000 });
+        // Async on purpose: execSync here froze the whole server (WS, PTY
+        // flushes, every request) for the duration of the install.
+        await execAsync('npm install', { cwd: worktreePath, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
       } catch (err) {
         console.warn(`[worktree] npm install failed at root: ${(err as Error).message}`);
       }
@@ -154,7 +159,7 @@ export class WorktreeManager {
     const clientDir = path.join(worktreePath, 'src', 'client');
     if (fs.existsSync(path.join(clientDir, 'package.json'))) {
       try {
-        execSync('npm install', { cwd: clientDir, stdio: 'ignore', timeout: 120_000 });
+        await execAsync('npm install', { cwd: clientDir, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
       } catch (err) {
         console.warn(`[worktree] npm install failed at src/client: ${(err as Error).message}`);
       }

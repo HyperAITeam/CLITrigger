@@ -77,7 +77,12 @@ class DebugLogger {
       `Sandbox:    ${opts.sandboxMode || 'N/A'}`,
       '',
     ].join('\n');
-    fs.writeFileSync(filePath, header, 'utf-8');
+    // One append stream per session: appendFileSync per output chunk was an
+    // open/write/close syscall trio on the event loop for every line.
+    // Write errors are swallowed, matching the old best-effort behaviour.
+    const out = fs.createWriteStream(filePath, { encoding: 'utf-8' });
+    out.on('error', () => { /* ignore write errors */ });
+    out.write(header);
 
     let stdoutHeaderWritten = false;
     let stderrHeaderWritten = false;
@@ -86,17 +91,17 @@ class DebugLogger {
       filePath,
 
       writeStdin(content: string) {
-        fs.appendFileSync(filePath, `\n======== STDIN/PROMPT ========\n${content}\n`, 'utf-8');
+        out.write(`\n======== STDIN/PROMPT ========\n${content}\n`);
       },
 
       teeStdout(original: NodeJS.ReadableStream): NodeJS.ReadableStream {
         const passthrough = new PassThrough();
         original.on('data', (chunk: Buffer | string) => {
           if (!stdoutHeaderWritten) {
-            fs.appendFileSync(filePath, '\n======== STDOUT ========\n', 'utf-8');
+            out.write('\n======== STDOUT ========\n');
             stdoutHeaderWritten = true;
           }
-          try { fs.appendFileSync(filePath, chunk); } catch { /* ignore write errors */ }
+          out.write(chunk);
           passthrough.push(chunk);
         });
         original.on('end', () => passthrough.push(null));
@@ -108,10 +113,10 @@ class DebugLogger {
         const passthrough = new PassThrough();
         original.on('data', (chunk: Buffer | string) => {
           if (!stderrHeaderWritten) {
-            fs.appendFileSync(filePath, '\n======== STDERR ========\n', 'utf-8');
+            out.write('\n======== STDERR ========\n');
             stderrHeaderWritten = true;
           }
-          try { fs.appendFileSync(filePath, chunk); } catch { /* ignore write errors */ }
+          out.write(chunk);
           passthrough.push(chunk);
         });
         original.on('end', () => passthrough.push(null));
@@ -130,7 +135,9 @@ class DebugLogger {
           '========================================',
           '',
         ].join('\n');
-        try { fs.appendFileSync(filePath, footer, 'utf-8'); } catch { /* ignore */ }
+        // end() twice (callers may finalize on both timeout and close) is
+        // reported through the 'error' handler above, not thrown.
+        out.end(footer);
       },
     };
 
