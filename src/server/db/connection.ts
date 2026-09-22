@@ -14,6 +14,10 @@ export function getDatabase(): Database.Database {
     const dbPath = process.env.DB_PATH || path.join(PROJECT_ROOT, 'clitrigger.db');
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
+    // WAL + NORMAL is crash-safe (a power loss can only drop the last few
+    // commits). The default FULL fsyncs the WAL on every commit, and the
+    // log streamers commit once per output line.
+    db.pragma('synchronous = NORMAL');
     initDatabase(db);
   }
   return db;

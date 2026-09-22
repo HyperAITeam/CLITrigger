@@ -278,6 +278,20 @@ export function initDatabase(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memory_edges_from ON memory_edges(from_node_id);
     CREATE INDEX IF NOT EXISTS idx_memory_edges_to ON memory_edges(to_node_id);
 
+    -- FK / filter columns used by the hot list queries and by ON DELETE CASCADE
+    -- (foreign_keys = ON): without these, every parent delete full-scans each
+    -- child table. session_raw_chunks is covered by its (session_id, seq) PK.
+    CREATE INDEX IF NOT EXISTS idx_todos_project ON todos(project_id);
+    CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
+    CREATE INDEX IF NOT EXISTS idx_task_logs_todo ON task_logs(todo_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule ON schedule_runs(schedule_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_discussions_project ON discussions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_discussion_messages_discussion ON discussion_messages(discussion_id);
+    CREATE INDEX IF NOT EXISTS idx_discussion_logs_discussion ON discussion_logs(discussion_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+    CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(session_id, created_at);
+
     CREATE TABLE IF NOT EXISTS memory_logs (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
