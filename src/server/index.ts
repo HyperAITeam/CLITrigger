@@ -176,6 +176,8 @@ const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
 if (cleaned > 0) {
   console.log(`Cleaned up ${cleaned} old log entries (older than ${LOG_RETENTION_DAYS} days)`);
 }
+// Boot-only cleanup never fires on an always-on server; re-run daily.
+setInterval(() => cleanOldLogs(LOG_RETENTION_DAYS), 24 * 60 * 60 * 1000).unref();
 
 // Auto-cleanup old debug log files
 for (const p of getAllProjects()) {
