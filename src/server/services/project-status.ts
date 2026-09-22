@@ -14,20 +14,7 @@ export interface ProjectStatusSummary {
 }
 
 export function getProjectStatusSummary(projectId: string): ProjectStatusSummary {
-  const todos = queries.getTodosByProjectId(projectId);
-  const running = todos.filter((t) => t.status === 'running').length;
-  const completed = todos.filter((t) => t.status === 'completed').length;
-  const sessions = queries.getSessionsByProjectId(projectId);
-  const running_sessions = sessions.filter((s) => s.status === 'running').length;
-  const discussions = queries.getDiscussionsByProjectId(projectId);
-  const running_discussions = discussions.filter((d) => d.status === 'running').length;
-  return {
-    total: todos.length,
-    running,
-    completed,
-    running_sessions,
-    running_discussions,
-  };
+  return queries.getProjectStatusCounts(projectId);
 }
 
 export function broadcastProjectStatus(projectId: string): void {

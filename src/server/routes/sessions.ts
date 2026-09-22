@@ -564,7 +564,7 @@ router.get('/sessions/:id/output', (req: Request<{ id: string }>, res: Response)
     const tail = Math.min(HARD_CAP, Math.max(1, Number.isFinite(tailParam) ? tailParam : 16 * 1024));
 
     sessionManager.flushPendingRaw(req.params.id);
-    const raw = Buffer.concat(queries.getSessionRawChunks(req.params.id).map(c => c.bytes));
+    const raw = Buffer.concat(queries.getSessionRawChunksTail(req.params.id, HARD_CAP).map(c => c.bytes));
     let text = raw.subarray(-HARD_CAP).toString('utf8');
     if (req.query.strip !== '0') {
       // Ink repaints by absolute cursor positioning (CSI row;col H) instead of
@@ -578,7 +578,7 @@ router.get('/sessions/:id/output', (req: Request<{ id: string }>, res: Response)
       text: text.slice(-tail),
       status: session.status,
       agent_state: sessionManager.getAgentState(session.id),
-      total_bytes: raw.length,
+      total_bytes: queries.getSessionRawBytesTotal(req.params.id),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

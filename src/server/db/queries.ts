@@ -263,6 +263,26 @@ export function getTodosByStatus(status: string): Todo[] {
   return db.prepare('SELECT * FROM todos WHERE status = ? ORDER BY priority DESC, created_at ASC').all(status) as Todo[];
 }
 
+/** Counters for the sidebar status dot — aggregated in SQL, not by loading rows. */
+export function getProjectStatusCounts(projectId: string): {
+  total: number; running: number; completed: number; running_sessions: number; running_discussions: number;
+} {
+  const db = getDatabase();
+  const todos = db.prepare(
+    `SELECT COUNT(*) AS total,
+            COALESCE(SUM(status = 'running'), 0) AS running,
+            COALESCE(SUM(status = 'completed'), 0) AS completed
+     FROM todos WHERE project_id = ?`
+  ).get(projectId) as { total: number; running: number; completed: number };
+  const sessions = db.prepare(
+    "SELECT COUNT(*) AS n FROM sessions WHERE project_id = ? AND status = 'running'"
+  ).get(projectId) as { n: number };
+  const discussions = db.prepare(
+    "SELECT COUNT(*) AS n FROM discussions WHERE project_id = ? AND status = 'running'"
+  ).get(projectId) as { n: number };
+  return { ...todos, running_sessions: sessions.n, running_discussions: discussions.n };
+}
+
 export function deleteTodo(id: string): boolean {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM todos WHERE id = ?').run(id);
@@ -288,7 +308,7 @@ export function createTaskLog(todoId: string, logType: string, message: string, 
     `INSERT INTO task_logs (id, todo_id, log_type, message, round_number, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(id, todoId, logType, message, roundNumber, now);
-  return db.prepare('SELECT * FROM task_logs WHERE id = ?').get(id) as TaskLog;
+  return { id, todo_id: todoId, log_type: logType, message, round_number: roundNumber, created_at: now };
 }
 
 export function getTaskLogsByTodoId(todoId: string): TaskLog[] {
@@ -909,7 +929,7 @@ export function createDiscussionLog(discussionId: string, messageId: string | nu
     `INSERT INTO discussion_logs (id, discussion_id, message_id, log_type, message, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(id, discussionId, messageId, logType, message, now);
-  return db.prepare('SELECT * FROM discussion_logs WHERE id = ?').get(id) as DiscussionLog;
+  return { id, discussion_id: discussionId, message_id: messageId, log_type: logType, message, created_at: now };
 }
 
 export function getDiscussionLogs(discussionId: string, messageId?: string): DiscussionLog[] {
@@ -1180,7 +1200,7 @@ export function createSessionLog(sessionId: string, logType: string, message: st
     `INSERT INTO session_logs (id, session_id, log_type, message, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).run(id, sessionId, logType, message, now);
-  return db.prepare('SELECT * FROM session_logs WHERE id = ?').get(id) as SessionLog;
+  return { id, session_id: sessionId, log_type: logType, message, created_at: now };
 }
 
 export function getSessionLogsBySessionId(sessionId: string): SessionLog[] {
@@ -1220,6 +1240,33 @@ export function getSessionRawChunks(sessionId: string): SessionRawChunk[] {
   return db.prepare(
     'SELECT session_id, seq, bytes, created_at FROM session_raw_chunks WHERE session_id = ? ORDER BY seq ASC'
   ).all(sessionId) as SessionRawChunk[];
+}
+
+/**
+ * Newest chunks whose combined size reaches maxBytes, returned oldest-first.
+ * For tail reads: avoids materialising the whole (up to 2MB) history.
+ */
+export function getSessionRawChunksTail(sessionId: string, maxBytes: number): SessionRawChunk[] {
+  const db = getDatabase();
+  const out: SessionRawChunk[] = [];
+  let bytes = 0;
+  const rows = db.prepare(
+    'SELECT session_id, seq, bytes, created_at FROM session_raw_chunks WHERE session_id = ? ORDER BY seq DESC'
+  ).iterate(sessionId) as IterableIterator<SessionRawChunk>;
+  for (const row of rows) {
+    out.push(row);
+    bytes += row.bytes.length;
+    if (bytes >= maxBytes) break;
+  }
+  return out.reverse();
+}
+
+export function getSessionRawBytesTotal(sessionId: string): number {
+  const db = getDatabase();
+  const row = db.prepare(
+    'SELECT COALESCE(SUM(length(bytes)), 0) AS n FROM session_raw_chunks WHERE session_id = ?'
+  ).get(sessionId) as { n: number };
+  return row.n;
 }
 
 export function deleteSessionRawChunks(sessionId: string): number {
