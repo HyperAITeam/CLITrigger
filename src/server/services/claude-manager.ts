@@ -7,7 +7,7 @@ import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
 import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 import { getToolStatus } from './cli-status.js';
-import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi, type PtyFilterState } from './pty-output-filter.js';
+import { stripAnsi } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
 
@@ -225,7 +225,6 @@ export class ClaudeManager {
 
       // Trust prompt tracking: block stdin delivery only while trust prompt is visible
       let trustPending = false;
-      const filterState: PtyFilterState | null = interactive ? createPtyFilterState() : null;
 
       ptyProcess.onData((data) => {
         // Raw byte fan-out: feeds xterm.js terminal subscribers and history ring.
@@ -277,13 +276,11 @@ export class ClaudeManager {
           }
         }
 
-        // Push to stream — filter TUI noise for interactive mode
-        if (filterState) {
-          const filtered = filterInteractivePtyOutput(clean, filterState);
-          if (filtered) stdoutStream.push(filtered);
-        } else {
-          stdoutStream.push(clean);
-        }
+        // Push to stream — headless PTY only. Interactive sessions have no
+        // consumer for this stream (session-manager subscribes to raw bytes via
+        // subscribeRaw instead), and a Readable nobody reads never drains, so
+        // pushing here would buffer every filtered chunk for the session's lifetime.
+        if (!interactive) stdoutStream.push(clean);
       });
 
       // Empty stderr (PTY combines both streams)
@@ -310,11 +307,6 @@ export class ClaudeManager {
       const exitPromise = new Promise<number>((resolveExit) => {
         ptyProcess.onExit(({ exitCode }) => {
           exited = true;
-          // Flush remaining filter buffer before closing stream
-          if (filterState?.lineBuffer) {
-            const final = filterInteractivePtyOutput('\n', filterState);
-            if (final) stdoutStream.push(final);
-          }
           stdoutStream.push(null);
           this.processes.delete(pid);
           this.stdinStreams.delete(pid);
