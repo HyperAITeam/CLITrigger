@@ -398,6 +398,7 @@ export function initDatabase(db: Database.Database): void {
     { table: 'planner_items', column: 'source_discussion_id', definition: 'TEXT' },
     { table: 'todos', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
     { table: 'todos', column: 'memory_node_ids', definition: 'TEXT' },
+    { table: 'todos', column: 'loop_config', definition: 'TEXT' },
     { table: 'discussions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },
     { table: 'discussions', column: 'memory_node_ids', definition: 'TEXT' },
     { table: 'sessions', column: 'memory_inject_mode', definition: "TEXT DEFAULT 'none'" },

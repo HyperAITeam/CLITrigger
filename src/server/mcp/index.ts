@@ -85,16 +85,38 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요.",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다.",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
         priority: z.number().optional(),
+        loop: z.object({
+          max_rounds: z.number().int().min(1).max(50),
+          check: z.string().optional(),
+          done_phrase: z.string().optional(),
+          rules: z.string().optional(),
+          max_cost_usd: z.number().positive().optional(),
+          stop_when_no_changes: z.boolean().optional(),
+          resume: z.boolean().optional(),
+        }).optional(),
       },
     },
-    ({ project_id, ...body }) =>
-      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/todos`, body)),
+    ({ project_id, loop, ...body }) =>
+      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/todos`, {
+        ...body,
+        ...(loop ? {
+          loop_config: {
+            maxRounds: loop.max_rounds,
+            check: loop.check,
+            donePhrase: loop.done_phrase,
+            rules: loop.rules,
+            maxCostUsd: loop.max_cost_usd,
+            stopWhenNoChanges: loop.stop_when_no_changes,
+            resume: loop.resume,
+          },
+        } : {}),
+      })),
   );
 
   server.registerTool(

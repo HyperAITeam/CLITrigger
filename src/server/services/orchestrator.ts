@@ -13,6 +13,8 @@ import { debugLogger, type DebugSession } from './debug-logger.js';
 import { captureReviewMetadata } from './review-capture.js';
 import { broadcastProjectStatus as broadcastProjectStatusShared } from './project-status.js';
 import { maybeCreateReviewTodo } from './auto-delegate.js';
+import { parseLoopConfig, buildLoopRulesBlock, buildLoopFollowUp, decideNextLoopStep, findPhraseInLatestRound, runCheckCommand, type LoopConfig, type LoopStep, type CheckResult } from './task-loop.js';
+import { createGit } from '../lib/git.js';
 import * as queries from '../db/queries.js';
 
 const MAX_CONTEXT_SWITCHES = 3;
@@ -289,7 +291,7 @@ export class Orchestrator {
     projectId: string,
     mode: ClaudeMode = 'headless',
     autoChain: boolean = false,
-    continueOptions?: { followUpPrompt: string; roundNumber: number },
+    continueOptions?: { followUpPrompt: string; roundNumber: number; resume?: boolean },
   ): Promise<void> {
     const todo = queries.getTodoById(todoId);
     if (!todo) return;
@@ -485,6 +487,10 @@ Complete the task in the current directory.`;
       }
     }
 
+    // Loop todos get their rules on every round so a fresh context knows the contract
+    const loop = parseLoopConfig(todo.loop_config);
+    if (loop) prompt += buildLoopRulesBlock(loop, roundNumber);
+
     // Copy attached images to worktree and append references to prompt
     const imagePaths = getTodoImagePaths(todoId);
     if (imagePaths.length > 0) {
@@ -593,13 +599,16 @@ Complete the task in the current directory.`;
     const auditPrompt = prompt.length > 2000 ? prompt.slice(0, 2000) + '... [truncated]' : prompt;
     queries.createTaskLog(todoId, 'prompt', auditPrompt, roundNumber);
 
+    // Stall guard baseline: a loop round that leaves HEAD untouched did nothing
+    const roundStartHead = loop?.stopWhenNoChanges && isGitRepo ? await this.readHead(workDir) : null;
+
     let pid: number;
     let exitPromise: Promise<number>;
 
     let debugSession: DebugSession | null = null;
 
     try {
-      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns, projectPath, sandboxMode, isContinue);
+      const result = await claudeManager.startClaude(workDir, prompt, claudeModel, claudeOptions, mode, cliTool, maxTurns, projectPath, sandboxMode, isContinue && (continueOptions?.resume ?? true));
       pid = result.pid;
       exitPromise = result.exitPromise;
 
@@ -649,11 +658,11 @@ Complete the task in the current directory.`;
     queries.createTaskLog(todoId, 'output', logMsg, roundNumber);
 
     // Broadcast status change with mode and worktree info
-    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName });
+    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName, round_count: roundNumber });
     this.broadcastProjectStatus(projectId);
 
     // Handle process exit asynchronously
-    exitPromise.then((exitCode) => {
+    exitPromise.then(async (exitCode) => {
       // Finalize debug log file
       if (debugSession) {
         try { debugSession.finalize(exitCode); } catch { /* ignore */ }
@@ -716,35 +725,78 @@ Complete the task in the current directory.`;
           this.broadcastProjectStatus(projectId);
         } else {
           // Success path
-          const doneMsg = `${adapter.displayName} completed successfully.${isContinue ? ` (round ${roundNumber})` : ''}`;
-          try {
-            queries.updateTodoStatus(todoId, 'completed');
-            queries.createTaskLog(todoId, 'output', doneMsg, roundNumber);
-            const tokenUsage = logStreamer.getTokenUsage(todoId);
-            queries.updateTodo(todoId, {
-              process_pid: 0,
-              ...(tokenUsage ? {
-                token_usage: JSON.stringify(tokenUsage),
-                total_cost_usd: tokenUsage.total_cost ?? null,
-                total_tokens: ((tokenUsage.input_tokens ?? 0) + (tokenUsage.output_tokens ?? 0)) || null,
-              } : {}),
+          const tokenUsage = logStreamer.getTokenUsage(todoId); // one-shot read: clears the streamer entry
+          const roundCost = tokenUsage?.total_cost ?? 0;
+          const roundTokens = (tokenUsage?.input_tokens ?? 0) + (tokenUsage?.output_tokens ?? 0);
+          // Loop rounds accumulate across rounds; a plain run records just this round
+          const totalCostUsd = loop ? (currentTodo.total_cost_usd ?? 0) + roundCost : (tokenUsage?.total_cost ?? null);
+          const totalTokens = ((loop ? (currentTodo.total_tokens ?? 0) : 0) + roundTokens) || null;
+          const usageUpdate = tokenUsage
+            ? { token_usage: JSON.stringify(tokenUsage), total_cost_usd: totalCostUsd, total_tokens: totalTokens }
+            : {};
+
+          const evaluated = loop
+            ? await this.evaluateLoopRound(todoId, loop, roundNumber, workDir, roundStartHead, totalCostUsd)
+            : null;
+
+          if (loop && evaluated?.step.kind === 'continue') {
+            // The user may have pressed Stop while the check command was running
+            if (queries.getTodoById(todoId)?.status !== 'running') return;
+            const nextRound = roundNumber + 1;
+            queries.createTaskLog(todoId, 'output', `Loop round ${roundNumber}/${loop.maxRounds}: ${evaluated.step.reason}. Starting round ${nextRound}.`, roundNumber);
+            queries.updateTodo(todoId, { process_pid: 0, round_count: nextRound, ...usageUpdate });
+            const followUpPrompt = buildLoopFollowUp(todo.description || todo.title || '', loop, nextRound, evaluated.step.reason, evaluated.check);
+            this.startSingleTodo(todoId, projectPath, projectId, mode, autoChain, { followUpPrompt, roundNumber: nextRound, resume: loop.resume === true }).catch(() => {
+              try {
+                queries.updateTodoStatus(todoId, 'failed');
+                queries.createTaskLog(todoId, 'error', 'Loop restart failed.', nextRound);
+              } catch { /* ignore */ }
+              broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+              this.broadcastProjectStatus(projectId);
             });
-          } catch {
-            try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }
+            return;
           }
 
-          captureReviewMetadata(todoId).catch(() => { /* ignore */ });
-          broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
-          broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
-          this.broadcastProjectStatus(projectId);
+          if (loop && evaluated?.step.kind === 'stop') {
+            const failMsg = `Loop stopped at round ${roundNumber}/${loop.maxRounds}: ${evaluated.step.reason}.`;
+            try {
+              queries.updateTodoStatus(todoId, 'failed');
+              queries.createTaskLog(todoId, 'error', failMsg, roundNumber);
+              queries.updateTodo(todoId, { process_pid: 0, ...usageUpdate });
+            } catch {
+              try { queries.updateTodoStatus(todoId, 'failed'); } catch { /* ignore */ }
+            }
 
-          try {
-            delegated = maybeCreateReviewTodo(projectId, todoId);
-          } catch { /* never block completion */ }
-          if (delegated) {
-            queries.createTaskLog(todoId, 'output', `Auto-delegation: created review task "${delegated.title}" (${delegated.cli_tool}).`, roundNumber);
-            broadcaster.broadcast({ type: 'todo:created', todo: delegated });
+            captureReviewMetadata(todoId).catch(() => { /* ignore */ });
+            broadcaster.broadcast({ type: 'todo:log', todoId, message: failMsg, logType: 'error' });
+            broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
             this.broadcastProjectStatus(projectId);
+          } else {
+            if (loop && evaluated) {
+              queries.createTaskLog(todoId, 'output', `Loop round ${roundNumber}/${loop.maxRounds}: ${evaluated.step.reason}. Loop finished.`, roundNumber);
+            }
+            const doneMsg = `${adapter.displayName} completed successfully.${isContinue ? ` (round ${roundNumber})` : ''}`;
+            try {
+              queries.updateTodoStatus(todoId, 'completed');
+              queries.createTaskLog(todoId, 'output', doneMsg, roundNumber);
+              queries.updateTodo(todoId, { process_pid: 0, ...usageUpdate });
+            } catch {
+              try { queries.updateTodoStatus(todoId, 'completed'); } catch { /* ignore */ }
+            }
+
+            captureReviewMetadata(todoId).catch(() => { /* ignore */ });
+            broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
+            broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
+            this.broadcastProjectStatus(projectId);
+
+            try {
+              delegated = maybeCreateReviewTodo(projectId, todoId);
+            } catch { /* never block completion */ }
+            if (delegated) {
+              queries.createTaskLog(todoId, 'output', `Auto-delegation: created review task "${delegated.title}" (${delegated.cli_tool}).`, roundNumber);
+              broadcaster.broadcast({ type: 'todo:created', todo: delegated });
+              this.broadcastProjectStatus(projectId);
+            }
           }
         }
       }
@@ -765,6 +817,40 @@ Complete the task in the current directory.`;
       broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
       this.broadcastProjectStatus(projectId);
     });
+  }
+
+  /** Apply the loop's done/stop rules after a round exited successfully. */
+  private async evaluateLoopRound(
+    todoId: string,
+    loop: LoopConfig,
+    round: number,
+    workDir: string,
+    roundStartHead: string | null,
+    totalCostUsd: number | null,
+  ): Promise<{ step: LoopStep; check: CheckResult | null }> {
+    // Phrase search runs before the check log is written so check output can't satisfy it
+    const phraseFound = loop.donePhrase ? findPhraseInLatestRound(todoId, loop.donePhrase) : false;
+    const check = loop.check ? await runCheckCommand(loop.check, workDir) : null;
+    if (check) {
+      queries.createTaskLog(todoId, 'output', `[loop-check] \`${loop.check}\` exited with code ${check.exitCode}${check.outputTail ? `\n${check.outputTail}` : ''}`, round);
+    }
+    const headNow = roundStartHead !== null ? await this.readHead(workDir) : null;
+    const step = decideNextLoopStep(loop, {
+      round,
+      checkExitCode: check ? check.exitCode : null,
+      phraseFound,
+      headChanged: roundStartHead !== null && headNow !== null ? headNow !== roundStartHead : null,
+      totalCostUsd,
+    });
+    return { step, check };
+  }
+
+  private async readHead(workDir: string): Promise<string | null> {
+    try {
+      return (await createGit(workDir).revparse(['HEAD'])).trim();
+    } catch {
+      return null;
+    }
   }
 
   /**

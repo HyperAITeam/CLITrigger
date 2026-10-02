@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createTodo, getTodosByProjectId, getTodoById, updateTodo, deleteTodo } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { validatePromptContent, MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
+import { parseLoopConfig } from '../services/task-loop.js';
 import { cleanupTodoImages } from './images.js';
 
 const router = Router();
@@ -23,6 +24,14 @@ function normalizeRawFilePaths(input: unknown): string | null | undefined {
   return null;
 }
 
+/** LoopConfig object → stored JSON; null clears; undefined = not sent; false = invalid. */
+function normalizeLoopConfig(input: unknown): string | null | undefined | false {
+  if (input === undefined) return undefined;
+  if (input === null) return null;
+  const parsed = input && typeof input === 'object' ? parseLoopConfig(JSON.stringify(input)) : null;
+  return parsed ? JSON.stringify(parsed) : false;
+}
+
 // POST /api/projects/:id/todos - create todo for project
 router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -35,9 +44,14 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
 
     // cli_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { title, description, priority, cli_tool, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths } = req.body;
+    const { title, description, priority, cli_tool, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, loop_config } = req.body;
     if (!title) {
       res.status(400).json({ error: 'title is required' });
+      return;
+    }
+    const normalizedLoop = normalizeLoopConfig(loop_config);
+    if (normalizedLoop === false) {
+      res.status(400).json({ error: 'Invalid loop_config: maxRounds (1-50) is required' });
       return;
     }
 
@@ -65,7 +79,8 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       : (typeof memory_node_ids === 'string' && memory_node_ids ? memory_node_ids : null);
     const normalizedRawFilePaths = normalizeRawFilePaths(memory_raw_file_paths);
     const todo = createTodo(projectId, title, description, priority, cli_tool, undefined, undefined, depends_on, parsedMaxTurns || undefined, normalizedUseWorktree, normalizedMemMode, normalizedMemIds, normalizedRawFilePaths === undefined ? null : normalizedRawFilePaths);
-    res.status(201).json(todo);
+    const saved = normalizedLoop ? (updateTodo(todo.id, { loop_config: normalizedLoop }) ?? todo) : todo;
+    res.status(201).json(saved);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -99,7 +114,12 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const { title, description, priority, cli_tool, depends_on, max_turns, position_x, position_y, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths } = req.body;
+    const { title, description, priority, cli_tool, depends_on, max_turns, position_x, position_y, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, loop_config } = req.body;
+    const normalizedLoop = normalizeLoopConfig(loop_config);
+    if (normalizedLoop === false) {
+      res.status(400).json({ error: 'Invalid loop_config: maxRounds (1-50) is required' });
+      return;
+    }
     const parsedMaxTurns = max_turns !== undefined ? (max_turns != null ? parseInt(max_turns, 10) || null : null) : undefined;
     const normalizedUseWorktree = use_worktree === undefined
       ? undefined
@@ -122,6 +142,7 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
       ...(normalizedMemMode !== undefined ? { memory_inject_mode: normalizedMemMode } : {}),
       ...(normalizedMemIds !== undefined ? { memory_node_ids: normalizedMemIds } : {}),
       ...(normalizedRawFilePaths !== undefined ? { memory_raw_file_paths: normalizedRawFilePaths } : {}),
+      ...(normalizedLoop !== undefined ? { loop_config: normalizedLoop } : {}),
     });
     res.json(todo);
   } catch (err: unknown) {

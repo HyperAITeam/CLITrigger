@@ -179,6 +179,7 @@ export interface Todo {
   memory_node_ids: string | null;
   memory_raw_file_paths: string | null;
   delegated_from: string | null;
+  loop_config: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -205,7 +206,7 @@ export function getTodoById(id: string): Todo | undefined {
   return db.prepare('SELECT * FROM todos WHERE id = ?').get(id) as Todo | undefined;
 }
 
-export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree' | 'summary' | 'diff_lines' | 'diff_files' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths'>>): Todo | undefined {
+export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'branch_name' | 'worktree_path' | 'process_pid' | 'cli_tool' | 'cli_model' | 'images' | 'depends_on' | 'max_turns' | 'token_usage' | 'position_x' | 'position_y' | 'merged_from_branch' | 'context_switch_count' | 'execution_mode' | 'round_count' | 'total_cost_usd' | 'total_tokens' | 'use_worktree' | 'summary' | 'diff_lines' | 'diff_files' | 'memory_inject_mode' | 'memory_node_ids' | 'memory_raw_file_paths' | 'loop_config'>>): Todo | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -241,6 +242,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
   if (updates.memory_inject_mode !== undefined) { fields.push('memory_inject_mode = ?'); values.push(updates.memory_inject_mode); }
   if (updates.memory_node_ids !== undefined) { fields.push('memory_node_ids = ?'); values.push(updates.memory_node_ids); }
   if (updates.memory_raw_file_paths !== undefined) { fields.push('memory_raw_file_paths = ?'); values.push(updates.memory_raw_file_paths); }
+  if (updates.loop_config !== undefined) { fields.push('loop_config = ?'); values.push(updates.loop_config); }
 
   if (fields.length === 0) return getTodoById(id);
 
