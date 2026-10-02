@@ -1,9 +1,10 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Maximize2, Minimize2, Plus, Star, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import Button from './Button';
 
 const TABS_KEY = 'webPanelTabs';
+const FAVORITES_KEY = 'webPanelFavorites';
 // Pre-tabs single-URL key; read once to seed the first tab.
 const LEGACY_URL_KEY = 'plannerWebPanelUrl';
 const DEFAULT_URL = 'https://www.notion.so';
@@ -11,12 +12,16 @@ const DEFAULT_URL = 'https://www.notion.so';
 // because sites like notion.so send X-Frame-Options and refuse iframes.
 const isElectron = 'electronAPI' in window;
 
-// `src` is bound to the <webview src> attribute and only changes on Go or
-// open-in-new-tab. `url` follows the guest's own navigations (address bar,
-// persisted, restored into `src` on load). Kept apart so a navigation event
-// never rewrites the src attribute, which would re-navigate the guest.
-type Tab = { id: string; src: string; url: string; title: string };
+// `src` is bound to the <webview src> attribute and only changes on Go, a
+// favorite click or open-in-new-tab. `url` follows the guest's own navigations
+// (address bar, persisted, restored into `src` on load). Kept apart so a
+// navigation event never rewrites the src attribute, which would re-navigate
+// the guest. `canGoBack` is sampled from the guest on each navigation.
+type Tab = { id: string; src: string; url: string; title: string; canGoBack?: boolean };
 type TabsState = { tabs: Tab[]; activeId: string };
+type Favorite = { url: string; title: string };
+// The slice of Electron's <webview> API used here.
+type Guest = HTMLElement & { goBack(): void; canGoBack(): boolean };
 
 function normalizeUrl(raw: string): string {
   const trimmed = raw.trim();
@@ -41,11 +46,19 @@ function loadTabs(): TabsState {
   return { tabs: [first], activeId: first.id };
 }
 
+function loadFavorites(): Favorite[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '') as Favorite[];
+    return Array.isArray(saved) ? saved : [];
+  } catch { return []; }
+}
+
 export default function WebPanel() {
   const { t } = useI18n();
   const [{ tabs, activeId }, setState] = useState<TabsState>(loadTabs);
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
   const [draft, setDraft] = useState(active.url);
+  const [favorites, setFavorites] = useState<Favorite[]>(loadFavorites);
   const [fullscreen, setFullscreen] = useState(false);
   // Fullscreen-only: folds the tab bar + address bar away so the guest gets
   // the whole screen. A small handle at the top edge brings them back.
@@ -53,10 +66,14 @@ export default function WebPanel() {
   const collapsed = fullscreen && chromeHidden;
   const inputRef = useRef<HTMLInputElement>(null);
   const guestAreaRef = useRef<HTMLDivElement>(null);
+  // Live <webview> per tab id, for imperative calls (back).
+  const guestsRef = useRef(new Map<string, Guest>());
 
   useEffect(() => {
     localStorage.setItem(TABS_KEY, JSON.stringify({ tabs: tabs.map(({ id, url }) => ({ id, url })), activeId }));
   }, [tabs, activeId]);
+
+  useEffect(() => { localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites)); }, [favorites]);
 
   // Address bar mirrors the active tab; switching tabs or navigating inside
   // the guest replaces whatever was being typed, like a browser does.
@@ -124,16 +141,19 @@ export default function WebPanel() {
   // listeners attach once per guest instead of on every render.
   const bindGuest = useCallback((el: HTMLElement | null) => {
     if (!el) return;
+    const guest = el as Guest;
     const id = el.dataset.tabId!;
+    guestsRef.current.set(id, guest);
     const onTitle = (e: Event) => patchTab(id, { title: (e as Event & { title: string }).title });
     const onNavigate = (e: Event) => {
       const { url, isMainFrame } = e as Event & { url: string; isMainFrame?: boolean };
-      if (isMainFrame !== false) patchTab(id, { url });
+      if (isMainFrame !== false) patchTab(id, { url, canGoBack: guest.canGoBack() });
     };
     el.addEventListener('page-title-updated', onTitle);
     el.addEventListener('did-navigate', onNavigate);
     el.addEventListener('did-navigate-in-page', onNavigate);
     return () => {
+      guestsRef.current.delete(id);
       el.removeEventListener('page-title-updated', onTitle);
       el.removeEventListener('did-navigate', onNavigate);
       el.removeEventListener('did-navigate-in-page', onNavigate);
@@ -144,6 +164,15 @@ export default function WebPanel() {
     if (tab.title) return tab.title;
     try { return new URL(tab.url).hostname; } catch { return t('web.newTab'); }
   };
+
+  const isFavorite = favorites.some((favorite) => favorite.url === active.url);
+  const toggleFavorite = () => {
+    if (!active.url) return;
+    setFavorites((list) => (isFavorite
+      ? list.filter((favorite) => favorite.url !== active.url)
+      : [...list, { url: active.url, title: tabLabel(active) }]));
+  };
+  const removeFavorite = (url: string) => setFavorites((list) => list.filter((favorite) => favorite.url !== url));
 
   return (
     // Fullscreen only swaps classes on this root: the <webview> nodes must stay
@@ -199,6 +228,16 @@ export default function WebPanel() {
         </button>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); go(); }} className={`${collapsed ? 'hidden' : 'flex'} items-center gap-2 p-2 border-b border-theme-border`}>
+        <button
+          type="button"
+          onClick={() => guestsRef.current.get(active.id)?.goBack()}
+          disabled={!active.canGoBack}
+          className="p-1 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-md transition-colors flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+          title={t('web.back')}
+          aria-label={t('web.back')}
+        >
+          <ArrowLeft size={14} />
+        </button>
         <input
           ref={inputRef}
           value={draft}
@@ -207,6 +246,17 @@ export default function WebPanel() {
           className="input-field flex-1"
           spellCheck={false}
         />
+        <button
+          type="button"
+          onClick={toggleFavorite}
+          disabled={!active.url}
+          aria-pressed={isFavorite}
+          className="p-1 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-md transition-colors flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+          title={isFavorite ? t('web.removeFavorite') : t('web.addFavorite')}
+          aria-label={isFavorite ? t('web.removeFavorite') : t('web.addFavorite')}
+        >
+          <Star size={14} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-accent' : undefined} />
+        </button>
         <Button type="submit" size="sm">{t('web.go')}</Button>
         {fullscreen && (
           <button
@@ -228,6 +278,31 @@ export default function WebPanel() {
           {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
       </form>
+      {favorites.length > 0 && (
+        <div className={`${collapsed ? 'hidden' : 'flex'} items-center gap-1 px-2 py-1 border-b border-theme-border overflow-x-auto`}>
+          {favorites.map((favorite) => (
+            <div key={favorite.url} className="group flex items-center flex-shrink-0 rounded-md hover:bg-theme-hover">
+              <button
+                type="button"
+                onClick={() => patchTab(active.id, { src: favorite.url, url: favorite.url })}
+                className="px-2 py-0.5 text-xs text-theme-text-secondary hover:text-theme-text truncate max-w-[160px]"
+                title={favorite.url}
+              >
+                {favorite.title}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeFavorite(favorite.url)}
+                className="p-0.5 mr-0.5 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-theme-hover"
+                title={t('web.removeFavorite')}
+                aria-label={`${t('web.removeFavorite')}: ${favorite.title}`}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {collapsed && (
         <button
           type="button"

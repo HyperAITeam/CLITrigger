@@ -35,3 +35,30 @@ describe('WebPanel tabs', () => {
     expect(screen.getByRole('textbox')).toHaveValue('');
   });
 });
+
+describe('WebPanel favorites', () => {
+  it('star adds the active URL as a persisted chip; a chip navigates the active tab; star again removes it', () => {
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Add to favorites' }));
+    const chip = screen.getByTitle('https://www.notion.so');
+    expect(chip).toHaveTextContent('www.notion.so');
+    expect(JSON.parse(localStorage.getItem('webPanelFavorites')!)).toEqual([{ url: 'https://www.notion.so', title: 'www.notion.so' }]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    fireEvent.click(chip);
+    expect(screen.getByRole('textbox')).toHaveValue('https://www.notion.so');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove from favorites' }));
+    expect(screen.queryByTitle('https://www.notion.so')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add to favorites' })).toBeInTheDocument();
+  });
+
+  it('the chip X removes a favorite without visiting it', () => {
+    localStorage.setItem('webPanelFavorites', JSON.stringify([{ url: 'https://example.com', title: 'Example' }]));
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove from favorites: Example' }));
+    expect(screen.queryByTitle('https://example.com')).toBeNull();
+    expect(localStorage.getItem('webPanelFavorites')).toBe('[]');
+  });
+});
