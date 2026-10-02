@@ -15,6 +15,7 @@ interface TaskNodeDetailProps {
   allTodos: Todo[];
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
+  loopMode?: 'toggle' | 'always' | 'none';
   onClose: () => void;
   onEdit: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -36,6 +37,7 @@ export default function TaskNodeDetail({
   allTodos,
   projectIsGitRepo,
   projectUseWorktree,
+  loopMode,
   onClose,
   onEdit,
   onStart,
@@ -177,6 +179,7 @@ export default function TaskNodeDetail({
           initialMaxTurns={todo.max_turns ?? undefined}
           initialUseWorktree={todo.use_worktree ?? null}
           initialLoopConfig={todosApi.parseLoopConfig(todo.loop_config)}
+          loopMode={loopMode}
           projectIsGitRepo={projectIsGitRepo}
           projectUseWorktree={projectUseWorktree}
           existingImages={existingImages}

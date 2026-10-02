@@ -37,6 +37,8 @@ interface TodoFormProps {
   initialLoopConfig?: LoopConfig | null;
   /** Project template prefilled when a todo without its own loop turns the loop on. */
   projectLoopDefaults?: LoopConfig | null;
+  /** 'always' = loop tab (rules always on, no toggle); 'none' = plain task (section hidden). */
+  loopMode?: 'toggle' | 'always' | 'none';
   initialMemoryInjectMode?: MemoryInjectMode;
   initialMemoryRawFilePaths?: string | null;
   projectId?: string;
@@ -62,6 +64,7 @@ export default function TodoForm({
   initialUseWorktree = null,
   initialLoopConfig = null,
   projectLoopDefaults = null,
+  loopMode = 'toggle',
   initialMemoryInjectMode = 'none',
   initialMemoryRawFilePaths = null,
   projectId,
@@ -81,7 +84,7 @@ export default function TodoForm({
   const [useWorktreeMode, setUseWorktreeMode] = useState<'inherit' | 'force-on' | 'force-off'>(
     initialUseWorktree === 1 ? 'force-on' : initialUseWorktree === 0 ? 'force-off' : 'inherit'
   );
-  const [loopEnabled, setLoopEnabled] = useState(!!initialLoopConfig);
+  const [loopEnabled, setLoopEnabled] = useState(loopMode === 'always' || !!initialLoopConfig);
   const [loopDraft, setLoopDraft] = useState<LoopDraft>(() => draftFromConfig(initialLoopConfig ?? projectLoopDefaults));
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initialMemoryInjectMode);
   const [vaultPaths, setVaultPaths] = useState<string[]>(parseRawFilePaths(initialMemoryRawFilePaths));
@@ -161,7 +164,7 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    const loopConfig: LoopConfig | null = loopEnabled ? configFromDraft(loopDraft) : null;
+    const loopConfig: LoopConfig | null = loopMode !== 'none' && loopEnabled ? configFromDraft(loopDraft) : null;
     onSave(title.trim(), description.trim(), cliTool, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths, loopConfig);
   };
 
@@ -311,23 +314,29 @@ export default function TodoForm({
       )}
 
       {/* Loop: repeat rounds until a done rule is satisfied */}
-      <div className="mb-4">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={loopEnabled}
-            onChange={(e) => setLoopEnabled(e.target.checked)}
-            className="rounded-md border-warm-300"
-          />
-          <span className="text-xs font-medium text-warm-500">{t('todoForm.loopEnable')}</span>
-        </label>
-        <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopHint')}</p>
-        {loopEnabled && (
-          <div className="mt-3 pl-3 border-l-2 border-warm-200">
-            <LoopRulesFields draft={loopDraft} onChange={setLoopDraft} showStallGuard={projectIsGitRepo} />
-          </div>
-        )}
-      </div>
+      {loopMode !== 'none' && (
+        <div className="mb-4">
+          {loopMode === 'always' ? (
+            <label className="block text-xs font-medium text-warm-500">{t('todoForm.loopRulesTitle')}</label>
+          ) : (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={loopEnabled}
+                onChange={(e) => setLoopEnabled(e.target.checked)}
+                className="rounded-md border-warm-300"
+              />
+              <span className="text-xs font-medium text-warm-500">{t('todoForm.loopEnable')}</span>
+            </label>
+          )}
+          <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopHint')}</p>
+          {loopEnabled && (
+            <div className="mt-3 pl-3 border-l-2 border-warm-200">
+              <LoopRulesFields draft={loopDraft} onChange={setLoopDraft} showStallGuard={projectIsGitRepo} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Worktree override (git repos only) */}
       {projectIsGitRepo && (

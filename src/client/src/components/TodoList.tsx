@@ -28,6 +28,8 @@ interface TodoListProps {
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
   projectLoopDefaults?: LoopConfig | null;
+  /** 'always' = loops tab (every todo here carries loop rules); 'none' = plain tasks tab. */
+  loopMode?: 'toggle' | 'always' | 'none';
   onAddTodo: (title: string, description: string, cliTool?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onStartAll: () => void;
   onStopAll: () => void;
@@ -74,6 +76,7 @@ export default function TodoList({
   projectIsGitRepo,
   projectUseWorktree,
   projectLoopDefaults,
+  loopMode = 'toggle',
   onAddTodo,
   onStartAll,
   onStopAll,
@@ -404,6 +407,7 @@ export default function TodoList({
           projectIsGitRepo={projectIsGitRepo}
           projectUseWorktree={projectUseWorktree}
           projectLoopDefaults={projectLoopDefaults}
+          loopMode={loopMode}
           onAddTodo={onAddTodo}
           onStartTodo={onStartTodo}
           onStopTodo={onStopTodo}
@@ -503,6 +507,7 @@ export default function TodoList({
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
             projectLoopDefaults={projectLoopDefaults}
+            loopMode={loopMode}
             availableTodos={todos}
             onSave={async (title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig) => {
               await onAddTodo(title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig);
@@ -549,8 +554,8 @@ export default function TodoList({
           <div className="card">
             <EmptyState
               icon={ClipboardList}
-              title={statusFilter === 'all' ? t('todos.empty') : t('todos.filterEmpty')}
-              description={statusFilter === 'all' ? t('todos.emptyHint') : undefined}
+              title={statusFilter === 'all' ? t(loopMode === 'always' ? 'loops.empty' : 'todos.empty') : t('todos.filterEmpty')}
+              description={statusFilter === 'all' ? t(loopMode === 'always' ? 'loops.emptyHint' : 'todos.emptyHint') : undefined}
             />
           </div>
         ) : (() => {
@@ -644,6 +649,7 @@ export default function TodoList({
                     projectCliTool={projectCliTool}
                     projectIsGitRepo={projectIsGitRepo}
                     projectUseWorktree={projectUseWorktree}
+                    loopMode={loopMode}
                     onStart={onStartTodo}
                     onStop={onStopTodo}
                     onDelete={onDeleteTodo}

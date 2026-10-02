@@ -138,6 +138,7 @@ interface TodoItemProps {
   projectCliTool?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
+  loopMode?: 'toggle' | 'always' | 'none';
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -169,7 +170,7 @@ interface TodoItemProps {
   isChainMember?: boolean;
 }
 
-export default function TodoItem({ todo, allTodos = [], projectCliTool, projectIsGitRepo, projectUseWorktree, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onScheduleOnReset, resetsAt, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
+export default function TodoItem({ todo, allTodos = [], projectCliTool, projectIsGitRepo, projectUseWorktree, loopMode, onStart, onStop, onDelete, onEdit, onMerge, onCleanup, onRetry, onContinue, onFix, onSchedule, onScheduleOnReset, resetsAt, onEvent, isInteractive, onSendInput, isDragSource, isDragging, isDragOver, isValidDropTarget, onDragStart, onDragEnd, onDragOverTarget, onDragLeaveTarget, onDropTarget, onRemoveDependency, debugLogging, showTokenUsage, isChainMember }: TodoItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [logs, setLogs] = useState<TaskLog[]>([]);
@@ -445,6 +446,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         initialMaxTurns={todo.max_turns ?? undefined}
         initialUseWorktree={todo.use_worktree ?? null}
         initialLoopConfig={loopConfig}
+        loopMode={loopMode}
         initialMemoryInjectMode={todo.memory_inject_mode ?? 'none'}
         initialMemoryRawFilePaths={todo.memory_raw_file_paths ?? null}
         projectId={todo.project_id}

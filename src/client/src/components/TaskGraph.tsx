@@ -89,6 +89,7 @@ interface TaskGraphProps {
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
   projectLoopDefaults?: LoopConfig | null;
+  loopMode?: 'toggle' | 'always' | 'none';
   onAddTodo: (title: string, description: string, cliTool?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
@@ -115,6 +116,7 @@ export default function TaskGraph({
   projectIsGitRepo,
   projectUseWorktree,
   projectLoopDefaults,
+  loopMode = 'toggle',
   onAddTodo,
   onStartTodo,
   onStopTodo,
@@ -327,6 +329,7 @@ export default function TaskGraph({
           allTodos={todos}
           projectIsGitRepo={projectIsGitRepo}
           projectUseWorktree={projectUseWorktree}
+          loopMode={loopMode}
           onClose={() => setSelectedTodoId(null)}
           onEdit={onEditTodo}
           onStart={onStartTodo}
@@ -353,6 +356,7 @@ export default function TaskGraph({
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
             projectLoopDefaults={projectLoopDefaults}
+            loopMode={loopMode}
             availableTodos={todos}
             onSave={async (title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig) => {
               await onAddTodo(title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig);
