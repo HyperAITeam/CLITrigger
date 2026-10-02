@@ -18,7 +18,7 @@ import {
 import { LayoutGrid, Plus } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
-import type { Todo, TaskLog } from '../types';
+import type { Todo, TaskLog, LoopConfig } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import TaskNodeComponent, { type TaskNodeData } from './TaskNode';
 import TaskNodeDetail from './TaskNodeDetail';
@@ -92,7 +92,7 @@ interface TaskGraphProps {
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStopTodo: (id: string) => Promise<void>;
   onDeleteTodo: (id: string) => Promise<void>;
-  onEditTodo: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  onEditTodo: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onMergeTodo: (id: string) => Promise<void>;
   onCleanupTodo: (id: string) => Promise<void>;
   onRetryTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;

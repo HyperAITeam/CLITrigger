@@ -1,20 +1,30 @@
 import { get, post, put, del } from './client';
-import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
+import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta, LoopConfig } from '../types';
 
 export function getTodos(projectId: string): Promise<Todo[]> {
   return get(`/api/projects/${projectId}/todos`);
 }
 
+export function parseLoopConfig(raw: string | null | undefined): LoopConfig | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && typeof parsed.maxRounds === 'number' ? (parsed as LoopConfig) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createTodo(
   projectId: string,
-  data: { title: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string; max_turns?: number | null; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
+  data: { title: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string; max_turns?: number | null; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; loop_config?: LoopConfig | null }
 ): Promise<Todo> {
   return post(`/api/projects/${projectId}/todos`, data);
 }
 
 export function updateTodo(
   id: string,
-  data: { title?: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string | null; max_turns?: number | null; position_x?: number; position_y?: number; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[] }
+  data: { title?: string; description?: string; priority?: number; cli_tool?: string; depends_on?: string | null; max_turns?: number | null; position_x?: number; position_y?: number; use_worktree?: number | null; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; loop_config?: LoopConfig | null }
 ): Promise<Todo> {
   return put(`/api/todos/${id}`, data);
 }

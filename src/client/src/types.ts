@@ -64,8 +64,20 @@ export interface Todo {
   memory_node_ids?: string | null;
   memory_raw_file_paths?: string | null;
   delegated_from?: string | null;
+  loop_config?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Mirrors the server's LoopConfig (src/server/services/task-loop.ts). */
+export interface LoopConfig {
+  maxRounds: number;
+  check?: string;
+  donePhrase?: string;
+  rules?: string;
+  maxCostUsd?: number;
+  stopWhenNoChanges?: boolean;
+  resume?: boolean;
 }
 
 export interface ReviewItem extends Todo {

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Image as ImageIcon, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool } from '../cli-tools';
-import type { ImageMeta, MemoryInjectMode, Todo } from '../types';
+import type { ImageMeta, MemoryInjectMode, Todo, LoopConfig } from '../types';
 import type { VaultInjectMode } from '../api/vault';
 import { getTodoImageUrl } from '../api/todos';
 
@@ -25,7 +25,7 @@ export interface PendingImage {
 }
 
 interface TodoFormProps {
-  onSave: (title: string, description: string, cliTool?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => void;
+  onSave: (title: string, description: string, cliTool?: string, newImages?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: MemoryInjectMode, memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => void;
   onCancel: () => void;
   initialTitle?: string;
   initialDescription?: string;
@@ -33,6 +33,7 @@ interface TodoFormProps {
   initialDependsOn?: string;
   initialMaxTurns?: number;
   initialUseWorktree?: number | null;
+  initialLoopConfig?: LoopConfig | null;
   initialMemoryInjectMode?: MemoryInjectMode;
   initialMemoryRawFilePaths?: string | null;
   projectId?: string;
@@ -56,6 +57,7 @@ export default function TodoForm({
   initialDependsOn,
   initialMaxTurns,
   initialUseWorktree = null,
+  initialLoopConfig = null,
   initialMemoryInjectMode = 'none',
   initialMemoryRawFilePaths = null,
   projectId,
@@ -75,6 +77,14 @@ export default function TodoForm({
   const [useWorktreeMode, setUseWorktreeMode] = useState<'inherit' | 'force-on' | 'force-off'>(
     initialUseWorktree === 1 ? 'force-on' : initialUseWorktree === 0 ? 'force-off' : 'inherit'
   );
+  const [loopEnabled, setLoopEnabled] = useState(!!initialLoopConfig);
+  const [loopMaxRounds, setLoopMaxRounds] = useState(initialLoopConfig?.maxRounds?.toString() ?? '10');
+  const [loopCheck, setLoopCheck] = useState(initialLoopConfig?.check ?? '');
+  const [loopDonePhrase, setLoopDonePhrase] = useState(initialLoopConfig?.donePhrase ?? '');
+  const [loopRules, setLoopRules] = useState(initialLoopConfig?.rules ?? '');
+  const [loopMaxCost, setLoopMaxCost] = useState(initialLoopConfig?.maxCostUsd?.toString() ?? '');
+  const [loopStopWhenNoChanges, setLoopStopWhenNoChanges] = useState(initialLoopConfig?.stopWhenNoChanges ?? true);
+  const [loopResume, setLoopResume] = useState(initialLoopConfig?.resume ?? false);
   const [memoryInjectMode, setMemoryInjectMode] = useState<MemoryInjectMode>(initialMemoryInjectMode);
   const [vaultPaths, setVaultPaths] = useState<string[]>(parseRawFilePaths(initialMemoryRawFilePaths));
   const [includeLinked, setIncludeLinked] = useState<boolean>(false);
@@ -153,7 +163,17 @@ export default function TodoForm({
     if (!title.trim()) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     const useWorktreeValue: number | null = useWorktreeMode === 'force-on' ? 1 : useWorktreeMode === 'force-off' ? 0 : null;
-    onSave(title.trim(), description.trim(), cliTool, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths);
+    const parsedMaxCost = parseFloat(loopMaxCost);
+    const loopConfig: LoopConfig | null = loopEnabled ? {
+      maxRounds: Math.min(50, Math.max(1, parseInt(loopMaxRounds, 10) || 10)),
+      check: loopCheck.trim() || undefined,
+      donePhrase: loopDonePhrase.trim() || undefined,
+      rules: loopRules.trim() || undefined,
+      maxCostUsd: parsedMaxCost > 0 ? parsedMaxCost : undefined,
+      stopWhenNoChanges: loopStopWhenNoChanges,
+      resume: loopResume,
+    } : null;
+    onSave(title.trim(), description.trim(), cliTool, pendingImages.length > 0 ? pendingImages : undefined, dependsOn || undefined, parsedMaxTurns || undefined, useWorktreeValue, memoryInjectMode, [], vaultPaths, loopConfig);
   };
 
   const totalImages = existingImgs.length + pendingImages.length;
@@ -300,6 +320,108 @@ export default function TodoForm({
           </p>
         </div>
       )}
+
+      {/* Loop: repeat rounds until a done rule is satisfied */}
+      <div className="mb-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={loopEnabled}
+            onChange={(e) => setLoopEnabled(e.target.checked)}
+            className="rounded-md border-warm-300"
+          />
+          <span className="text-xs font-medium text-warm-500">{t('todoForm.loopEnable')}</span>
+        </label>
+        <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopHint')}</p>
+        {loopEnabled && (
+          <div className="mt-3 pl-3 border-l-2 border-warm-200 flex flex-col gap-3">
+            <div className="flex gap-3">
+              <div>
+                <label className="block text-2xs font-medium text-warm-500 mb-1">{t('todoForm.loopMaxRounds')}</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={loopMaxRounds}
+                  onChange={(e) => setLoopMaxRounds(e.target.value)}
+                  className="input-field text-sm w-24"
+                />
+              </div>
+              <div>
+                <label className="block text-2xs font-medium text-warm-500 mb-1">{t('todoForm.loopMaxCost')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder={t('todoForm.loopMaxCostPlaceholder')}
+                  value={loopMaxCost}
+                  onChange={(e) => setLoopMaxCost(e.target.value)}
+                  className="input-field text-sm w-28"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-2xs font-medium text-warm-500 mb-1">{t('todoForm.loopCheck')}</label>
+              <input
+                type="text"
+                placeholder="npm test && npm run typecheck"
+                value={loopCheck}
+                onChange={(e) => setLoopCheck(e.target.value)}
+                className="input-field text-sm w-full font-mono"
+              />
+              <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopCheckHint')}</p>
+            </div>
+            <div>
+              <label className="block text-2xs font-medium text-warm-500 mb-1">{t('todoForm.loopDonePhrase')}</label>
+              <input
+                type="text"
+                placeholder="<promise>DONE</promise>"
+                value={loopDonePhrase}
+                onChange={(e) => setLoopDonePhrase(e.target.value)}
+                className="input-field text-sm w-full font-mono"
+              />
+              <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopDonePhraseHint')}</p>
+            </div>
+            {!loopCheck.trim() && !loopDonePhrase.trim() && (
+              <p className="text-2xs text-status-warning">{t('todoForm.loopNoDoneRule')}</p>
+            )}
+            <div>
+              <label className="block text-2xs font-medium text-warm-500 mb-1">{t('todoForm.loopRules')}</label>
+              <textarea
+                rows={3}
+                placeholder={t('todoForm.loopRulesPlaceholder')}
+                value={loopRules}
+                onChange={(e) => setLoopRules(e.target.value)}
+                className="input-field text-sm w-full resize-y"
+              />
+              <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopRulesHint')}</p>
+            </div>
+            {projectIsGitRepo && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={loopStopWhenNoChanges}
+                  onChange={(e) => setLoopStopWhenNoChanges(e.target.checked)}
+                  className="rounded-md border-warm-300"
+                />
+                <span className="text-xs text-warm-600">{t('todoForm.loopStopWhenNoChanges')}</span>
+              </label>
+            )}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={loopResume}
+                  onChange={(e) => setLoopResume(e.target.checked)}
+                  className="rounded-md border-warm-300"
+                />
+                <span className="text-xs text-warm-600">{t('todoForm.loopResume')}</span>
+              </label>
+              <p className="text-2xs text-warm-400 mt-1">{t('todoForm.loopResumeHint')}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Worktree override (git repos only) */}
       {projectIsGitRepo && (

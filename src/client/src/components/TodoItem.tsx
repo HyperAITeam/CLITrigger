@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta } from '../types';
+import type { Todo, TaskLog, DiffResult, TaskResult, ImageMeta, LoopConfig } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as todosApi from '../api/todos';
 import * as projectsApi from '../api/projects';
@@ -38,6 +38,7 @@ import {
   Ban,
   GitBranch,
   GitCommit,
+  Repeat,
 } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import CursorContextMenu, {
@@ -140,7 +141,7 @@ interface TodoItemProps {
   onStart: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
   onStop: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onEdit: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  onEdit: (id: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onMerge: (id: string) => Promise<void>;
   onCleanup: (id: string, deleteBranch: boolean) => Promise<void>;
   onRetry: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -428,6 +429,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
   };
 
   const existingImages: ImageMeta[] = todo.images ? JSON.parse(todo.images) : [];
+  const loopConfig = todosApi.parseLoopConfig(todo.loop_config);
   const parentTodo = todo.depends_on ? allTodos.find(t => t.id === todo.depends_on) : null;
   const childTodo = allTodos.find(t => t.depends_on === todo.id && t.merged_from_branch);
   const todoCliTool = ((todo.cli_tool || projectCliTool || 'claude') as CliTool);
@@ -442,6 +444,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         initialDependsOn={todo.depends_on ?? undefined}
         initialMaxTurns={todo.max_turns ?? undefined}
         initialUseWorktree={todo.use_worktree ?? null}
+        initialLoopConfig={loopConfig}
         initialMemoryInjectMode={todo.memory_inject_mode ?? 'none'}
         initialMemoryRawFilePaths={todo.memory_raw_file_paths ?? null}
         projectId={todo.project_id}
@@ -453,8 +456,8 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         onDeleteImage={async (imageId) => {
           await todosApi.deleteTodoImage(todo.id, imageId);
         }}
-        onSave={async (title, description, cliTool, newImages, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
-          await onEdit(todo.id, title, description, cliTool, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
+        onSave={async (title, description, cliTool, newImages, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, nextLoopConfig) => {
+          await onEdit(todo.id, title, description, cliTool, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, nextLoopConfig);
           if (newImages && newImages.length > 0) {
             await todosApi.uploadTodoImages(todo.id, newImages.map(img => ({ name: img.name, data: img.data })));
           }
@@ -576,6 +579,11 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
         )}
 
         <StatusBadge status={todo.status} />
+        {loopConfig && (
+          <span className="inline-flex items-center gap-0.5 text-2xs font-mono text-warm-400 flex-shrink-0" title={t('todoForm.loopEnable')}>
+            <Repeat size={10} />{todo.round_count ?? 1}/{loopConfig.maxRounds}
+          </span>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-auto md:ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>

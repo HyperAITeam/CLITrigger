@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import TabHoverHelp from './HoverHelp';
-import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag } from '../types';
+import type { Project, Todo, Schedule, Discussion, Session, TaskLog, PlannerItem, PlannerTag, LoopConfig } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import * as projectsApi from '../api/projects';
 import * as todosApi from '../api/todos';
@@ -169,6 +169,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
             };
             if (event.worktree_path !== undefined) updates.worktree_path = event.worktree_path ?? null;
             if (event.branch_name !== undefined) updates.branch_name = event.branch_name ?? null;
+            if (event.round_count !== undefined) updates.round_count = event.round_count;
             return { ...t, ...updates };
           })
         );
@@ -254,7 +255,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     });
   }, [onEvent, sendNotification, t]);
 
-  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
+  const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => {
     if (!id) return;
     const newTodo = await todosApi.createTodo(id, {
       title, description, cli_tool: cliTool,
@@ -262,6 +263,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
       ...(memoryNodeIds ? { memory_node_ids: memoryNodeIds } : {}),
       ...(memoryRawFilePaths ? { memory_raw_file_paths: memoryRawFilePaths } : {}),
+      ...(loopConfig ? { loop_config: loopConfig } : {}),
     });
     if (images && images.length > 0) {
       const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
@@ -313,7 +315,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setTodos((prev) => prev.filter((t) => t.id !== todoId));
   }, []);
 
-  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => {
+  const handleEditTodo = useCallback(async (todoId: string, title: string, description: string, cliTool?: string, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => {
     const updated = await todosApi.updateTodo(todoId, {
       title, description, cli_tool: cliTool,
       depends_on: dependsOn ?? null, max_turns: maxTurns ?? null,
@@ -321,6 +323,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       ...(memoryInjectMode ? { memory_inject_mode: memoryInjectMode } : {}),
       ...(memoryNodeIds ? { memory_node_ids: memoryNodeIds } : {}),
       ...(memoryRawFilePaths ? { memory_raw_file_paths: memoryRawFilePaths } : {}),
+      // Always sent: the form saves null when the loop is turned off
+      loop_config: loopConfig ?? null,
     });
     setTodos((prev) => prev.map((t) => (t.id === todoId ? updated : t)));
   }, []);
