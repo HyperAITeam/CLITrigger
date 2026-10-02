@@ -20,6 +20,7 @@ export interface Project {
   npm_auto_install: number;
   memory_auto_ingest: number;
   auto_delegate: string | null;
+  loop_defaults?: string | null;
   color: string | null;
   sort_order: number;
   path_exists?: boolean;

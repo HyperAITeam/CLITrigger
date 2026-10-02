@@ -872,6 +872,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           projectCliTool={project.cli_tool}
           projectIsGitRepo={!!project.is_git_repo}
           projectUseWorktree={project.use_worktree !== 0}
+          projectLoopDefaults={todosApi.parseLoopConfig(project.loop_defaults)}
           onAddTodo={handleAddTodo}
           onStartAll={handleStartAll}
           onStopAll={handleStopAll}

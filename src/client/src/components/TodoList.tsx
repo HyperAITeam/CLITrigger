@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
-import type { Todo, TaskLog } from '../types';
+import type { Todo, TaskLog, LoopConfig } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import type { PendingImage } from './TodoForm';
 import TodoItem from './TodoItem';
@@ -27,7 +27,8 @@ interface TodoListProps {
   projectCliTool?: string;
   projectIsGitRepo?: boolean;
   projectUseWorktree?: boolean;
-  onAddTodo: (title: string, description: string, cliTool?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[]) => Promise<void>;
+  projectLoopDefaults?: LoopConfig | null;
+  onAddTodo: (title: string, description: string, cliTool?: string, images?: PendingImage[], dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => Promise<void>;
   onStartAll: () => void;
   onStopAll: () => void;
   onStartTodo: (id: string, mode?: 'headless' | 'interactive' | 'verbose') => Promise<void>;
@@ -72,6 +73,7 @@ export default function TodoList({
   projectCliTool,
   projectIsGitRepo,
   projectUseWorktree,
+  projectLoopDefaults,
   onAddTodo,
   onStartAll,
   onStopAll,
@@ -401,6 +403,7 @@ export default function TodoList({
           projectCliTool={projectCliTool}
           projectIsGitRepo={projectIsGitRepo}
           projectUseWorktree={projectUseWorktree}
+          projectLoopDefaults={projectLoopDefaults}
           onAddTodo={onAddTodo}
           onStartTodo={onStartTodo}
           onStopTodo={onStopTodo}
@@ -499,9 +502,10 @@ export default function TodoList({
             projectCliTool={projectCliTool}
             projectIsGitRepo={projectIsGitRepo}
             projectUseWorktree={projectUseWorktree}
+            projectLoopDefaults={projectLoopDefaults}
             availableTodos={todos}
-            onSave={async (title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths) => {
-              await onAddTodo(title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths);
+            onSave={async (title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig) => {
+              await onAddTodo(title, description, cliTool, images, dependsOn, maxTurns, useWorktree, memoryInjectMode, memoryNodeIds, memoryRawFilePaths, loopConfig);
               setShowForm(false);
             }}
             onCancel={() => setShowForm(false)}

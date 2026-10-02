@@ -3,6 +3,8 @@ import Modal from './Modal';
 import type { Project, Todo, Session } from '../types';
 import * as projectsApi from '../api/projects';
 import * as pluginsApi from '../api/plugins';
+import { parseLoopConfig } from '../api/todos';
+import LoopRulesFields, { draftFromConfig, configFromDraft, type LoopDraft } from './LoopRulesFields';
 import { getCliStatus, refreshCliStatus, type CliToolStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
 import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
@@ -70,6 +72,10 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
       return project.auto_delegate ? JSON.parse(project.auto_delegate) : null;
     } catch { return null; }
   });
+
+  // Default loop rule template: prefilled into new todos that turn the loop on
+  const [loopDefaultsEnabled, setLoopDefaultsEnabled] = useState(!!parseLoopConfig(project.loop_defaults));
+  const [loopDefaultsDraft, setLoopDefaultsDraft] = useState<LoopDraft>(() => draftFromConfig(parseLoopConfig(project.loop_defaults)));
 
   // Load plugin configs from server
   useEffect(() => {
@@ -149,6 +155,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         claude_options: claudeOptions || null,
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
         auto_delegate: autoDelegate ? JSON.stringify(autoDelegate) : null,
+        loop_defaults: loopDefaultsEnabled ? JSON.stringify(configFromDraft(loopDefaultsDraft)) : null,
       });
 
       // Save plugin configs to plugin_configs table
@@ -500,6 +507,28 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                     ))}
                   </select>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Default loop rules (template for new loop todos) */}
+          <div className="mt-5 p-4 border border-warm-200 rounded-xl">
+            <h4 className="text-xs font-semibold text-warm-600 mb-2">
+              {t('header.loopDefaultsTitle')}
+            </h4>
+            <p className="text-2xs text-warm-400 mb-3">{t('header.loopDefaultsHint')}</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={loopDefaultsEnabled}
+                onChange={(e) => setLoopDefaultsEnabled(e.target.checked)}
+                className="rounded-md border-warm-300"
+              />
+              <span className="text-xs text-warm-600">{t('header.loopDefaultsEnable')}</span>
+            </label>
+            {loopDefaultsEnabled && (
+              <div className="mt-3">
+                <LoopRulesFields draft={loopDefaultsDraft} onChange={setLoopDefaultsDraft} showStallGuard={!!project.is_git_repo} />
               </div>
             )}
           </div>
