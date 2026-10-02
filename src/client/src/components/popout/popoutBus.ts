@@ -61,8 +61,11 @@ export type BusMessage =
   // to a different project it adopts the group into its own workspace and
   // scrubs the origin project's persisted entry (cross-project re-dock).
   | { t: 'group-return'; from: string; groupId: string; group: unknown; projectId?: string }
-  | { t: 'group-update'; from: string; groupId: string; patch: unknown }
-  | { t: 'group-close'; from: string; groupId: string }
+  // projectId on update/close too: when no host holds the group (its project
+  // isn't mounted) the receiver applies the change to that project's
+  // persisted entry instead of dropping it.
+  | { t: 'group-update'; from: string; groupId: string; patch: unknown; projectId?: string }
+  | { t: 'group-close'; from: string; groupId: string; projectId?: string }
   | { t: 'group-recall'; popoutId: string; groupId: string }
   // main → popout, "bring your OS window to the front" (window.focus), no recall
   | { t: 'group-focus'; popoutId: string; groupId: string }

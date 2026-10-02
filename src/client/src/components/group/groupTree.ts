@@ -357,3 +357,30 @@ export function pruneInvalid(root: LayoutNode, validIds: Set<string>): LayoutNod
   }
   return cur;
 }
+
+// A session may live in exactly one group. Walk in array order, keep the
+// first group holding each id and prune later copies (dropping groups that
+// collapse to nothing). Run wherever externally-sourced group blobs enter
+// host state — persisted restore, popout group-return — so a missed
+// cross-window ack or a stale snapshot can't leave the same terminal in two
+// windows (double PTY subscribe, duplicate dock chips).
+export function dedupeGroups<T extends { root: LayoutNode; colors: Record<string, string>; intents: Record<string, unknown> }>(
+  groups: T[],
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const g of groups) {
+    const ids = allSessionIds(g.root);
+    const keep = new Set(ids.filter(id => !seen.has(id)));
+    for (const id of ids) seen.add(id);
+    if (keep.size === ids.length) { out.push(g); continue; }
+    const root = pruneInvalid(g.root, keep);
+    if (!root) continue;
+    const colors: Record<string, string> = {};
+    for (const k of Object.keys(g.colors)) if (keep.has(k)) colors[k] = g.colors[k];
+    const intents: Record<string, unknown> = {};
+    for (const k of Object.keys(g.intents)) if (keep.has(k)) intents[k] = g.intents[k];
+    out.push({ ...g, root, colors, intents });
+  }
+  return out;
+}

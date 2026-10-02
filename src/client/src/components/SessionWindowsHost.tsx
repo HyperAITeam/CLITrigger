@@ -24,6 +24,7 @@ import {
   reorderTab as treeReorderTab,
   setSplitSizes as treeSetSplitSizes,
   pruneInvalid,
+  dedupeGroups,
   allSessionIds,
   activeSessionIds,
   simplify,
@@ -300,6 +301,16 @@ function removePersistedGroup(projectId: string, groupId: string): void {
   window.dispatchEvent(new CustomEvent('session-windows:changed'));
 }
 
+// Same, for a popout's group-update when its project isn't mounted: without
+// this the origin snapshot keeps tabs the popout already moved elsewhere,
+// and the tray resurrects them as a second chip once the popout dies.
+function patchPersistedGroup(projectId: string, groupId: string, patch: Partial<OpenGroup>): void {
+  const p = readPersisted(projectId);
+  if (!p || !p.groups.some(g => g.id === groupId)) return;
+  writePersisted(projectId, { ...p, groups: p.groups.map(g => g.id === groupId ? { ...g, ...patch } : g) });
+  window.dispatchEvent(new CustomEvent('session-windows:changed'));
+}
+
 function cascadeGeom(existingCount: number): WindowGeom {
   const i = existingCount % 8;
   return {
@@ -384,7 +395,8 @@ export default function SessionWindowsHost({
     // and cross-project remount cases are covered by the same seed.
     // (alivePopoutsRef itself is declared below; this initializer can't
     // touch it directly. We push these into a separate one-shot effect.)
-    return { groups: restored, zCounter: p.zCounter || restored.length };
+    // Self-heal a snapshot that already holds a session twice.
+    return { groups: dedupeGroups(restored), zCounter: p.zCounter || restored.length };
   });
   const [groups, setGroups] = useState<OpenGroup[]>(initialState.groups);
   const zCounterRef = useRef<number>(initialState.zCounter);
@@ -1474,12 +1486,13 @@ export default function SessionWindowsHost({
               removePersistedGroup(msg.projectId, msg.groupId);
             }
             setGroups((prev) => {
-              // If main no longer has this group in its array, restore it.
-              const exists = prev.find(g => g.id === msg.groupId);
+              // Replace main's (never rendered) popout-owned copy, or append if
+              // it's gone. Appended LAST so a session that already sits in a
+              // main-owned group — e.g. the popout docked it over but missed
+              // the ack and kept its tab — stays where the user dropped it
+              // and is pruned from the returned payload instead.
               const restored: OpenGroup = { ...payload, ownerWindowId: MAIN_WINDOW_ID, dock: undefined };
-              return exists
-                ? prev.map(g => g.id === msg.groupId ? restored : g)
-                : [...prev, restored];
+              return dedupeGroups([...prev.filter(g => g.id !== msg.groupId), restored]);
             });
           }
         } else {
@@ -1492,6 +1505,8 @@ export default function SessionWindowsHost({
         // Popout closed the group entirely (e.g. user closed the tab inside
         // the popout). Drop it from main as well.
         handoffCacheRef.current.delete(msg.groupId);
+        // Origin project not mounted → the group lives only in its snapshot.
+        if (msg.projectId && msg.projectId !== projectId) removePersistedGroup(msg.projectId, msg.groupId);
         setGroups((prev) => prev.filter(g => g.id !== msg.groupId));
       } else if (msg.t === 'heartbeat') {
         // Mark popout alive. ownedGroupIds is informational; the popoutId is
@@ -1501,6 +1516,7 @@ export default function SessionWindowsHost({
         // Popout edited the group locally (active tab, geometry). Mirror the
         // patch into main's persisted state so a cold reload preserves it.
         const patch = msg.patch as Partial<OpenGroup>;
+        if (msg.projectId && msg.projectId !== projectId) patchPersistedGroup(msg.projectId, msg.groupId, patch);
         setGroups((prev) => prev.map(g => g.id === msg.groupId ? { ...g, ...patch } : g));
       } else if (msg.t === 'dock-probe') {
         // A popout is dragging a tab across OS windows — report whether the

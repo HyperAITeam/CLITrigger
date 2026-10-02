@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { insertSessionsAt, makeStack, type LayoutNode } from './groupTree';
+import { dedupeGroups, insertSessionsAt, makeStack, type LayoutNode } from './groupTree';
 
 describe('insertSessionsAt', () => {
   const root: LayoutNode = makeStack(['a', 'b'], 'a');
@@ -22,5 +22,32 @@ describe('insertSessionsAt', () => {
   it('ignores an activeId that is not part of the batch', () => {
     const out = insertSessionsAt(root, [], 'center', ['x'], 'zzz');
     expect(out).toEqual({ kind: 'stack', tabs: ['a', 'b', 'x'], activeTab: 'x' });
+  });
+});
+
+describe('dedupeGroups', () => {
+  const group = (id: string, tabs: string[]) => ({
+    id,
+    root: makeStack(tabs, tabs[0]),
+    colors: Object.fromEntries(tabs.map(t => [t, 'c'])),
+    intents: Object.fromEntries(tabs.map(t => [t, { intent: 'open', nonce: 0 }])),
+  });
+
+  it('keeps the first occurrence and prunes later copies with their colors/intents', () => {
+    const out = dedupeGroups([group('g1', ['a', 'b']), group('g2', ['b', 'c'])]);
+    expect(out.map(g => g.id)).toEqual(['g1', 'g2']);
+    expect(out[1].root).toEqual({ kind: 'stack', tabs: ['c'], activeTab: 'c' });
+    expect(Object.keys(out[1].colors)).toEqual(['c']);
+    expect(Object.keys(out[1].intents)).toEqual(['c']);
+  });
+
+  it('drops a group whose every session is already held elsewhere', () => {
+    const out = dedupeGroups([group('g1', ['a']), group('g2', ['a'])]);
+    expect(out.map(g => g.id)).toEqual(['g1']);
+  });
+
+  it('returns groups untouched when there is no overlap', () => {
+    const input = [group('g1', ['a']), group('g2', ['b'])];
+    expect(dedupeGroups(input)).toEqual(input);
   });
 });

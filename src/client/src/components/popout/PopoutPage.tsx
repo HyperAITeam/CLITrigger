@@ -309,8 +309,9 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
       from: popoutId,
       groupId: groupRef.current.id,
       patch,
+      projectId,
     });
-  }, [popoutId]);
+  }, [popoutId, projectId]);
 
   // ── Tab callbacks ────────────────────────────────────────────────────────
   const handleTabClick = useCallback((sid: string) => {
@@ -334,7 +335,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
         // OS window. Flag the close as intentional so beforeunload doesn't
         // race a group-return that would resurrect the group in main.
         intentionalCloseRef.current = true;
-        busRef.current?.post({ t: 'group-close', from: popoutId, groupId: prev.id });
+        busRef.current?.post({ t: 'group-close', from: popoutId, groupId: prev.id, projectId });
         setTimeout(() => window.close(), 50);
         return null;
       }
@@ -792,9 +793,9 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     if (running.length && !(await confirm({ message: t('session.confirmStop'), danger: true }))) return;
     running.forEach(id => sessionsApi.stopSession(id).catch(() => { /* swallow */ }));
     intentionalCloseRef.current = true;
-    busRef.current.post({ t: 'group-close', from: popoutId, groupId: g.id });
+    busRef.current.post({ t: 'group-close', from: popoutId, groupId: g.id, projectId });
     setTimeout(() => window.close(), 50);
-  }, [sessions, t, popoutId, confirm]);
+  }, [sessions, t, popoutId, projectId, confirm]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();
