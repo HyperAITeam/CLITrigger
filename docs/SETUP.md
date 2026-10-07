@@ -253,7 +253,7 @@ Cloudflare Tunnel URL: https://xxxx-xxxx.trycloudflare.com
 - **START ALL**: 모든 pending TODO를 동시에 실행 (동시실행 수 제한 적용)
 - **개별 ▶ 버튼**: 특정 TODO만 실행
 - 실행되면:
-  1. git worktree 자동 생성 (`프로젝트경로/../worktrees/feature/...`)
+  1. git worktree 자동 생성 (`프로젝트경로/.worktrees/<브랜치명>`, `.gitignore`에 자동 추가)
   2. Claude CLI가 해당 worktree에서 작업 시작
   3. 실시간 로그가 화면에 표시
   4. 작업 완료 시 자동 커밋

@@ -61,7 +61,7 @@ It runs on your own machine. Point a Cloudflare tunnel at it and you can check o
 
 **6:00pm.** You write five tasks in the project. Two of them depend on a third, so you chain them. One is "make the test suite pass", so you give it a loop rule: run `npm test` after every round, stop at exit code 0, cap it at 8 rounds and $5. You pull two files from the project docs into the prompt so the agent knows the conventions. You hit Start All.
 
-**6:01pm.** Five worktrees spin up under `../worktrees/`. Three tasks start right away. The two dependents wait.
+**6:01pm.** Five worktrees spin up under `.worktrees/` inside the project. Three tasks start right away. The two dependents wait.
 
 **9:40pm.** The first task finishes and commits. Its two dependents start, each with the parent branch squash-merged in. The project has an auto-delegate rule, so a second CLI gets a fresh task: review the first one's diff.
 
