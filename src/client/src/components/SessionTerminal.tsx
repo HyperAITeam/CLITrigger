@@ -600,25 +600,6 @@ export default function SessionTerminal({
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // CanvasAddon draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
-    // cell-sized rects instead of stamping font glyphs, removing both the
-    // vertical (font leading) AND horizontal (glyph-vs-cell-width) gaps that
-    // the default DOM renderer leaves in ASCII art. Loaded after term.open()
-    // (Canvas requires the host DOM to exist). The canvases it inserts may
-    // sit above sibling overlays' default z-index — SessionPane bumps its
-    // overlay z-index high enough that the "Start" button still receives
-    // clicks. Stored in a ref so the fontSize-change effect can rebuild the
-    // glyph atlas for the new cell size. Its harmless post-dispose teardown
-    // error ("reading 'dimensions'") is suppressed globally in main.tsx —
-    // do not remove the addon over that toast again.
-    try {
-      const addon = new CanvasAddon();
-      term.loadAddon(addon);
-      canvasAddonRef.current = addon;
-    } catch {
-      canvasAddonRef.current = null;
-    }
-
     const searchAddon = new SearchAddon();
     term.loadAddon(searchAddon);
     searchAddonRef.current = searchAddon;
@@ -855,6 +836,40 @@ export default function SessionTerminal({
     // sessionId is stable per mount; props changing wouldn't preserve replay state anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // CanvasAddon draws box/block characters (█ ▀ ▄ ▌ ▐ etc.) as filled
+  // cell-sized rects instead of stamping font glyphs, removing both the
+  // vertical (font leading) AND horizontal (glyph-vs-cell-width) gaps that
+  // the default DOM renderer leaves in ASCII art. Loaded after term.open()
+  // (Canvas requires the host DOM to exist). The canvases it inserts may
+  // sit above sibling overlays' default z-index — SessionPane bumps its
+  // overlay z-index high enough that the "Start" button still receives
+  // clicks. Stored in a ref so the fontSize-change effect can rebuild the
+  // glyph atlas for the new cell size. Its harmless post-dispose teardown
+  // error ("reading 'dimensions'") is suppressed globally in main.tsx —
+  // do not remove the addon over that toast again.
+  //
+  // Only the visible pane holds the addon. Hidden stacked tabs keep their
+  // live xterm (so output never drops) but fall back to the DOM renderer,
+  // releasing each tab's glyph-atlas canvases. `autoFocusOnMount` is the
+  // visibility signal (SessionPane passes `visible`). Declared after the
+  // mount effect so termRef is already populated on the same commit.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    if (autoFocusOnMount && !canvasAddonRef.current) {
+      try {
+        const addon = new CanvasAddon();
+        term.loadAddon(addon);
+        canvasAddonRef.current = addon;
+      } catch {
+        canvasAddonRef.current = null;
+      }
+    } else if (!autoFocusOnMount && canvasAddonRef.current) {
+      try { canvasAddonRef.current.dispose(); } catch { /* ignore */ }
+      canvasAddonRef.current = null;
+    }
+  }, [autoFocusOnMount, sessionId]);
 
   // Send session:subscribe once `subscribed` flips to true (i.e. after the
   // PTY has been spawned at the correct size). Also resend the current size
