@@ -1,7 +1,7 @@
 {
   "name": "clitrigger",
   "version": "0.2.65",
-  "description": "Spawn isolated git worktrees and orchestrate Claude/Gemini/Codex CLI tasks in parallel from a web UI.",
+  "description": "Self-hosted web app that runs Claude Code, Antigravity, and Codex on a queue. Each task gets its own git worktree, runs while you're away, and lands in a morning review queue.",
   "keywords": [
     "claude",
     "gemini",
