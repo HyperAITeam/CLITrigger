@@ -521,6 +521,8 @@ export class LogStreamer {
     // Always clean up the noise-filter state, even when no token usage was
     // recorded (Antigravity/Codex paths never initialize tokenUsageMap).
     this.noiseFilterMap.delete(todoId);
+    // Round is re-set by the orchestrator at the start of each round; nothing streams after this read.
+    this.roundMap.delete(todoId);
     const usage = this.tokenUsageMap.get(todoId);
     if (!usage) return null;
     this.tokenUsageMap.delete(todoId);

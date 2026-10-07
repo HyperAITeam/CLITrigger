@@ -52,12 +52,6 @@ interface ManagedProcess {
   readonly pid: number;
 }
 
-interface RawRingBuffer {
-  chunks: string[];
-  bytes: number;
-  max: number;
-}
-
 interface PtyHandle {
   write(data: string): void;
   resize(cols: number, rows: number): void;
@@ -67,19 +61,7 @@ export class ClaudeManager {
   private processes: Map<number, ManagedProcess> = new Map();
   private stdinStreams: Map<number, NodeJS.WritableStream> = new Map();
   private rawSubscribers: Map<number, Set<(chunk: string) => void>> = new Map();
-  private rawRingBuffers: Map<number, RawRingBuffer> = new Map();
   private ptyHandles: Map<number, PtyHandle> = new Map();
-
-  private appendRing(pid: number, chunk: string): void {
-    const ring = this.rawRingBuffers.get(pid);
-    if (!ring) return;
-    ring.chunks.push(chunk);
-    ring.bytes += Buffer.byteLength(chunk, 'utf8');
-    while (ring.bytes > ring.max && ring.chunks.length > 1) {
-      const dropped = ring.chunks.shift()!;
-      ring.bytes -= Buffer.byteLength(dropped, 'utf8');
-    }
-  }
 
   /** Subscribe to the raw (un-stripped, un-filtered) PTY output for a pid. */
   subscribeRaw(pid: number, cb: (chunk: string) => void): () => void {
@@ -97,12 +79,6 @@ export class ClaudeManager {
     if (!set) return;
     set.delete(cb);
     if (set.size === 0) this.rawSubscribers.delete(pid);
-  }
-
-  /** Returns the buffered raw output (joined) for replay on (re)connect. */
-  getRawHistory(pid: number): string {
-    const ring = this.rawRingBuffers.get(pid);
-    return ring ? ring.chunks.join('') : '';
   }
 
   /** Resize the PTY (cols, rows). No-op if pid is not a PTY. */
@@ -212,8 +188,6 @@ export class ClaudeManager {
       }
 
       const pid = ptyProcess.pid;
-      // Initialize raw ring buffer for this pid (256KB cap by default).
-      this.rawRingBuffers.set(pid, { chunks: [], bytes: 0, max: 256 * 1024 });
       this.ptyHandles.set(pid, {
         write: (d) => { try { ptyProcess.write(d); } catch { /* exited */ } },
         resize: (cols, rows) => { try { ptyProcess.resize(cols, rows); } catch { /* exited */ } },
@@ -227,7 +201,8 @@ export class ClaudeManager {
       let trustPending = false;
 
       ptyProcess.onData((data) => {
-        // Raw byte fan-out: feeds xterm.js terminal subscribers and history ring.
+        // Raw byte fan-out: feeds xterm.js terminal subscribers (replay comes
+        // from DB session_raw_chunks, so nothing is buffered here).
         // Decoupled from stripped/filtered path used by LogViewer/auto-respond.
         const subs = this.rawSubscribers.get(pid);
         if (subs && subs.size > 0) {
@@ -235,7 +210,6 @@ export class ClaudeManager {
             try { cb(data); } catch { /* subscriber errors must not break PTY */ }
           }
         }
-        this.appendRing(pid, data);
 
         const clean = stripAnsi(data);
 
@@ -311,7 +285,6 @@ export class ClaudeManager {
           this.processes.delete(pid);
           this.stdinStreams.delete(pid);
           this.rawSubscribers.delete(pid);
-          this.rawRingBuffers.delete(pid);
           this.ptyHandles.delete(pid);
           resolveExit(exitCode);
         });
