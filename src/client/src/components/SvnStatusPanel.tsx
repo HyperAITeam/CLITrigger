@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Folder, FolderTree, List, Loader2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Cloud, Download, Folder, FolderTree, Hash, List, Loader2, Paintbrush, Settings2, X, type LucideIcon } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
 import type { SvnFile, SvnStatusResult } from '../api/svn';
@@ -236,10 +236,19 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       line,
     });
 
+  // Which sidebar command is running, so its button can show the spinner.
+  // `runAction` already swallows errors, so the finally here always fires.
+  const [sidebarCmd, setSidebarCmd] = useState<'update' | 'revision' | 'cleanup' | null>(null);
+  const runSidebarCmd = async (key: NonNullable<typeof sidebarCmd>, run: () => Promise<void>) => {
+    setSidebarCmd(key);
+    try { await run(); } finally { setSidebarCmd(null); }
+  };
+
   const handleUpdate = () =>
-    runAction(t('svn.update'), async () => {
-      applyUpdateResult(await svnApi.svnUpdate(project.id, undefined, trackUpdateLine));
-    });
+    runSidebarCmd('update', () =>
+      runAction(t('svn.update'), async () => {
+        applyUpdateResult(await svnApi.svnUpdate(project.id, undefined, trackUpdateLine));
+      }));
 
   const [showRevDialog, setShowRevDialog] = useState(false);
   const [revInput, setRevInput] = useState('');
@@ -247,14 +256,16 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     const rev = revInput.trim();
     if (!rev) return;
     setShowRevDialog(false);
-    runAction(`${t('svn.update')} r${rev}`, async () => {
-      applyUpdateResult(await svnApi.svnUpdate(project.id, rev, trackUpdateLine));
-      setRevInput('');
-    });
+    runSidebarCmd('revision', () =>
+      runAction(`${t('svn.update')} r${rev}`, async () => {
+        applyUpdateResult(await svnApi.svnUpdate(project.id, rev, trackUpdateLine));
+        setRevInput('');
+      }));
   };
 
   const handleCleanup = () =>
-    runAction(t('svn.cleanup'), () => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess'));
+    runSidebarCmd('cleanup', () =>
+      runAction(t('svn.cleanup'), () => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess')));
 
   // ── New changelist dialog. Non-null = files pending assignment; an empty
   // array (from clicking empty space) creates a client-side empty changelist.
@@ -456,12 +467,12 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           </div>
 
           <SidebarHeader label={t('svn.viewsHeader')} />
-          <CmdButton
+          <NavItem
             label={t('svn.checkForModifications')}
             active={view === 'modifications'}
             onClick={() => setView('modifications')}
           />
-          <CmdButton
+          <NavItem
             label={t('svn.showLog')}
             remote
             active={view === 'log'}
@@ -469,10 +480,40 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           />
 
           <SidebarHeader label={t('svn.actionsHeader')} />
-          <CmdButton label={t('svn.update')} remote disabled={busy} onClick={handleUpdate} />
-          <CmdButton label={t('svn.updateToRevision')} remote disabled={busy} onClick={() => setShowRevDialog(true)} />
-          <CmdButton label={t('svn.cleanup')} disabled={busy} onClick={handleCleanup} />
-          <CmdButton label={t('svn.properties')} onClick={() => setPropsTarget({ file: null })} />
+          <div className="flex flex-col gap-2 px-3 pt-1 pb-3">
+            <ActionButton
+              icon={Download}
+              primary
+              remote
+              label={t('svn.update')}
+              runningLabel={t('svn.updating')}
+              running={sidebarCmd === 'update'}
+              disabled={busy}
+              onClick={handleUpdate}
+            />
+            <ActionButton
+              icon={Hash}
+              remote
+              label={t('svn.updateToRevision')}
+              runningLabel={t('svn.updating')}
+              running={sidebarCmd === 'revision'}
+              disabled={busy}
+              onClick={() => setShowRevDialog(true)}
+            />
+            <ActionButton
+              icon={Paintbrush}
+              label={t('svn.cleanup')}
+              runningLabel={t('svn.cleaningUp')}
+              running={sidebarCmd === 'cleanup'}
+              disabled={busy}
+              onClick={handleCleanup}
+            />
+            <ActionButton
+              icon={Settings2}
+              label={t('svn.properties')}
+              onClick={() => setPropsTarget({ file: null })}
+            />
+          </div>
 
           <div className="flex-1" />
         </div>
@@ -722,25 +763,64 @@ function SidebarHeader({ label }: { label: string }) {
   );
 }
 
-function CmdButton({ label, active, remote, disabled, onClick }: {
+// Quiet cloud glyph for sidebar items that contact the SVN server. The amber
+// RemoteBadge pill stays for toolbars/dialogs; next to real buttons it was
+// too loud and read as a second button.
+function RemoteMark() {
+  const { t } = useI18n();
+  return (
+    <span title={t('svn.remoteHint')} aria-label={t('svn.remoteBadge')} className="shrink-0 text-warm-400">
+      <Cloud size={12} />
+    </span>
+  );
+}
+
+// "보기" entries: mutually exclusive views, so a nav row with a selected state.
+function NavItem({ label, active, remote, onClick }: {
   label: string;
-  active?: boolean;
+  active: boolean;
   remote?: boolean;
-  disabled?: boolean;
   onClick: () => void;
 }) {
-  const { t } = useI18n();
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      className={`text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors disabled:opacity-40 ${
+      className={`text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
         active ? 'bg-accent/10 text-accent font-semibold border-l-2 border-accent' : 'text-warm-600 hover:bg-warm-50'
       }`}
     >
       <span className="truncate flex-1">{label}</span>
-      {remote && <RemoteBadge title={t('svn.remoteHint')} />}
+      {remote && <RemoteMark />}
     </button>
+  );
+}
+
+// "명령" entries: one-shot actions, so real buttons with no selected state.
+// While running, the button stays undimmed and swaps its icon for a spinner;
+// clicks are ignored instead of disabling so the spinner doesn't look greyed out.
+function ActionButton({ icon: Icon, label, runningLabel, running, remote, primary, disabled, onClick }: {
+  icon: LucideIcon;
+  label: string;
+  runningLabel?: string;
+  running?: boolean;
+  remote?: boolean;
+  primary?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant={primary ? 'primary' : 'secondary'}
+      size="sm"
+      className={`w-full justify-start${running ? ' cursor-progress' : ''}`}
+      disabled={disabled && !running}
+      aria-busy={running || undefined}
+      onClick={running ? undefined : onClick}
+    >
+      {running ? <Loader2 size={13} className="shrink-0 animate-spin" /> : <Icon size={13} className="shrink-0" />}
+      <span className="truncate flex-1 text-left">{running && runningLabel ? runningLabel : label}</span>
+      {remote && <RemoteMark />}
+    </Button>
   );
 }
 
