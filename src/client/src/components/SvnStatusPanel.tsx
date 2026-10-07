@@ -31,6 +31,9 @@ const statusCache = new Map<string, SvnStatusResult>();
 // first file is moved in (same remount-survival trick as statusCache).
 const pendingChangelistsCache = new Map<string, string[]>();
 
+// Draft commit message per project; survives the tab-switch remount.
+const commitMessageCache = new Map<string, string>();
+
 const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
 
 const charColor = (ch: string) =>
@@ -102,7 +105,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [workingDiff, setWorkingDiff] = useState<string>('');
   const [workingDiffLoading, setWorkingDiffLoading] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('');
+  const [commitMessage, setCommitMessage] = useState(() => commitMessageCache.get(project.id) ?? '');
+  useEffect(() => { commitMessageCache.set(project.id, commitMessage); }, [project.id, commitMessage]);
   const [actionBusy, setActionBusy] = useState(false);
   // Non-null while any command runs — which is also why the sidebar commands
   // go dim. `count`/`line` are filled by commands that stream progress.
