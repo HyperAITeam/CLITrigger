@@ -1,6 +1,6 @@
 # CLITrigger 설치 및 실행 가이드
 
-CLITrigger는 Claude Code · Antigravity · Codex 같은 AI CLI를 큐에 올려놓고 돌리는 셀프호스트 웹앱입니다. 할 일을 적어두면 각각 git worktree를 받아 병렬로 실행되고, 자리를 비운 동안에도 예약·폴백·루프 규칙에 따라 계속 돌아갑니다. 아침에는 리뷰 큐에서 결과를 훑고 머지하거나 버리면 됩니다.
+CLITrigger는 Claude Code · Antigravity · Codex 같은 AI CLI를 큐에 올려놓고 돌리는 도구입니다. 할 일을 적어두면 각각 git worktree를 받아 병렬로 실행되고, 자리를 비운 동안에도 예약·폴백·루프 규칙에 따라 계속 돌아갑니다. 아침에는 리뷰 큐에서 결과를 훑고 머지하거나 버리면 됩니다.
 
 이 문서는 설치부터 각 기능의 사용법까지 항목별로 정리한 매뉴얼입니다. 처음이라면 [README](../README_KR.md)로 전체 그림을 먼저 보는 게 빠릅니다.
 

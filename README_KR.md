@@ -46,7 +46,7 @@ npm i -g clitrigger && clitrigger
 
 Claude Code, Codex, Antigravity를 터미널에서 이미 쓰고 있을 것이다. 잘 돌아간다. 문제는 내가 앞에 앉아 있을 때만 돌아간다는 것. 밤 11시에 rate limit에 걸리면 다음 다섯 시간치 쿼터는 그냥 날아간다. 노트북을 덮으면 다시 열 때까지 아무 일도 안 일어난다.
 
-CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 셀프호스트 웹앱이다. 할 일을 적으면 각각 git worktree를 하나씩 받는다. 내가 자는 동안, 저녁 먹는 동안, 회의 들어간 동안 에이전트들이 병렬로 일한다. rate limit에 걸리면 버튼 하나로 리셋 시각에 재실행을 걸어둔다. 컨텍스트가 바닥나면 폴백 체인의 다음 CLI가 이어받는다. 아침엔 리뷰 큐 하나를 열고 `m`으로 머지하거나 `d`로 버리면 된다.
+CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 도구다. 할 일을 적으면 각각 git worktree를 하나씩 받는다. 내가 자는 동안, 저녁 먹는 동안, 회의 들어간 동안 에이전트들이 병렬로 일한다. rate limit에 걸리면 버튼 하나로 리셋 시각에 재실행을 걸어둔다. 컨텍스트가 바닥나면 폴백 체인의 다음 CLI가 이어받는다. 아침엔 리뷰 큐 하나를 열고 `m`으로 머지하거나 `d`로 버리면 된다.
 
 전부 내 컴퓨터에서 돈다. Cloudflare 터널만 붙이면 폰에서도 들여다볼 수 있다.
 
@@ -133,7 +133,7 @@ CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 셀프호스트 웹앱
 
 **리뷰 큐.** 전 프로젝트의 최근 작업을 한 화면에. 카드마다 프로젝트, 에이전트 마지막 메시지 한 줄 요약, 토큰 합계, diff 크기가 보인다. 위험도는 자동으로 붙는다. 실패했거나 300줄 넘으면 high, 50줄 넘으면 medium. Risky, Quick wins, Failed로 거르고 12h, 24h, 7d 창으로 본다. `j`/`k`로 이동, `Space`로 diff 펼치기, `Enter`로 전체 로그, `m` 머지, `d` 버리기. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship-KR#모닝-리뷰-큐)
 
-**Git 클라이언트.** 스테이지, 커밋, 푸시, 브랜치, 커밋 그래프, 파일 diff, 충돌 해결까지 브라우저 안에서. 리뷰한 탭에서 그대로 에이전트 브랜치를 올릴 수 있다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship-KR#내장-git-클라이언트)
+**Git 클라이언트.** 스테이지, 커밋, 푸시, 브랜치, 커밋 그래프, 파일 diff, 충돌 해결까지 CLITrigger 안에서. 리뷰한 화면에서 그대로 에이전트 브랜치를 올릴 수 있다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship-KR#내장-git-클라이언트)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git 클라이언트" width="800">
