@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs';
 import {
   safeJoin,
   exists,
@@ -52,6 +53,18 @@ function skillsDir(projectPath: string): string {
   return safeJoin(projectPath, '.claude', 'skills');
 }
 
+function skillPath(projectPath: string, name: string): string {
+  // safeJoin rejects names that escape the skills directory ("../" etc.).
+  return safeJoin(projectPath, '.claude', 'skills', name, 'SKILL.md');
+}
+
+// Disabled hooks are parked here (same shape as the settings.json hooks
+// block). Kept outside settings.json so Claude never sees them and the
+// settings schema stays untouched.
+function disabledHooksPath(projectPath: string): string {
+  return safeJoin(projectPath, '.claude', 'hooks.disabled.json');
+}
+
 // Pull `description:` out of the SKILL.md frontmatter for list rendering.
 // Best-effort: a missing/garbled frontmatter just yields no description.
 function parseSkillDescription(content: string): string | undefined {
@@ -66,10 +79,23 @@ async function readSkills(projectPath: string): Promise<HarnessSkill[]> {
   const names = await listSubdirectories(dir);
   const skills: HarnessSkill[] = [];
   for (const name of names) {
-    const filePath = safeJoin(projectPath, '.claude', 'skills', name, 'SKILL.md');
-    const content = await readTextOrEmpty(filePath);
+    // A disabled skill is SKILL.md renamed to SKILL.md.disabled — Claude only
+    // discovers the exact filename, so the rename hides it.
+    const active = skillPath(projectPath, name);
+    let filePath = active;
+    let content = await readTextOrEmpty(active);
+    if (!content) {
+      filePath = `${active}.disabled`;
+      content = await readTextOrEmpty(filePath);
+    }
     if (!content) continue;
-    skills.push({ name, description: parseSkillDescription(content), path: filePath, content });
+    skills.push({
+      name,
+      description: parseSkillDescription(content),
+      path: filePath,
+      content,
+      enabled: filePath === active,
+    });
   }
   return skills;
 }
@@ -117,6 +143,7 @@ export const claudeHarnessAdapter: HarnessAdapter = {
     const memory = await readTextOrEmpty(memp);
     const localMemory = await readTextOrEmpty(localMemp);
     const skills = await readSkills(projectPath);
+    const disabledHooks = await readJsonOrEmpty<Record<string, unknown>>(disabledHooksPath(projectPath));
 
     const settings: HarnessSettings = {
       model: settingsRaw.model,
@@ -143,6 +170,7 @@ export const claudeHarnessAdapter: HarnessAdapter = {
       localMemory,
       localMemoryExists,
       hooks: settingsRaw.hooks,
+      disabledHooks,
       skills,
     };
     return snapshot;
@@ -185,9 +213,42 @@ export const claudeHarnessAdapter: HarnessAdapter = {
   },
 
   async writeSkill(projectPath, name, content) {
-    // safeJoin rejects names that escape the skills directory ("../" etc.).
-    const filePath = safeJoin(projectPath, '.claude', 'skills', name, 'SKILL.md');
-    await atomicWriteText(filePath, content);
+    const active = skillPath(projectPath, name);
+    // Editing a disabled skill must not silently re-enable it.
+    const parked = `${active}.disabled`;
+    const target = !(await exists(active)) && (await exists(parked)) ? parked : active;
+    await atomicWriteText(target, content);
+  },
+
+  async toggleHook(projectPath, event, index, enabled) {
+    const sp = settingsPath(projectPath);
+    const dp = disabledHooksPath(projectPath);
+    const settings = await readJsonOrEmpty<ClaudeSettingsRaw>(sp);
+    const hooks: Record<string, unknown> = { ...(settings.hooks ?? {}) };
+    const disabled = await readJsonOrEmpty<Record<string, unknown>>(dp);
+
+    const [from, to] = enabled ? [disabled, hooks] : [hooks, disabled];
+    const source = Array.isArray(from[event]) ? [...(from[event] as unknown[])] : [];
+    const [entry] = source.splice(index, 1);
+    // Stale index (UI out of date): no-op; the caller re-reads the snapshot.
+    if (entry === undefined) return;
+    if (source.length > 0) from[event] = source;
+    else delete from[event];
+    to[event] = [...(Array.isArray(to[event]) ? (to[event] as unknown[]) : []), entry];
+
+    const next: ClaudeSettingsRaw = { ...settings };
+    if (Object.keys(hooks).length > 0) next.hooks = hooks;
+    else delete next.hooks;
+    await atomicWriteJson(sp, next);
+    if (Object.keys(disabled).length > 0) await atomicWriteJson(dp, disabled);
+    else await fs.rm(dp, { force: true });
+  },
+
+  async toggleSkill(projectPath, name, enabled) {
+    const active = skillPath(projectPath, name);
+    const parked = `${active}.disabled`;
+    const [from, to] = enabled ? [parked, active] : [active, parked];
+    if (await exists(from)) await fs.rename(from, to);
   },
 
   async upsertMcp(projectPath, server) {

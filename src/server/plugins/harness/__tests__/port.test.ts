@@ -3,7 +3,7 @@ import { buildPortedBlock, mergePortedMemory, PORT_BLOCK_START, PORT_BLOCK_END }
 import type { HarnessSkill } from '../types.js';
 
 function skill(name: string, content: string, description?: string): HarnessSkill {
-  return { name, description, path: `.claude/skills/${name}/SKILL.md`, content };
+  return { name, description, path: `.claude/skills/${name}/SKILL.md`, content, enabled: true };
 }
 
 describe('buildPortedBlock', () => {

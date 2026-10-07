@@ -211,6 +211,69 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
+  // POST /:projectId/:cli/hooks/toggle — move one hook entry between
+  // settings.json and .claude/hooks.disabled.json (Claude only).
+  // Body: { event: string, index: number, enabled: boolean }.
+  router.post('/:projectId/:cli/hooks/toggle', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.toggleHook) {
+      res.status(400).json({ error: `${req.params.cli} does not support hooks` });
+      return;
+    }
+    const body = req.body as { event?: unknown; index?: unknown; enabled?: unknown } | undefined;
+    if (!body || typeof body.event !== 'string' || !Number.isInteger(body.index) || typeof body.enabled !== 'boolean') {
+      res.status(400).json({ error: 'Body must include string "event", integer "index" and boolean "enabled"' });
+      return;
+    }
+    try {
+      await adapter.toggleHook(projectPath, body.event, body.index as number, body.enabled);
+      const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
+  // POST /:projectId/:cli/skills/:name/toggle — rename SKILL.md <-> SKILL.md.disabled
+  // (Claude only). Body: { enabled: boolean }.
+  router.post('/:projectId/:cli/skills/:name/toggle', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.toggleSkill) {
+      res.status(400).json({ error: `${req.params.cli} does not support skills` });
+      return;
+    }
+    const body = req.body as { enabled?: unknown } | undefined;
+    if (!body || typeof body.enabled !== 'boolean') {
+      res.status(400).json({ error: 'Body must include boolean "enabled"' });
+      return;
+    }
+    try {
+      await adapter.toggleSkill(projectPath, req.params.name, body.enabled);
+      const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
   // PUT /:projectId/:cli/skills/:name — write .claude/skills/<name>/SKILL.md
   // (Claude only).
   router.put('/:projectId/:cli/skills/:name', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {
@@ -257,7 +320,7 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
     try {
       const source = await adapters.claude.read(projectPath);
-      const skills = source.skills ?? [];
+      const skills = (source.skills ?? []).filter((skill) => skill.enabled);
       if (!source.memory.trim() && skills.length === 0) {
         res.status(400).json({ error: 'Nothing to port: no CLAUDE.md content or skills found' });
         return;

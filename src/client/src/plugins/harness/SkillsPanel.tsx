@@ -8,11 +8,12 @@ interface SkillsPanelProps {
   skills: HarnessSkill[] | undefined;
   saving: boolean;
   onSave: (name: string, content: string) => Promise<void>;
+  onToggle: (name: string, enabled: boolean) => Promise<void>;
 }
 
 // Project-scoped skills (.claude/skills/<name>/SKILL.md): list with the
 // frontmatter description, expand a row to edit the SKILL.md in place.
-export default function SkillsPanel({ skills, saving, onSave }: SkillsPanelProps) {
+export default function SkillsPanel({ skills, saving, onSave, onToggle }: SkillsPanelProps) {
   const { t } = useI18n();
   const [openName, setOpenName] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -45,21 +46,31 @@ export default function SkillsPanel({ skills, saving, onSave }: SkillsPanelProps
             const isOpen = openName === skill.name;
             return (
               <div key={skill.name} className="border border-warm-150 rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => toggle(skill)}
-                  className="w-full flex items-start gap-2 px-3 py-2 text-left bg-warm-50 hover:bg-warm-100 transition-colors"
-                >
-                  <span className="mt-0.5 text-warm-400 flex-shrink-0">
-                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-xs font-semibold text-warm-700 font-mono">/{skill.name}</span>
-                    {skill.description && (
-                      <span className="block text-[11px] text-warm-400 mt-0.5 line-clamp-2">{skill.description}</span>
-                    )}
-                  </span>
-                </button>
+                <div className="flex items-start gap-2 px-3 py-2 bg-warm-50 hover:bg-warm-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={skill.enabled}
+                    disabled={saving}
+                    onChange={() => onToggle(skill.name, !skill.enabled)}
+                    title={skill.enabled ? t('harness.toggle.disable') : t('harness.toggle.enable')}
+                    className="mt-0.5 flex-shrink-0 cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggle(skill)}
+                    className={`flex-1 min-w-0 flex items-start gap-2 text-left${skill.enabled ? '' : ' opacity-50'}`}
+                  >
+                    <span className="mt-0.5 text-warm-400 flex-shrink-0">
+                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-warm-700 font-mono">/{skill.name}</span>
+                      {skill.description && (
+                        <span className="block text-[11px] text-warm-400 mt-0.5 line-clamp-2">{skill.description}</span>
+                      )}
+                    </span>
+                  </button>
+                </div>
                 {isOpen && (
                   <div className="p-3 space-y-2 border-t border-warm-150">
                     <code className="block text-[10px] text-warm-400 truncate" title={skill.path}>{skill.path}</code>

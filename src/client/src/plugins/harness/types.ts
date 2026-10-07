@@ -33,6 +33,8 @@ export interface HarnessSkill {
   description?: string;
   path: string;
   content: string;
+  // false when SKILL.md is parked as SKILL.md.disabled (Claude won't load it).
+  enabled: boolean;
 }
 
 export interface HarnessSnapshot {
@@ -47,5 +49,7 @@ export interface HarnessSnapshot {
   localMemory?: string;
   localMemoryExists?: boolean;
   hooks?: Record<string, unknown>;
+  // Hook entries parked in .claude/hooks.disabled.json, keyed by event name.
+  disabledHooks?: Record<string, unknown>;
   skills?: HarnessSkill[];
 }

@@ -37,9 +37,9 @@
   },
   "permissions": {
     "allow": [
-      "Read(F:/OSgoodYZ/CLITrigger/**)",
-      "Edit(F:/OSgoodYZ/CLITrigger/**)",
-      "Write(F:/OSgoodYZ/CLITrigger/**)",
+      "Read(F:/OSgoodYZ/CLITrigger/.worktrees/feature-task-c12gpm/**)",
+      "Edit(F:/OSgoodYZ/CLITrigger/.worktrees/feature-task-c12gpm/**)",
+      "Write(F:/OSgoodYZ/CLITrigger/.worktrees/feature-task-c12gpm/**)",
       "Bash(*)",
       "Glob(*)",
       "Grep(*)",

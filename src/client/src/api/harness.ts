@@ -44,6 +44,27 @@ export function updateHooks(
   return put(`/api/harness/${projectId}/${cli}/hooks`, { hooks });
 }
 
+// Move hooks[event][index] to .claude/hooks.disabled.json (enabled=false) or
+// disabledHooks[event][index] back into settings.json (enabled=true).
+export function toggleHook(
+  projectId: string,
+  cli: CliId,
+  event: string,
+  index: number,
+  enabled: boolean,
+): Promise<HarnessSnapshot> {
+  return post(`/api/harness/${projectId}/${cli}/hooks/toggle`, { event, index, enabled });
+}
+
+export function toggleSkill(
+  projectId: string,
+  cli: CliId,
+  name: string,
+  enabled: boolean,
+): Promise<HarnessSnapshot> {
+  return post(`/api/harness/${projectId}/${cli}/skills/${encodeURIComponent(name)}/toggle`, { enabled });
+}
+
 export function updateSkill(
   projectId: string,
   cli: CliId,

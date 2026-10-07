@@ -48,7 +48,10 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'harness.hooks.empty': 'No hooks configured.',
       'harness.hooks.editJson': 'Edit JSON',
       'harness.hooks.invalidJson': 'Invalid JSON — fix the syntax and try again.',
+      'harness.hooks.parkedNote': 'Disabled hooks are kept in .claude/hooks.disabled.json and restored when re-enabled.',
       'harness.skills.empty': 'No skills in .claude/skills/.',
+      'harness.toggle.enable': 'Enable',
+      'harness.toggle.disable': 'Disable',
       'harness.port.button': 'Import from Claude',
       'harness.port.running': 'Importing…',
       'harness.port.note':
@@ -116,7 +119,10 @@ export const harnessClientPlugin: ClientPluginManifest = {
       'harness.hooks.empty': '설정된 hook이 없습니다.',
       'harness.hooks.editJson': 'JSON 편집',
       'harness.hooks.invalidJson': 'JSON 형식이 올바르지 않습니다. 수정 후 다시 저장하세요.',
+      'harness.hooks.parkedNote': '꺼진 훅은 .claude/hooks.disabled.json 에 보관되며, 다시 켜면 복원됩니다.',
       'harness.skills.empty': '.claude/skills/ 에 스킬이 없습니다.',
+      'harness.toggle.enable': '켜기',
+      'harness.toggle.disable': '끄기',
       'harness.port.button': 'Claude에서 가져오기',
       'harness.port.running': '가져오는 중…',
       'harness.port.note':

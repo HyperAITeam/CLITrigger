@@ -116,6 +116,49 @@ describe('claudeHarnessAdapter', () => {
     const snap = await claudeHarnessAdapter.read(dir);
     expect(snap.memory).toBe('# Project notes\n');
   });
+
+  it('toggles a hook entry between settings.json and hooks.disabled.json', async () => {
+    const a = { hooks: [{ type: 'command', command: 'a' }] };
+    const b = { matcher: 'Bash', hooks: [{ type: 'command', command: 'b' }] };
+    await fs.mkdir(path.join(dir, '.claude'), { recursive: true });
+    await fs.writeFile(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ model: 'm', hooks: { Stop: [a, b] } }));
+
+    await claudeHarnessAdapter.toggleHook!(dir, 'Stop', 0, false);
+    let snap = await claudeHarnessAdapter.read(dir);
+    expect(snap.hooks).toEqual({ Stop: [b] });
+    expect(snap.disabledHooks).toEqual({ Stop: [a] });
+    expect(snap.settings.model).toBe('m');
+
+    await claudeHarnessAdapter.toggleHook!(dir, 'Stop', 0, false);
+    snap = await claudeHarnessAdapter.read(dir);
+    expect(snap.hooks).toBeUndefined();
+    expect(snap.disabledHooks).toEqual({ Stop: [a, b] });
+
+    await claudeHarnessAdapter.toggleHook!(dir, 'Stop', 1, true);
+    await claudeHarnessAdapter.toggleHook!(dir, 'Stop', 0, true);
+    snap = await claudeHarnessAdapter.read(dir);
+    expect(snap.hooks).toEqual({ Stop: [b, a] });
+    expect(snap.disabledHooks).toEqual({});
+    expect(await fs.stat(path.join(dir, '.claude', 'hooks.disabled.json')).catch(() => null)).toBeNull();
+  });
+
+  it('toggles a skill by renaming SKILL.md and keeps edits on the parked file', async () => {
+    const skillDir = path.join(dir, '.claude', 'skills', 'demo');
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '---\ndescription: Demo\n---\nbody\n');
+
+    await claudeHarnessAdapter.toggleSkill!(dir, 'demo', false);
+    let snap = await claudeHarnessAdapter.read(dir);
+    expect(snap.skills).toEqual([expect.objectContaining({ name: 'demo', enabled: false, description: 'Demo' })]);
+
+    await claudeHarnessAdapter.writeSkill!(dir, 'demo', 'edited');
+    expect(await fs.readFile(path.join(skillDir, 'SKILL.md.disabled'), 'utf8')).toBe('edited');
+    expect(await fs.stat(path.join(skillDir, 'SKILL.md')).catch(() => null)).toBeNull();
+
+    await claudeHarnessAdapter.toggleSkill!(dir, 'demo', true);
+    snap = await claudeHarnessAdapter.read(dir);
+    expect(snap.skills?.[0]).toMatchObject({ enabled: true, content: 'edited' });
+  });
 });
 
 describe('antigravityHarnessAdapter', () => {

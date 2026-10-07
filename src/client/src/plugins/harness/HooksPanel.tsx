@@ -6,9 +6,13 @@ import Button from '../../components/Button';
 interface HooksPanelProps {
   // Raw hooks block from .claude/settings.json. Undefined → no hooks key.
   hooks: Record<string, unknown> | undefined;
+  // Entries parked in .claude/hooks.disabled.json, same shape as `hooks`.
+  disabledHooks: Record<string, unknown> | undefined;
   filePath: string;
   saving: boolean;
   onSave: (hooks: Record<string, unknown> | null) => Promise<void>;
+  // index refers to hooks[event] when enabled=false, disabledHooks[event] when enabled=true.
+  onToggle: (event: string, index: number, enabled: boolean) => Promise<void>;
 }
 
 // Claude hooks shape (loosely): { EventName: [{ matcher?, hooks: [{ type, command }] }] }.
@@ -24,13 +28,40 @@ function asEntries(value: unknown): HookEntry[] | null {
   return value.filter((v): v is HookEntry => typeof v === 'object' && v !== null);
 }
 
-export default function HooksPanel({ hooks, filePath, saving, onSave }: HooksPanelProps) {
+export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onSave, onToggle }: HooksPanelProps) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const hasHooks = !!hooks && Object.keys(hooks).length > 0;
+  const events = Array.from(new Set([...Object.keys(hooks ?? {}), ...Object.keys(disabledHooks ?? {})]));
+  const hasHooks = events.length > 0;
+  const hasParked = Object.keys(disabledHooks ?? {}).length > 0;
+
+  const renderEntry = (event: string, entry: HookEntry, index: number, enabled: boolean) => (
+    <div key={`${enabled ? 'on' : 'off'}-${index}`} className="flex items-start gap-2 text-[11px]">
+      <input
+        type="checkbox"
+        checked={enabled}
+        disabled={saving}
+        onChange={() => onToggle(event, index, !enabled)}
+        title={enabled ? t('harness.toggle.disable') : t('harness.toggle.enable')}
+        className="mt-0.5 flex-shrink-0 cursor-pointer"
+      />
+      <div className={`min-w-0 flex-1${enabled ? '' : ' opacity-50'}`}>
+        {entry.matcher !== undefined && entry.matcher !== '' && (
+          <span className="inline-block px-1.5 py-0.5 mr-1.5 rounded-md bg-warm-200/60 text-warm-600 font-mono">
+            {entry.matcher}
+          </span>
+        )}
+        {(entry.hooks ?? []).map((h, j) => (
+          <code key={j} className="block mt-0.5 px-2 py-1 rounded-md bg-theme-card border border-warm-150 text-warm-600 font-mono whitespace-pre-wrap break-all">
+            {h.command ?? JSON.stringify(h)}
+          </code>
+        ))}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     setDraft(JSON.stringify(hooks ?? {}, null, 2));
@@ -106,36 +137,27 @@ export default function HooksPanel({ hooks, filePath, saving, onSave }: HooksPan
         <p className="text-xs text-warm-400">{t('harness.hooks.empty') || 'No hooks configured.'}</p>
       ) : (
         <div className="space-y-2">
-          {Object.entries(hooks!).map(([event, value]) => {
-            const entries = asEntries(value);
+          {events.map((event) => {
+            const value = hooks?.[event];
+            const entries = value === undefined ? [] : asEntries(value);
+            const parked = asEntries(disabledHooks?.[event]) ?? [];
             return (
               <div key={event} className="p-2.5 bg-warm-50 border border-warm-150 rounded-lg">
                 <div className="text-xs font-semibold text-warm-700 font-mono mb-1.5">{event}</div>
-                {entries ? (
-                  <div className="space-y-1.5">
-                    {entries.map((entry, i) => (
-                      <div key={i} className="text-[11px]">
-                        {entry.matcher !== undefined && entry.matcher !== '' && (
-                          <span className="inline-block px-1.5 py-0.5 mr-1.5 rounded-md bg-warm-200/60 text-warm-600 font-mono">
-                            {entry.matcher}
-                          </span>
-                        )}
-                        {(entry.hooks ?? []).map((h, j) => (
-                          <code key={j} className="block mt-0.5 px-2 py-1 rounded-md bg-theme-card border border-warm-150 text-warm-600 font-mono whitespace-pre-wrap break-all">
-                            {h.command ?? JSON.stringify(h)}
-                          </code>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <pre className="text-[11px] text-warm-500 font-mono whitespace-pre-wrap break-all">
-                    {JSON.stringify(value, null, 2)}
-                  </pre>
-                )}
+                <div className="space-y-1.5">
+                  {entries ? (
+                    entries.map((entry, i) => renderEntry(event, entry, i, true))
+                  ) : (
+                    <pre className="text-[11px] text-warm-500 font-mono whitespace-pre-wrap break-all">
+                      {JSON.stringify(value, null, 2)}
+                    </pre>
+                  )}
+                  {parked.map((entry, i) => renderEntry(event, entry, i, false))}
+                </div>
               </div>
             );
           })}
+          {hasParked && <p className="text-[11px] text-warm-400">{t('harness.hooks.parkedNote')}</p>}
         </div>
       )}
     </div>

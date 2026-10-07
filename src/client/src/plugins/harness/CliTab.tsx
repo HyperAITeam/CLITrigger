@@ -87,6 +87,32 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
     }
   };
 
+  const handleToggleHook = async (event: string, index: number, enabled: boolean) => {
+    setSavingHooks(true);
+    setError(null);
+    try {
+      const next = await harnessApi.toggleHook(projectId, cli, event, index, enabled);
+      onChange(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingHooks(false);
+    }
+  };
+
+  const handleToggleSkill = async (name: string, enabled: boolean) => {
+    setSavingSkill(true);
+    setError(null);
+    try {
+      const next = await harnessApi.toggleSkill(projectId, cli, name, enabled);
+      onChange(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingSkill(false);
+    }
+  };
+
   const handleSaveSkill = async (name: string, content: string) => {
     setSavingSkill(true);
     setError(null);
@@ -208,11 +234,13 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
         <>
           <HooksPanel
             hooks={snapshot.hooks}
+            disabledHooks={snapshot.disabledHooks}
             filePath={snapshot.filePaths.settings}
             saving={savingHooks}
             onSave={handleSaveHooks}
+            onToggle={handleToggleHook}
           />
-          <SkillsPanel skills={snapshot.skills} saving={savingSkill} onSave={handleSaveSkill} />
+          <SkillsPanel skills={snapshot.skills} saving={savingSkill} onSave={handleSaveSkill} onToggle={handleToggleSkill} />
         </>
       )}
 
