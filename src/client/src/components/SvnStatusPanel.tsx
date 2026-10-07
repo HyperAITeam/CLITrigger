@@ -664,8 +664,9 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         />
       )}
 
+      {/* ponytail: refresh on every close, not only after a save; `svn status` is local and cheap. */}
       {propsTarget && (
-        <PropertiesDialog projectId={project.id} file={propsTarget.file} onClose={() => setPropsTarget(null)} />
+        <PropertiesDialog projectId={project.id} file={propsTarget.file} onClose={() => { setPropsTarget(null); refreshStatus(); }} />
       )}
 
       {/* Log revision context menu */}
