@@ -752,7 +752,7 @@ export default function SessionWindowsHost({
   // and the destination host picks up the change on next mount.
   useEffect(() => {
     const onRestoreEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { projectId?: string; groupId?: string } | undefined;
+      const detail = (e as CustomEvent).detail as { projectId?: string; groupId?: string; sessionId?: string } | undefined;
       if (!detail?.projectId || !detail.groupId) return;
       if (detail.projectId !== projectId) return;
       setGroups((prev) => {
@@ -760,7 +760,9 @@ export default function SessionWindowsHost({
         if (!target) return prev;
         zCounterRef.current += 1;
         const z = zCounterRef.current;
-        return prev.map(g => g.id === detail.groupId ? { ...g, minimized: false, z } : g);
+        return prev.map(g => g.id === detail.groupId
+          ? { ...g, minimized: false, z, root: detail.sessionId ? treeSetActiveTab(g.root, detail.sessionId) : g.root }
+          : g);
       });
     };
     const onCloseEvent = async (e: Event) => {
@@ -796,7 +798,7 @@ export default function SessionWindowsHost({
     const raw = sessionStorage.getItem('pendingSessionRestore');
     if (!raw) return;
     try {
-      const intent = JSON.parse(raw) as { projectId?: string; groupId?: string };
+      const intent = JSON.parse(raw) as { projectId?: string; groupId?: string; sessionId?: string };
       if (intent.projectId !== projectId || !intent.groupId) return;
       sessionStorage.removeItem('pendingSessionRestore');
       setGroups((prev) => {
@@ -804,7 +806,9 @@ export default function SessionWindowsHost({
         if (!target) return prev;
         zCounterRef.current += 1;
         const z = zCounterRef.current;
-        return prev.map(g => g.id === intent.groupId ? { ...g, minimized: false, z } : g);
+        return prev.map(g => g.id === intent.groupId
+          ? { ...g, minimized: false, z, root: intent.sessionId ? treeSetActiveTab(g.root, intent.sessionId) : g.root }
+          : g);
       });
     } catch { /* ignore malformed intent */ }
   }, [projectId]);
@@ -1820,6 +1824,7 @@ export default function SessionWindowsHost({
     sendNotification(
       t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
       sessionsById.get(sid)?.title || sid,
+      () => openOrFocus(sid),
     );
   });
 

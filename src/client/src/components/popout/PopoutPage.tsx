@@ -811,6 +811,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     sendNotification(
       t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
       sessionsById.get(sid)?.title || sid,
+      () => handleTabClick(sid),
     );
   });
 

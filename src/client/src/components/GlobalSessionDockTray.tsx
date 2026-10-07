@@ -325,6 +325,7 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
     sendNotification(
       t(state === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone'),
       chip.titles[sid] || sid,
+      () => handleRestore(chip, sid),
     );
   });
   const missingSinceRef = useRef<Map<string, number>>(new Map());
@@ -355,9 +356,7 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
     return () => clearInterval(timer);
   }, [currentProjectId, refresh]);
 
-  if (chips.length === 0) return null;
-
-  const handleRestore = (chip: MinimizedChip) => {
+  const handleRestore = (chip: MinimizedChip, sessionId?: string) => {
     // Popped chips bring the existing external OS window to the front — no
     // recall into the main app. Two channels, both needed:
     //   1. proxy.focus() on the opener-held WindowProxy. Runs inside this
@@ -380,13 +379,13 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
     // navigates so the destination host picks it up on mount.
     if (chip.projectId === currentProjectId) {
       window.dispatchEvent(new CustomEvent('session-windows:restore', {
-        detail: { projectId: chip.projectId, groupId: chip.groupId },
+        detail: { projectId: chip.projectId, groupId: chip.groupId, sessionId },
       }));
       return;
     }
     try {
       sessionStorage.setItem(RESTORE_KEY, JSON.stringify({
-        projectId: chip.projectId, groupId: chip.groupId,
+        projectId: chip.projectId, groupId: chip.groupId, sessionId,
       }));
     } catch { /* private mode; navigation will still happen, just no restore */ }
     navigate(`/projects/${chip.projectId}`);
@@ -436,6 +435,8 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
   };
 
   const positioned = trayLeft !== null;
+
+  if (chips.length === 0) return null;
 
   return createPortal(
     <div

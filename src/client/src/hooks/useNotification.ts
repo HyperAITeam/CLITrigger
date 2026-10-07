@@ -4,7 +4,7 @@ interface NotificationContextValue {
   enabled: boolean;
   supported: boolean;
   toggleNotification: () => void;
-  sendNotification: (title: string, body: string) => void;
+  sendNotification: (title: string, body: string, onClick?: () => void) => void;
 }
 
 export const NotificationContext = createContext<NotificationContextValue>({
@@ -46,11 +46,16 @@ export function useNotificationProvider(): NotificationContextValue {
     }
   }, [supported]);
 
-  const sendNotification = useCallback((title: string, body: string) => {
+  const sendNotification = useCallback((title: string, body: string, onClick?: () => void) => {
     if (!enabledRef.current) return;
     const n = new Notification(title, { body });
     n.onclick = () => {
-      window.focus();
+      onClick?.();
+      // Electron: a renderer's window.focus() can't raise the OS window without
+      // user activation — route through the main process (same bridge PopoutPage uses).
+      const eapi = (window as unknown as { electronAPI?: { windowFocus?: () => void } }).electronAPI;
+      if (eapi?.windowFocus) eapi.windowFocus();
+      else window.focus();
       n.close();
     };
   }, []);
