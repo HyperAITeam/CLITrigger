@@ -971,7 +971,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           off in project settings — a reload on re-enable is acceptable there. */}
       {!hiddenTabs.includes('web') && (
         <div className={activeTab === 'web' ? 'card-static flex flex-col h-[calc(100vh-220px)]' : 'hidden'}>
-          <WebPanel />
+          <WebPanel visible={activeTab === 'web'} />
         </div>
       )}
       {activeTab === 'planner' && (

@@ -53,10 +53,22 @@ function loadFavorites(): Favorite[] {
   } catch { return []; }
 }
 
-export default function WebPanel() {
+// `visible`: whether the host is actually showing the panel. The host keeps
+// the panel mounted while hidden (see ProjectDetail) so guests survive tab
+// switches; this prop is what stops hidden guests from being created at all.
+export default function WebPanel({ visible = true }: { visible?: boolean } = {}) {
   const { t } = useI18n();
   const [{ tabs, activeId }, setState] = useState<TabsState>(loadTabs);
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+  // Lazy guests: a <webview> is only created for a tab once it has been the
+  // active tab while the panel was visible. Every guest is a full renderer
+  // process (400-600 MB for Notion / Atlassian), so restored tabs stay idle
+  // until clicked instead of all loading at startup. Once created it stays
+  // mounted, so switching back never reloads.
+  const [loadedIds, setLoadedIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (visible) setLoadedIds((s) => (s.has(active.id) ? s : new Set(s).add(active.id)));
+  }, [visible, active.id]);
   const [draft, setDraft] = useState(active.url);
   const [favorites, setFavorites] = useState<Favorite[]>(loadFavorites);
   const [fullscreen, setFullscreen] = useState(false);
@@ -316,7 +328,7 @@ export default function WebPanel() {
       )}
       <div ref={guestAreaRef} className="flex-1 min-h-0 flex flex-col">
         {isElectron ? (
-          tabs.map((tab) => (tab.src
+          tabs.map((tab) => (tab.src && loadedIds.has(tab.id)
             // createElement instead of JSX: @types/react types `allowpopups` as
             // boolean, but React 19 strips boolean values from attributes it
             // doesn't know, so the guest would silently lose window.open
