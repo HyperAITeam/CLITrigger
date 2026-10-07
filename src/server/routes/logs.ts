@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 import fs from 'fs';
-import { getTaskLogsByTodoId, getTodoById, getSessionsByStatus, getTodosByStatus } from '../db/queries.js';
+import { getTaskLogsByTodoId, getRecentTaskLogsByTodoId, getTodoById, getSessionsByStatus, getTodosByStatus } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
 import { getProjectStatusSummary } from '../services/project-status.js';
+
+/** Log lines the detail view receives; the client keeps the same window for live appends (api/todos.ts). */
+const TASK_LOG_TAIL = 2000;
 
 interface ChangedFile {
   status: string; // 'A' | 'M' | 'D' | 'R' | 'C' etc.
@@ -51,7 +54,7 @@ router.get('/todos/:id/logs', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
 
-    const logs = getTaskLogsByTodoId(req.params.id);
+    const logs = getRecentTaskLogsByTodoId(req.params.id, TASK_LOG_TAIL);
     res.json(logs);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

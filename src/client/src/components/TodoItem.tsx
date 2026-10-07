@@ -265,7 +265,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
           message: event.message,
           created_at: new Date().toISOString(),
         };
-        setLogs((prev) => [...prev, newLog]);
+        setLogs((prev) => [...prev.slice(1 - todosApi.TASK_LOG_TAIL), newLog]);
       }
       if (event.type === 'todo:commit' && event.todoId === todo.id && event.message) {
         const newLog: TaskLog = {
@@ -275,7 +275,7 @@ export default function TodoItem({ todo, allTodos = [], projectCliTool, projectI
           message: `${event.commitHash ? `[${event.commitHash}] ` : ''}${event.message}`,
           created_at: new Date().toISOString(),
         };
-        setLogs((prev) => [...prev, newLog]);
+        setLogs((prev) => [...prev.slice(1 - todosApi.TASK_LOG_TAIL), newLog]);
       }
     });
   }, [onEvent, todo.id]);
