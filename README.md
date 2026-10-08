@@ -6,9 +6,9 @@
   <img alt="CLITrigger" src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/src/client/public/logo.svg" width="360">
 </picture>
 
-**An IDE for AI CLI Agents**
+**Your coding agents work the night shift.**
 
-*Docs, plans, terminals, autonomous agents, and git — one workspace instead of five scattered tools.*
+*Queue the work before you leave. Review the diffs over coffee.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger demo — parallel AI agents executing in isolated worktrees, then morning diff review" width="800">
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger demo: tasks running in parallel worktrees overnight, then the morning review queue" width="800">
 
 <br><br>
 
@@ -34,314 +34,250 @@
 npm i -g clitrigger && clitrigger
 ```
 
-**Or download the desktop app** — no Node.js needed: **[Windows `.exe` · macOS `.dmg` · Linux `.AppImage`](https://github.com/HyperAITeam/CLITrigger/releases/latest)**
+**Or grab the desktop app**, no Node.js required: **[Windows `.exe` · macOS `.dmg` · Linux `.AppImage`](https://github.com/HyperAITeam/CLITrigger/releases/latest)**
 
-**Up and running in 60 seconds** — open `http://localhost:3000`, set a password, add a project, write TODOs, hit Start.
+Open `http://localhost:3000`, set a password, add a project, write a few tasks, hit Start. That's the whole setup.
 
 </div>
 
 ---
 
-> ### Docs → Plan → Terminal → Autonomous Tasks → Version Control. One pipeline.
->
-> Developing with AI CLI agents (Claude Code, Codex, …) scatters the workflow across disconnected tools: requirements in a note app, plans in another tool, agents across a pile of terminal windows, results in a git client. Editor-centric development has the IDE; CLI-agent-centric development doesn't — so the one ferrying context between tools ends up being you.
->
-> CLITrigger is that missing IDE. It connects the whole workflow into a single five-stage pipeline — build project knowledge in **Docs**, shape it into a plan with the **planner & calendar**, refine it live in **terminal sessions**, hand it to multiple AI CLIs (**Claude Code · Antigravity · Codex**) for **parallel autonomous execution** in isolated git worktrees, and land the results through the **review queue and built-in Git client**.
->
-> **Each stage inherits the context of the one before it — the intent you captured in docs flows all the way to the merge.**
+## What this is
 
-```mermaid
-flowchart LR
-    docs["📚 Docs<br>Project knowledge"] --> plan["🗓 Plan<br>Planner · Calendar"]
-    plan --> term["⌨️ Terminal<br>Interactive Sessions"]
-    term --> auto["🤖 Autonomous Tasks<br>Parallel Worktrees"]
-    auto --> vcs["🔀 Version Control<br>Review Queue · Git"]
-    vcs -. lessons feed back into docs .-> docs
-```
+You already run Claude Code, Codex, or Antigravity from a terminal. They're good. The catch is that they only work while you're sitting in front of them. You hit a rate limit at 11pm and the next five hours of quota go to waste. You close the laptop and nothing happens until you open it again.
+
+CLITrigger is a self-hosted web app that puts those same CLIs on a queue. You write tasks. Each task gets its own git worktree. The agents run them in parallel while you're asleep, at dinner, or in a meeting. If a run hits a rate limit, one click parks it until the reset time. If a CLI runs out of context, the next one in your fallback chain takes over. In the morning you open one review queue, press `m` to merge or `d` to throw it away, and get on with your day.
+
+It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks — Parallel worktree execution" width="800">
-  <p><em>AI CLIs working simultaneously across isolated git worktrees</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks running in parallel worktrees" width="800">
+  <p><em>Three CLIs, three worktrees, one screen</em></p>
 </div>
 
 ---
 
-## Why CLITrigger?
+## How a night goes
 
-**The tools don't talk to each other.** As AI writes more of the code, the developer's real job becomes capturing intent and reviewing output — yet that intent lives in a note app, the plan in another tool, the agents in a stack of terminal windows, and the results in a git client. Editor-centric development solved this decades ago with the IDE. CLI-agent-centric development never got one.
+**6:00pm.** You write five tasks in the project. Two of them depend on a third, so you chain them. One is "make the test suite pass", so you give it a loop rule: run `npm test` after every round, stop at exit code 0, cap it at 8 rounds and $5. You pull two files from the project docs into the prompt so the agent knows the conventions. You hit Start All.
 
-CLITrigger is built as that IDE. Its backbone is a single pipeline — **Docs → Plan → Terminal → Autonomous Tasks → Version Control** — where each stage is not a separate tool but a consumer of the previous stage's context: docs become plans, plans become the agent's prompt, execution results arrive in a review queue. Intent is never lost between stages.
+**6:01pm.** Five worktrees spin up under `.worktrees/` inside the project. Three tasks start right away. The two dependents wait.
 
-Inside the pipeline sits the execution machinery:
+**9:40pm.** The first task finishes and commits. Its two dependents start, each with the parent branch squash-merged in. The project has an auto-delegate rule, so a second CLI gets a fresh task: review the first one's diff.
 
-- **Parallel execution** — every task runs in its own isolated git worktree, with Claude / Antigravity / Codex working simultaneously
-- **Scheduling around rate limits** — cron-based runs and auto-retry at quota reset make full use of your tokens, even while you're away
-- **Multi-agent quality** — architect / developer / reviewer agents debate before implementation, beating a single agent working alone
-- **One place to land it** — triage every diff in the review queue, then commit, push, and merge in the built-in Git client
+**11:15pm.** Claude hits its five-hour limit. The task is marked, and the reset time is recorded. You tap the tunnel URL on your phone, hit "schedule on reset", and go to sleep. Or you had a fallback chain set, and Codex already picked it up.
+
+**4:10am.** The reset passes. The parked task runs.
+
+**7:30am.** You open the review queue. Five cards. Two are quick wins under 50 lines, merged in two keystrokes. One is flagged risky at 400 lines, you open the diff inline and read it properly. One failed, you read the log, press Continue with one more sentence of instruction. One is wrong, `d`, worktree gone.
+
+That's a normal Tuesday.
 
 ---
 
 ## Features
 
-The features follow the five pipeline stages — **📚 Docs → 🗓 Plan → ⌨️ Terminal → 🤖 Autonomous Tasks → 🔀 Version Control** — plus the supporting features underneath. Each feature below has a full guide in the **[Wiki](https://github.com/HyperAITeam/CLITrigger/wiki)** (↗).
+### Before you leave
 
-### 📚 1. Docs — build the knowledge
+**Tasks and worktrees.** Every task runs in its own git worktree on its own branch. Set a concurrency limit per project. Tasks commit on completion. Chain tasks with dependencies and the child starts with the parent's branch merged in. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#parallel-worktree-execution)
 
-#### Docs (File-based Knowledge)
-A per-project Obsidian-style knowledge base with a `[[wikilink]]` graph — inject any file into a prompt, CLI-agnostically. What accumulates here is the input to the whole pipeline. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
+**Loop rules.** Turn a task into a loop. Give it a verification command (exit 0 means done), or a done phrase to look for in the agent's last message. Add a max round count, a cost cap in USD, and a "stop if a round makes no commits" guard so a confused agent can't burn your budget. Rules you type in the box get appended to every round's prompt.
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Docs — Obsidian-style file-based knowledge with a link graph" width="800">
-  <p><em>The Docs tab — browse project markdown with inline preview and a force-directed wikilink graph, then selectively inject files into prompts</em></p>
-</div>
-
-### 🗓 2. Plan — capture the intent
-
-#### My Schedule
-One personal calendar overlaying your memos, every project's schedules, planner due dates, and assigned Jira issues. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#my-schedule)
+**Schedules.** Cron for recurring runs, one-off for a specific time, and a "run when the rate limit resets" button that reads the reset timestamp straight from the CLI output. Skip-if-running is on by default so a slow run doesn't stack up. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#scheduled-execution)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-agenda.png" alt="My Schedule — personal calendar overlaying memos, schedules, planner & Jira" width="800">
-  <p><em>One calendar overlaying personal memos, cross-project schedules, planner due dates, and assigned Jira issues</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules" width="800">
 </div>
 
-#### Planner
-A lightweight task planner — capture ideas, then convert any item into a TODO, schedule, or session; Markdown import/export. What you plan here becomes the execution unit of the next stage. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#planner)
+**Fallback chain.** Order your CLIs, say Claude then Antigravity then Codex. When one runs out of context window, or Antigravity reports its quota is gone three times in a minute, the process is killed and the next CLI starts on the same task. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-cli--sandbox-mode)
+
+**Auto-delegate.** A project rule like "when Claude finishes, have Codex review it". The review runs as a chained task on the same branch. Delegated tasks never delegate again, so no loops.
+
+**Sandbox mode.** Strict mode writes the CLI's permission file so it can only touch the worktree. Nothing outside it.
+
+**Docs.** A per-project folder of markdown with `[[wikilinks]]` and a graph view. Pick files and they go into the prompt, whichever CLI you're using. There's also a wiki that accumulates lessons from past runs and gets injected as long-term memory. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner — Lightweight task management" width="800">
-  <p><em>Inline editing, color-coded tags, image attachments, and one-click conversion to TODOs or schedules</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Docs with wikilink graph" width="800">
 </div>
 
-### ⌨️ 3. Terminal — refine it with AI
-
-#### Interactive Sessions
-Long-lived CLI sessions in floating windows with VS Code-style docking, pop-out, and real xterm.js terminals — the human-in-the-loop stage before handing work off to automation. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#interactive-sessions)
+**Planner and calendar.** A plain list for ideas that aren't tasks yet. Turn any line into a task, a schedule, or a session with one click. My Schedule overlays your memos, every project's schedules, planner due dates, and assigned Jira issues on one calendar. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#planner)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Sessions — Multi-CLI floating windows with VS Code-style docking" width="800">
-  <p><em>Claude, Antigravity, and Codex sessions docked side-by-side via VS Code-style window grouping — each running in its own worktree branch</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner" width="800">
 </div>
 
-### 🤖 4. Autonomous Tasks — AI executes in parallel
-
-#### Parallel Worktree Execution (Tasks)
-Every TODO runs in its own git worktree with Claude / Antigravity / Codex in parallel, plus dependency chains and merge control. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#parallel-worktree-execution)
-
-#### Multi-Agent Discussion
-Architect / developer / reviewer agents debate before implementing, then commit code or send action items to the planner. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-agent-discussion)
+**Multi-agent discussion.** For the tasks you don't want to just fire off: an architect, a developer, and a reviewer argue about the approach first. The outcome can be committed as code or sent to the planner as action items. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-agent-discussion)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Discussions — Multi-agent debate" width="800">
-  <p><em>Multiple AI agents with different roles debating in the Discussion view</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Multi-agent discussion" width="800">
 </div>
 
-#### Scheduled Execution
-Run tasks on cron or one-off schedules, with auto-retry at the exact rate-limit reset time. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#scheduled-execution)
+### While you're out
+
+**Live logs.** Every run streams over WebSocket. Chat mode renders the markdown, Raw mode is the actual terminal bytes. Raw output is stored, so reconnecting replays exactly what happened. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#live-logs)
+
+**Remote access.** `clitrigger config tunnel on` and you get a Cloudflare URL. Name the tunnel and route it through your own domain to avoid the "dangerous site" warning. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Remote-Access)
+
+**Notifications.** A bell in the sidebar turns on OS notifications for finished and failed runs. Click one and it jumps to that session.
+
+**MCP server.** CLITrigger exposes itself over HTTP as an MCP server. Paste the config from Settings → MCP into Claude Desktop or Claude Code and you can list projects, create and start tasks, and check status from a chat. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server)
+
+**Analytics.** Cost and tokens per project, split by CLI, status, and date. Useful for noticing that one loop task ate half the month. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#analytics)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules — Scheduled execution" width="800">
-  <p><em>Cron-based recurring and one-time scheduled task execution</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics" width="800">
 </div>
 
-#### Multi-CLI & Sandbox Mode
-Pick Claude / Antigravity / Codex per project, TODO, or agent; strict sandbox confines file access to the worktree. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-cli--sandbox-mode)
+### The next morning
 
-### 🔀 5. Version Control — review and land it
+**Review queue.** One screen for every project's recent tasks. Cards show the project, a one-line summary of the agent's last message, token totals, and diff size. Risk is auto-tagged: failed or over 300 lines is high, over 50 is medium. Filter by Risky, Quick wins, or Failed. Time window of 12h, 24h, or 7d. `j`/`k` to move, `Space` to expand the diff inline, `Enter` for the full log, `m` to merge, `d` to discard. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
 
-#### Morning Review Queue
-Triage every overnight TODO across projects in one keyboard-driven card stack — navigate, merge, or discard in a keypress. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
-
-#### Built-in Git Client
-A Fork / SourceTree-style Git client in the browser — stage, commit, push, and manage branches and diffs. This is where AI output lands in your history, closing the pipeline. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
+**Git client.** Stage, commit, push, branches, commit graph, file diffs, and a conflict resolver. All in the browser, so you can land an agent's branch from the same tab you reviewed it in. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git — Built-in client" width="800">
-  <p><em>Commit graph, branch actions, file diffs — all in the browser</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git client" width="800">
 </div>
 
-### 🧰 Supporting the pipeline
+**SVN too.** If the project is a Subversion working copy, turn on the SVN panel: status, log, diff, commit, externals, and properties. Same diff viewer as git.
 
-#### Analytics
-Per-project cost and execution stats — by CLI, by status, and over time. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#analytics)
+### Daytime, when you are at the desk
+
+**Sessions.** Long-lived interactive CLI sessions in floating windows. Dock them side by side VS Code style, pop one out to a separate window, tag and alias them. Real xterm.js terminals on node-pty. Each session can live on its own worktree branch. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#interactive-sessions)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics — Execution stats" width="800">
-  <p><em>Cost and token usage broken down by CLI, status, and over time</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Docked sessions" width="800">
 </div>
 
-#### Live Logs (Chat & Raw)
-Real-time WebSocket log streaming in Chat (markdown) or Raw (terminal) mode. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#live-logs)
+**Integrations.** Jira, GitHub Issues, and Notion as plugins. gstack skills as an execution hook. A Harness panel for editing each CLI's settings, memory, MCP config, and toggling skills and hooks without opening the dotfiles.
 
-#### Favorites Launcher
-One-click launcher for your frequent external tools (executables, commands, URLs) from the sidebar. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#favorites-launcher)
-
-#### Remote Access
-Reach CLITrigger from anywhere via Cloudflare Tunnel, with completion notifications and custom-domain routing. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/Remote-Access)
-
-#### MCP Server
-Expose CLITrigger to any MCP client (Claude Desktop, Claude Code) over an HTTP endpoint — list projects, create and run tasks, and check status just by chatting with your AI. Copy the ready-made config (URL + token) from Settings → MCP; works for npm, desktop, and tunnel users alike. [↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server)
+**Small things.** A Files tab to browse the repo. A Favorites launcher for the tools you open ten times a day. Web panel tabs in the desktop app for keeping Notion or a dashboard next to your sessions. A process panel showing which CLI processes are actually alive.
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Tech |
 |-------|------|
-| Backend | Node.js · Express · TypeScript · SQLite · WebSocket |
+| Backend | Node.js · Express · TypeScript · SQLite (better-sqlite3, WAL) · WebSocket |
 | Frontend | React 18 · Vite · Tailwind CSS · Recharts |
-| AI CLIs | Claude · Antigravity · Codex (Adapter Pattern) |
-| Git | simple-git (worktree management) |
+| CLIs | Claude Code · Antigravity · Codex, behind one adapter interface |
+| Git | simple-git for worktrees and merges |
 | Scheduling | node-cron |
-| Terminal | node-pty (TTY support) · xterm.js (pixel-perfect rendering) |
-| Remote Access | Cloudflare Tunnel (optional) |
+| Terminal | node-pty · xterm.js |
+| Remote access | Cloudflare Tunnel (optional) |
+| Desktop | Electron, bundles Node and the native modules |
 
 ---
 
-## Quick Start
+## Install
 
-### Option A — Desktop App (recommended for end users)
+### Desktop app
 
-Download the installer for your platform from the [latest GitHub release](https://github.com/HyperAITeam/CLITrigger/releases/latest):
+Download the installer from the [latest release](https://github.com/HyperAITeam/CLITrigger/releases/latest):
 
-- **Windows** — `CLITrigger-Setup-<version>.exe` (NSIS installer) or the portable `.exe`
-- **macOS** — `CLITrigger-<version>.dmg` (Apple Silicon & Intel)
-- **Linux** — `CLITrigger-<version>.AppImage`
+- **Windows**: `CLITrigger-Setup-<version>.exe`, or the portable `.exe`
+- **macOS**: `CLITrigger-<version>.dmg` (Apple Silicon and Intel)
+- **Linux**: `CLITrigger-<version>.AppImage`
 
-The desktop app bundles Node.js and the native modules (`better-sqlite3`, `node-pty`, `cloudflared`), so no separate runtime install is needed. On first launch a setup screen appears in the embedded browser — pick a password there and you're in. External sharing (Cloudflare tunnel) stays paused until setup completes, so the first user is guaranteed to be you.
+Node.js, `better-sqlite3`, `node-pty`, and `cloudflared` are bundled. First launch shows a setup screen where you pick a password. The tunnel stays off until setup is done, so nobody else can be the first user.
 
-### Option B — npm (recommended for developers)
+### npm
 
 ```bash
-# Install
 npm i -g clitrigger
 clitrigger
-
-# Upgrade to the latest version
-npm i -g clitrigger@latest
-# Check current version: clitrigger --version
 ```
 
-On first run the server starts immediately. Open `http://localhost:3000` → set a password on the welcome screen → register a project → write TODOs → click Start. Change the password later via Settings → Account in the web UI.
+The server starts on port 3000. Open it, set a password, add a project, write tasks. You can change the password later in Settings → Account.
 
-CLITrigger also prints a one-line `Update available: <new> -> npm i -g clitrigger@latest` hint at startup whenever a newer version is on npm — no auto-update, you decide when to upgrade.
+When a newer version is on npm, startup prints a one-line hint. It won't update itself.
 
 ```bash
-# Change settings
-clitrigger config port 8080    # Change port
-clitrigger config tunnel on    # Enable Cloudflare tunnel for external sharing
+npm i -g clitrigger@latest     # upgrade
+clitrigger --version
+clitrigger config port 8080    # change port
+clitrigger config tunnel on    # Cloudflare tunnel
+clitrigger reset-password      # forgot it
 ```
 
-> **Prerequisites**: Node.js 22+ (use an **LTS** release), Git, at least one AI CLI (Claude / Antigravity / Codex)
+> **You need:** Node.js 22+ (an LTS release), Git, and at least one of Claude Code, Antigravity, or Codex installed and logged in.
 >
-> **Supported Platforms**: Windows · macOS · Linux — all core code is cross-platform compatible.
-> Prefer an LTS (even-numbered) Node.js. A brand-new major (e.g. an odd/just-released version) may not have prebuilt native binaries yet, which forces a source build requiring a C++ toolchain (Visual Studio Build Tools on Windows, `xcode-select --install` on macOS).
+> **Platforms:** Windows, macOS, Linux.
+> Stick to even-numbered Node releases. A brand-new major often has no prebuilt binaries for the native modules yet, which means a C++ toolchain and a long compile.
 
-### Run from Source (for development)
+### From source
 
 <details>
-<summary>Click to expand</summary>
+<summary>Expand</summary>
 
 ```bash
-# 1. Clone & install
 git clone https://github.com/HyperAITeam/CLITrigger.git
 cd CLITrigger
 npm install
 cd src/client && npm install && cd ../..
 
-# 2. Configure environment
 cp .env.example .env
-# AUTH_PASSWORD is optional — leave it blank and the dev server will show the
-# setup screen on first browser load. Set it only if you want to skip setup.
+# AUTH_PASSWORD can stay blank; the setup screen will ask on first load.
 
-# 3. Run
 npm run dev
 ```
 
 Open `http://localhost:5173`.
 
-#### Windows One-Click Scripts
-
-Double-click any bat file in `scripts/` — no terminal needed.
-
-| File | Action |
-|------|--------|
-| `install.bat` | Install dependencies (first time) |
-| `dev.bat` | Start development mode |
-| `build.bat` | Build project |
-| `start.bat` | Start production server |
-| `start-tunnel.bat` | Start with Cloudflare Tunnel |
-| `test.bat` | Run all tests |
-
-#### macOS / Linux
-
-`npm run` commands work identically on all platforms. Use the terminal instead of `.bat` scripts.
+On Windows there are `.bat` files in `scripts/` for install, dev, build, start, start-tunnel, and test. On macOS and Linux use the matching `npm run` commands.
 
 ```bash
-npm run dev        # Development mode
-npm run build      # Build
-npm run start      # Production server
-npm test           # Run tests
+npm run dev
+npm run build
+npm run start
+npm test
 ```
 
 </details>
 
-### Remote Access (Cloudflare Tunnel)
+### Remote access
 
 ```bash
-# Install cloudflared
 winget install cloudflare.cloudflared    # Windows
 brew install cloudflared                  # macOS
 
-# Set TUNNEL_ENABLED=true in .env, then:
-npm run start:tunnel
-# → Outputs https://xxxx.trycloudflare.com in the console
+clitrigger config tunnel on
+clitrigger
+# prints https://xxxx.trycloudflare.com
 ```
 
-#### Route a named tunnel through your own domain (optional)
-
-To avoid the "dangerous site" browser warnings on `*.trycloudflare.com` / `*.cfargotunnel.com`, point a named tunnel at your own domain. Either use the sidebar ⚙ → Tunnel settings modal (Tunnel Name + Custom Hostname), or the CLI:
+Browsers warn about `*.trycloudflare.com`. To get rid of that, name the tunnel and route it through a domain you own. Either in the sidebar ⚙ → Tunnel modal, or:
 
 ```bash
+clitrigger config tunnel on my-tunnel
 clitrigger config tunnel hostname app.your-domain.com
-cloudflared tunnel route dns <tunnel-name> app.your-domain.com   # one-time
+cloudflared tunnel route dns my-tunnel app.your-domain.com   # once
 ```
 
-The displayed URL becomes `https://app.your-domain.com` and reputation tracks your domain.
+---
+
+## Docs
+
+The full manual is in the [Wiki](https://github.com/HyperAITeam/CLITrigger/wiki).
+
+| Doc | What's in it |
+|-----|--------------|
+| [Wiki](https://github.com/HyperAITeam/CLITrigger/wiki) | Every feature, with screenshots |
+| [SETUP.md](docs/SETUP.md) | Install and usage guide, section by section (Korean) |
+| [changelog/](docs/changelog/README.md) | What changed, by date |
+| [CICD.md](docs/CICD.md) | GitHub Actions setup |
+| [TESTING.md](docs/TESTING.md) | How the tests are laid out |
 
 ---
 
-## Documentation
+## Contributing
 
-📖 **The full manual lives in the [Wiki](https://github.com/HyperAITeam/CLITrigger/wiki)** — installation, every feature guide, and remote access.
+If this saves you an evening, a [star](https://github.com/HyperAITeam/CLITrigger) helps other people find it.
 
-| Doc | Content |
-|-----|---------|
-| [Wiki](https://github.com/HyperAITeam/CLITrigger/wiki) | Detailed feature guides and usage |
-| [SETUP.md](docs/SETUP.md) | Detailed installation and usage guide (한국어) |
-| [changelog/](docs/changelog/README.md) | Version history (per-date entries by month) |
-| [CICD.md](docs/CICD.md) | GitHub Actions CI/CD setup |
-| [TESTING.md](docs/TESTING.md) | Testing guide |
-
----
-
-## Star & Join Us
-
-If CLITrigger saves you time, please [**give us a star**](https://github.com/HyperAITeam/CLITrigger) — it genuinely helps the project reach more developers.
-
-Want to help shape what comes next? We're actively looking for contributors:
-
-- **File an issue** — bug reports, feature requests, and rough ideas all welcome at [Issues](https://github.com/HyperAITeam/CLITrigger/issues)
-- **Open a PR** — start with [`good first issue`](https://github.com/HyperAITeam/CLITrigger/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) labels, or pick anything that itches you
-- **Share what you built** — drop your worktree workflows, custom plugins, or productivity tips in [Discussions](https://github.com/HyperAITeam/CLITrigger/discussions)
-
-Every star, issue, and PR moves this faster. Thank you 🙏
-
----
-
-## Contributors
-
-Thanks to everyone who has contributed to CLITrigger!
+- Bugs, feature requests, half-baked ideas: [Issues](https://github.com/HyperAITeam/CLITrigger/issues)
+- PRs: start with [`good first issue`](https://github.com/HyperAITeam/CLITrigger/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22), or fix whatever bothered you
+- Workflows, plugins, loop rules that worked well: [Discussions](https://github.com/HyperAITeam/CLITrigger/discussions)
 
 <a href="https://github.com/HyperAITeam/CLITrigger/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=HyperAITeam/CLITrigger" alt="Contributors" />
@@ -349,7 +285,7 @@ Thanks to everyone who has contributed to CLITrigger!
 
 ---
 
-## Star History
+## Star history
 
 <a href="https://www.star-history.com/?type=date&repos=HyperAITeam%2FCLITrigger">
   <picture>
@@ -361,9 +297,7 @@ Thanks to everyone who has contributed to CLITrigger!
 
 ---
 
-## ☕ Buy Me a Coffee
-
-If CLITrigger saves you time, consider buying me a coffee!
+## Coffee
 
 <div align="center">
 
@@ -375,4 +309,4 @@ If CLITrigger saves you time, consider buying me a coffee!
 
 ## License
 
-[MIT](LICENSE) — Free to use, modify, and distribute.
+[MIT](LICENSE)
