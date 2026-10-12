@@ -48,6 +48,8 @@ You already run Claude Code, Codex, or Antigravity from a terminal. They're good
 
 CLITrigger puts those same CLIs on a queue. You write tasks. Each task gets its own git worktree. The agents run them in parallel while you're asleep, at dinner, or in a meeting. If a run hits a rate limit, one click parks it until the reset time. If a CLI runs out of context, the next one in your fallback chain takes over. In the morning you open one review queue, press `m` to merge or `d` to throw it away, and get on with your day.
 
+During the day it's your terminal: the same CLIs in dockable floating windows, each on its own worktree branch. At night the same app becomes the task queue.
+
 It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 
 <div align="center">
