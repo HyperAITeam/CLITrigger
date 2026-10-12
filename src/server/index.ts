@@ -103,7 +103,13 @@ app.use(helmet({
     },
   },
 }));
-app.use(express.json({ limit: '50mb' }));
+// Only base64 image uploads carry multi-MB bodies. body-parser skips a request
+// an earlier json parser already consumed, so the big limit stays on those paths.
+app.use(
+  ['/api/todos/:id/images', '/api/planner/:id/images', '/api/planner/pages/:pageId/files', '/api/personal-items/:id/images', '/api/sessions/:id/paste-image'],
+  express.json({ limit: '50mb' }),
+);
+app.use(express.json({ limit: '5mb' }));
 
 // Initialize database
 getDatabase();

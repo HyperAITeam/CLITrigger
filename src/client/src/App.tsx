@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -7,16 +7,19 @@ import { Skeleton } from './components/Skeleton';
 import LoginPage from './components/LoginPage';
 import SetupPage from './components/SetupPage';
 import Layout from './components/Layout';
-import ProjectList from './components/ProjectList';
-import ProjectDetail from './components/ProjectDetail';
-import DiscussionDetail from './components/DiscussionDetail';
-import ReviewQueue from './components/ReviewQueue';
-import PersonalAgenda from './components/PersonalAgenda';
 import GlobalSessionDockTray from './components/GlobalSessionDockTray';
 import PopoutPage from './components/popout/PopoutPage';
 import { getSessionSettings } from './api/sessionSettings';
 import { setGlobalDefaultFontSize } from './hooks/useSessionFontSize';
 import { forceImeHandoff } from './ime-handoff';
+
+// Workspace routes live in their own chunks so a pop-out window (which only
+// renders PopoutPage) never downloads or parses ProjectDetail and friends.
+const ProjectList = lazy(() => import('./components/ProjectList'));
+const ProjectDetail = lazy(() => import('./components/ProjectDetail'));
+const DiscussionDetail = lazy(() => import('./components/DiscussionDetail'));
+const ReviewQueue = lazy(() => import('./components/ReviewQueue'));
+const PersonalAgenda = lazy(() => import('./components/PersonalAgenda'));
 
 function App() {
   const { authenticated, authRequired, setupRequired, loading, login, logout, setup, changePassword } = useAuth();
@@ -187,38 +190,40 @@ function App() {
                 connected={connected}
                 onEvent={onEvent}
               >
-                <Routes>
-                  <Route
-                    path="/"
-                    element={
-                      <ProjectList onEvent={onEvent} />
-                    }
-                  />
-                  <Route
-                    path="/review"
-                    element={
-                      <ReviewQueue onEvent={onEvent} />
-                    }
-                  />
-                  <Route
-                    path="/agenda"
-                    element={
-                      <PersonalAgenda />
-                    }
-                  />
-                  <Route
-                    path="/projects/:id"
-                    element={
-                      <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} subscribeBinary={subscribeBinary} />
-                    }
-                  />
-                  <Route
-                    path="/projects/:id/discussions/:discussionId"
-                    element={
-                      <DiscussionDetail onEvent={onEvent} connected={connected} />
-                    }
-                  />
-                </Routes>
+                <Suspense fallback={null}>
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        <ProjectList onEvent={onEvent} />
+                      }
+                    />
+                    <Route
+                      path="/review"
+                      element={
+                        <ReviewQueue onEvent={onEvent} />
+                      }
+                    />
+                    <Route
+                      path="/agenda"
+                      element={
+                        <PersonalAgenda />
+                      }
+                    />
+                    <Route
+                      path="/projects/:id"
+                      element={
+                        <ProjectDetail onEvent={onEvent} connected={connected} sendMessage={sendMessage} subscribeBinary={subscribeBinary} />
+                      }
+                    />
+                    <Route
+                      path="/projects/:id/discussions/:discussionId"
+                      element={
+                        <DiscussionDetail onEvent={onEvent} connected={connected} />
+                      }
+                    />
+                  </Routes>
+                </Suspense>
               </Layout>
               {/* Renders minimized session chips for every project so they stay
                   visible across workspace switches. Lives inside BrowserRouter so

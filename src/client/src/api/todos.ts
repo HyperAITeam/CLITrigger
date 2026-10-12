@@ -41,6 +41,9 @@ export function stopTodo(id: string): Promise<Todo> {
   return post(`/api/todos/${id}/stop`);
 }
 
+/** The server returns at most this many lines (routes/logs.ts); live appends keep the same window. */
+export const TASK_LOG_TAIL = 2000;
+
 export function getTodoLogs(id: string): Promise<TaskLog[]> {
   return get(`/api/todos/${id}/logs`);
 }

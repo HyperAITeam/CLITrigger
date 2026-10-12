@@ -320,6 +320,12 @@ export function getTaskLogsByTodoId(todoId: string): TaskLog[] {
   return db.prepare('SELECT * FROM task_logs WHERE todo_id = ? ORDER BY created_at ASC').all(todoId) as TaskLog[];
 }
 
+/** Newest `limit` logs, oldest-first. The detail view only shows the tail; ingestion keeps using the full history above. */
+export function getRecentTaskLogsByTodoId(todoId: string, limit: number): TaskLog[] {
+  const db = getDatabase();
+  return (db.prepare('SELECT * FROM task_logs WHERE todo_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?').all(todoId, limit) as TaskLog[]).reverse();
+}
+
 export function deleteTaskLogsByTodoId(todoId: string): number {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM task_logs WHERE todo_id = ?').run(todoId);
