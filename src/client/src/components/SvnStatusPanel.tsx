@@ -48,6 +48,9 @@ const SVN_COMMIT_MESSAGE_HEIGHT_KEY = 'clitrigger:svn:commit-message-h';
 const SVN_COMMIT_MESSAGE_MIN_HEIGHT = 60;
 const SVN_COMMIT_MESSAGE_MAX_HEIGHT = 280;
 const SVN_COMMIT_FILE_LIST_MIN_HEIGHT = 160;
+// dataTransfer type for dragging a changelist section header (reorder);
+// file rows use 'text/plain' with a JSON path array.
+const CL_DRAG_TYPE = 'application/x-svn-changelist';
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -522,6 +525,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         <div className="card-static flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
           {view === 'modifications' ? (
             <ModificationsView
+              projectId={project.id}
               statusFiles={status?.files ?? []}
               statusLoading={statusLoading}
               remoteChecking={remoteChecking}
@@ -1087,8 +1091,10 @@ interface ClSection {
 }
 
 // Named changelists first (sorted), then the default bucket, then automatic
-// status sections (unversioned '?', locally deleted '!').
-function partitionSections(files: SvnFile[], pendingNames: string[], t: (k: string) => string): ClSection[] {
+// status sections (unversioned '?', locally deleted '!'). `order` (section
+// keys the user arranged by dragging headers) overrides that: known keys come
+// first in that order, the rest keep the built-in order.
+export function partitionSections(files: SvnFile[], pendingNames: string[], order: string[], t: (k: string) => string): ClSection[] {
   const named = new Map<string, SvnFile[]>();
   const def: SvnFile[] = [];
   const unversioned: SvnFile[] = [];
@@ -1110,12 +1116,19 @@ function partitionSections(files: SvnFile[], pendingNames: string[], t: (k: stri
   if (def.length) sections.push({ key: 'default', label: t('svn.changelistDefault'), files: def });
   if (unversioned.length) sections.push({ key: 'unversioned', label: t('svn.changelistUnversioned'), files: unversioned });
   if (missing.length) sections.push({ key: 'missing', label: t('svn.changelistMissing'), files: missing });
-  return sections;
+  const rank = (s: ClSection) => order.indexOf(s.key);
+  return sections.sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra === -1 || rb === -1) return (ra === -1 ? 1 : 0) - (rb === -1 ? 1 : 0);
+    return ra - rb;
+  });
 }
 
 // ── Modifications view (LOCAL) ───────────────────────────────────────────────
 
 function ModificationsView(props: {
+  projectId: string;
   statusFiles: SvnFile[];
   statusLoading: boolean;
   remoteChecking: boolean;
@@ -1157,10 +1170,29 @@ function ModificationsView(props: {
       SVN_COMMIT_MESSAGE_MAX_HEIGHT,
     ),
   );
+  // User-arranged section order (keys), persisted per project.
+  const orderKey = `svn.changelistOrder:${props.projectId}`;
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(orderKey) ?? '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch { return []; }
+  });
   const sections = useMemo(
-    () => partitionSections(props.statusFiles, props.pendingChangelists, t),
-    [props.statusFiles, props.pendingChangelists, t],
+    () => partitionSections(props.statusFiles, props.pendingChangelists, sectionOrder, t),
+    [props.statusFiles, props.pendingChangelists, sectionOrder, t],
   );
+  // Drop a dragged section header onto another: move it to that slot and
+  // persist the full displayed key order.
+  const reorderSections = (source: string, destination: string) => {
+    const keys = sections.map((s) => s.key);
+    keys.splice(keys.indexOf(source), 1);
+    keys.splice(keys.indexOf(destination), 0, source);
+    setSectionOrder(keys);
+    try { localStorage.setItem(orderKey, JSON.stringify(keys)); } catch { /* ignore */ }
+  };
+  // Right-click on empty space below the sections → "New changelist…".
+  const [emptyMenu, setEmptyMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(SVN_COMMIT_MESSAGE_HEIGHT_KEY, String(commitMessageHeight)); } catch { /* ignore */ }
@@ -1198,6 +1230,11 @@ function ModificationsView(props: {
   const dropOnSection = (e: React.DragEvent, sec: ClSection) => {
     e.preventDefault();
     setDragOverKey(null);
+    const draggedSection = e.dataTransfer.getData(CL_DRAG_TYPE);
+    if (draggedSection) {
+      if (draggedSection !== sec.key) reorderSections(draggedSection, sec.key);
+      return;
+    }
     if (sec.key === 'unversioned' || sec.key === 'missing') return;
     let paths: string[];
     try { paths = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
@@ -1305,7 +1342,7 @@ function ModificationsView(props: {
           </div>
           <div
             className="flex-1 overflow-y-auto"
-            onClick={(e) => { if (e.target === e.currentTarget) props.onNewEmptyChangelist(); }}
+            onContextMenu={(e) => { e.preventDefault(); setEmptyMenu({ x: e.clientX, y: e.clientY }); }}
           >
             {props.statusLoading ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
@@ -1323,11 +1360,18 @@ function ModificationsView(props: {
                 return (
                   <div key={sec.key}>
                     <div
+                      draggable
                       onClick={() => toggleCollapse(secKey)}
                       onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null, sec.key.startsWith('cl:') ? sec.label : undefined)}
-                      onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
-                      onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
-                      onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
+                      onDragStart={(e) => { e.dataTransfer.setData(CL_DRAG_TYPE, sec.key); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragOver={(e) => {
+                        if (!droppable && !e.dataTransfer.types.includes(CL_DRAG_TYPE)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverKey !== sec.key) setDragOverKey(sec.key);
+                      }}
+                      onDragLeave={() => setDragOverKey((k) => (k === sec.key ? null : k))}
+                      onDrop={(e) => dropOnSection(e, sec)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-y border-warm-200/70 ${
                         isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-100 hover:bg-warm-200/60'
                       }`}
@@ -1365,6 +1409,11 @@ function ModificationsView(props: {
               })
             )}
           </div>
+          {emptyMenu && (
+            <CursorContextMenu x={emptyMenu.x} y={emptyMenu.y} onClose={() => setEmptyMenu(null)}>
+              <button className={ctxMenuItemClass} onClick={props.onNewEmptyChangelist}>{t('svn.newChangelist')}</button>
+            </CursorContextMenu>
+          )}
           <div className="border-t border-warm-100 shrink-0 bg-theme-bg">
             <div
               role="separator"
@@ -1633,13 +1682,13 @@ function FileContextMenu(props: {
         <>
           <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
           <div className="px-3 py-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">{t('svn.moveToChangelist')}</div>
-          {props.changelists.map((name) => (
+          {inChangelist.length > 0 && (
+            <Item label={`${t('svn.changelistDefault')}${suffix}`} onClick={() => props.onChangelist(null, inChangelist)} />
+          )}
+          {props.changelists.filter((name) => name !== clName).map((name) => (
             <Item key={name} label={`${name}${suffix}`} onClick={() => props.onChangelist(name, clable)} />
           ))}
           <Item label={t('svn.newChangelist')} onClick={() => props.onNewChangelist(clable)} />
-          {inChangelist.length > 0 && (
-            <Item label={`${t('svn.removeFromChangelist')}${suffix}`} onClick={() => props.onChangelist(null, inChangelist)} />
-          )}
         </>
       )}
     </div>,
