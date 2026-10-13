@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { partitionSections } from './SvnStatusPanel';
+import { partitionSections, readCommitTemplates } from './SvnStatusPanel';
 import type { SvnFile } from '../api/svn';
 
 const t = (key: string) => key;
@@ -17,5 +17,25 @@ describe('partitionSections', () => {
   it('puts user-ordered keys first and keeps the rest in built-in order', () => {
     expect(partitionSections(files, ['empty'], ['default', 'cl:beta'], t).map((s) => s.key))
       .toEqual(['default', 'cl:beta', 'cl:alpha', 'cl:empty', 'unversioned']);
+  });
+});
+
+describe('readCommitTemplates', () => {
+  const KEY = 'clitrigger:svn:commit-templates';
+
+  it('keeps only well-formed entries and tolerates corrupt storage', () => {
+    localStorage.setItem(KEY, JSON.stringify([
+      { name: 'fix', body: 'fix: ' },
+      { name: 'no-body' },
+      'junk',
+      null,
+    ]));
+    expect(readCommitTemplates()).toEqual([{ name: 'fix', body: 'fix: ' }]);
+
+    localStorage.setItem(KEY, '{not json');
+    expect(readCommitTemplates()).toEqual([]);
+
+    localStorage.removeItem(KEY);
+    expect(readCommitTemplates()).toEqual([]);
   });
 });

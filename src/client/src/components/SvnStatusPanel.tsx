@@ -9,7 +9,8 @@ import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
 import Modal from './Modal';
 import Button from './Button';
-import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
+import CursorContextMenu, { ctxMenuItemClass, CtxMenuSeparator } from './CursorContextMenu';
+import { AnchoredPopover } from './AnchoredPopover';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 import SvnExternalsEditor from './SvnExternalsEditor';
 
@@ -48,6 +49,20 @@ const SVN_COMMIT_MESSAGE_HEIGHT_KEY = 'clitrigger:svn:commit-message-h';
 const SVN_COMMIT_MESSAGE_MIN_HEIGHT = 60;
 const SVN_COMMIT_MESSAGE_MAX_HEIGHT = 280;
 const SVN_COMMIT_FILE_LIST_MIN_HEIGHT = 160;
+// User-defined commit message templates picked from the dropdown beside the
+// Commit button. Global (not per project) — they're a personal habit, not a
+// repo property.
+const SVN_COMMIT_TEMPLATES_KEY = 'clitrigger:svn:commit-templates';
+type CommitTemplate = { name: string; body: string };
+
+export function readCommitTemplates(): CommitTemplate[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(SVN_COMMIT_TEMPLATES_KEY) ?? '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is CommitTemplate =>
+      typeof x?.name === 'string' && typeof x?.body === 'string');
+  } catch { return []; }
+}
 // dataTransfer type for dragging a changelist section header (reorder);
 // file rows use 'text/plain' with a JSON path array.
 const CL_DRAG_TYPE = 'application/x-svn-changelist';
@@ -911,6 +926,94 @@ interface FileRowShared {
 
 // Inline conflict resolver shown on conflicted ('C') rows — the common accept
 // modes without opening the full context menu. Base/other modes stay there.
+// "Templates ▾" beside the Commit button: pick one to replace the message, or
+// save the current message under a name (defaults to its first line).
+function CommitTemplateMenu({ message, onPick }: {
+  message: string;
+  onPick: (body: string) => void;
+}) {
+  const { t } = useI18n();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState<CommitTemplate[]>(readCommitTemplates);
+  const [name, setName] = useState('');
+  const close = useCallback(() => setOpen(false), []);
+
+  const save = (next: CommitTemplate[]) => {
+    setTemplates(next);
+    try { localStorage.setItem(SVN_COMMIT_TEMPLATES_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const addCurrent = () => {
+    const body = message.trim();
+    const alias = name.trim() || body.split('\n')[0].slice(0, 40);
+    if (!body || !alias) return;
+    // Same name overwrites — lets a template be updated by re-saving.
+    save([...templates.filter((x) => x.name !== alias), { name: alias, body }]);
+    setName('');
+  };
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="btn btn-sm shrink-0"
+        title={t('svn.templates')}
+      >
+        {t('svn.templates')} ▾
+      </button>
+      {open && (
+        <AnchoredPopover
+          anchorRef={anchorRef}
+          width={260}
+          placement="top"
+          onClose={close}
+          className="rounded-lg shadow-elevated z-tooltip py-1"
+          style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+        >
+          {templates.length === 0 && (
+            <div className="px-3 py-1.5 text-xs text-warm-400">{t('svn.noTemplates')}</div>
+          )}
+          {templates.map((template) => (
+            <div key={template.name} className="flex items-center group">
+              <button
+                type="button"
+                className={`${ctxMenuItemClass} min-w-0`}
+                title={template.body}
+                onClick={() => { onPick(template.body); close(); }}
+              >
+                <span className="truncate">{template.name}</span>
+              </button>
+              <button
+                type="button"
+                className="p-1 mr-1 shrink-0 text-warm-400 hover:text-status-error opacity-0 group-hover:opacity-100 transition-opacity"
+                title={t('svn.deleteTemplate')}
+                aria-label={`${t('svn.deleteTemplate')}: ${template.name}`}
+                onClick={() => save(templates.filter((x) => x !== template))}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          <CtxMenuSeparator />
+          <form className="flex items-center gap-1 px-2 py-1" onSubmit={(e) => { e.preventDefault(); addCurrent(); }}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('svn.templateNamePlaceholder')}
+              className="input-field flex-1 min-w-0 text-xs py-1"
+            />
+            <Button type="submit" size="sm" disabled={!message.trim()} title={t('svn.saveTemplateHint')}>
+              {t('svn.saveTemplate')}
+            </Button>
+          </form>
+        </AnchoredPopover>
+      )}
+    </>
+  );
+}
+
 function ConflictResolveButton({ onResolve, onOpen }: {
   onResolve: (accept: 'working' | 'mine-full' | 'theirs-full') => void;
   // Activates the row so the diff pane previews the conflict before picking.
@@ -1434,15 +1537,18 @@ function ModificationsView(props: {
                 style={{ height: commitMessageHeight }}
                 rows={3}
               />
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={props.onCommit}
-                disabled={props.busy || !props.commitMessage.trim()}
-                className="mt-2 w-full"
-              >
-                {props.busy ? t('svn.committing') : t('svn.commit')}
-              </Button>
+              <div className="mt-2 flex gap-2">
+                <CommitTemplateMenu message={props.commitMessage} onPick={props.onCommitMessageChange} />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={props.onCommit}
+                  disabled={props.busy || !props.commitMessage.trim()}
+                  className="flex-1"
+                >
+                  {props.busy ? t('svn.committing') : t('svn.commit')}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
