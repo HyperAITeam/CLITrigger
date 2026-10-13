@@ -9,7 +9,8 @@ import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
 import Modal from './Modal';
 import Button from './Button';
-import CursorContextMenu, { ctxMenuItemClass } from './CursorContextMenu';
+import CursorContextMenu, { ctxMenuItemClass, CtxMenuSeparator } from './CursorContextMenu';
+import { AnchoredPopover } from './AnchoredPopover';
 import { CommitDiffViewer, CommitFileList } from './DiffViewer';
 import SvnExternalsEditor from './SvnExternalsEditor';
 
@@ -48,6 +49,23 @@ const SVN_COMMIT_MESSAGE_HEIGHT_KEY = 'clitrigger:svn:commit-message-h';
 const SVN_COMMIT_MESSAGE_MIN_HEIGHT = 60;
 const SVN_COMMIT_MESSAGE_MAX_HEIGHT = 280;
 const SVN_COMMIT_FILE_LIST_MIN_HEIGHT = 160;
+// User-defined commit message templates picked from the dropdown beside the
+// Commit button. Global (not per project) — they're a personal habit, not a
+// repo property.
+const SVN_COMMIT_TEMPLATES_KEY = 'clitrigger:svn:commit-templates';
+type CommitTemplate = { name: string; body: string };
+
+export function readCommitTemplates(): CommitTemplate[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(SVN_COMMIT_TEMPLATES_KEY) ?? '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is CommitTemplate =>
+      typeof x?.name === 'string' && typeof x?.body === 'string');
+  } catch { return []; }
+}
+// dataTransfer type for dragging a changelist section header (reorder);
+// file rows use 'text/plain' with a JSON path array.
+const CL_DRAG_TYPE = 'application/x-svn-changelist';
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -522,6 +540,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
         <div className="card-static flex-1 overflow-hidden flex flex-col min-w-0 min-h-0">
           {view === 'modifications' ? (
             <ModificationsView
+              projectId={project.id}
               statusFiles={status?.files ?? []}
               statusLoading={statusLoading}
               remoteChecking={remoteChecking}
@@ -907,6 +926,99 @@ interface FileRowShared {
 
 // Inline conflict resolver shown on conflicted ('C') rows — the common accept
 // modes without opening the full context menu. Base/other modes stay there.
+// "Templates ▾" beside the Commit button: click appends a template after the
+// current message (Shift+click replaces it), or save the current message under
+// a name (defaults to its first line).
+function CommitTemplateMenu({ message, onPick }: {
+  message: string;
+  onPick: (body: string) => void;
+}) {
+  const { t } = useI18n();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState<CommitTemplate[]>(readCommitTemplates);
+  const [name, setName] = useState('');
+  const close = useCallback(() => setOpen(false), []);
+
+  const save = (next: CommitTemplate[]) => {
+    setTemplates(next);
+    try { localStorage.setItem(SVN_COMMIT_TEMPLATES_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const addCurrent = () => {
+    const body = message.trim();
+    const alias = name.trim() || body.split('\n')[0].slice(0, 40);
+    if (!body || !alias) return;
+    // Same name overwrites — lets a template be updated by re-saving.
+    save([...templates.filter((x) => x.name !== alias), { name: alias, body }]);
+    setName('');
+  };
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="btn btn-sm shrink-0"
+        title={t('svn.templates')}
+      >
+        {t('svn.templates')} ▾
+      </button>
+      {open && (
+        <AnchoredPopover
+          anchorRef={anchorRef}
+          width={260}
+          placement="top"
+          onClose={close}
+          className="rounded-lg shadow-elevated z-tooltip py-1"
+          style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+        >
+          <div className="px-3 py-1 text-2xs text-warm-400">
+            {templates.length === 0 ? t('svn.noTemplates') : t('svn.templatePickHint')}
+          </div>
+          {templates.map((template) => (
+            <div key={template.name} className="flex items-center group">
+              <button
+                type="button"
+                className={`${ctxMenuItemClass} min-w-0`}
+                title={template.body}
+                onClick={(e) => {
+                  const current = message.trimEnd();
+                  onPick(e.shiftKey || !current ? template.body : `${current}\n${template.body}`);
+                  close();
+                }}
+              >
+                <span className="truncate">{template.name}</span>
+              </button>
+              <button
+                type="button"
+                className="p-1 mr-1 shrink-0 text-warm-400 hover:text-status-error opacity-0 group-hover:opacity-100 transition-opacity"
+                title={t('svn.deleteTemplate')}
+                aria-label={`${t('svn.deleteTemplate')}: ${template.name}`}
+                onClick={() => save(templates.filter((x) => x !== template))}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          <CtxMenuSeparator />
+          <form className="flex items-center gap-1 px-2 py-1" onSubmit={(e) => { e.preventDefault(); addCurrent(); }}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('svn.templateNamePlaceholder')}
+              className="input-field flex-1 min-w-0 text-xs py-1"
+            />
+            <Button type="submit" size="sm" disabled={!message.trim()} title={t('svn.saveTemplateHint')}>
+              {t('svn.saveTemplate')}
+            </Button>
+          </form>
+        </AnchoredPopover>
+      )}
+    </>
+  );
+}
+
 function ConflictResolveButton({ onResolve, onOpen }: {
   onResolve: (accept: 'working' | 'mine-full' | 'theirs-full') => void;
   // Activates the row so the diff pane previews the conflict before picking.
@@ -1087,8 +1199,10 @@ interface ClSection {
 }
 
 // Named changelists first (sorted), then the default bucket, then automatic
-// status sections (unversioned '?', locally deleted '!').
-function partitionSections(files: SvnFile[], pendingNames: string[], t: (k: string) => string): ClSection[] {
+// status sections (unversioned '?', locally deleted '!'). `order` (section
+// keys the user arranged by dragging headers) overrides that: known keys come
+// first in that order, the rest keep the built-in order.
+export function partitionSections(files: SvnFile[], pendingNames: string[], order: string[], t: (k: string) => string): ClSection[] {
   const named = new Map<string, SvnFile[]>();
   const def: SvnFile[] = [];
   const unversioned: SvnFile[] = [];
@@ -1110,12 +1224,19 @@ function partitionSections(files: SvnFile[], pendingNames: string[], t: (k: stri
   if (def.length) sections.push({ key: 'default', label: t('svn.changelistDefault'), files: def });
   if (unversioned.length) sections.push({ key: 'unversioned', label: t('svn.changelistUnversioned'), files: unversioned });
   if (missing.length) sections.push({ key: 'missing', label: t('svn.changelistMissing'), files: missing });
-  return sections;
+  const rank = (s: ClSection) => order.indexOf(s.key);
+  return sections.sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra === -1 || rb === -1) return (ra === -1 ? 1 : 0) - (rb === -1 ? 1 : 0);
+    return ra - rb;
+  });
 }
 
 // ── Modifications view (LOCAL) ───────────────────────────────────────────────
 
 function ModificationsView(props: {
+  projectId: string;
   statusFiles: SvnFile[];
   statusLoading: boolean;
   remoteChecking: boolean;
@@ -1157,10 +1278,29 @@ function ModificationsView(props: {
       SVN_COMMIT_MESSAGE_MAX_HEIGHT,
     ),
   );
+  // User-arranged section order (keys), persisted per project.
+  const orderKey = `svn.changelistOrder:${props.projectId}`;
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(orderKey) ?? '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch { return []; }
+  });
   const sections = useMemo(
-    () => partitionSections(props.statusFiles, props.pendingChangelists, t),
-    [props.statusFiles, props.pendingChangelists, t],
+    () => partitionSections(props.statusFiles, props.pendingChangelists, sectionOrder, t),
+    [props.statusFiles, props.pendingChangelists, sectionOrder, t],
   );
+  // Drop a dragged section header onto another: move it to that slot and
+  // persist the full displayed key order.
+  const reorderSections = (source: string, destination: string) => {
+    const keys = sections.map((s) => s.key);
+    keys.splice(keys.indexOf(source), 1);
+    keys.splice(keys.indexOf(destination), 0, source);
+    setSectionOrder(keys);
+    try { localStorage.setItem(orderKey, JSON.stringify(keys)); } catch { /* ignore */ }
+  };
+  // Right-click on empty space below the sections → "New changelist…".
+  const [emptyMenu, setEmptyMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(SVN_COMMIT_MESSAGE_HEIGHT_KEY, String(commitMessageHeight)); } catch { /* ignore */ }
@@ -1198,6 +1338,11 @@ function ModificationsView(props: {
   const dropOnSection = (e: React.DragEvent, sec: ClSection) => {
     e.preventDefault();
     setDragOverKey(null);
+    const draggedSection = e.dataTransfer.getData(CL_DRAG_TYPE);
+    if (draggedSection) {
+      if (draggedSection !== sec.key) reorderSections(draggedSection, sec.key);
+      return;
+    }
     if (sec.key === 'unversioned' || sec.key === 'missing') return;
     let paths: string[];
     try { paths = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
@@ -1305,7 +1450,7 @@ function ModificationsView(props: {
           </div>
           <div
             className="flex-1 overflow-y-auto"
-            onClick={(e) => { if (e.target === e.currentTarget) props.onNewEmptyChangelist(); }}
+            onContextMenu={(e) => { e.preventDefault(); setEmptyMenu({ x: e.clientX, y: e.clientY }); }}
           >
             {props.statusLoading ? (
               <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
@@ -1323,11 +1468,18 @@ function ModificationsView(props: {
                 return (
                   <div key={sec.key}>
                     <div
+                      draggable
                       onClick={() => toggleCollapse(secKey)}
                       onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null, sec.key.startsWith('cl:') ? sec.label : undefined)}
-                      onDragOver={droppable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverKey !== sec.key) setDragOverKey(sec.key); } : undefined}
-                      onDragLeave={droppable ? () => setDragOverKey((k) => (k === sec.key ? null : k)) : undefined}
-                      onDrop={droppable ? (e) => dropOnSection(e, sec) : undefined}
+                      onDragStart={(e) => { e.dataTransfer.setData(CL_DRAG_TYPE, sec.key); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragOver={(e) => {
+                        if (!droppable && !e.dataTransfer.types.includes(CL_DRAG_TYPE)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverKey !== sec.key) setDragOverKey(sec.key);
+                      }}
+                      onDragLeave={() => setDragOverKey((k) => (k === sec.key ? null : k))}
+                      onDrop={(e) => dropOnSection(e, sec)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-y border-warm-200/70 ${
                         isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-100 hover:bg-warm-200/60'
                       }`}
@@ -1365,6 +1517,11 @@ function ModificationsView(props: {
               })
             )}
           </div>
+          {emptyMenu && (
+            <CursorContextMenu x={emptyMenu.x} y={emptyMenu.y} onClose={() => setEmptyMenu(null)}>
+              <button className={ctxMenuItemClass} onClick={props.onNewEmptyChangelist}>{t('svn.newChangelist')}</button>
+            </CursorContextMenu>
+          )}
           <div className="border-t border-warm-100 shrink-0 bg-theme-bg">
             <div
               role="separator"
@@ -1385,15 +1542,18 @@ function ModificationsView(props: {
                 style={{ height: commitMessageHeight }}
                 rows={3}
               />
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={props.onCommit}
-                disabled={props.busy || !props.commitMessage.trim()}
-                className="mt-2 w-full"
-              >
-                {props.busy ? t('svn.committing') : t('svn.commit')}
-              </Button>
+              <div className="mt-2 flex gap-2">
+                <CommitTemplateMenu message={props.commitMessage} onPick={props.onCommitMessageChange} />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={props.onCommit}
+                  disabled={props.busy || !props.commitMessage.trim()}
+                  className="flex-1"
+                >
+                  {props.busy ? t('svn.committing') : t('svn.commit')}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -1633,13 +1793,13 @@ function FileContextMenu(props: {
         <>
           <div className="border-t border-warm-100 dark:border-warm-700 my-1" />
           <div className="px-3 py-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">{t('svn.moveToChangelist')}</div>
-          {props.changelists.map((name) => (
+          {inChangelist.length > 0 && (
+            <Item label={`${t('svn.changelistDefault')}${suffix}`} onClick={() => props.onChangelist(null, inChangelist)} />
+          )}
+          {props.changelists.filter((name) => name !== clName).map((name) => (
             <Item key={name} label={`${name}${suffix}`} onClick={() => props.onChangelist(name, clable)} />
           ))}
           <Item label={t('svn.newChangelist')} onClick={() => props.onNewChangelist(clable)} />
-          {inChangelist.length > 0 && (
-            <Item label={`${t('svn.removeFromChangelist')}${suffix}`} onClick={() => props.onChangelist(null, inChangelist)} />
-          )}
         </>
       )}
     </div>,

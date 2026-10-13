@@ -5,10 +5,10 @@ import { createPortal } from 'react-dom';
 // position:fixed so it escapes overflow/transform clipping (e.g. scrolling
 // planner cards), clamped horizontally to the viewport. Closes on
 // outside-click / scroll / resize.
-// ponytail: no vertical flip — relies on the child's own max-height to scroll
-// near the bottom; add flip only if a dropdown actually opens off-screen.
+// ponytail: no automatic vertical flip — callers that sit near the bottom pass
+// placement="top"; add auto-flip only if a dropdown actually opens off-screen.
 export function AnchoredPopover({
-  anchorRef, width, onClose, className, style, children,
+  anchorRef, width, onClose, className, style, children, placement = 'bottom',
 }: {
   anchorRef: React.RefObject<HTMLElement | null>;
   width: number;
@@ -16,9 +16,10 @@ export function AnchoredPopover({
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
+  placement?: 'bottom' | 'top';
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
 
   useLayoutEffect(() => {
     const a = anchorRef.current;
@@ -27,8 +28,12 @@ export function AnchoredPopover({
     let left = r.left;
     if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
     if (left < 8) left = 8;
-    setPos({ top: r.bottom + 4, left });
-  }, [anchorRef, width]);
+    // "top" anchors the popover's bottom edge above the anchor via CSS `bottom`,
+    // so no measurement of the popover's own height is needed.
+    setPos(placement === 'top'
+      ? { bottom: window.innerHeight - r.top + 4, left }
+      : { top: r.bottom + 4, left });
+  }, [anchorRef, width, placement]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -49,7 +54,7 @@ export function AnchoredPopover({
 
   if (!pos) return null;
   return createPortal(
-    <div ref={ref} className={className} style={{ position: 'fixed', top: pos.top, left: pos.left, width, ...style }}>
+    <div ref={ref} className={className} style={{ position: 'fixed', ...pos, width, ...style }}>
       {children}
     </div>,
     document.body,
