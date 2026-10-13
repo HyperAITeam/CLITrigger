@@ -926,8 +926,9 @@ interface FileRowShared {
 
 // Inline conflict resolver shown on conflicted ('C') rows — the common accept
 // modes without opening the full context menu. Base/other modes stay there.
-// "Templates ▾" beside the Commit button: pick one to replace the message, or
-// save the current message under a name (defaults to its first line).
+// "Templates ▾" beside the Commit button: click appends a template after the
+// current message (Shift+click replaces it), or save the current message under
+// a name (defaults to its first line).
 function CommitTemplateMenu({ message, onPick }: {
   message: string;
   onPick: (body: string) => void;
@@ -972,16 +973,20 @@ function CommitTemplateMenu({ message, onPick }: {
           className="rounded-lg shadow-elevated z-tooltip py-1"
           style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
         >
-          {templates.length === 0 && (
-            <div className="px-3 py-1.5 text-xs text-warm-400">{t('svn.noTemplates')}</div>
-          )}
+          <div className="px-3 py-1 text-2xs text-warm-400">
+            {templates.length === 0 ? t('svn.noTemplates') : t('svn.templatePickHint')}
+          </div>
           {templates.map((template) => (
             <div key={template.name} className="flex items-center group">
               <button
                 type="button"
                 className={`${ctxMenuItemClass} min-w-0`}
                 title={template.body}
-                onClick={() => { onPick(template.body); close(); }}
+                onClick={(e) => {
+                  const current = message.trimEnd();
+                  onPick(e.shiftKey || !current ? template.body : `${current}\n${template.body}`);
+                  close();
+                }}
               >
                 <span className="truncate">{template.name}</span>
               </button>
