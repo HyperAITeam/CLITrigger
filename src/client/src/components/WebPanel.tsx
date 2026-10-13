@@ -269,6 +269,16 @@ export default function WebPanel({ visible = true }: { visible?: boolean } = {})
         >
           <Star size={14} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-accent' : undefined} />
         </button>
+        <button
+          type="button"
+          onClick={() => window.open(active.url, '_blank', 'noopener')}
+          disabled={!active.url}
+          className="p-1 text-warm-400 hover:text-warm-600 hover:bg-warm-100 rounded-md transition-colors flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+          title={t('web.openExternal')}
+          aria-label={t('web.openExternal')}
+        >
+          <ExternalLink size={14} />
+        </button>
         <Button type="submit" size="sm">{t('web.go')}</Button>
         {fullscreen && (
           <button
