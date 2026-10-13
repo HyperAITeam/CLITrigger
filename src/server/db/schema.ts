@@ -374,6 +374,8 @@ export function initDatabase(db: Database.Database): void {
     // null = inherit project.use_worktree; 0 = run in project root; 1 = isolated worktree
     { table: 'discussions', column: 'use_worktree', definition: 'INTEGER' },
     { table: 'projects', column: 'use_worktree', definition: 'INTEGER DEFAULT 1' },
+    // Commit leftover worktree changes when a task/session ends and before merging a worktree branch
+    { table: 'projects', column: 'auto_commit', definition: 'INTEGER DEFAULT 1' },
     { table: 'todos', column: 'execution_mode', definition: 'TEXT' },
     { table: 'projects', column: 'show_token_usage', definition: 'INTEGER DEFAULT 0' },
     { table: 'todos', column: 'round_count', definition: 'INTEGER DEFAULT 1' },

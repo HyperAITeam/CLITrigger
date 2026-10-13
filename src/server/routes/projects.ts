@@ -370,7 +370,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
 
     // claude_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, svn_enabled, hidden_tabs, color } = req.body;
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, svn_enabled, hidden_tabs, color } = req.body;
 
     if (auto_delegate !== undefined && auto_delegate !== null && parseAutoDelegate(auto_delegate) === null) {
       res.status(400).json({ error: 'auto_delegate must be JSON like {"from":"claude","to":"codex"} with valid CLI tools' });
@@ -399,7 +399,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     }
 
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, hidden_tabs, color,
+      name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, hidden_tabs, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
     });
@@ -818,6 +818,10 @@ router.post('/:id/git-merge', async (req: Request<{ id: string }>, res: Response
       res.status(400).json({ error: 'branch is required' }); return;
     }
     if (hasDashArg(branch.trim())) { res.status(400).json({ error: 'invalid branch' }); return; }
+    // A session worktree branch may still hold uncommitted work — fold it in (or refuse) first.
+    const project = getProjectById(req.params.id)!;
+    const source = (await worktreeManager.listWorktrees(project.path)).find((w) => w.branch === branch.trim());
+    if (source) await worktreeManager.commitBeforeMerge(source.path, project.path, !!project.auto_commit);
     // Conflicts respond 200 with conflict:true — the repo is now in an
     // intentional in-progress merge the UI resolves via the routes below.
     const result = await worktreeManager.gitMerge(dirPath, branch.trim());

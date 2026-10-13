@@ -16,6 +16,7 @@ export interface Project {
   sandbox_mode: string;
   debug_logging: number;
   use_worktree: number;
+  auto_commit: number;
   show_token_usage: number;
   npm_auto_install: number;
   memory_auto_ingest: number;

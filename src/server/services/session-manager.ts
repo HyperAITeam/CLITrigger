@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
@@ -459,6 +460,12 @@ export class SessionManager {
         broadcaster.broadcast({ type: 'session:log', sessionId, message: msg, logType: exitCode === 0 ? 'output' : 'error' });
         broadcaster.broadcast({ type: 'session:status-changed', sessionId, status, resumable: this.isResumable(current, project) });
         broadcastProjectStatus(session.project_id);
+        // Auto-commit leftover changes so the branch is mergeable from the Git panel.
+        if (worktreePath && fs.existsSync(worktreePath) && queries.getProjectById(session.project_id)?.auto_commit) {
+          worktreeManager.commitIfDirty(worktreePath, `Auto-commit: ${session.title}`)
+            .then((hash) => { if (hash) queries.createSessionLog(sessionId, 'commit', `Auto-committed leftover changes (${hash.slice(0, 7)})`); })
+            .catch((err) => { queries.createSessionLog(sessionId, 'error', `Auto-commit failed: ${err instanceof Error ? err.message : String(err)}`); });
+        }
       }
     }).catch(() => {
       this.flushAndForgetRaw(sessionId);

@@ -37,6 +37,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
   const [showTokenUsage, setShowTokenUsage] = useState(!!project.show_token_usage);
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
+  const [autoCommit, setAutoCommit] = useState(project.auto_commit !== 0);
   const [npmAutoInstall, setNpmAutoInstall] = useState(!!project.npm_auto_install);
   const [svnEnabled, setSvnEnabled] = useState(!!project.svn_enabled);
   // Primary tabs hidden for this project (JSON array in projects.hidden_tabs; [] = all visible).
@@ -148,6 +149,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         sandbox_mode: sandboxMode,
         debug_logging: debugLogging ? 1 : 0,
         use_worktree: useWorktree ? 1 : 0,
+        auto_commit: autoCommit ? 1 : 0,
         npm_auto_install: npmAutoInstall ? 1 : 0,
         svn_enabled: svnEnabled ? 1 : 0,
         hidden_tabs: hiddenTabs.length > 0 ? JSON.stringify(hiddenTabs) : null,
@@ -633,6 +635,19 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 <p className="text-2xs text-status-warning mt-2">{t('header.worktreeWarning')}</p>
               )}
               <div className="mt-3 pt-3 border-t border-warm-200">
+                <label className={`flex items-start gap-2 mb-2 ${useWorktree ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={autoCommit}
+                    disabled={!useWorktree}
+                    onChange={(e) => setAutoCommit(e.target.checked)}
+                    className="mt-0.5 rounded-md"
+                  />
+                  <div>
+                    <div className="text-xs font-medium text-warm-700">{t('header.autoCommitLabel')}</div>
+                    <div className="text-2xs text-warm-500 mt-0.5">{t('header.autoCommitHint')}</div>
+                  </div>
+                </label>
                 <label className={`flex items-start gap-2 ${useWorktree ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
                   <input
                     type="checkbox"

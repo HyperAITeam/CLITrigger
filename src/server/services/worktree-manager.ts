@@ -166,6 +166,32 @@ export class WorktreeManager {
     }
   }
 
+  /** `git add -A && git commit` when the working tree is dirty; returns the new hash or null. */
+  async commitIfDirty(dirPath: string, message: string): Promise<string | null> {
+    const git = createGit(dirPath);
+    const status = await git.status();
+    if (status.isClean()) return null;
+    await git.add(['-A']);
+    const result = await git.commit(message);
+    return result.commit || null;
+  }
+
+  /**
+   * Fold leftover working-tree changes into the branch before it gets merged
+   * (and its worktree deleted). Auto-commit off → refuse instead of silently
+   * dropping the work. The main checkout is never touched.
+   */
+  async commitBeforeMerge(worktreePath: string | null, projectPath: string, autoCommit: boolean): Promise<string | null> {
+    if (!worktreePath || !fs.existsSync(worktreePath)) return null;
+    if (path.resolve(worktreePath) === path.resolve(projectPath)) return null;
+    if (autoCommit) return this.commitIfDirty(worktreePath, 'Auto-commit before merge');
+    const status = await createGit(worktreePath).status();
+    if (!status.isClean()) {
+      throw new Error('Worktree has uncommitted changes. Commit them first or enable auto-commit in project settings.');
+    }
+    return null;
+  }
+
   /**
    * Remove a worktree and prune.
    */

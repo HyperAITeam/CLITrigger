@@ -608,6 +608,7 @@ router.post('/discussions/:id/merge', async (req: Request<{ id: string }>, res: 
       return;
     }
 
+    await worktreeManager.commitBeforeMerge(discussion.worktree_path, project.path, !!project.auto_commit);
     await git.checkout(targetBranch);
 
     try {

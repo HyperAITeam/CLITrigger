@@ -129,6 +129,8 @@ router.post('/todos/:id/merge', async (req: Request<{ id: string }>, res: Respon
       return;
     }
 
+    await worktreeManager.commitBeforeMerge(todo.worktree_path, project.path, !!project.auto_commit);
+
     const git = createGit(project.path);
     const defaultBranch = project.default_branch || 'main';
 
@@ -260,6 +262,8 @@ router.post('/todos/:id/merge-chain', async (req: Request<{ id: string }>, res: 
       res.status(400).json({ error: `Branch not found: ${leafTask.branch_name}` });
       return;
     }
+
+    await worktreeManager.commitBeforeMerge(leafTask.worktree_path, project.path, !!project.auto_commit);
 
     await git.checkout(targetBranch);
 

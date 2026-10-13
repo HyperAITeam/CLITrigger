@@ -667,6 +667,16 @@ Complete the task in the current directory.`;
       if (debugSession) {
         try { debugSession.finalize(exitCode); } catch { /* ignore */ }
       }
+      // Auto-commit leftover changes so review diff, chain squash-merge and the
+      // merge button see everything even when the agent skipped its own commit.
+      if (worktreePath && fs.existsSync(worktreePath) && queries.getProjectById(projectId)?.auto_commit) {
+        try {
+          const hash = await worktreeManager.commitIfDirty(worktreePath, `Auto-commit: ${todo.title}`);
+          if (hash) queries.createTaskLog(todoId, 'commit', `Auto-committed leftover changes (${hash.slice(0, 7)})`, roundNumber);
+        } catch (err) {
+          queries.createTaskLog(todoId, 'error', `Auto-commit failed: ${err instanceof Error ? err.message : String(err)}`, roundNumber);
+        }
+      }
       let delegated: queries.Todo | null = null;
       const currentTodo = queries.getTodoById(todoId);
       // Only update if still in running state (not manually stopped)
