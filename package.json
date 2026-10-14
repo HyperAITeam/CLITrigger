@@ -1,6 +1,6 @@
 {
   "name": "clitrigger",
-  "version": "0.2.66",
+  "version": "0.2.67",
   "description": "Runs Claude Code, Antigravity, and Codex on a queue. Each task gets its own git worktree, runs while you're away, and lands in a morning review queue.",
   "keywords": [
     "claude",
