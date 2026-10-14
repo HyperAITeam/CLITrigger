@@ -12,6 +12,11 @@ describe('resolveVaultRelative', () => {
     expect(resolveVaultRelative('docs/intro.md', '..\\a.png')).toBe('a.png');
   });
 
+  it('treats a leading slash as project root', () => {
+    expect(resolveVaultRelative('_posts/2026-09-14-gpu.md', '/assets/images/a.svg')).toBe('assets/images/a.svg');
+    expect(resolveVaultRelative('docs/guide/intro.md', '/a.png')).toBe('a.png');
+  });
+
   it('handles root-level documents and null base', () => {
     expect(resolveVaultRelative('README.md', './a.png')).toBe('a.png');
     expect(resolveVaultRelative(null, 'img/a.png')).toBe('img/a.png');

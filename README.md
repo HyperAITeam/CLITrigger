@@ -46,7 +46,9 @@ Open `http://localhost:3000`, set a password, add a project, write a few tasks, 
 
 You already run Claude Code, Codex, or Antigravity from a terminal. They're good. The catch is that they only work while you're sitting in front of them. You hit a rate limit at 11pm and the next five hours of quota go to waste. You close the laptop and nothing happens until you open it again.
 
-CLITrigger is a self-hosted web app that puts those same CLIs on a queue. You write tasks. Each task gets its own git worktree. The agents run them in parallel while you're asleep, at dinner, or in a meeting. If a run hits a rate limit, one click parks it until the reset time. If a CLI runs out of context, the next one in your fallback chain takes over. In the morning you open one review queue, press `m` to merge or `d` to throw it away, and get on with your day.
+CLITrigger puts those same CLIs on a queue. You write tasks. Each task gets its own git worktree. The agents run them in parallel while you're asleep, at dinner, or in a meeting. If a run hits a rate limit, one click parks it until the reset time. If a CLI runs out of context, the next one in your fallback chain takes over. In the morning you open one review queue, press `m` to merge or `d` to throw it away, and get on with your day.
+
+During the day it's your terminal: the same CLIs in dockable floating windows, each on its own worktree branch. At night the same app becomes the task queue.
 
 It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 
@@ -133,7 +135,7 @@ That's a normal Tuesday.
 
 **Review queue.** One screen for every project's recent tasks. Cards show the project, a one-line summary of the agent's last message, token totals, and diff size. Risk is auto-tagged: failed or over 300 lines is high, over 50 is medium. Filter by Risky, Quick wins, or Failed. Time window of 12h, 24h, or 7d. `j`/`k` to move, `Space` to expand the diff inline, `Enter` for the full log, `m` to merge, `d` to discard. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
 
-**Git client.** Stage, commit, push, branches, commit graph, file diffs, and a conflict resolver. All in the browser, so you can land an agent's branch from the same tab you reviewed it in. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
+**Git client.** Stage, commit, push, branches, commit graph, file diffs, and a conflict resolver. All inside CLITrigger, so you can land an agent's branch from the same screen you reviewed it on. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git client" width="800">
