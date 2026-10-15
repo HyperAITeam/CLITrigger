@@ -31,6 +31,14 @@ const VCS_TOOLS = [
   { tool: 'svn', command: 'svn' },
 ] as const;
 
+/** True when `command` resolves on PATH (`where` on Windows, `which` elsewhere). */
+function isOnPath(command: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = process.platform === 'win32' ? 'where' : 'which';
+    execFile(probe, [command], { timeout: CHECK_TIMEOUT }, (error) => resolve(!error));
+  });
+}
+
 function checkTool(tool: string, command: string, isVcs = false): Promise<CliToolStatus> {
   return new Promise((resolve) => {
     const opts: { timeout: number; shell?: boolean } = { timeout: CHECK_TIMEOUT };
@@ -39,7 +47,11 @@ function checkTool(tool: string, command: string, isVcs = false): Promise<CliToo
 
     execFile(command, ['--version'], opts, async (error, stdout) => {
       if (error) {
-        resolve({ tool, installed: false, version: null });
+        // A timeout or non-zero exit is not proof the binary is missing: a
+        // busy machine or a CLI mid-auto-update also fails here, and a false
+        // "not installed" gets cached for CACHE_TTL, blocking every session
+        // start until it expires. Only trust the PATH lookup for that verdict.
+        resolve({ tool, installed: await isOnPath(command), version: null });
         return;
       }
       // Parse version from stdout (first line, trim whitespace)
