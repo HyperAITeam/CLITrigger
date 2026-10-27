@@ -316,9 +316,6 @@ export default function SessionList({
                   setCtxMenu({ x: e.clientX, y: e.clientY, sessionId: session.id });
                 }}
               >
-                {tabColor && (
-                  <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: tabColor }} />
-                )}
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
                   onClick={() => isPopped ? recallPopout(session.id) : openOrFocus(session.id, 'open')}
@@ -354,7 +351,9 @@ export default function SessionList({
                             className="inline-flex items-center gap-1 text-2xs text-warm-400 whitespace-nowrap"
                             title={isPopped ? t('session.dock.poppedHint') : undefined}
                           >
-                            {isPopped ? <ExternalLink size={12} /> : <span aria-hidden="true">·</span>}
+                            {isPopped ? <ExternalLink size={12} /> : tabColor ? (
+                              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tabColor }} />
+                            ) : <span aria-hidden="true">·</span>}
                             {t(`session.windowState.${winState}`)}
                           </span>
                         )}
