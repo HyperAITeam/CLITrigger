@@ -186,13 +186,9 @@ const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
 // trigger actions don't re-render on every geometry/minimize change.
 const SessionWindowStateContext = createContext<Record<string, WindowState>>({});
 
-// sessionId → the group (window) it lives in plus its tab color, so the session
-// list can cluster rows that share a window and tint them like their tabs.
-export interface SessionWindowGroup {
-  groupId: string;
-  color?: string;
-}
-const SessionWindowGroupContext = createContext<Record<string, SessionWindowGroup>>({});
+// sessionId → id of the group (window) it lives in, so the session list can
+// cluster rows that share a window.
+const SessionWindowGroupContext = createContext<Record<string, string>>({});
 
 export function useSessionWindows(): SessionWindowsAPI {
   const ctx = useContext(SessionWindowsContext);
@@ -205,8 +201,8 @@ export function useSessionWindowStates(): Record<string, WindowState> {
   return useContext(SessionWindowStateContext);
 }
 
-// Map of sessionId → owning group + tab color. Empty object outside a host.
-export function useSessionWindowGroups(): Record<string, SessionWindowGroup> {
+// Map of sessionId → owning group id. Empty object outside a host.
+export function useSessionWindowGroups(): Record<string, string> {
   return useContext(SessionWindowGroupContext);
 }
 
@@ -1769,10 +1765,10 @@ export default function SessionWindowsHost({
     return m;
   }, [groups]);
 
-  const windowGroups = useMemo<Record<string, SessionWindowGroup>>(() => {
-    const m: Record<string, SessionWindowGroup> = {};
+  const windowGroups = useMemo<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
     for (const g of groups) {
-      for (const sid of allSessionIds(g.root)) m[sid] = { groupId: g.id, color: g.colors[sid] };
+      for (const sid of allSessionIds(g.root)) m[sid] = g.id;
     }
     return m;
   }, [groups]);

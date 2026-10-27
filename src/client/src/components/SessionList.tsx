@@ -75,14 +75,14 @@ export default function SessionList({
   const orderedSessions = useMemo(() => {
     const byGroup = new Map<string, Session[]>();
     for (const s of sessions) {
-      const groupId = windowGroups[s.id]?.groupId;
+      const groupId = windowGroups[s.id];
       if (groupId) byGroup.set(groupId, [...(byGroup.get(groupId) ?? []), s]);
     }
     const placed = new Set<string>();
     const result: { session: Session; position: 'single' | 'first' | 'middle' | 'last' }[] = [];
     for (const s of sessions) {
       if (placed.has(s.id)) continue;
-      const members = byGroup.get(windowGroups[s.id]?.groupId ?? '') ?? [s];
+      const members = byGroup.get(windowGroups[s.id] ?? '') ?? [s];
       members.forEach((member, i) => {
         placed.add(member.id);
         const position = members.length === 1 ? 'single' : i === 0 ? 'first' : i === members.length - 1 ? 'last' : 'middle';
@@ -295,7 +295,6 @@ export default function SessionList({
             const isEditing = editingId === session.id;
             const winState = windowStates[session.id] ?? 'closed';
             const isPopped = winState === 'popped';
-            const tabColor = windowGroups[session.id]?.color;
             // Joined block: inner seams lose their rounding and the gap, and
             // the hover lift is disabled so members don't split apart.
             const joinClass = {
@@ -351,9 +350,7 @@ export default function SessionList({
                             className="inline-flex items-center gap-1 text-2xs text-warm-400 whitespace-nowrap"
                             title={isPopped ? t('session.dock.poppedHint') : undefined}
                           >
-                            {isPopped ? <ExternalLink size={12} /> : tabColor ? (
-                              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tabColor }} />
-                            ) : <span aria-hidden="true">·</span>}
+                            {isPopped ? <ExternalLink size={12} /> : <span aria-hidden="true">·</span>}
                             {t(`session.windowState.${winState}`)}
                           </span>
                         )}
