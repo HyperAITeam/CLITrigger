@@ -186,6 +186,14 @@ const SessionWindowsContext = createContext<SessionWindowsAPI | null>(null);
 // trigger actions don't re-render on every geometry/minimize change.
 const SessionWindowStateContext = createContext<Record<string, WindowState>>({});
 
+// sessionId → the group (window) it lives in plus its tab color, so the session
+// list can cluster rows that share a window and tint them like their tabs.
+export interface SessionWindowGroup {
+  groupId: string;
+  color?: string;
+}
+const SessionWindowGroupContext = createContext<Record<string, SessionWindowGroup>>({});
+
 export function useSessionWindows(): SessionWindowsAPI {
   const ctx = useContext(SessionWindowsContext);
   if (!ctx) throw new Error('useSessionWindows must be used within SessionWindowsHost');
@@ -195,6 +203,11 @@ export function useSessionWindows(): SessionWindowsAPI {
 // Map of sessionId → current window placement. Empty object outside a host.
 export function useSessionWindowStates(): Record<string, WindowState> {
   return useContext(SessionWindowStateContext);
+}
+
+// Map of sessionId → owning group + tab color. Empty object outside a host.
+export function useSessionWindowGroups(): Record<string, SessionWindowGroup> {
+  return useContext(SessionWindowGroupContext);
 }
 
 // Variant that returns null when there is no host above (e.g. inside a
@@ -1756,6 +1769,14 @@ export default function SessionWindowsHost({
     return m;
   }, [groups]);
 
+  const windowGroups = useMemo<Record<string, SessionWindowGroup>>(() => {
+    const m: Record<string, SessionWindowGroup> = {};
+    for (const g of groups) {
+      for (const sid of allSessionIds(g.root)) m[sid] = { groupId: g.id, color: g.colors[sid] };
+    }
+    return m;
+  }, [groups]);
+
   // Global Ctrl+T / Cmd+T → new raw-shell tab in the topmost main-owned
   // visible group, or a new floating window when none exists. preventDefault
   // so the browser / Electron doesn't open a real new tab. Single-key combo
@@ -1831,6 +1852,7 @@ export default function SessionWindowsHost({
   return (
     <SessionWindowsContext.Provider value={api}>
       <SessionWindowStateContext.Provider value={windowStates}>
+      <SessionWindowGroupContext.Provider value={windowGroups}>
       <AgentStatesContext.Provider value={agentStates}>
       {children}
       {(() => {
@@ -1876,6 +1898,7 @@ export default function SessionWindowsHost({
         <DockOverlay targetRect={remoteDock.rect} activeZone={remoteDock.zone} />
       )}
       </AgentStatesContext.Provider>
+      </SessionWindowGroupContext.Provider>
       </SessionWindowStateContext.Provider>
     </SessionWindowsContext.Provider>
   );

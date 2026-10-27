@@ -25,7 +25,7 @@ function parseRawFilePaths(raw: string | null | undefined): string[] {
   }
 }
 import SessionForm, { type SessionFormInitial } from './SessionForm';
-import { useSessionWindows, useSessionWindowStates, type WindowState } from './SessionWindowsHost';
+import { useSessionWindows, useSessionWindowStates, useSessionWindowGroups, type WindowState } from './SessionWindowsHost';
 
 interface SessionListProps {
   projectId: string;
@@ -69,6 +69,28 @@ export default function SessionList({
   const { confirm } = useDialog();
   const { openOrFocus, recallPopout } = useSessionWindows();
   const windowStates = useSessionWindowStates();
+  const windowGroups = useSessionWindowGroups();
+  // Pull sessions sharing a window up to their first member's slot so the rows
+  // render as one joined block, mirroring the tabs docked together.
+  const orderedSessions = useMemo(() => {
+    const byGroup = new Map<string, Session[]>();
+    for (const s of sessions) {
+      const groupId = windowGroups[s.id]?.groupId;
+      if (groupId) byGroup.set(groupId, [...(byGroup.get(groupId) ?? []), s]);
+    }
+    const placed = new Set<string>();
+    const result: { session: Session; position: 'single' | 'first' | 'middle' | 'last' }[] = [];
+    for (const s of sessions) {
+      if (placed.has(s.id)) continue;
+      const members = byGroup.get(windowGroups[s.id]?.groupId ?? '') ?? [s];
+      members.forEach((member, i) => {
+        placed.add(member.id);
+        const position = members.length === 1 ? 'single' : i === 0 ? 'first' : i === members.length - 1 ? 'last' : 'middle';
+        result.push({ session: member, position });
+      });
+    }
+    return result;
+  }, [sessions, windowGroups]);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -264,7 +286,7 @@ export default function SessionList({
         </div>
       ) : (
         <div className="space-y-3">
-          {sessions.map((session, index) => {
+          {orderedSessions.map(({ session, position }) => {
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
             const canEdit = session.status !== 'running';
@@ -273,11 +295,20 @@ export default function SessionList({
             const isEditing = editingId === session.id;
             const winState = windowStates[session.id] ?? 'closed';
             const isPopped = winState === 'popped';
+            const tabColor = windowGroups[session.id]?.color;
+            // Joined block: inner seams lose their rounding and the gap, and
+            // the hover lift is disabled so members don't split apart.
+            const joinClass = {
+              single: '',
+              first: 'rounded-b-none hover:!translate-y-0',
+              middle: '!mt-0 rounded-none border-t-0 hover:!translate-y-0',
+              last: '!mt-0 rounded-t-none border-t-0 hover:!translate-y-0',
+            }[position];
 
             return (
               <div
                 key={session.id}
-                className={`card overflow-hidden ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''}`}
+                className={`card overflow-hidden ${joinClass} ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''}`}
                 onContextMenu={(e) => {
                   if (isNativeContextMenuTarget(e)) return;
                   e.preventDefault();
@@ -285,6 +316,9 @@ export default function SessionList({
                   setCtxMenu({ x: e.clientX, y: e.clientY, sessionId: session.id });
                 }}
               >
+                {tabColor && (
+                  <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: tabColor }} />
+                )}
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
                   onClick={() => isPopped ? recallPopout(session.id) : openOrFocus(session.id, 'open')}
