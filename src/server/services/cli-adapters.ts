@@ -377,7 +377,7 @@ const codexAdapter: CliAdapter = {
 // by session-manager when the tool is raw-shell.
 function detectRawShellCommand(): { command: string; args: string[] } {
   if (process.platform === 'win32') {
-    return { command: 'powershell.exe', args: ['-NoLogo'] };
+    return { command: 'cmd.exe', args: [] };
   }
   const sh = process.env.SHELL || '/bin/bash';
   return { command: sh, args: ['-i'] };
