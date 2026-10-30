@@ -436,6 +436,8 @@ export function initDatabase(db: Database.Database): void {
     // On-demand Diff capture points: JSON array of { seq, sha, at } working-tree
     // snapshots the user took mid-session, each usable as a Diff page's base.
     { table: 'sessions', column: 'snapshots', definition: 'TEXT' },
+    // Raw-shell sessions: shell id picked in the new-tab menu (NULL = platform default).
+    { table: 'sessions', column: 'shell', definition: 'TEXT' },
     // Auto-delegation rule: JSON {"from":"claude","to":"codex"}, NULL = disabled.
     { table: 'projects', column: 'auto_delegate', definition: 'TEXT' },
     // Parent todo id when this todo was auto-created as a delegated review task.

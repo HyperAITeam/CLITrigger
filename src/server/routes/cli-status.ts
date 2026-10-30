@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { checkAllTools, clearCache } from '../services/cli-status.js';
+import { getAvailableShells } from '../services/cli-adapters.js';
 
 const router = Router();
 
@@ -12,6 +13,11 @@ router.get('/status', async (_req: Request, res: Response) => {
     console.error('Failed to check CLI status:', err);
     res.status(500).json({ error: 'Failed to check CLI status' });
   }
+});
+
+// GET /api/cli/shells - shells offered in the session new-tab menu
+router.get('/shells', (_req: Request, res: Response) => {
+  res.json(getAvailableShells().map(({ id, name }) => ({ id, name })));
 });
 
 // POST /api/cli/status/refresh - force refresh (clear cache)

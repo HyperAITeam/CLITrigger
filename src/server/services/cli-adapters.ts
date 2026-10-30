@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { isModelSupported } from '../db/queries.js';
@@ -401,6 +402,45 @@ export function getRawShellInfo(): { command: string; args: string[]; name: stri
   return { ...rawShellInfo, name: PRETTY[base] ?? base };
 }
 
+export interface ShellOption { id: string; name: string; command: string; args: string[] }
+
+function findOnPath(exe: string): boolean {
+  return (process.env.PATH || '').split(path.delimiter).some((dir) => !!dir && fs.existsSync(path.join(dir, exe)));
+}
+
+// Shells offered in the new-tab menu, detected once at startup. The client
+// only ever sends back an id, so the spawned command always comes from here.
+function detectShells(): ShellOption[] {
+  if (process.platform === 'win32') {
+    const shells: ShellOption[] = [
+      { id: 'cmd', name: 'Command Prompt', command: 'cmd.exe', args: [] },
+      { id: 'powershell', name: 'Windows PowerShell', command: 'powershell.exe', args: ['-NoLogo'] },
+    ];
+    if (findOnPath('pwsh.exe')) shells.push({ id: 'pwsh', name: 'PowerShell 7', command: 'pwsh.exe', args: ['-NoLogo'] });
+    const gitBash = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+    if (fs.existsSync(gitBash)) shells.push({ id: 'git-bash', name: 'Git Bash', command: gitBash, args: ['--login', '-i'] });
+    if (findOnPath('wsl.exe')) shells.push({ id: 'wsl', name: 'WSL', command: 'wsl.exe', args: [] });
+    return shells;
+  }
+  let listed: string[] = [];
+  try {
+    listed = fs.readFileSync('/etc/shells', 'utf8').split('\n').map((l) => l.trim()).filter((l) => l.startsWith('/'));
+  } catch { /* no /etc/shells — $SHELL only */ }
+  const shells: ShellOption[] = [];
+  for (const p of [rawShellInfo.command, ...listed]) {
+    const name = path.basename(p);
+    if (shells.some((s) => s.id === name) || !fs.existsSync(p)) continue;
+    shells.push({ id: name, name, command: p, args: ['-i'] });
+  }
+  return shells;
+}
+
+const availableShells = detectShells();
+
+export function getAvailableShells(): ShellOption[] {
+  return availableShells;
+}
+
 const rawShellAdapter: CliAdapter = {
   command: rawShellInfo.command,
   displayName: 'Raw Shell',
@@ -429,6 +469,14 @@ const adapters: Record<CliTool, CliAdapter> = {
 
 export function getAdapter(tool: CliTool): CliAdapter {
   return adapters[tool] ?? adapters.claude;
+}
+
+// Raw-shell adapter for a shell picked in the new-tab menu; unknown or absent
+// ids fall back to the platform default shell.
+export function getShellAdapter(shellId?: string | null): CliAdapter {
+  const shell = availableShells.find((s) => s.id === shellId);
+  if (!shell) return rawShellAdapter;
+  return { ...rawShellAdapter, command: shell.command, buildArgs: () => [...shell.args] };
 }
 
 export function supportsInteractiveMode(tool: CliTool): boolean {

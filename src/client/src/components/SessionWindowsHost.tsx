@@ -52,6 +52,7 @@ import { useNotification } from '../hooks/useNotification';
 import { AgentStatesContext, useAgentStates } from '../hooks/useAgentStates';
 import type { Session } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
+import type { NewTabKind } from './group/NewTabMenu';
 import {
   openBus,
   MAIN_WINDOW_ID,
@@ -163,12 +164,12 @@ export interface SessionWindowsAPI {
   // coordinates (chrome-offset applied) — used by drag-out so the popout
   // appears under the user's cursor. Omitted → near the source window.
   popOutGroup: (groupId: string, opts?: { atScreenX?: number; atScreenY?: number }) => void;
-  // Spawn a fresh raw-shell session and either add it as a tab to the
-  // specified group's stack (when `targetGroupId` resolves to a visible
-  // main-owned group) or open it as a new floating window. Used by the "+"
-  // button next to tabs and by the Ctrl/Cmd+T global shortcut. Returns the
-  // new session's id.
-  createRawShellTab: (targetGroupId: string | null, targetPath?: Path) => Promise<string>;
+  // Spawn a fresh session (raw shell by default, or the shell / AI CLI picked
+  // in the new-tab menu) and either add it as a tab to the specified group's
+  // stack (when `targetGroupId` resolves to a visible main-owned group) or
+  // open it as a new floating window. Used by the "+" button next to tabs and
+  // by the Ctrl/Cmd+T global shortcut. Returns the new session's id.
+  createNewTab: (targetGroupId: string | null, targetPath?: Path, kind?: NewTabKind) => Promise<string>;
   // Inject text into a specific session's terminal without stealing focus.
   sendToSession: (sessionId: string, text: string) => void;
   // Currently-open terminals (main-owned groups), topmost first, with a
@@ -1440,7 +1441,11 @@ export default function SessionWindowsHost({
     }));
   }, [openOrFocus, firstStackPath]);
 
-  const createRawShellTab = useCallback(async (targetGroupId: string | null, targetPath?: Path) => {
+  const createNewTab = useCallback(async (
+    targetGroupId: string | null,
+    targetPath?: Path,
+    kind: NewTabKind = { cliTool: 'raw-shell', label: 'Shell' },
+  ) => {
     // Title needs to be unique-ish so the sidebar / session list doesn't
     // show a wall of identical "Shell" rows. Time-of-day is enough.
     const now = new Date();
@@ -1448,8 +1453,9 @@ export default function SessionWindowsHost({
     const mm = String(now.getMinutes()).padStart(2, '0');
     const ss = String(now.getSeconds()).padStart(2, '0');
     const session = await sessionsApi.createSession(projectId, {
-      title: `Shell ${hh}:${mm}:${ss}`,
-      cli_tool: 'raw-shell',
+      title: `${kind.label} ${hh}:${mm}:${ss}`,
+      cli_tool: kind.cliTool,
+      shell: kind.shell,
       use_worktree: false,
       memory_inject_mode: 'none',
     });
@@ -1746,11 +1752,11 @@ export default function SessionWindowsHost({
     openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
     closeGroup, minimizeGroup, restoreGroup, setGroupGeometry, setGroupDock,
     setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab,
-    beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+    beginTabDrag, dockGroup, popOutGroup, createNewTab,
     sendToSession, listOpenTerminals, sendToNewTerminal,
   }), [openOrFocus, close, focus, minimize, restore, isOpen, recallPopout,
        closeGroup, minimizeGroup, restoreGroup, setGroupGeometry, setGroupDock,
-       setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab, beginTabDrag, dockGroup, popOutGroup, createRawShellTab,
+       setSplitSizes, setActiveTab, applyLayoutPreset, reorderTab, beginTabDrag, dockGroup, popOutGroup, createNewTab,
        sendToSession, listOpenTerminals, sendToNewTerminal]);
 
   // Per-session placement, derived from the live groups. Drives the session
@@ -1794,11 +1800,11 @@ export default function SessionWindowsHost({
         (acc, g) => (acc && acc.z >= g.z ? acc : g),
         null,
       );
-      createRawShellTab(topmost?.id ?? null).catch(() => { /* swallow — user-visible error surfaced via toast layer if any */ });
+      createNewTab(topmost?.id ?? null).catch(() => { /* swallow — user-visible error surfaced via toast layer if any */ });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [createRawShellTab]);
+  }, [createNewTab]);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, Session>();

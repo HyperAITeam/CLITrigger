@@ -369,7 +369,7 @@ export class SessionManager {
       const result = await claudeManager.startClaude(
         workDir, '', cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, undefined, resume,
-        opts?.cols ?? 100, opts?.rows ?? 30, cliSessionId,
+        opts?.cols ?? 100, opts?.rows ?? 30, cliSessionId, session.shell,
       );
       pid = result.pid;
       exitPromise = result.exitPromise;

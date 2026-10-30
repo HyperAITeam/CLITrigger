@@ -10,6 +10,15 @@ export function getCliStatus(): Promise<CliToolStatus[]> {
   return get('/api/cli/status');
 }
 
+export interface ShellOption {
+  id: string;
+  name: string;
+}
+
+export function getShells(): Promise<ShellOption[]> {
+  return get('/api/cli/shells');
+}
+
 export function refreshCliStatus(): Promise<CliToolStatus[]> {
   return post('/api/cli/status/refresh');
 }

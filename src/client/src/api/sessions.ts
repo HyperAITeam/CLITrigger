@@ -56,7 +56,7 @@ export function captureSessionSnapshot(id: string): Promise<{ available: boolean
 
 export function createSession(
   projectId: string,
-  data: { title: string; description?: string; cli_tool?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; tag_id?: string | null }
+  data: { title: string; description?: string; cli_tool?: string; use_worktree?: boolean; memory_inject_mode?: 'none' | 'all' | 'selected' | 'auto'; memory_node_ids?: string[]; memory_raw_file_paths?: string[]; tag_id?: string | null; shell?: string }
 ): Promise<Session> {
   return post(`/api/projects/${projectId}/sessions`, data);
 }

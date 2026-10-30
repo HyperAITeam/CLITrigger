@@ -5,7 +5,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import * as pty from 'node-pty';
 import treeKill from 'tree-kill';
-import { getAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
+import { getAdapter, getShellAdapter, type CliAdapter, type CliTool, type CliMode, type SandboxMode } from './cli-adapters.js';
 import { getToolStatus } from './cli-status.js';
 import { stripAnsi } from './pty-output-filter.js';
 
@@ -106,7 +106,7 @@ export class ClaudeManager {
    * Uses node-pty for tools that require a TTY (e.g. Codex),
    * falls back to child_process.spawn for others.
    */
-  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number, cliSessionId?: string): Promise<{
+  async startClaude(worktreePath: string, prompt: string, model?: string, extraOptions?: string, mode: CliMode = 'headless', tool: CliTool = 'claude', maxTurns?: number, projectPath?: string, sandboxMode?: SandboxMode, continueSession?: boolean, ptyCols?: number, ptyRows?: number, cliSessionId?: string, shellId?: string | null): Promise<{
     pid: number;
     stdout: NodeJS.ReadableStream;
     stderr: NodeJS.ReadableStream;
@@ -115,7 +115,7 @@ export class ClaudeManager {
     command: string;
     args: string[];
   }> {
-    const adapter = getAdapter(tool);
+    const adapter = tool === 'raw-shell' ? getShellAdapter(shellId) : getAdapter(tool);
     const args = adapter.buildArgs({ mode, prompt, model, extraOptions, maxTurns, workDir: worktreePath, projectPath: projectPath || worktreePath, sandboxMode, continueSession, cliSessionId });
 
     // Pre-flight on Windows only: spawn goes through cmd.exe (shell:true), so

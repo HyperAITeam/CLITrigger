@@ -8,7 +8,7 @@ import { sessionManager } from '../services/session-manager.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
 import { claudeManager } from '../services/claude-manager.js';
-import { getAdapter, type CliTool } from '../services/cli-adapters.js';
+import { getAdapter, getAvailableShells, type CliTool } from '../services/cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi } from '../services/pty-output-filter.js';
 import { createGit } from '../lib/git.js';
 import { listDiffFiles, snapshotWorkingTree } from '../lib/git-diff.js';
@@ -46,7 +46,8 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
 
     // cli_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { title, description, cli_tool, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id } = req.body;
+    const { title, description, cli_tool, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, shell } = req.body;
+    const normalizedShell = cli_tool === 'raw-shell' && getAvailableShells().some((s) => s.id === shell) ? shell as string : null;
     const trimmedTitle = typeof title === 'string' ? title.trim() : '';
     const finalTitle = trimmedTitle || `Session ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
     let normalizedTagId: string | null = null;
@@ -79,6 +80,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       normalizedMemIds,
       normalizedRaw === undefined ? null : normalizedRaw,
       normalizedTagId,
+      normalizedShell,
     );
     res.status(201).json(session);
   } catch (err: unknown) {
