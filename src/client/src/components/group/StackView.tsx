@@ -29,6 +29,7 @@ export interface StackViewProps {
   onTabClick: (sessionId: string) => void;
   onTabClose: (sessionId: string) => void;
   onTabMouseDown: (sessionId: string, path: Path, e: React.MouseEvent) => void;
+  onTabReorder: (sessionId: string, newIndex: number) => void;
   // Called by a SessionPane when its session transitions out of running.
   onPaneAutoClose: (sessionId: string) => void;
   // Registers the stack content rect so the host can hit-test drag drops.
@@ -54,10 +55,14 @@ export interface StackViewProps {
     onToggleMaximize?: () => void;
     isMaximized?: boolean;
     onApplyLayoutPreset?: (preset: LayoutPreset) => void;
+    // Whole-window drag, started when a tab is pulled off the tab bar.
+    onWindowDrag: (e: React.MouseEvent<HTMLDivElement>) => void;
   };
 }
 
 const TAB_HEIGHT = 26;
+// Vertical tolerance before a tab drag leaves the tab bar.
+const TAB_BAR_SLACK = 10;
 
 export default function StackView({
   stack,
@@ -69,6 +74,7 @@ export default function StackView({
   onTabClick,
   onTabClose,
   onTabMouseDown,
+  onTabReorder,
   onPaneAutoClose,
   registerRect,
   sendMessage,
@@ -89,6 +95,40 @@ export default function StackView({
     const sid = stack.activeTab;
     if (!sid) return;
     setRemountKeys((prev) => ({ ...prev, [sid]: (prev[sid] || 0) + 1 }));
+  };
+  // Chrome-style tab drag: while the cursor stays on the tab bar the tab is
+  // reordered; leaving the bar hands the gesture to the usual drag (window
+  // move for a single-stack group, tab detach/dock inside a split).
+  const beginTabReorder = (sid: string, e: React.MouseEvent<HTMLDivElement>) => {
+    const bar = e.currentTarget.parentElement;
+    if (!bar) return;
+    e.preventDefault();
+    const onMove = (ev: MouseEvent) => {
+      const r = bar.getBoundingClientRect();
+      if (ev.clientX < r.left || ev.clientX > r.right
+        || ev.clientY < r.top - TAB_BAR_SLACK || ev.clientY > r.bottom + TAB_BAR_SLACK) {
+        stop();
+        if (groupActions) groupActions.onWindowDrag(e);
+        else onTabMouseDown(sid, path, e);
+        return;
+      }
+      const tabEls = Array.from(bar.querySelectorAll<HTMLElement>('[data-tab-sid]'));
+      let index = 0;
+      for (const el of tabEls) {
+        if (el.dataset.tabSid === sid) continue;
+        const tr = el.getBoundingClientRect();
+        if (ev.clientX > tr.left + tr.width / 2) index++;
+      }
+      if (tabEls[index]?.dataset.tabSid !== sid) onTabReorder(sid, index);
+    };
+    const stop = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('blur', stop);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('blur', stop);
   };
   // Optional host context — null when StackView is rendered inside a popout
   // OS window (PopoutPage mounts StackView without a SessionWindowsHost
@@ -227,8 +267,15 @@ export default function StackView({
           return (
             <div
               key={sid}
+              data-tab-sid={sid}
               onMouseDown={(e) => {
                 if (e.button !== 0) return;
+                if (stack.tabs.length > 1) {
+                  e.stopPropagation();
+                  onTabClick(sid);
+                  beginTabReorder(sid, e);
+                  return;
+                }
                 if (groupActions) {
                   // Single-stack mode: don't start a tab-detach drag here.
                   // Let the mousedown bubble so the whole window drags via

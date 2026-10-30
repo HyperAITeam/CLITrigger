@@ -514,6 +514,9 @@ export default function SessionWindow({
   const handleTabMouseDown = useCallback((sid: string, path: Path, e: React.MouseEvent) => {
     api.beginTabDrag(group.id, sid, path, e);
   }, [api, group.id]);
+  const handleTabReorder = useCallback((sid: string, newIndex: number) => {
+    api.reorderTab(group.id, sid, newIndex);
+  }, [api, group.id]);
   const handlePaneAutoClose = useCallback((sid: string) => {
     api.close(sid);
   }, [api]);
@@ -782,6 +785,7 @@ export default function SessionWindow({
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
             onTabMouseDown={handleTabMouseDown}
+            onTabReorder={handleTabReorder}
             onPaneAutoClose={handlePaneAutoClose}
             registerRect={() => { /* hit-test uses elementFromPoint, no registry needed */ }}
             onSplitSizes={handleSplitSizes}
@@ -804,6 +808,7 @@ export default function SessionWindow({
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
             onTabMouseDown={handleTabMouseDown}
+            onTabReorder={handleTabReorder}
             onPaneAutoClose={handlePaneAutoClose}
             registerRect={() => { /* unused */ }}
             sendMessage={sendMessage}
@@ -819,6 +824,7 @@ export default function SessionWindow({
               onToggleMaximize: toggleMaximize,
               isMaximized,
               onApplyLayoutPreset: (preset) => api.applyLayoutPreset(group.id, preset),
+              onWindowDrag: onChromeWithDockMouseDown,
             }}
           />
         )}

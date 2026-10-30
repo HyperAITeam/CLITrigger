@@ -54,6 +54,7 @@ import {
   getNode,
   insertSessionsAt,
   removeTab,
+  reorderTab as treeReorderTab,
   setActiveTab as treeSetActiveTab,
   setSplitSizes as treeSetSplitSizes,
 } from '../group/groupTree';
@@ -318,6 +319,14 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
     setGroup((prev) => {
       if (!prev) return prev;
       const next: PopoutGroup = { ...prev, root: treeSetActiveTab(prev.root, sid) };
+      postUpdate({ root: next.root });
+      return next;
+    });
+  }, [postUpdate]);
+  const handleTabReorder = useCallback((sid: string, newIndex: number) => {
+    setGroup((prev) => {
+      if (!prev) return prev;
+      const next: PopoutGroup = { ...prev, root: treeReorderTab(prev.root, sid, newIndex) };
       postUpdate({ root: next.root });
       return next;
     });
@@ -937,6 +946,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
             onTabMouseDown={handleTabMouseDown}
+            onTabReorder={handleTabReorder}
             onPaneAutoClose={handlePaneAutoClose}
             registerRect={() => { /* hit-test not used in popout */ }}
             onSplitSizes={handleSplitSizes}
@@ -955,6 +965,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
             onTabMouseDown={handleTabMouseDown}
+            onTabReorder={handleTabReorder}
             onPaneAutoClose={handlePaneAutoClose}
             registerRect={() => { /* unused */ }}
             sendMessage={sendMessage}
@@ -968,6 +979,7 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
               onReDockGroup: handleReDock,
               onCloseGroup: handleCloseWindow,
               onApplyLayoutPreset: handleLayoutPreset,
+              onWindowDrag: handleWindowDragMouseDown,
             }}
           />
         )}
