@@ -23,10 +23,20 @@ type Favorite = { url: string; title: string };
 // The slice of Electron's <webview> API used here.
 type Guest = HTMLElement & { goBack(): void; canGoBack(): boolean };
 
-function normalizeUrl(raw: string): string {
+export function normalizeUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return DEFAULT_URL;
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  if (/^(https?|file):\/\//i.test(trimmed)) return trimmed;
+  // Local file path: Windows drive (C:\ or C:/), UNC share (\\host\share) or
+  // POSIX absolute (/home/…) → file URL.
+  if (/^[a-z]:[\\/]/i.test(trimmed) || /^[\\/]/.test(trimmed)) {
+    const slashed = trimmed.replace(/\\/g, '/');
+    const prefix = slashed.startsWith('//') ? 'file:' : slashed.startsWith('/') ? 'file://' : 'file:///';
+    return prefix + encodeURI(slashed).replace(/[?#]/g, encodeURIComponent);
+  }
+  // Local dev servers speak plain http.
+  if (/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(trimmed)) return `http://${trimmed}`;
+  return `https://${trimmed}`;
 }
 
 function makeTab(url = ''): Tab {
@@ -174,7 +184,11 @@ export default function WebPanel({ visible = true }: { visible?: boolean } = {})
 
   const tabLabel = (tab: Tab) => {
     if (tab.title) return tab.title;
-    try { return new URL(tab.url).hostname; } catch { return t('web.newTab'); }
+    try {
+      const url = new URL(tab.url);
+      // file:///C:/… has no hostname — fall back to the file name.
+      return url.hostname || decodeURIComponent(url.pathname.split('/').pop() || '') || t('web.newTab');
+    } catch { return t('web.newTab'); }
   };
 
   const isFavorite = favorites.some((favorite) => favorite.url === active.url);

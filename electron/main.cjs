@@ -308,14 +308,15 @@ function createWindow(port) {
   };
   blockOffOriginNav(mainWindow.webContents);
 
-  // <webview> guests (web panel): no preload / node, http(s) sources only.
-  // Popups are denied and handed to the web panel as a new tab (mailto goes
-  // to the OS); off-scheme navigation is blocked. Nothing is injected into
-  // the guest.
+  // <webview> guests (web panel): no preload / node, http(s) and local file
+  // sources only (file: comes from the user typing a path; Chromium itself
+  // blocks remote pages from navigating to file:). Popups are denied and
+  // handed to the web panel as a new tab (mailto goes to the OS); off-scheme
+  // navigation is blocked. Nothing is injected into the guest.
   // ponytail: <webview> over WebContentsView so DOM overlays (dialogs, menus)
   // still paint above it; swap to WebContentsView if Electron drops the tag.
   const isWebScheme = (url) => {
-    try { const p = new URL(url).protocol; return p === 'http:' || p === 'https:'; } catch { return false; }
+    try { const p = new URL(url).protocol; return p === 'http:' || p === 'https:' || p === 'file:'; } catch { return false; }
   };
   mainWindow.webContents.on('will-attach-webview', (e, prefs, params) => {
     delete prefs.preload;
