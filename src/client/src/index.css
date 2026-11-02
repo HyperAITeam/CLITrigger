@@ -453,6 +453,9 @@
   .vault-md-zoom .markdown-content h4 { font-size: 1em; }
   .vault-md-zoom .markdown-content code { font-size: 0.95em; }
   .vault-md-zoom .markdown-content table { font-size: 1em; }
+  /* text-* utilities also pin a rem line-height; inherit the unitless one
+     so zoomed text doesn't overlap. */
+  .vault-md-zoom .markdown-content :is(h1, h2, h3, h4, code, table) { line-height: inherit; }
 
   /* Find/Replace highlights in vault preview */
   mark.vault-find-match {
