@@ -323,13 +323,53 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
     setPos({ top, left, visible: true });
   }, [state.x, state.y]);
 
+  // "Send to terminal" cascades into a submenu to the right, opened by click
+  // or by hovering the row (native-menu style delay).
+  const sendRowRef = useRef<HTMLButtonElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const [submenuOpen, setSubmenuOpen] = useState(false);
+  const [submenuPos, setSubmenuPos] = useState({ top: 0, left: 0, visible: false });
+
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+
+  useLayoutEffect(() => {
+    if (!submenuOpen) { setSubmenuPos((p) => ({ ...p, visible: false })); return; }
+    const menu = ref.current;
+    const row = sendRowRef.current;
+    const sub = submenuRef.current;
+    if (!menu || !row || !sub) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const menuRect = menu.getBoundingClientRect();
+    const w = sub.offsetWidth;
+    const h = sub.offsetHeight;
+    let left = menuRect.right + 2;
+    if (left + w > vw - 8) left = menuRect.left - w - 2; // flip to the left side
+    if (left < 8) left = 8;
+    let top = row.getBoundingClientRect().top - 4; // align first item with the row
+    if (top + h > vh - 8) top = vh - 8 - h;
+    if (top < 8) top = 8;
+    setSubmenuPos({ top, left, visible: true });
+  }, [submenuOpen, terminals.length, linkedCount]);
+
+  // Delegated hover: over the row or the submenu wants it open, anywhere else
+  // in the menu wants it closed. Leaving the menu entirely changes nothing.
+  const onMenuHover = (e: React.MouseEvent) => {
+    const target = e.target as Node;
+    const wantOpen = !!(sendRowRef.current?.contains(target) || submenuRef.current?.contains(target));
+    window.clearTimeout(hoverTimer.current);
+    if (wantOpen !== submenuOpen) hoverTimer.current = window.setTimeout(() => setSubmenuOpen(wantOpen), 300);
+  };
+
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (ref.current?.contains(e.target as Node)) return;
       onClose();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    const onScroll = () => onClose();
+    // Scrolling the menu's own terminal list must not close it.
+    const onScroll = (e: Event) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, true);
@@ -355,6 +395,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
   return createPortal(
     <div
       ref={ref}
+      onMouseOver={onMenuHover}
       className="fixed z-tooltip min-w-[180px] rounded-lg py-1 shadow-elevated text-xs"
       style={{
         top: pos.top,
@@ -415,39 +456,62 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
       {!isDir && (
         <>
           <div className="my-1 border-t border-warm-200" />
-          <div className="px-3 py-1 text-warm-500 flex items-center gap-2">
+          <button
+            ref={sendRowRef}
+            type="button"
+            onClick={() => { window.clearTimeout(hoverTimer.current); setSubmenuOpen(true); }}
+            className={`w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2 ${submenuOpen ? 'bg-warm-100' : ''}`}
+          >
             <TerminalSquare className="w-3.5 h-3.5" />
             <span>{t('files.sendToTerminal')}</span>
-          </div>
-          {linkedCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onToggleIncludeLinks(); }}
-              className="w-full text-left px-3 py-1 text-warm-600 flex items-center gap-2"
-            >
-              {includeLinks ? <SquareCheck size={14} /> : <Square size={14} />}
-              <span>{t('files.includeLinks')} ({linkedCount})</span>
-            </button>
-          )}
-          <div className="max-h-40 overflow-y-auto">
-            {terminals.map((term) => (
-              <button
-                key={term.sessionId}
-                type="button"
-                onClick={() => { onSendToTerminal(term.sessionId); onClose(); }}
-                className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
-              >
-                <span className="truncate">{term.label}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => { onSendToNewTerminal(); onClose(); }}
-            className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
-          >
-            <span>＋ {t('files.newTerminal')}</span>
+            <ChevronRight className="w-3.5 h-3.5 ml-auto text-warm-500" />
           </button>
+          {submenuOpen && (
+            <div
+              ref={submenuRef}
+              className="fixed min-w-[160px] max-w-[280px] rounded-lg py-1 shadow-elevated"
+              style={{
+                top: submenuPos.top,
+                left: submenuPos.left,
+                opacity: submenuPos.visible ? 1 : 0,
+                backgroundColor: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {linkedCount > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onToggleIncludeLinks(); }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-600 flex items-center gap-2"
+                  >
+                    {includeLinks ? <SquareCheck size={14} /> : <Square size={14} />}
+                    <span>{t('files.includeLinks')} ({linkedCount})</span>
+                  </button>
+                  <div className="my-1 border-t border-warm-200" />
+                </>
+              )}
+              <div className="max-h-60 overflow-y-auto">
+                {terminals.map((term) => (
+                  <button
+                    key={term.sessionId}
+                    type="button"
+                    onClick={() => { onSendToTerminal(term.sessionId); onClose(); }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+                  >
+                    <span className="truncate">{term.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => { onSendToNewTerminal(); onClose(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+              >
+                <span>＋ {t('files.newTerminal')}</span>
+              </button>
+            </div>
+          )}
           {onCreateTask && (
             <button
               type="button"
