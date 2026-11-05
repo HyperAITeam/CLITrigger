@@ -6,14 +6,15 @@ import type { HarnessSkill } from './types';
 
 interface SkillsPanelProps {
   skills: HarnessSkill[] | undefined;
+  directory: string;
   saving: boolean;
   onSave: (name: string, content: string) => Promise<void>;
   onToggle: (name: string, enabled: boolean) => Promise<void>;
 }
 
-// Project-scoped skills (.claude/skills/<name>/SKILL.md): list with the
+// Project-scoped skills (<directory>/<name>/SKILL.md): list with the
 // frontmatter description, expand a row to edit the SKILL.md in place.
-export default function SkillsPanel({ skills, saving, onSave, onToggle }: SkillsPanelProps) {
+export default function SkillsPanel({ skills, directory, saving, onSave, onToggle }: SkillsPanelProps) {
   const { t } = useI18n();
   const [openName, setOpenName] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -35,7 +36,7 @@ export default function SkillsPanel({ skills, saving, onSave, onToggle }: Skills
     <div className="space-y-3 p-4 border border-warm-200 rounded-xl">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-warm-700">Skills</h4>
-        <code className="text-[10px] text-warm-400">.claude/skills/</code>
+        <code className="text-[10px] text-warm-400">{directory}</code>
       </div>
 
       {list.length === 0 ? (

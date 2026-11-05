@@ -12,13 +12,18 @@ interface HooksPanelProps {
   saving: boolean;
   onSave: (hooks: Record<string, unknown> | null) => Promise<void>;
   // index refers to hooks[event] when enabled=false, disabledHooks[event] when enabled=true.
+  // Named mode: event is the hook name and index is unused.
   onToggle: (event: string, index: number, enabled: boolean) => Promise<void>;
+  // Antigravity shape: { hookName: { enabled?, EventName: [...] } }, toggled per name.
+  named?: boolean;
 }
 
-// Claude hooks shape (loosely): { EventName: [{ matcher?, hooks: [{ type, command }] }] }.
+// Claude/Codex hooks shape (loosely): { EventName: [{ matcher?, hooks: [{ type, command }] }] }.
+// Antigravity non-tool events list handlers ({ type, command }) directly.
 // Rendered defensively — anything that doesn't match falls back to JSON text.
 interface HookEntry {
   matcher?: string;
+  command?: string;
   hooks?: Array<{ type?: string; command?: string }>;
   [k: string]: unknown;
 }
@@ -28,7 +33,7 @@ function asEntries(value: unknown): HookEntry[] | null {
   return value.filter((v): v is HookEntry => typeof v === 'object' && v !== null);
 }
 
-export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onSave, onToggle }: HooksPanelProps) {
+export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onSave, onToggle, named }: HooksPanelProps) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -37,6 +42,21 @@ export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onS
   const events = Array.from(new Set([...Object.keys(hooks ?? {}), ...Object.keys(disabledHooks ?? {})]));
   const hasHooks = events.length > 0;
   const hasParked = Object.keys(disabledHooks ?? {}).length > 0;
+
+  const renderCommands = (entry: HookEntry) => (
+    <>
+      {entry.matcher !== undefined && entry.matcher !== '' && (
+        <span className="inline-block px-1.5 py-0.5 mr-1.5 rounded-md bg-warm-200/60 text-warm-600 font-mono">
+          {entry.matcher}
+        </span>
+      )}
+      {(entry.hooks ?? [entry]).map((h, j) => (
+        <code key={j} className="block mt-0.5 px-2 py-1 rounded-md bg-theme-card border border-warm-150 text-warm-600 font-mono whitespace-pre-wrap break-all">
+          {h.command ?? JSON.stringify(h)}
+        </code>
+      ))}
+    </>
+  );
 
   const renderEntry = (event: string, entry: HookEntry, index: number, enabled: boolean) => (
     <div key={`${enabled ? 'on' : 'off'}-${index}`} className="flex items-start gap-2 text-[11px]">
@@ -48,20 +68,38 @@ export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onS
         title={enabled ? t('harness.toggle.disable') : t('harness.toggle.enable')}
         className="mt-0.5 flex-shrink-0 cursor-pointer"
       />
-      <div className={`min-w-0 flex-1${enabled ? '' : ' opacity-50'}`}>
-        {entry.matcher !== undefined && entry.matcher !== '' && (
-          <span className="inline-block px-1.5 py-0.5 mr-1.5 rounded-md bg-warm-200/60 text-warm-600 font-mono">
-            {entry.matcher}
-          </span>
-        )}
-        {(entry.hooks ?? []).map((h, j) => (
-          <code key={j} className="block mt-0.5 px-2 py-1 rounded-md bg-theme-card border border-warm-150 text-warm-600 font-mono whitespace-pre-wrap break-all">
-            {h.command ?? JSON.stringify(h)}
-          </code>
-        ))}
-      </div>
+      <div className={`min-w-0 flex-1${enabled ? '' : ' opacity-50'}`}>{renderCommands(entry)}</div>
     </div>
   );
+
+  const renderNamedGroup = (name: string) => {
+    const value = hooks?.[name];
+    const group = typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const enabled = group.enabled !== false;
+    return (
+      <div key={name} className="p-2.5 bg-warm-50 border border-warm-150 rounded-lg">
+        <label className="flex items-center gap-2 text-xs font-semibold text-warm-700 font-mono mb-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            disabled={saving}
+            onChange={() => onToggle(name, 0, !enabled)}
+            title={enabled ? t('harness.toggle.disable') : t('harness.toggle.enable')}
+            className="flex-shrink-0 cursor-pointer"
+          />
+          {name}
+        </label>
+        <div className={`space-y-1.5 text-[11px]${enabled ? '' : ' opacity-50'}`}>
+          {Object.entries(group).filter(([key]) => key !== 'enabled').map(([event, entries]) => (
+            <div key={event}>
+              <span className="font-mono text-warm-500">{event}</span>
+              {(asEntries(entries) ?? []).map((entry, i) => <div key={i}>{renderCommands(entry)}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     setDraft(JSON.stringify(hooks ?? {}, null, 2));
@@ -135,6 +173,8 @@ export default function HooksPanel({ hooks, disabledHooks, filePath, saving, onS
         </>
       ) : !hasHooks ? (
         <p className="text-xs text-warm-400">{t('harness.hooks.empty') || 'No hooks configured.'}</p>
+      ) : named ? (
+        <div className="space-y-2">{events.map(renderNamedGroup)}</div>
       ) : (
         <div className="space-y-2">
           {events.map((event) => {

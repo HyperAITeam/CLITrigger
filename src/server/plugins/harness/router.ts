@@ -178,8 +178,8 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
-  // PUT /:projectId/:cli/hooks — replace the hooks block in settings.json
-  // (Claude only). Body: { hooks: object } or { hooks: null } to remove.
+  // PUT /:projectId/:cli/hooks — replace the CLI's hooks block.
+  // Body: { hooks: object } or { hooks: null } to remove.
   router.put('/:projectId/:cli/hooks', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {
@@ -211,9 +211,8 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
-  // POST /:projectId/:cli/hooks/toggle — move one hook entry between
-  // settings.json and .claude/hooks.disabled.json (Claude only).
-  // Body: { event: string, index: number, enabled: boolean }.
+  // POST /:projectId/:cli/hooks/toggle — turn one hook entry on/off (see
+  // HarnessAdapter.toggleHook). Body: { event: string, index: number, enabled: boolean }.
   router.post('/:projectId/:cli/hooks/toggle', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {
@@ -243,8 +242,8 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
-  // POST /:projectId/:cli/skills/:name/toggle — rename SKILL.md <-> SKILL.md.disabled
-  // (Claude only). Body: { enabled: boolean }.
+  // POST /:projectId/:cli/skills/:name/toggle — rename SKILL.md <-> SKILL.md.disabled.
+  // Body: { enabled: boolean }.
   router.post('/:projectId/:cli/skills/:name/toggle', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {
@@ -274,8 +273,8 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
-  // POST /:projectId/:cli/plugins/:id/toggle — set enabledPlugins[id] for this
-  // project (Claude only). Body: { enabled: boolean }.
+  // POST /:projectId/:cli/plugins/:id/toggle — turn an installed plugin on/off
+  // (Claude: per-project override; Codex/Antigravity: user-wide). Body: { enabled: boolean }.
   router.post('/:projectId/:cli/plugins/:id/toggle', async (req: Request<{ projectId: string; cli: string; id: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {
@@ -291,17 +290,18 @@ export function createRouter(_helpers: PluginHelpers): Router {
       res.status(400).json({ error: `${req.params.cli} does not support plugins` });
       return;
     }
-    // "<name>@<marketplace>" — also keeps prototype keys out of enabledPlugins.
-    if (!/^[^@\s]+@[^@\s]+$/.test(req.params.id)) {
-      res.status(400).json({ error: 'Plugin id must look like "name@marketplace"' });
-      return;
-    }
     const body = req.body as { enabled?: unknown } | undefined;
     if (!body || typeof body.enabled !== 'boolean') {
       res.status(400).json({ error: 'Body must include boolean "enabled"' });
       return;
     }
     try {
+      // Only installed plugins — also keeps arbitrary/prototype keys out of the config files.
+      const current = await adapter.read(projectPath);
+      if (!current.plugins?.some((plugin) => plugin.id === req.params.id)) {
+        res.status(404).json({ error: `Plugin "${req.params.id}" is not installed` });
+        return;
+      }
       await adapter.togglePlugin(projectPath, req.params.id, body.enabled);
       const snapshot = await adapter.read(projectPath);
       res.json(snapshot);
@@ -310,8 +310,7 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
-  // PUT /:projectId/:cli/skills/:name — write .claude/skills/<name>/SKILL.md
-  // (Claude only).
+  // PUT /:projectId/:cli/skills/:name — write <skills dir>/<name>/SKILL.md.
   router.put('/:projectId/:cli/skills/:name', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {
@@ -343,7 +342,7 @@ export function createRouter(_helpers: PluginHelpers): Router {
 
   // POST /:projectId/:cli/port-from-claude — inline CLAUDE.md + skills into
   // the target CLI's AGENTS.md as a marker-delimited block (idempotent on
-  // re-port). Hooks are not ported: the target CLIs have no hook mechanism.
+  // re-port). Hooks are not ported.
   router.post('/:projectId/:cli/port-from-claude', async (req: Request<{ projectId: string; cli: string }>, res: Response) => {
     const projectPath = resolveProjectPath(req.params.projectId);
     if (!projectPath) {

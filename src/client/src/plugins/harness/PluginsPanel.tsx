@@ -3,13 +3,16 @@ import type { HarnessPlugin } from './types';
 
 interface PluginsPanelProps {
   plugins: HarnessPlugin[] | undefined;
+  // Where the on/off state is written, shown in the header.
+  source: string;
+  // Explains the toggle's reach (per-project vs user-wide).
+  note: string;
   saving: boolean;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
 }
 
-// Installed Claude Code plugins visible to this project; the checkbox writes a
-// per-project enabledPlugins override.
-export default function PluginsPanel({ plugins, saving, onToggle }: PluginsPanelProps) {
+// Installed plugins the CLI would load in this project, with on/off toggles.
+export default function PluginsPanel({ plugins, source, note, saving, onToggle }: PluginsPanelProps) {
   const { t } = useI18n();
   const list = plugins ?? [];
 
@@ -17,7 +20,7 @@ export default function PluginsPanel({ plugins, saving, onToggle }: PluginsPanel
     <div className="space-y-3 p-4 border border-warm-200 rounded-xl">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-warm-700">Plugins</h4>
-        <code className="text-[10px] text-warm-400">enabledPlugins</code>
+        <code className="text-[10px] text-warm-400">{source}</code>
       </div>
 
       {list.length === 0 ? (
@@ -43,7 +46,7 @@ export default function PluginsPanel({ plugins, saving, onToggle }: PluginsPanel
                   <span className="flex flex-wrap items-baseline gap-x-1.5">
                     <span className="text-xs font-semibold text-warm-700 font-mono">{name}</span>
                     <span className="text-[10px] text-warm-400 font-mono">
-                      @{marketplace} · {plugin.scope}{plugin.version ? ` · v${plugin.version}` : ''}
+                      {marketplace ? `@${marketplace} · ` : ''}{plugin.scope}{plugin.version ? ` · v${plugin.version}` : ''}
                     </span>
                   </span>
                   {plugin.description && (
@@ -53,7 +56,7 @@ export default function PluginsPanel({ plugins, saving, onToggle }: PluginsPanel
               </label>
             );
           })}
-          <p className="text-[11px] text-warm-400">{t('harness.plugins.note')}</p>
+          <p className="text-[11px] text-warm-400">{note}</p>
         </div>
       )}
     </div>

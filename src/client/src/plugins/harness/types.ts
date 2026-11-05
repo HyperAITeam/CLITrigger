@@ -25,9 +25,12 @@ export interface HarnessFilePaths {
   mcp?: string;
   // Claude only: CLAUDE.local.md alongside CLAUDE.md.
   localMemory?: string;
+  // File holding the hooks block.
+  hooks?: string;
 }
 
-// A project-scoped skill: .claude/skills/<name>/SKILL.md (Claude only).
+// A project-scoped skill: .claude/skills/<name>/SKILL.md (Claude) or
+// .agents/skills/<name>/SKILL.md (Codex, Antigravity).
 export interface HarnessSkill {
   name: string;
   description?: string;
@@ -37,9 +40,9 @@ export interface HarnessSkill {
   enabled: boolean;
 }
 
-// An installed Claude Code plugin visible to this project (Claude only).
+// An installed plugin the CLI would load in this project.
 export interface HarnessPlugin {
-  id: string; // "<name>@<marketplace>"
+  id: string; // "<name>@<marketplace>" (Antigravity: "<name>")
   scope: string; // user | project | local
   version?: string;
   description?: string;
@@ -57,8 +60,9 @@ export interface HarnessSnapshot {
   // Claude only — undefined for CLIs without these conventions.
   localMemory?: string;
   localMemoryExists?: boolean;
+  // Claude/Codex: { Event: [entries] }. Antigravity: { hookName: { enabled?, Event: [...] } }.
   hooks?: Record<string, unknown>;
-  // Hook entries parked in .claude/hooks.disabled.json, keyed by event name.
+  // Hook entries parked in hooks.disabled.json (Claude/Codex), keyed by event name.
   disabledHooks?: Record<string, unknown>;
   skills?: HarnessSkill[];
   plugins?: HarnessPlugin[];

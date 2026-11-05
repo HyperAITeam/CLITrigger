@@ -1,22 +1,45 @@
 import { promises as fs } from 'fs';
+import os from 'os';
 import path from 'path';
 import TOML from '@iarna/toml';
 import {
   safeJoin,
   exists,
+  listSubdirectories,
+  readJsonOrEmpty,
   readTextOrEmpty,
   atomicWriteText,
   deepMerge,
   pruneUndefined,
 } from '../io.js';
-import type { HarnessAdapter, HarnessSettings, HarnessSnapshot, McpServer } from '../types.js';
+import { readSkills, writeSkill, toggleSkill, writeHooksBlock, toggleParkedHook } from '../shared.js';
+import type { HarnessAdapter, HarnessPlugin, HarnessSettings, HarnessSnapshot, McpServer } from '../types.js';
 
 interface CodexConfigRaw {
   model?: string;
   approval_policy?: unknown;
   sandbox_mode?: string;
   mcp_servers?: Record<string, CodexMcpEntry>;
+  plugins?: Record<string, { enabled?: boolean }>;
   [k: string]: unknown;
+}
+
+// Codex scans .agents/skills (shared with Antigravity).
+const SKILLS_BASE = ['.agents', 'skills'];
+
+// User-level Codex dir; honors CODEX_HOME like Codex does.
+function codexHome(): string {
+  return process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+}
+
+// Project hooks: { description?, hooks: { Event: [entries] } } — same block
+// shape as Claude's settings.json. Loaded only when the project is trusted.
+function hooksPath(projectPath: string): string {
+  return safeJoin(projectPath, '.codex', 'hooks.json');
+}
+
+function disabledHooksPath(projectPath: string): string {
+  return safeJoin(projectPath, '.codex', 'hooks.disabled.json');
 }
 
 interface CodexMcpEntry {
@@ -92,6 +115,24 @@ function settingsToView(raw: CodexConfigRaw): HarnessSettings {
   };
 }
 
+// Installed plugins are the [plugins."<name>@<marketplace>"] tables in the user
+// config; the manifest sits in plugins/cache/<marketplace>/<name>/<version>/.
+async function readPlugins(): Promise<HarnessPlugin[]> {
+  const home = codexHome();
+  const config = await readConfig(path.join(home, 'config.toml'));
+  const plugins: HarnessPlugin[] = [];
+  for (const [id, entry] of Object.entries(config.plugins ?? {})) {
+    const [name, marketplace = ''] = id.split('@');
+    const pluginDir = path.join(home, 'plugins', 'cache', marketplace, name);
+    const version = (await listSubdirectories(pluginDir)).pop();
+    const manifest = version
+      ? await readJsonOrEmpty<{ description?: string }>(path.join(pluginDir, version, '.codex-plugin', 'plugin.json'))
+      : {};
+    plugins.push({ id, scope: 'user', version, description: manifest.description, enabled: entry?.enabled !== false });
+  }
+  return plugins;
+}
+
 async function trustLevelWarning(projectPath: string): Promise<string[]> {
   const home = process.env.USERPROFILE || process.env.HOME;
   if (!home) return [];
@@ -124,17 +165,58 @@ export const codexHarnessAdapter: HarnessAdapter = {
     );
 
     const warnings = await trustLevelWarning(projectPath);
+    const hp = hooksPath(projectPath);
+    const hooksFile = await readJsonOrEmpty<{ hooks?: Record<string, unknown> }>(hp);
 
     const snapshot: HarnessSnapshot = {
       cli: 'codex',
       exists: configExists || memoryExists,
-      filePaths: { settings: cp, memory: memp },
+      filePaths: { settings: cp, memory: memp, hooks: hp },
       settings: settingsToView(raw),
       memory,
       mcp,
       warnings,
+      hooks: hooksFile.hooks,
+      disabledHooks: await readJsonOrEmpty<Record<string, unknown>>(disabledHooksPath(projectPath)),
+      skills: await readSkills(projectPath, SKILLS_BASE),
+      plugins: await readPlugins(),
     };
     return snapshot;
+  },
+
+  async writeHooks(projectPath, hooks) {
+    await writeHooksBlock(hooksPath(projectPath), hooks);
+  },
+
+  async toggleHook(projectPath, event, index, enabled) {
+    await toggleParkedHook(hooksPath(projectPath), disabledHooksPath(projectPath), event, index, enabled);
+  },
+
+  async writeSkill(projectPath, name, content) {
+    await writeSkill(projectPath, SKILLS_BASE, name, content);
+  },
+
+  async toggleSkill(projectPath, name, enabled) {
+    await toggleSkill(projectPath, SKILLS_BASE, name, enabled);
+  },
+
+  async togglePlugin(_projectPath, id, enabled) {
+    // Codex reads plugin state only from the user config (project layers and
+    // -c overrides are ignored), so this is a user-wide switch. Edit the one
+    // line in place instead of re-serializing the user's whole config.toml.
+    const file = path.join(codexHome(), 'config.toml');
+    const text = await readTextOrEmpty(file);
+    const header = `[plugins."${id}"]`;
+    const start = text.indexOf(header);
+    if (start === -1) throw new Error(`${header} not found in ${file}`);
+    const bodyStart = start + header.length;
+    const nextHeader = text.slice(bodyStart).search(/^[ \t]*\[/m);
+    const bodyEnd = nextHeader === -1 ? text.length : bodyStart + nextHeader;
+    const body = text.slice(bodyStart, bodyEnd);
+    const nextBody = /^[ \t]*enabled[ \t]*=/m.test(body)
+      ? body.replace(/^([ \t]*enabled[ \t]*=[ \t]*)\S+/m, `$1${enabled}`)
+      : `\nenabled = ${enabled}${body}`;
+    await atomicWriteText(file, text.slice(0, bodyStart) + nextBody + text.slice(bodyEnd));
   },
 
   async writeSettings(projectPath, patch) {

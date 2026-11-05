@@ -245,20 +245,29 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
         )
       )}
 
-      {cli === 'claude' && (
-        <>
-          <HooksPanel
-            hooks={snapshot.hooks}
-            disabledHooks={snapshot.disabledHooks}
-            filePath={snapshot.filePaths.settings}
-            saving={savingHooks}
-            onSave={handleSaveHooks}
-            onToggle={handleToggleHook}
-          />
-          <SkillsPanel skills={snapshot.skills} saving={savingSkill} onSave={handleSaveSkill} onToggle={handleToggleSkill} />
-          <PluginsPanel plugins={snapshot.plugins} saving={savingPlugin} onToggle={handleTogglePlugin} />
-        </>
-      )}
+      <HooksPanel
+        hooks={snapshot.hooks}
+        disabledHooks={snapshot.disabledHooks}
+        filePath={snapshot.filePaths.hooks ?? snapshot.filePaths.settings}
+        saving={savingHooks}
+        onSave={handleSaveHooks}
+        onToggle={handleToggleHook}
+        named={cli === 'antigravity'}
+      />
+      <SkillsPanel
+        skills={snapshot.skills}
+        directory={cli === 'claude' ? '.claude/skills/' : '.agents/skills/'}
+        saving={savingSkill}
+        onSave={handleSaveSkill}
+        onToggle={handleToggleSkill}
+      />
+      <PluginsPanel
+        plugins={snapshot.plugins}
+        source={cli === 'claude' ? 'enabledPlugins' : cli === 'codex' ? '~/.codex/config.toml' : '~/.gemini/config/config.json'}
+        note={cli === 'claude' ? t('harness.plugins.note') : t('harness.plugins.noteGlobal')}
+        saving={savingPlugin}
+        onToggle={handleTogglePlugin}
+      />
 
       <McpServerList servers={snapshot.mcp} saving={savingMcp} onUpsert={handleUpsertMcp} onRemove={handleRemoveMcp} />
     </div>

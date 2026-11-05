@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -244,6 +244,38 @@ describe('antigravityHarnessAdapter', () => {
     expect(raw.mcpServers.fetcher.httpUrl).toBe('https://example.com/mcp');
     expect(raw.mcpServers.fetcher.headers).toEqual({ Authorization: 'Bearer x' });
   });
+
+  it('toggles named hooks via their enabled flag and plugins in the user config', async () => {
+    const home = await makeTempProject();
+    const homedir = vi.spyOn(os, 'homedir').mockReturnValue(home);
+    try {
+      const configDir = path.join(home, '.gemini', 'config');
+      const pluginDir = path.join(configDir, 'plugins', 'demo', '.antigravity-plugin');
+      await fs.mkdir(pluginDir, { recursive: true });
+      await fs.writeFile(path.join(pluginDir, 'plugin.json'), JSON.stringify({ version: '1.0.0', description: 'Demo', disabled: true }));
+      await fs.writeFile(path.join(configDir, 'config.json'), JSON.stringify({ userSettings: { a: 1 } }));
+      const lint = { PostToolUse: [{ matcher: 'run_command', hooks: [{ command: 'lint' }] }] };
+      await fs.mkdir(path.join(dir, '.agents'), { recursive: true });
+      await fs.writeFile(path.join(dir, '.agents', 'hooks.json'), JSON.stringify({ lint }));
+
+      let snap = await antigravityHarnessAdapter.read(dir);
+      expect(snap.plugins).toEqual([{ id: 'demo', scope: 'user', version: '1.0.0', description: 'Demo', enabled: false }]);
+
+      await antigravityHarnessAdapter.togglePlugin!(dir, 'demo', true);
+      await antigravityHarnessAdapter.toggleHook!(dir, 'lint', 0, false);
+      snap = await antigravityHarnessAdapter.read(dir);
+      expect(snap.plugins?.[0].enabled).toBe(true);
+      expect(snap.hooks).toEqual({ lint: { ...lint, enabled: false } });
+      expect(JSON.parse(await fs.readFile(path.join(configDir, 'config.json'), 'utf8')))
+        .toEqual({ userSettings: { a: 1 }, plugins: { demo: { enabled: true } } });
+
+      await antigravityHarnessAdapter.toggleHook!(dir, 'lint', 0, true);
+      expect((await antigravityHarnessAdapter.read(dir)).hooks).toEqual({ lint });
+    } finally {
+      homedir.mockRestore();
+      await rmrf(home);
+    }
+  });
 });
 
 describe('codexHarnessAdapter', () => {
@@ -297,5 +329,45 @@ describe('codexHarnessAdapter', () => {
 
     const snap = await codexHarnessAdapter.read(dir);
     expect(snap.mcp.map((s) => s.alias)).toEqual(['b']);
+  });
+
+  it('reads .agents skills, parks hooks, and flips one plugin line in the user config', async () => {
+    const home = await makeTempProject();
+    const previous = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = home;
+    try {
+      const userConfig = '# keep me\nmodel = "x"\n\n[plugins."demo@m"]\nenabled = true\n\n[plugins."other@m"]\nenabled = true\n';
+      await fs.writeFile(path.join(home, 'config.toml'), userConfig);
+      const manifestDir = path.join(home, 'plugins', 'cache', 'm', 'demo', '1.2.3', '.codex-plugin');
+      await fs.mkdir(manifestDir, { recursive: true });
+      await fs.writeFile(path.join(manifestDir, 'plugin.json'), JSON.stringify({ description: 'Demo' }));
+      await fs.mkdir(path.join(dir, '.agents', 'skills', 's'), { recursive: true });
+      await fs.writeFile(path.join(dir, '.agents', 'skills', 's', 'SKILL.md'), '---\ndescription: S\n---\n');
+      const stop = { hooks: [{ type: 'command', command: 'x' }] };
+      await fs.mkdir(path.join(dir, '.codex'), { recursive: true });
+      await fs.writeFile(path.join(dir, '.codex', 'hooks.json'), JSON.stringify({ description: 'd', hooks: { Stop: [stop] } }));
+
+      let snap = await codexHarnessAdapter.read(dir);
+      expect(snap.skills).toEqual([expect.objectContaining({ name: 's', description: 'S', enabled: true })]);
+      expect(snap.hooks).toEqual({ Stop: [stop] });
+      expect(snap.plugins).toEqual([
+        { id: 'demo@m', scope: 'user', version: '1.2.3', description: 'Demo', enabled: true },
+        { id: 'other@m', scope: 'user', version: undefined, description: undefined, enabled: true },
+      ]);
+
+      await codexHarnessAdapter.togglePlugin!(dir, 'demo@m', false);
+      await codexHarnessAdapter.toggleHook!(dir, 'Stop', 0, false);
+      snap = await codexHarnessAdapter.read(dir);
+      expect(snap.plugins?.map((p) => p.enabled)).toEqual([false, true]);
+      expect(snap.hooks).toBeUndefined();
+      expect(snap.disabledHooks).toEqual({ Stop: [stop] });
+      // Only that one line changes; comments and other sections survive.
+      expect(await fs.readFile(path.join(home, 'config.toml'), 'utf8')).toBe(userConfig.replace('enabled = true', 'enabled = false'));
+      expect(JSON.parse(await fs.readFile(path.join(dir, '.codex', 'hooks.json'), 'utf8'))).toEqual({ description: 'd' });
+    } finally {
+      if (previous === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = previous;
+      await rmrf(home);
+    }
   });
 });
