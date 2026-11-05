@@ -1,4 +1,6 @@
 import { promises as fs } from 'fs';
+import os from 'os';
+import path from 'path';
 import {
   safeJoin,
   exists,
@@ -10,13 +12,22 @@ import {
   deepMerge,
   pruneUndefined,
 } from '../io.js';
-import type { HarnessAdapter, HarnessSettings, HarnessSkill, HarnessSnapshot, McpServer } from '../types.js';
+import type { HarnessAdapter, HarnessPlugin, HarnessSettings, HarnessSkill, HarnessSnapshot, McpServer } from '../types.js';
 
 interface ClaudeSettingsRaw {
   model?: string;
   permissions?: { defaultMode?: string;[k: string]: unknown };
   hooks?: Record<string, unknown>;
+  enabledPlugins?: Record<string, boolean>;
   [k: string]: unknown;
+}
+
+// One install record in ~/.claude/plugins/installed_plugins.json (version 2).
+interface InstalledPluginEntry {
+  scope?: string;
+  projectPath?: string;
+  installPath?: string;
+  version?: string;
 }
 
 interface ClaudeMcpEntry {
@@ -35,6 +46,15 @@ interface ClaudeMcpFile {
 
 function settingsPath(projectPath: string): string {
   return safeJoin(projectPath, '.claude', 'settings.json');
+}
+
+function localSettingsPath(projectPath: string): string {
+  return safeJoin(projectPath, '.claude', 'settings.local.json');
+}
+
+// User-level Claude config dir; honors CLAUDE_CONFIG_DIR like Claude Code does.
+function claudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 }
 
 function mcpPath(projectPath: string): string {
@@ -100,6 +120,43 @@ async function readSkills(projectPath: string): Promise<HarnessSkill[]> {
   return skills;
 }
 
+function samePath(a: string, b: string): boolean {
+  const normalize = (p: string) => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+  return normalize(a) === normalize(b);
+}
+
+// Plugins Claude would load in this project: user-scope installs plus
+// project/local installs recorded for this exact path. Enabled state follows
+// Claude's precedence: settings.local.json > settings.json > user settings.
+async function readPlugins(projectPath: string, projectEnabled: Record<string, boolean> | undefined): Promise<HarnessPlugin[]> {
+  const configDir = claudeConfigDir();
+  const installed = await readJsonOrEmpty<{ plugins?: Record<string, InstalledPluginEntry[]> }>(
+    path.join(configDir, 'plugins', 'installed_plugins.json'),
+  );
+  const userEnabled = (await readJsonOrEmpty<ClaudeSettingsRaw>(path.join(configDir, 'settings.json'))).enabledPlugins ?? {};
+  const localEnabled = (await readJsonOrEmpty<ClaudeSettingsRaw>(localSettingsPath(projectPath))).enabledPlugins ?? {};
+
+  const plugins: HarnessPlugin[] = [];
+  for (const [id, entries] of Object.entries(installed.plugins ?? {})) {
+    if (!Array.isArray(entries)) continue;
+    const entry =
+      entries.find((e) => e.scope !== 'user' && e.projectPath && samePath(e.projectPath, projectPath)) ??
+      entries.find((e) => e.scope === 'user');
+    if (!entry) continue;
+    const manifest = entry.installPath
+      ? await readJsonOrEmpty<{ description?: string }>(path.join(entry.installPath, '.claude-plugin', 'plugin.json'))
+      : {};
+    plugins.push({
+      id,
+      scope: entry.scope ?? 'user',
+      version: entry.version,
+      description: manifest.description,
+      enabled: localEnabled[id] ?? projectEnabled?.[id] ?? userEnabled[id] ?? false,
+    });
+  }
+  return plugins;
+}
+
 function fromMcpEntry(alias: string, entry: ClaudeMcpEntry): McpServer {
   const transport = entry.type ?? (entry.url ? 'http' : 'stdio');
   return {
@@ -144,6 +201,7 @@ export const claudeHarnessAdapter: HarnessAdapter = {
     const localMemory = await readTextOrEmpty(localMemp);
     const skills = await readSkills(projectPath);
     const disabledHooks = await readJsonOrEmpty<Record<string, unknown>>(disabledHooksPath(projectPath));
+    const plugins = await readPlugins(projectPath, settingsRaw.enabledPlugins);
 
     const settings: HarnessSettings = {
       model: settingsRaw.model,
@@ -172,6 +230,7 @@ export const claudeHarnessAdapter: HarnessAdapter = {
       hooks: settingsRaw.hooks,
       disabledHooks,
       skills,
+      plugins,
     };
     return snapshot;
   },
@@ -249,6 +308,16 @@ export const claudeHarnessAdapter: HarnessAdapter = {
     const parked = `${active}.disabled`;
     const [from, to] = enabled ? [parked, active] : [active, parked];
     if (await exists(from)) await fs.rename(from, to);
+  },
+
+  async togglePlugin(projectPath, id, enabled) {
+    // A settings.local.json entry overrides settings.json, so update it where
+    // it already lives; otherwise record the per-project override in settings.json.
+    const localPath = localSettingsPath(projectPath);
+    const local = await readJsonOrEmpty<ClaudeSettingsRaw>(localPath);
+    const target = local.enabledPlugins?.[id] !== undefined ? localPath : settingsPath(projectPath);
+    const file = target === localPath ? local : await readJsonOrEmpty<ClaudeSettingsRaw>(target);
+    await atomicWriteJson(target, { ...file, enabledPlugins: { ...(file.enabledPlugins ?? {}), [id]: enabled } });
   },
 
   async upsertMcp(projectPath, server) {

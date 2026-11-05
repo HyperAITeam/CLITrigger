@@ -37,6 +37,17 @@ export interface HarnessSkill {
   enabled: boolean;
 }
 
+// An installed Claude Code plugin visible to this project (user-scope, or
+// project/local-scope installed for this path). Claude only.
+export interface HarnessPlugin {
+  id: string; // "<name>@<marketplace>"
+  scope: string; // user | project | local
+  version?: string;
+  description?: string;
+  // Effective enabledPlugins value: settings.local.json > settings.json > ~/.claude/settings.json.
+  enabled: boolean;
+}
+
 export interface HarnessSnapshot {
   cli: CliId;
   exists: boolean;
@@ -52,6 +63,7 @@ export interface HarnessSnapshot {
   // Hook entries parked in .claude/hooks.disabled.json, keyed by event name.
   disabledHooks?: Record<string, unknown>;
   skills?: HarnessSkill[];
+  plugins?: HarnessPlugin[];
 }
 
 export interface HarnessAdapter {
@@ -70,4 +82,5 @@ export interface HarnessAdapter {
   // disabledHooks[event][index] back into settings.json (enabled=true).
   toggleHook?(projectPath: string, event: string, index: number, enabled: boolean): Promise<void>;
   toggleSkill?(projectPath: string, name: string, enabled: boolean): Promise<void>;
+  togglePlugin?(projectPath: string, id: string, enabled: boolean): Promise<void>;
 }

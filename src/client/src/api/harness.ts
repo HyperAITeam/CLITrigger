@@ -65,6 +65,17 @@ export function toggleSkill(
   return post(`/api/harness/${projectId}/${cli}/skills/${encodeURIComponent(name)}/toggle`, { enabled });
 }
 
+// Set enabledPlugins[id] for this project (settings.local.json if it already
+// overrides the plugin there, otherwise .claude/settings.json).
+export function togglePlugin(
+  projectId: string,
+  cli: CliId,
+  id: string,
+  enabled: boolean,
+): Promise<HarnessSnapshot> {
+  return post(`/api/harness/${projectId}/${cli}/plugins/${encodeURIComponent(id)}/toggle`, { enabled });
+}
+
 export function updateSkill(
   projectId: string,
   cli: CliId,

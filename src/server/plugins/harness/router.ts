@@ -274,6 +274,42 @@ export function createRouter(_helpers: PluginHelpers): Router {
     }
   });
 
+  // POST /:projectId/:cli/plugins/:id/toggle — set enabledPlugins[id] for this
+  // project (Claude only). Body: { enabled: boolean }.
+  router.post('/:projectId/:cli/plugins/:id/toggle', async (req: Request<{ projectId: string; cli: string; id: string }>, res: Response) => {
+    const projectPath = resolveProjectPath(req.params.projectId);
+    if (!projectPath) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!isCliId(req.params.cli)) {
+      res.status(400).json({ error: 'Invalid cli identifier' });
+      return;
+    }
+    const adapter = adapters[req.params.cli];
+    if (!adapter.togglePlugin) {
+      res.status(400).json({ error: `${req.params.cli} does not support plugins` });
+      return;
+    }
+    // "<name>@<marketplace>" — also keeps prototype keys out of enabledPlugins.
+    if (!/^[^@\s]+@[^@\s]+$/.test(req.params.id)) {
+      res.status(400).json({ error: 'Plugin id must look like "name@marketplace"' });
+      return;
+    }
+    const body = req.body as { enabled?: unknown } | undefined;
+    if (!body || typeof body.enabled !== 'boolean') {
+      res.status(400).json({ error: 'Body must include boolean "enabled"' });
+      return;
+    }
+    try {
+      await adapter.togglePlugin(projectPath, req.params.id, body.enabled);
+      const snapshot = await adapter.read(projectPath);
+      res.json(snapshot);
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
   // PUT /:projectId/:cli/skills/:name — write .claude/skills/<name>/SKILL.md
   // (Claude only).
   router.put('/:projectId/:cli/skills/:name', async (req: Request<{ projectId: string; cli: string; name: string }>, res: Response) => {

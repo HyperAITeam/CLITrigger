@@ -159,6 +159,51 @@ describe('claudeHarnessAdapter', () => {
     snap = await claudeHarnessAdapter.read(dir);
     expect(snap.skills?.[0]).toMatchObject({ enabled: true, content: 'edited' });
   });
+
+  it('lists plugins visible to the project and toggles a per-project override', async () => {
+    const configDir = await makeTempProject();
+    const previous = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = configDir;
+    try {
+      const installPath = path.join(configDir, 'cache', 'a');
+      await fs.mkdir(path.join(installPath, '.claude-plugin'), { recursive: true });
+      await fs.writeFile(path.join(installPath, '.claude-plugin', 'plugin.json'), JSON.stringify({ description: 'A plugin' }));
+      await fs.mkdir(path.join(configDir, 'plugins'), { recursive: true });
+      await fs.writeFile(path.join(configDir, 'plugins', 'installed_plugins.json'), JSON.stringify({
+        version: 2,
+        plugins: {
+          'a@m': [{ scope: 'user', installPath, version: '1.0.0' }],
+          'b@m': [{ scope: 'local', projectPath: dir }],
+          'other@m': [{ scope: 'project', projectPath: path.join(dir, 'elsewhere') }],
+        },
+      }));
+      await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ enabledPlugins: { 'a@m': true } }));
+      await fs.mkdir(path.join(dir, '.claude'), { recursive: true });
+      await fs.writeFile(path.join(dir, '.claude', 'settings.local.json'), JSON.stringify({ enabledPlugins: { 'b@m': true } }));
+
+      let snap = await claudeHarnessAdapter.read(dir);
+      expect(snap.plugins).toEqual([
+        { id: 'a@m', scope: 'user', version: '1.0.0', description: 'A plugin', enabled: true },
+        { id: 'b@m', scope: 'local', version: undefined, description: undefined, enabled: true },
+      ]);
+
+      await claudeHarnessAdapter.togglePlugin!(dir, 'a@m', false);
+      await claudeHarnessAdapter.togglePlugin!(dir, 'b@m', false);
+      snap = await claudeHarnessAdapter.read(dir);
+      expect(snap.plugins?.map((p) => p.enabled)).toEqual([false, false]);
+      // User-scope override goes to settings.json; the local entry is updated in place.
+      const shared = JSON.parse(await fs.readFile(path.join(dir, '.claude', 'settings.json'), 'utf8'));
+      const local = JSON.parse(await fs.readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8'));
+      expect(shared.enabledPlugins).toEqual({ 'a@m': false });
+      expect(local.enabledPlugins).toEqual({ 'b@m': false });
+      // User settings stay untouched.
+      expect(JSON.parse(await fs.readFile(path.join(configDir, 'settings.json'), 'utf8')).enabledPlugins).toEqual({ 'a@m': true });
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previous;
+      await rmrf(configDir);
+    }
+  });
 });
 
 describe('antigravityHarnessAdapter', () => {

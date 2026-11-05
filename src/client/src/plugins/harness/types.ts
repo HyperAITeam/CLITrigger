@@ -37,6 +37,15 @@ export interface HarnessSkill {
   enabled: boolean;
 }
 
+// An installed Claude Code plugin visible to this project (Claude only).
+export interface HarnessPlugin {
+  id: string; // "<name>@<marketplace>"
+  scope: string; // user | project | local
+  version?: string;
+  description?: string;
+  enabled: boolean;
+}
+
 export interface HarnessSnapshot {
   cli: CliId;
   exists: boolean;
@@ -52,4 +61,5 @@ export interface HarnessSnapshot {
   // Hook entries parked in .claude/hooks.disabled.json, keyed by event name.
   disabledHooks?: Record<string, unknown>;
   skills?: HarnessSkill[];
+  plugins?: HarnessPlugin[];
 }

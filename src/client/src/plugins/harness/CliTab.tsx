@@ -8,6 +8,7 @@ import SettingsForm from './SettingsForm';
 import MemoryEditor from './MemoryEditor';
 import HooksPanel from './HooksPanel';
 import SkillsPanel from './SkillsPanel';
+import PluginsPanel from './PluginsPanel';
 import McpServerList from './McpServerList';
 import type { CliId, HarnessSettings, HarnessSnapshot, McpServer } from './types';
 
@@ -26,6 +27,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
   const [savingLocalMemory, setSavingLocalMemory] = useState(false);
   const [savingHooks, setSavingHooks] = useState(false);
   const [savingSkill, setSavingSkill] = useState(false);
+  const [savingPlugin, setSavingPlugin] = useState(false);
   const [savingMcp, setSavingMcp] = useState(false);
   // Show the CLAUDE.local.md editor even before the file exists (saving
   // creates it). Reset implicitly on remount per project/cli.
@@ -110,6 +112,19 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingSkill(false);
+    }
+  };
+
+  const handleTogglePlugin = async (id: string, enabled: boolean) => {
+    setSavingPlugin(true);
+    setError(null);
+    try {
+      const next = await harnessApi.togglePlugin(projectId, cli, id, enabled);
+      onChange(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingPlugin(false);
     }
   };
 
@@ -241,6 +256,7 @@ export default function CliTab({ projectId, cli, snapshot, onChange }: CliTabPro
             onToggle={handleToggleHook}
           />
           <SkillsPanel skills={snapshot.skills} saving={savingSkill} onSave={handleSaveSkill} onToggle={handleToggleSkill} />
+          <PluginsPanel plugins={snapshot.plugins} saving={savingPlugin} onToggle={handleTogglePlugin} />
         </>
       )}
 
