@@ -526,6 +526,16 @@ GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태
 
 세션 생성/편집 시 위키 주입 모드 (None/All/Selected/Auto)와 항목을 지정하면, 세션 시작 시 초기 프롬프트가 자동으로 PTY에 전송되지 않고 **보류**됩니다. 터미널 상단에 "Initial prompt ready · N chars" 배너가 뜨며 **Preview / Send / Skip** 버튼으로 검토 후 명시적으로 처리합니다. 위키 주입 없이 description만 있는 경우에도 동일하게 작동합니다 (둘 다 비어 있으면 배너 없이 빈 입력으로 시작).
 
+#### 새 세션으로 작업 넘기기 (handoff)
+
+CLITrigger MCP 서버(`clitrigger`)가 연결된 CLI에서 지금 대화의 작업 맥락을 새 세션으로 넘길 수 있습니다. Claude Code에서는 `/mcp__clitrigger__handoff [새 세션이 할 일]`로 실행합니다.
+
+1. 에이전트가 `list_projects`로 현재 작업 디렉터리에 해당하는 프로젝트를 찾습니다 (워크트리는 `<프로젝트>/.worktrees/` 아래이므로 같은 프로젝트로 인식)
+2. 목표 / 한 일 / 남은 일과 다음 단계 / 내린 결정과 이유 / 주의점을 요약해 `create_session`의 description으로 새 세션을 만듭니다
+3. 새 세션은 세션 목록에 바로 나타나며, 시작하면 요약이 위의 **Send/Skip pre-flight** 배너로 보류됩니다 — Preview로 확인한 뒤 Send
+
+에이전트는 세션을 직접 시작하거나 입력을 보내지 않습니다. MCP 프롬프트를 지원하지 않는 CLI에서는 "새 세션으로 넘겨줘"처럼 자연어로 요청하면 됩니다(요약 형식은 고정되지 않음). 에이전트가 직접 구동할 세션(`start_session` + `send_session_input`)은 description 없이 만들어야 합니다 — description이 있으면 보류 중 입력이 409로 거부됩니다.
+
 #### iOS Safari 모바일 Hangul IME
 
 모바일 오버레이 textarea에서 한글 조합이 분리되어 PTY로 전달되던 iOS Safari 18 버그는 클라이언트 사이드 두벌식 composer로 해결되어 있습니다 (iOS가 compositionevent를 발생시키지 않아도 OS가 splice한 결과를 다시 조립). 이중 모음/복합 종성 일부는 분리 syllable로 commit될 수 있으나 일반 채팅/CLI 입력은 정상 작동.
