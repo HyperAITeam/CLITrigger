@@ -11,6 +11,7 @@ export interface McpConnection {
   token: string;
   config: unknown;
   commands: McpCommand[];
+  preferredPort: number | null;
 }
 
 export function getMcpConnection(): Promise<McpConnection> {

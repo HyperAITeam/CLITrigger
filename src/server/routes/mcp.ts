@@ -23,11 +23,14 @@ router.get('/mcp/connection', (req: Request, res: Response) => {
   // ponytail: only the Claude syntax is verified in this project; agy/codex flags
   // follow the same documented pattern — confirm with `<cli> mcp add --help`.
   const commands = [
-    { id: 'claude', label: 'Claude Code', command: `claude mcp add --transport http clitrigger ${url} ${header}` },
+    // --scope user: the default (local) scope only registers it for the folder the command ran in.
+    { id: 'claude', label: 'Claude Code', command: `claude mcp add --scope user --transport http clitrigger ${url} ${header}` },
     { id: 'antigravity', label: 'Antigravity (agy)', command: `agy mcp add --transport http clitrigger ${url} ${header}` },
     { id: 'codex', label: 'Codex', command: `codex mcp add --transport http clitrigger ${url} ${header}` },
   ];
-  res.json({ url, token, config, commands });
+  // Set by Electron when its configured port was taken and it fell back to another.
+  const preferredPort = Number(process.env.CLITRIGGER_PREFERRED_PORT) || null;
+  res.json({ url, token, config, commands, preferredPort });
 });
 
 export default router;

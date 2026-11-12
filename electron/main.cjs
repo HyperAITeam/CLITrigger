@@ -172,6 +172,8 @@ async function bootServer() {
   serverPort = await findFreePort(config.port);
 
   process.env.PORT = String(serverPort);
+  // MCP clients registered against the configured port can't reach a fallback port.
+  if (serverPort !== config.port) process.env.CLITRIGGER_PREFERRED_PORT = String(config.port);
   process.env.DB_PATH = dbPath;
   // Only forward a legacy plaintext password so the server can migrate it.
   // Without it, the server enters setup mode and the web UI prompts the user.

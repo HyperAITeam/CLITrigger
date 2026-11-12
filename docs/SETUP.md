@@ -528,7 +528,7 @@ GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태
 
 #### 새 세션으로 작업 넘기기 (handoff)
 
-CLITrigger MCP 서버(`clitrigger`)가 연결된 CLI에서 지금 대화의 작업 맥락을 새 세션으로 넘길 수 있습니다. Claude Code에서는 `/mcp__clitrigger__handoff [새 세션이 할 일]`로 실행합니다.
+CLITrigger MCP 서버(`clitrigger`)가 연결된 CLI에서 지금 대화의 작업 맥락을 새 세션으로 넘길 수 있습니다. 연결은 설정 → MCP 탭의 명령을 한 번 실행하면 됩니다 (Claude Code 명령은 `--scope user`라 모든 폴더에서 사용 가능. 데스크톱 앱이 기본 포트가 사용 중이라 다른 포트로 뜨면 같은 탭에 경고가 표시됨). Claude Code에서는 `/mcp__clitrigger__handoff [새 세션이 할 일]`로 실행합니다.
 
 1. 에이전트가 `list_projects`로 현재 작업 디렉터리에 해당하는 프로젝트를 찾습니다 (워크트리는 `<프로젝트>/.worktrees/` 아래이므로 같은 프로젝트로 인식)
 2. 목표 / 한 일 / 남은 일과 다음 단계 / 내린 결정과 이유 / 주의점을 요약해 `create_session`의 description으로 새 세션을 만듭니다

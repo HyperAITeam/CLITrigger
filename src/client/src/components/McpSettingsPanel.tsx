@@ -60,6 +60,11 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
         <p className="text-sm text-warm-400">{t('mcp.loading')}</p>
       ) : (
         <>
+          {conn.preferredPort && (
+            <p className="text-xs text-amber-500 mb-5">
+              {t('mcp.portFallback').replace('{port}', String(conn.preferredPort))}
+            </p>
+          )}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-warm-600">{t('mcp.config.label')}</label>
