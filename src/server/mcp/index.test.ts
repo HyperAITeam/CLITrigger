@@ -85,6 +85,18 @@ describe('MCP endpoint', () => {
     await client.close();
   });
 
+  it('serves the handoff prompt with the optional instruction', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(['handoff']);
+    const { messages } = await client.getPrompt({ name: 'handoff', arguments: { instruction: '테스트만 돌리기' } });
+    const text = (messages[0].content as { type: string; text: string }).text;
+    expect(text).toContain('create_session');
+    expect(text).toContain('테스트만 돌리기');
+    await client.close();
+  });
+
   it('send_session_input forwards text/submit to the input route', async () => {
     const { client, transport } = makeClient(TOKEN);
     await client.connect(transport);

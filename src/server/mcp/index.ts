@@ -220,7 +220,7 @@ function buildServer(baseUrl: string): McpServer {
     'create_session',
     {
       description:
-        '인터랙티브 터미널 세션(사용자가 직접 CLI와 대화)을 생성합니다. 자동 실행이 아니라 수동 대화용입니다. title 생략 시 자동 생성됩니다.',
+        '인터랙티브 터미널 세션(사용자가 직접 CLI와 대화)을 생성합니다. 자동 실행이 아니라 수동 대화용입니다. title 생략 시 자동 생성됩니다. description은 첫 프롬프트로 보류되어 사용자가 UI에서 세션을 시작한 뒤 확인하고 보냅니다(보류 중 send_session_input은 409) — 에이전트가 직접 구동할 세션이면 description 없이 만드세요.',
       inputSchema: {
         project_id: z.string(),
         title: z.string().optional(),
@@ -328,6 +328,39 @@ function buildServer(baseUrl: string): McpServer {
       const query = new URLSearchParams({ state, timeout: String(timeout_ms ?? 55_000) });
       return run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}/wait?${query}`));
     },
+  );
+
+  // ── Prompts ──────────────────────────────────────────────────────────────
+  // Handoff rides on create_session's held first prompt: no new server state,
+  // and the user previews the summary before the new session sees it.
+  server.registerPrompt(
+    'handoff',
+    {
+      title: '새 세션으로 넘기기',
+      description: '지금 대화의 작업 맥락을 요약해 CLITrigger 새 세션의 첫 프롬프트로 넘깁니다.',
+      argsSchema: { instruction: z.string().optional().describe('새 세션이 이어서 할 일 (생략 시 남은 작업 전체)') },
+    },
+    ({ instruction }) => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `지금까지 이 대화에서 한 작업을 CLITrigger의 새 세션으로 넘겨줘. 새 세션은 이 대화를 모르므로 아래 요약만 읽고 바로 이어서 작업할 수 있어야 해.
+
+1. clitrigger의 list_projects로 프로젝트를 찾는다. 현재 작업 디렉터리와 path가 같거나, 현재 디렉터리가 그 path 아래(워크트리는 <path>/.worktrees/ 아래)인 프로젝트를 고른다. 경로 구분자와 대소문자는 무시한다. 못 찾거나 애매하면 사용자에게 묻는다.
+2. 마크다운 요약을 짧고 구체적으로 쓴다:
+   - 목표
+   - 한 일 (커밋, 바꾼 파일 경로)
+   - 남은 일과 바로 다음 단계
+   - 내린 결정과 이유
+   - 주의점 (실패한 시도, 함정)
+   - 현재 디렉터리가 워크트리면 그 절대 경로
+   코드 전문은 넣지 말고 파일 경로와 위치만 적는다.
+3. create_session(project_id, title=작업 주제, description=요약)을 호출한다. cli_tool은 사용자가 정했을 때만 넣는다.
+4. start_session과 send_session_input은 호출하지 않는다. description은 새 세션의 첫 프롬프트로 보류되고, 사용자가 CLITrigger에서 그 세션을 시작한 뒤 미리보기로 확인하고 보낸다. 만든 세션 제목을 알려주고 끝낸다.${instruction ? `\n\n새 세션이 이어서 할 일: ${instruction} — 요약의 '바로 다음 단계'에 이것을 적는다.` : ''}`,
+        },
+      }],
+    }),
   );
 
   // ── Wiki (내부적으로는 memory node) ────────────────────────────────────────

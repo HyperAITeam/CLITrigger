@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Todo } from '../types';
+import type { Session, Todo } from '../types';
 
 export interface WsEvent {
   type: string;
@@ -28,6 +28,7 @@ export interface WsEvent {
   reason?: string;
   // Session events
   sessionId?: string;
+  session?: Session; // session:created
   state?: string; // session:agent-state
   // Discussion events
   discussionId?: string;

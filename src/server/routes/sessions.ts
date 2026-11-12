@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { execFileSync } from 'child_process';
 import * as queries from '../db/queries.js';
 import { sessionManager } from '../services/session-manager.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
 import { claudeManager } from '../services/claude-manager.js';
@@ -82,6 +83,8 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       normalizedTagId,
       normalizedShell,
     );
+    // Lets the UI list sessions created elsewhere (e.g. MCP create_session).
+    broadcaster.broadcast({ type: 'session:created', session });
     res.status(201).json(session);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

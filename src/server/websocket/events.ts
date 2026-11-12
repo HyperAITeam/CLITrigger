@@ -1,4 +1,4 @@
-import type { Todo } from '../db/queries.js';
+import type { Session, Todo } from '../db/queries.js';
 import type { AgentState } from '../services/agent-state-detector.js';
 
 export type WSEvent =
@@ -15,6 +15,7 @@ export type WSEvent =
   | { type: 'discussion:message-changed'; discussionId: string; messageId: string; agentId: string; agentName: string; round: number; status: string }
   | { type: 'discussion:log'; discussionId: string; messageId: string; message: string; logType: string; agentName: string }
   | { type: 'discussion:commit'; discussionId: string; messageId: string; commitHash: string; message: string }
+  | { type: 'session:created'; session: Session }
   | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null; cli_session_id?: string | null; resumable?: boolean }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }

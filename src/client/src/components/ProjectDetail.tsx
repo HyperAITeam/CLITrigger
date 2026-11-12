@@ -234,6 +234,10 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           }
         }
       }
+      if (event.type === 'session:created' && event.session && event.session.project_id === id) {
+        const created = event.session;
+        setSessions((prev) => (prev.some((s) => s.id === created.id) ? prev : [created, ...prev]));
+      }
       if (event.type === 'session:status-changed' && event.sessionId) {
         setSessions((prev) =>
           prev.map((s) => {
@@ -630,7 +634,8 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
 
   // Session handlers
   const handleAddSession = useCallback((session: Session) => {
-    setSessions((prev) => [session, ...prev]);
+    // The session:created broadcast may have landed first.
+    setSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [session, ...prev]));
   }, []);
 
   const handleUpdateSession = useCallback((session: Session) => {
