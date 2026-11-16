@@ -63,7 +63,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               v{__APP_VERSION__}
             </div>
           </aside>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 max-h-[calc(100vh-2rem)] overflow-y-auto">
             {tab === 'account' && <PasswordSettingsPanel onClose={onClose} />}
             {tab === 'session' && <SessionSettingsPanel onClose={onClose} />}
             {tab === 'tunnel' && <TunnelSettingsPanel onClose={onClose} />}
