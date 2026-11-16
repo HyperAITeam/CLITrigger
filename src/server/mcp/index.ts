@@ -85,12 +85,13 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다.",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 위키 노드를 골라 프롬프트에 넣습니다(기본 none).",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
         priority: z.number().optional(),
+        memory_inject_mode: z.enum(['none', 'all', 'auto']).optional(),
         loop: z.object({
           max_rounds: z.number().int().min(1).max(50),
           check: z.string().optional(),
@@ -139,6 +140,15 @@ function buildServer(baseUrl: string): McpServer {
       inputSchema: { todo_id: z.string() },
     },
     ({ todo_id }) => run(() => callApi(baseUrl, token, 'POST', `/api/todos/${todo_id}/stop`)),
+  );
+
+  server.registerTool(
+    'list_todos',
+    {
+      description: '프로젝트의 자동 작업(TODO) 목록을 반환합니다. status는 pending/running/completed/failed/stopped/merged입니다.',
+      inputSchema: { project_id: z.string() },
+    },
+    ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/todos`)),
   );
 
   server.registerTool(
@@ -379,6 +389,31 @@ function buildServer(baseUrl: string): McpServer {
     },
     ({ project_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/memory/nodes`, body)),
+  );
+
+  server.registerTool(
+    'list_wiki_nodes',
+    {
+      description: '프로젝트 위키(Wiki)의 노드를 본문까지 모두 반환합니다. 노드를 새로 만들기 전에 같은 주제가 있는지 확인할 때 쓰세요.',
+      inputSchema: { project_id: z.string() },
+    },
+    // ponytail: returns every node with its full body; add a title-only listing if wikis grow large.
+    ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/memory/nodes`)),
+  );
+
+  server.registerTool(
+    'update_wiki_node',
+    {
+      description: '위키(Wiki) 노드를 수정합니다. 준 필드만 바뀝니다. body는 통째로 교체되므로 내용을 덧붙일 때는 기존 body에 합쳐서 보내세요.',
+      inputSchema: {
+        node_id: z.string(),
+        title: z.string().optional(),
+        body: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        pinned: z.boolean().optional(),
+      },
+    },
+    ({ node_id, ...body }) => run(() => callApi(baseUrl, token, 'PUT', `/api/memory/nodes/${node_id}`, body)),
   );
 
   server.registerTool(

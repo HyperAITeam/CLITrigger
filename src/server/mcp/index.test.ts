@@ -74,12 +74,15 @@ describe('MCP endpoint', () => {
       'get_session_state',
       'get_todo_logs',
       'list_projects',
+      'list_todos',
+      'list_wiki_nodes',
       'read_session_output',
       'send_session_input',
       'start_session',
       'start_todo',
       'stop_session',
       'stop_todo',
+      'update_wiki_node',
       'wait_session_state',
     ]);
     await client.close();
