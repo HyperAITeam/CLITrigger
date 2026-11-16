@@ -3,9 +3,11 @@ import { Copy, Check } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useToast } from '../hooks/useToast';
 import {
+  getMcpCatalog,
   getMcpConnection,
   getMcpClients,
   setMcpClientRegistered,
+  type McpCatalog,
   type McpConnection,
   type McpClientStatus,
 } from '../api/mcp';
@@ -14,16 +16,39 @@ interface PanelProps {
   onClose?: () => void;
 }
 
+type Tab = 'connect' | 'tools' | 'prompts';
+
 const STATE_DOT: Record<McpClientStatus['state'], string> = {
   registered: 'bg-status-success',
   stale: 'bg-status-warning',
   unregistered: 'bg-status-info',
 };
 
+// Tool groups reuse the app's own tab names. ponytail: grouped by the noun in
+// the tool name; a tool matching none lands in "other".
+const TOOL_GROUPS = [
+  { noun: 'project', label: 'mcp.tools.group.project' },
+  { noun: 'todo', label: 'tabs.tasks' },
+  { noun: 'planner', label: 'tabs.planner' },
+  { noun: 'schedule', label: 'tabs.schedules' },
+  { noun: 'session', label: 'tabs.sessions' },
+  { noun: 'wiki', label: 'tabs.wiki' },
+];
+
+function groupTools(tools: McpCatalog['tools']) {
+  const groups = [...TOOL_GROUPS, { noun: '', label: 'mcp.tools.group.other' }].map((group) => ({ ...group, tools: [] as McpCatalog['tools'] }));
+  for (const tool of tools) {
+    (groups.find((group) => group.noun && tool.name.includes(group.noun)) ?? groups[groups.length - 1]).tools.push(tool);
+  }
+  return groups.filter((group) => group.tools.length > 0);
+}
+
 export default function McpSettingsPanel({ onClose }: PanelProps) {
   const { t } = useI18n();
   const { success: toastSuccess, error: toastError } = useToast();
+  const [tab, setTab] = useState<Tab>('connect');
   const [conn, setConn] = useState<McpConnection | null>(null);
+  const [catalog, setCatalog] = useState<McpCatalog | null>(null);
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -36,6 +61,9 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
     getMcpClients()
       .then((list) => { if (!cancelled) setClients(list); })
       .catch(() => { /* the manual section below still works */ });
+    getMcpCatalog()
+      .then((c) => { if (!cancelled) setCatalog(c); })
+      .catch(() => { /* the tools/prompts tabs stay empty */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -85,9 +113,34 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
   return (
     <div className="p-8">
       <h2 className="text-lg font-semibold text-warm-800 mb-1">{t('mcp.title')}</h2>
-      <p className="text-xs text-warm-400 mb-6">{t('mcp.description')}</p>
+      <p className="text-xs text-warm-400 mb-4">{t('mcp.description')}</p>
 
-      {!conn ? (
+      <div role="tablist" className="flex gap-0.5 mb-6 p-1 rounded-xl w-fit" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+        {([
+          { key: 'connect', label: t('mcp.tabs.connect') },
+          { key: 'tools', label: t('mcp.tabs.tools'), count: catalog?.tools.length },
+          { key: 'prompts', label: t('mcp.tabs.prompts'), count: catalog?.prompts.length },
+        ] as { key: Tab; label: string; count?: number }[]).map(({ key, label, count }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`px-3 py-1.5 text-xs whitespace-nowrap rounded-lg transition-all duration-200 ${
+              tab === key ? 'text-theme-text font-semibold shadow-soft' : 'text-theme-text-secondary font-medium hover:text-theme-text'
+            }`}
+            style={tab === key ? { backgroundColor: 'var(--color-bg-card)' } : undefined}
+          >
+            {label}
+            {count !== undefined && (
+              <span className={`ml-1 ${tab === key ? 'text-theme-text-tertiary' : 'text-theme-muted'}`}>{count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'connect' && (!conn ? (
         <p className="text-sm text-warm-400">{t('mcp.loading')}</p>
       ) : (
         <>
@@ -164,6 +217,58 @@ export default function McpSettingsPanel({ onClose }: PanelProps) {
           </details>
 
           <p className="text-2xs text-warm-400">{t('mcp.tokenNote')}</p>
+        </>
+      ))}
+
+      {tab === 'tools' && catalog && (
+        <>
+          <p className="text-2xs text-warm-400 mb-3">{t('mcp.tools.hint')}</p>
+          <div className="space-y-2">
+            {groupTools(catalog.tools).map((group) => (
+              <details key={group.label} className="rounded-lg" style={blockStyle}>
+                <summary className="px-3 py-2.5 text-sm text-warm-700 cursor-pointer">
+                  {t(group.label)} <span className="text-warm-400">({group.tools.length})</span>
+                </summary>
+                <div className="px-3 pb-3 space-y-3">
+                  {group.tools.map((tool) => (
+                    <div key={tool.name}>
+                      <div className="text-xs font-mono text-warm-700">{tool.name}</div>
+                      <div className="text-2xs text-warm-400 mt-0.5">{tool.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        </>
+      )}
+
+      {tab === 'prompts' && catalog && (
+        <>
+          <p className="text-2xs text-warm-400 mb-3">{t('mcp.prompts.hint')}</p>
+          <div className="space-y-3">
+            {catalog.prompts.map((prompt) => {
+              const command = `/mcp__clitrigger__${prompt.name}`;
+              return (
+                <div key={prompt.name} className="p-3 rounded-lg" style={blockStyle}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-sm text-warm-700">{prompt.title ?? prompt.name}</span>
+                    <CopyButton label={`prompt:${prompt.name}`} text={command} />
+                  </div>
+                  <p className="text-2xs text-warm-400 mb-2">{prompt.description}</p>
+                  <code className="block text-2xs font-mono text-warm-600">
+                    {command}
+                    {prompt.arguments.map((argument) => (argument.required ? ` <${argument.name}>` : ` [${argument.name}]`)).join('')}
+                  </code>
+                  {prompt.arguments.map((argument) => (
+                    <p key={argument.name} className="text-2xs text-warm-400 mt-1">
+                      <span className="font-mono">{argument.name}</span>: {argument.description}
+                    </p>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 

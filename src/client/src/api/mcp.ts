@@ -22,6 +22,20 @@ export interface McpClientStatus {
   state: 'registered' | 'stale' | 'unregistered';
 }
 
+export interface McpCatalog {
+  tools: { name: string; description: string }[];
+  prompts: {
+    name: string;
+    title?: string;
+    description: string;
+    arguments: { name: string; description?: string; required?: boolean }[];
+  }[];
+}
+
+export function getMcpCatalog(): Promise<McpCatalog> {
+  return get('/api/mcp/catalog');
+}
+
 export function getMcpConnection(): Promise<McpConnection> {
   return get('/api/mcp/connection');
 }

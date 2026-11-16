@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getSetting } from '../db/app-settings.js';
+import { listMcpCatalog } from '../mcp/index.js';
 import {
   isMcpClient,
   listMcpClients,
@@ -30,6 +31,11 @@ router.get('/mcp/connection', (req: Request, res: Response) => {
   // Set by Electron when its configured port was taken and it fell back to another.
   const preferredPort = Number(process.env.CLITRIGGER_PREFERRED_PORT) || null;
   res.json({ url, token, config, commands, preferredPort });
+});
+
+// GET /api/mcp/catalog - the tools and prompts this server offers MCP clients.
+router.get('/mcp/catalog', async (_req: Request, res: Response) => {
+  res.json(await listMcpCatalog());
 });
 
 // One-click registration configures the CLIs on this machine, so it always

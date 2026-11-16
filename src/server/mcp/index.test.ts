@@ -8,7 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { setSetting } from '../db/app-settings.js';
 import { closeDatabase } from '../db/connection.js';
-import { mountMcp } from './index.js';
+import { mountMcp, listMcpCatalog } from './index.js';
 
 const TOKEN = 'test-mcp-token-abc';
 let server: Server;
@@ -105,6 +105,15 @@ describe('MCP endpoint', () => {
       for (const fragment of expected) expect(text, `${name} → ${fragment}`).toContain(fragment);
     }
     await client.close();
+  });
+
+  it('lists the catalog for the settings UI in-process', async () => {
+    const catalog = await listMcpCatalog();
+    expect(catalog.tools).toHaveLength(24);
+    expect(catalog.tools.find((tool) => tool.name === 'list_projects')?.description).toBeTruthy();
+    const handoff = catalog.prompts.find((prompt) => prompt.name === 'handoff');
+    expect(handoff?.title).toBe('새 세션으로 넘기기');
+    expect(handoff?.arguments.map((argument) => argument.name)).toEqual(['instruction']);
   });
 
   it('send_session_input forwards text/submit to the input route', async () => {

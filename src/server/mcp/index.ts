@@ -2,6 +2,8 @@ import type { Express, Request, Response, RequestHandler } from 'express';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { getSetting } from '../db/app-settings.js';
 import { matchesMcpToken } from '../middleware/auth.js';
 
@@ -488,6 +490,44 @@ const mcpAuth: RequestHandler = (req, res, next) => {
     id: null,
   });
 };
+
+export interface McpCatalog {
+  tools: { name: string; description: string }[];
+  prompts: {
+    name: string;
+    title?: string;
+    description: string;
+    arguments: { name: string; description?: string; required?: boolean }[];
+  }[];
+}
+
+/**
+ * What an MCP client would see, for the settings UI. Asks a real in-process
+ * client so the list can never drift from what buildServer registers.
+ */
+export async function listMcpCatalog(): Promise<McpCatalog> {
+  // Listing never invokes a tool, so the loopback base URL is unused.
+  const server = buildServer('http://127.0.0.1');
+  const client = new Client({ name: 'clitrigger-settings', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    const { tools } = await client.listTools();
+    const { prompts } = await client.listPrompts();
+    return {
+      tools: tools.map((tool) => ({ name: tool.name, description: tool.description ?? '' })),
+      prompts: prompts.map((prompt) => ({
+        name: prompt.name,
+        title: prompt.title,
+        description: prompt.description ?? '',
+        arguments: (prompt.arguments ?? []).map(({ name, description, required }) => ({ name, description, required })),
+      })),
+    };
+  } finally {
+    await client.close();
+  }
+}
 
 export function mountMcp(app: Express): void {
   app.post('/mcp', mcpAuth, async (req: Request, res: Response) => {
