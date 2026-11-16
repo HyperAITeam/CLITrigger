@@ -341,6 +341,13 @@ function buildServer(baseUrl: string): McpServer {
   );
 
   // ── Prompts ──────────────────────────────────────────────────────────────
+  // User-invoked recipes over the tools above. Each starts by finding the
+  // CLITrigger project for the client's working directory.
+  const findProject = 'clitrigger의 list_projects로 프로젝트를 찾는다. 현재 작업 디렉터리와 path가 같거나, 현재 디렉터리가 그 path 아래(워크트리는 <path>/.worktrees/ 아래)인 프로젝트를 고른다. 경로 구분자와 대소문자는 무시한다. 못 찾거나 애매하면 사용자에게 묻는다.';
+  const userPrompt = (text: string) => ({
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }],
+  });
+
   // Handoff rides on create_session's held first prompt: no new server state,
   // and the user previews the summary before the new session sees it.
   server.registerPrompt(
@@ -350,14 +357,9 @@ function buildServer(baseUrl: string): McpServer {
       description: '지금 대화의 작업 맥락을 요약해 CLITrigger 새 세션의 첫 프롬프트로 넘깁니다.',
       argsSchema: { instruction: z.string().optional().describe('새 세션이 이어서 할 일 (생략 시 남은 작업 전체)') },
     },
-    ({ instruction }) => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `지금까지 이 대화에서 한 작업을 CLITrigger의 새 세션으로 넘겨줘. 새 세션은 이 대화를 모르므로 아래 요약만 읽고 바로 이어서 작업할 수 있어야 해.
+    ({ instruction }) => userPrompt(`지금까지 이 대화에서 한 작업을 CLITrigger의 새 세션으로 넘겨줘. 새 세션은 이 대화를 모르므로 아래 요약만 읽고 바로 이어서 작업할 수 있어야 해.
 
-1. clitrigger의 list_projects로 프로젝트를 찾는다. 현재 작업 디렉터리와 path가 같거나, 현재 디렉터리가 그 path 아래(워크트리는 <path>/.worktrees/ 아래)인 프로젝트를 고른다. 경로 구분자와 대소문자는 무시한다. 못 찾거나 애매하면 사용자에게 묻는다.
+1. ${findProject}
 2. 마크다운 요약을 짧고 구체적으로 쓴다:
    - 목표
    - 한 일 (커밋, 바꾼 파일 경로)
@@ -367,10 +369,60 @@ function buildServer(baseUrl: string): McpServer {
    - 현재 디렉터리가 워크트리면 그 절대 경로
    코드 전문은 넣지 말고 파일 경로와 위치만 적는다.
 3. create_session(project_id, title=작업 주제, description=요약)을 호출한다. cli_tool은 사용자가 정했을 때만 넣는다.
-4. start_session과 send_session_input은 호출하지 않는다. description은 새 세션의 첫 프롬프트로 보류되고, 사용자가 CLITrigger에서 그 세션을 시작한 뒤 미리보기로 확인하고 보낸다. 만든 세션 제목을 알려주고 끝낸다.${instruction ? `\n\n새 세션이 이어서 할 일: ${instruction} — 요약의 '바로 다음 단계'에 이것을 적는다.` : ''}`,
-        },
-      }],
-    }),
+4. start_session과 send_session_input은 호출하지 않는다. description은 새 세션의 첫 프롬프트로 보류되고, 사용자가 CLITrigger에서 그 세션을 시작한 뒤 미리보기로 확인하고 보낸다. 만든 세션 제목을 알려주고 끝낸다.${instruction ? `\n\n새 세션이 이어서 할 일: ${instruction} — 요약의 '바로 다음 단계'에 이것을 적는다.` : ''}`),
+  );
+
+  // Delegate fans the remaining work out as parallel autonomous todos. Like
+  // handoff it only creates them; the user reviews and starts them.
+  server.registerPrompt(
+    'delegate',
+    {
+      title: '병렬 작업으로 나누기',
+      description: '지금 대화에서 남은 작업을 서로 독립된 자동 작업(TODO) 여러 개로 나눠 CLITrigger에 만듭니다.',
+      argsSchema: { scope: z.string().optional().describe('나눌 작업 범위 (생략 시 남은 작업 전체)') },
+    },
+    ({ scope }) => userPrompt(`지금 대화에서 남은 작업을 CLITrigger 자동 작업(TODO) 여러 개로 나눠 만들어줘. 각 작업은 이 대화를 모르는 CLI가 따로 실행한다. 보통 프로젝트 path 저장소의 현재 HEAD에서 갈라진 새 git worktree에서 돈다.
+
+1. ${findProject}
+2. 남은 작업이 그 HEAD에 없는 변경에 기대는지 확인한다. 커밋하지 않은 변경이나, 현재 디렉터리가 다른 워크트리·브랜치일 때 그 브랜치의 커밋은 새 작업에서 보이지 않는다. 그런 변경에 기대면 사용자에게 상황을 말하고 멈춘다.
+3. 남은 작업을 서로 독립적으로 끝낼 수 있는 단위로 나눈다.
+   - 같은 파일을 고치는 일은 한 작업으로 묶는다. 따로 돌리면 병합할 때 충돌한다.
+   - 다른 작업의 결과가 있어야 시작할 수 있는 일은 만들지 않고 마지막에 따로 알려준다.
+   - 하나로 충분하면 억지로 나누지 않는다.
+4. 작업마다 create_todo(project_id, title, description, memory_inject_mode="auto")를 호출한다.
+   - description은 이것만 읽고 작업할 수 있게 쓴다: 목표, 고칠 파일 경로와 위치, 지켜야 할 결정과 주의점, 완료 조건. 코드 전문은 넣지 않는다.
+   - 결과를 확인할 명령(테스트, 타입체크, 빌드)이 프로젝트 파일(package.json 스크립트 등)에 있으면 loop={ max_rounds: 3, check: "<그 명령>", stop_when_no_changes: true }를 준다. 파일에서 확인하지 못한 명령은 쓰지 않는다.
+5. start_todo는 호출하지 않는다. 사용자가 CLITrigger에서 확인하고 시작한다. 만든 작업 제목 목록과, 나누지 않고 남긴 일을 알려주고 끝낸다.${scope ? `\n\n나눌 범위: ${scope}` : ''}`),
+  );
+
+  server.registerPrompt(
+    'remember',
+    {
+      title: '위키에 남기기',
+      description: '지금 대화에서 얻은 결정·함정·관례를 CLITrigger 프로젝트 위키에 정리합니다.',
+      argsSchema: { topic: z.string().optional().describe('남길 주제 (생략 시 대화에서 고름)') },
+    },
+    ({ topic }) => userPrompt(`지금 대화에서 앞으로의 작업에도 쓸모 있는 지식을 CLITrigger 프로젝트 위키에 남겨줘. 위키는 이후 자동 작업에 장기 기억으로 주입될 수 있다.
+
+1. ${findProject}
+2. 남길 것을 고른다: 내린 결정과 그 이유, 겪은 함정과 해결법, 이 프로젝트만의 관례. 코드나 git 기록만 봐도 알 수 있는 것, 이번 작업의 진행 상황, 이번에만 해당하는 내용은 뺀다. 남길 게 없으면 그렇다고 말하고 끝낸다.
+3. list_wiki_nodes로 기존 노드를 확인한다. 태그에 __wiki_schema__가 있는 노드는 이 위키의 작성 규칙이니 따른다. __wiki_schema__·__wiki_index__ 태그 노드 자체는 고치지 않는다(인덱스는 자동으로 다시 만들어진다). 같은 주제의 노드가 있으면 update_wiki_node로 그 노드의 body에 합친다. 기존 내용은 지우지 말고 틀린 부분만 고친다. 없으면 create_wiki_node로 만든다. 제목은 주제를 나타내는 짧은 명사구로 하고 기존 제목과 겹치지 않게 한다.
+4. body는 짧은 마크다운으로 쓰고 항목마다 이유를 붙인다. 관련된 기존 노드가 있으면 [[제목]]으로 링크한다.
+5. 만들거나 고친 노드 제목을 알려주고 끝낸다.${topic ? `\n\n남길 주제: ${topic}` : ''}`),
+  );
+
+  server.registerPrompt(
+    'status',
+    {
+      title: '프로젝트 현황',
+      description: '현재 프로젝트의 자동 작업 현황을 정리하고, 실패한 작업은 로그로 원인을 요약합니다.',
+    },
+    () => userPrompt(`CLITrigger에서 이 프로젝트의 작업 현황을 정리해줘. 읽기만 하고 아무것도 바꾸지 않는다.
+
+1. ${findProject}
+2. get_project_status로 실행 중인 작업·세션 수를 보고, list_todos로 작업 목록을 본다.
+3. status가 failed인 작업은 get_todo_logs로 로그를 읽고 원인을 한두 줄로 요약한다. 로그가 길면 마지막 오류 부근만 본다. 실패한 작업이 많으면 최근 5개만 본다.
+4. 짧게 보고한다: 상태별 개수, 실행 중인 작업, 실패한 작업과 원인, 완료됐지만 아직 병합하지 않은 작업. 재시작·중지 같은 조치는 제안만 하고 실행하지 않는다.`),
   );
 
   // ── Wiki (내부적으로는 memory node) ────────────────────────────────────────

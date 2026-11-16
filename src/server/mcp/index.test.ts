@@ -88,15 +88,22 @@ describe('MCP endpoint', () => {
     await client.close();
   });
 
-  it('serves the handoff prompt with the optional instruction', async () => {
+  it('serves each prompt with its tools and optional argument', async () => {
     const { client, transport } = makeClient(TOKEN);
     await client.connect(transport);
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(['handoff']);
-    const { messages } = await client.getPrompt({ name: 'handoff', arguments: { instruction: '테스트만 돌리기' } });
-    const text = (messages[0].content as { type: string; text: string }).text;
-    expect(text).toContain('create_session');
-    expect(text).toContain('테스트만 돌리기');
+    expect(prompts.map((p) => p.name).sort()).toEqual(['delegate', 'handoff', 'remember', 'status']);
+    const cases: { name: string; arguments: Record<string, string>; expected: string[] }[] = [
+      { name: 'handoff', arguments: { instruction: '테스트만 돌리기' }, expected: ['list_projects', 'create_session', '테스트만 돌리기'] },
+      { name: 'delegate', arguments: { scope: 'UI만' }, expected: ['list_projects', 'create_todo', 'UI만'] },
+      { name: 'remember', arguments: { topic: '포트 함정' }, expected: ['list_projects', 'list_wiki_nodes', '포트 함정'] },
+      { name: 'status', arguments: {}, expected: ['list_projects', 'list_todos', 'get_todo_logs'] },
+    ];
+    for (const { name, arguments: args, expected } of cases) {
+      const { messages } = await client.getPrompt({ name, arguments: args });
+      const text = (messages[0].content as { type: string; text: string }).text;
+      for (const fragment of expected) expect(text, `${name} → ${fragment}`).toContain(fragment);
+    }
     await client.close();
   });
 
