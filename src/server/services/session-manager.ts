@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { claudeManager } from './claude-manager.js';
 import { worktreeManager } from './worktree-manager.js';
-import { getAdapter, supportsInteractiveMode, type CliTool } from './cli-adapters.js';
+import { getAdapter, supportsInteractiveMode, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { AgentStateTracker, type AgentState, type AgentStateHints } from './agent-state-detector.js';
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
 import { applyMemoryInjection } from './memory-inject-hook.js';
@@ -368,7 +368,7 @@ export class SessionManager {
     try {
       const result = await claudeManager.startClaude(
         workDir, '', cliModel, undefined, 'interactive', cliTool,
-        undefined, project.path, undefined, resume,
+        undefined, project.path, (project.session_sandbox_mode as SandboxMode) || 'strict', resume,
         opts?.cols ?? 100, opts?.rows ?? 30, cliSessionId, session.shell,
       );
       pid = result.pid;

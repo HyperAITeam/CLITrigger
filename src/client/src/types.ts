@@ -14,6 +14,7 @@ export interface Project {
   cli_fallback_chain: string | null;
   default_max_turns: number | null;
   sandbox_mode: string;
+  session_sandbox_mode: string;
   debug_logging: number;
   use_worktree: number;
   auto_commit: number;

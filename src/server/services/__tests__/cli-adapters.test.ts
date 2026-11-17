@@ -20,6 +20,16 @@ describe('cli-adapters', () => {
     expect(args).toEqual(['exec', '--skip-git-repo-check', '--sandbox', 'workspace-write']);
   });
 
+  it('runs strict interactive sessions without bypass flags', () => {
+    const base = { mode: 'interactive' as const, prompt: '', sandboxMode: 'strict' as const };
+    expect(getAdapter('claude').buildArgs(base)).toEqual(['--permission-mode', 'auto']);
+    expect(getAdapter('codex').buildArgs(base)).toEqual(['--approve-for-me']);
+    expect(getAdapter('antigravity').buildArgs(base)).toEqual([]);
+    // Headless keeps the non-prompting modes.
+    expect(getAdapter('claude').buildArgs({ ...base, mode: 'headless' })).toContain('dontAsk');
+    expect(getAdapter('antigravity').buildArgs({ ...base, mode: 'headless' })).toEqual(['--dangerously-skip-permissions', '--headless']);
+  });
+
   it('adds headless flag for Antigravity in non-interactive mode', () => {
     const adapter = getAdapter('antigravity');
     const args = adapter.buildArgs({

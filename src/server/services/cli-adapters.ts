@@ -232,7 +232,10 @@ const claudeAdapter: CliAdapter = {
     const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
     if (sandboxMode === 'strict') {
-      args.push('--permission-mode', 'dontAsk');
+      // Interactive: auto mode's classifier approves safe actions and asks the
+      // user otherwise. Headless has nobody to ask, so todos keep dontAsk plus
+      // the allowlist the orchestrator writes to .claude/settings.json.
+      args.push('--permission-mode', mode === 'interactive' ? 'auto' : 'dontAsk');
     } else {
       args.push('--dangerously-skip-permissions');
     }
@@ -294,16 +297,19 @@ const antigravityAdapter: CliAdapter = {
       response: 'n\r',
     },
   ],
-  buildArgs({ mode, prompt, model, extraOptions, continueSession }) {
+  buildArgs({ mode, prompt, model, extraOptions, sandboxMode, continueSession }) {
     // Antigravity CLI (`agy`):
     //   --dangerously-skip-permissions auto-approves all tool actions (file writes, shell).
+    //   Strict interactive sessions drop it so agy asks the user. Headless always
+    //   keeps it: nobody can answer, and agy 1.1.20's --sandbox hangs headless on Windows.
     //   --headless enables non-interactive mode; the actual prompt is delivered via stdin pipe.
     //   --continue resumes the most recent conversation.
     // PROVISIONAL: verify with `agy --help` that --headless reads the prompt from
     // stdin. If it instead requires `-p <prompt>` inline, move the prompt into
     // args here and make needsStdin(mode) return only mode === 'interactive'.
     const normalizedModel = normalizeModel(model, 'antigravity');
-    const args = ['--dangerously-skip-permissions'];
+    const args: string[] = [];
+    if (mode !== 'interactive' || sandboxMode !== 'strict') args.push('--dangerously-skip-permissions');
     if (mode !== 'interactive') args.push('--headless');
     if (continueSession) args.push('--continue');
     if (normalizedModel) args.push('--model', normalizedModel);
@@ -347,7 +353,9 @@ const codexAdapter: CliAdapter = {
     if (sandboxMode === 'strict') {
       // workspace-write sandbox (codex 0.149 removed the old --full-auto alias) with --add-dir
       // for git metadata: worktree metadata lives at <projectPath>/.git/worktrees/.
-      args.push('--sandbox', 'workspace-write');
+      // The TUI also routes approval requests through Codex's automatic review
+      // (--approve-for-me implies workspace-write); exec can't prompt anyway.
+      args.push(...(mode === 'interactive' ? ['--approve-for-me'] : ['--sandbox', 'workspace-write']));
       if (workDir && projectPath && workDir !== projectPath) {
         const gitDir = path.join(projectPath, '.git');
         args.push('--add-dir', gitDir);

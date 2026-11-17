@@ -34,6 +34,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   const [cliTool, setCliTool] = useState<CliTool>((project.cli_tool as CliTool) || 'claude');
   const [claudeOptions, setClaudeOptions] = useState(project.claude_options ?? '');
   const [sandboxMode, setSandboxMode] = useState<'strict' | 'permissive'>((project.sandbox_mode as 'strict' | 'permissive') || 'strict');
+  const [sessionSandboxMode, setSessionSandboxMode] = useState<'strict' | 'permissive'>((project.session_sandbox_mode as 'strict' | 'permissive') || 'strict');
   const [debugLogging, setDebugLogging] = useState(!!project.debug_logging);
   const [showTokenUsage, setShowTokenUsage] = useState(!!project.show_token_usage);
   const [useWorktree, setUseWorktree] = useState(project.use_worktree !== 0);
@@ -51,7 +52,8 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
   // presence (a folder can be both), or when SVN is already enabled so the
   // user can always reach the off switch.
   const [svnDetected, setSvnDetected] = useState(false);
-  const [showSandboxWarning, setShowSandboxWarning] = useState(false);
+  // Which sandbox switch (todos or terminal sessions) the permissive-confirm dialog is for.
+  const [showSandboxWarning, setShowSandboxWarning] = useState<'todo' | 'session' | null>(null);
   const [saving, setSaving] = useState(false);
   const [checkingGit, setCheckingGit] = useState(false);
   const [cliStatuses, setCliStatuses] = useState<CliToolStatus[]>([]);
@@ -147,6 +149,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         default_max_turns: defaultMaxTurns,
         cli_tool: cliTool,
         sandbox_mode: sandboxMode,
+        session_sandbox_mode: sessionSandboxMode,
         debug_logging: debugLogging ? 1 : 0,
         use_worktree: useWorktree ? 1 : 0,
         auto_commit: autoCommit ? 1 : 0,
@@ -557,7 +560,7 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
                 type="button"
                 onClick={() => {
                   if (sandboxMode !== 'permissive') {
-                    setShowSandboxWarning(true);
+                    setShowSandboxWarning('todo');
                   }
                 }}
                 className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
@@ -574,32 +577,6 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               <p className="text-2xs text-status-warning mt-2">{t('header.sandboxWarning')}</p>
             )}
           </div>
-
-          {/* Sandbox warning confirmation dialog */}
-          {showSandboxWarning && (
-            <Modal open onClose={() => setShowSandboxWarning(false)} size="sm">
-              <div className="bg-theme-card rounded-2xl p-6 shadow-xl">
-                <p className="text-sm text-warm-700 mb-4">{t('header.sandboxWarning')}</p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setShowSandboxWarning(false)}
-                    className="btn-ghost text-sm"
-                  >
-                    {t('header.cancel')}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSandboxMode('permissive');
-                      setShowSandboxWarning(false);
-                    }}
-                    className="btn-danger text-sm"
-                  >
-                    {t('header.sandboxPermissive')}
-                  </button>
-                </div>
-              </div>
-            </Modal>
-          )}
 
           {/* Worktree Isolation */}
           {project.is_git_repo ? (
@@ -715,11 +692,76 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
           </div>
           )}
 
-          {/* Terminal tab only: on-demand process view for running sessions. */}
+          {/* Terminal tab only: session sandbox switch + on-demand process view for running sessions. */}
           {settingsSection === 'sessions' && (
+            <>
+            <div className="mt-3 p-4 border border-warm-200 rounded-xl">
+              <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.sessionSandboxTitle')}</h4>
+              <p className="text-2xs text-warm-500 mb-3">{t('header.sessionSandboxHint')}</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSessionSandboxMode('strict')}
+                  className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                    sessionSandboxMode === 'strict'
+                      ? 'bg-status-success/10 border-status-success text-status-success'
+                      : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">{t('header.sandboxStrict')}</div>
+                  <div className="text-2xs mt-1 opacity-80">{t('header.sessionSandboxStrictDesc')}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sessionSandboxMode !== 'permissive') {
+                      setShowSandboxWarning('session');
+                    }
+                  }}
+                  className={`flex-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+                    sessionSandboxMode === 'permissive'
+                      ? 'bg-status-warning/10 border-status-warning text-status-warning'
+                      : 'bg-warm-50 border-warm-200 text-warm-500 hover:border-warm-300'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">{t('header.sandboxPermissive')}</div>
+                  <div className="text-2xs mt-1 opacity-80">{t('header.sessionSandboxPermissiveDesc')}</div>
+                </button>
+              </div>
+              {sessionSandboxMode === 'permissive' && (
+                <p className="text-2xs text-status-warning mt-2">{t('header.sessionSandboxWarning')}</p>
+              )}
+            </div>
             <div className="mt-3">
               <ProjectProcessesPanel projectId={project.id} />
             </div>
+            </>
+          )}
+
+          {/* Sandbox warning confirmation dialog (todo or terminal sandbox) */}
+          {showSandboxWarning && (
+            <Modal open onClose={() => setShowSandboxWarning(null)} size="sm">
+              <div className="bg-theme-card rounded-2xl p-6 shadow-xl">
+                <p className="text-sm text-warm-700 mb-4">{t(showSandboxWarning === 'session' ? 'header.sessionSandboxWarning' : 'header.sandboxWarning')}</p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowSandboxWarning(null)}
+                    className="btn-ghost text-sm"
+                  >
+                    {t('header.cancel')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      (showSandboxWarning === 'session' ? setSessionSandboxMode : setSandboxMode)('permissive');
+                      setShowSandboxWarning(null);
+                    }}
+                    className="btn-danger text-sm"
+                  >
+                    {t('header.sandboxPermissive')}
+                  </button>
+                </div>
+              </div>
+            </Modal>
           )}
 
           {settingsSection === 'svn' && (

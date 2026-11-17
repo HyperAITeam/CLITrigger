@@ -445,6 +445,8 @@ export function initDatabase(db: Database.Database): void {
     // Analytics "clear" watermark: todos created at/before this are hidden from
     // the analytics tab. NULL = never cleared. Non-destructive.
     { table: 'projects', column: 'analytics_cleared_at', definition: 'TEXT' },
+    // Terminal sessions' own sandbox switch, separate from todos' sandbox_mode.
+    { table: 'projects', column: 'session_sandbox_mode', definition: "TEXT DEFAULT 'strict'" },
   ];
 
   for (const { table, column, definition } of migrations) {
