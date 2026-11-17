@@ -345,9 +345,9 @@ const codexAdapter: CliAdapter = {
       }
     }
     if (sandboxMode === 'strict') {
-      // Use --full-auto (workspace-write sandbox) with --add-dir to allow git metadata access.
-      // Git worktree metadata lives at <projectPath>/.git/worktrees/, so we whitelist the .git dir.
-      args.push('--full-auto');
+      // workspace-write sandbox (codex 0.149 removed the old --full-auto alias) with --add-dir
+      // for git metadata: worktree metadata lives at <projectPath>/.git/worktrees/.
+      args.push('--sandbox', 'workspace-write');
       if (workDir && projectPath && workDir !== projectPath) {
         const gitDir = path.join(projectPath, '.git');
         args.push('--add-dir', gitDir);

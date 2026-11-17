@@ -15,6 +15,11 @@ describe('cli-adapters', () => {
     expect(args).toEqual(['exec', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--model', 'o3', '--color=never']);
   });
 
+  it('uses the workspace-write sandbox for strict Codex exec', () => {
+    const args = getAdapter('codex').buildArgs({ mode: 'headless', prompt: '', sandboxMode: 'strict' });
+    expect(args).toEqual(['exec', '--skip-git-repo-check', '--sandbox', 'workspace-write']);
+  });
+
   it('adds headless flag for Antigravity in non-interactive mode', () => {
     const adapter = getAdapter('antigravity');
     const args = adapter.buildArgs({
