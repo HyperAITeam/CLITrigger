@@ -156,8 +156,10 @@ class SvnManager {
     // and slicing. For deep history this is wasteful, but pages 0–10 cost
     // <1MB of XML against typical repos, which is acceptable.
     const fetchCount = skip + limit + 1;
+    // Explicit HEAD:1 — for a working-copy path svn defaults to BASE:1, which
+    // hides every server commit newer than the last `svn update`.
     const { stdout } = await runSvn([
-      'log', '--xml', '-l', String(fetchCount), target,
+      'log', '--xml', '-r', 'HEAD:1', '-l', String(fetchCount), target,
     ], dirPath);
 
     const all: SvnLogEntry[] = [];
