@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ReactFlow,
@@ -16,9 +16,16 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Type, Link2, Folder, FolderTree, ChevronRight } from 'lucide-react';
-import type { VaultFile, VaultEdge as VaultEdgeType } from '../api/vault';
-import { getVaultFileContent, saveVaultFile } from '../api/vault';
+import { Type, Link2, Folder, FolderTree, ChevronRight, Tag, Tags, Network, X } from 'lucide-react';
+import type { VaultFile, VaultEdge as VaultEdgeType, VaultGraphTags } from '../api/vault';
+import {
+  getVaultFileContent,
+  saveVaultFile,
+  getVaultGraphTags,
+  setVaultGraphFileTags,
+  addVaultGraphTagBulk,
+  setVaultGraphTagColor,
+} from '../api/vault';
 import { useI18n } from '../i18n';
 
 interface Props {
@@ -170,8 +177,10 @@ const centeredHandle: React.CSSProperties = {
   top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
 };
 
-function FolderDot({ data }: { data: { id: string; name: string; count: number; size: number; selected: boolean; onSelect: (key: string) => void } }) {
-  const { id, name, count, size, selected } = data;
+// A folder (folder grouping) or a tag (tag grouping); clicking drills into it.
+function GroupDot({ data }: { data: { id: string; name: string; count: number; size: number; selected: boolean; color: string; isTag: boolean; onSelect: (key: string) => void } }) {
+  const { id, name, count, size, selected, color, isTag } = data;
+  const Icon = isTag ? Tag : Folder;
   return (
     <div
       onClick={() => data.onSelect(id)}
@@ -181,10 +190,10 @@ function FolderDot({ data }: { data: { id: string; name: string; count: number; 
       <Handle type="target" position={Position.Top} style={centeredHandle} isConnectable={false} />
       <Handle type="source" position={Position.Top} style={centeredHandle} isConnectable={false} />
       <div
-        style={{ width: size * 2, height: size * 2, background: '#C9A86A', boxShadow: selected ? '0 0 0 3px #60A5FA' : undefined }}
+        style={{ width: size * 2, height: size * 2, background: color, boxShadow: selected ? '0 0 0 3px #60A5FA' : undefined }}
         className="rounded-md flex items-center justify-center transition-transform group-hover:scale-110"
       >
-        <Folder className="w-1/2 h-1/2 text-black/60" />
+        <Icon className="w-1/2 h-1/2 text-black/60" />
       </div>
       <div
         className="absolute pointer-events-none whitespace-nowrap text-[11px] font-medium text-gray-100"
@@ -230,27 +239,21 @@ function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: b
   );
 }
 
-const nodeTypes = { vaultDot: VaultDot, folderDot: FolderDot };
+const nodeTypes = { vaultDot: VaultDot, groupDot: GroupDot };
 
-// Small portal menu for right-clicking a graph node. Follows the project's
-// floating-element rule: createPortal + position:fixed + viewport clamp.
-function NodeContextMenu({ menu, canLink, label, onPick, onClose }: {
-  menu: { x: number; y: number };
-  canLink: boolean;
-  label: string;
-  onPick: () => void;
-  onClose: () => void;
-}) {
+// Shared by the node menu and the tag editor — the project's floating-element
+// rule: createPortal + position:fixed + viewport clamp, closed on outside click/scroll/resize.
+function useAnchoredPopup(anchor: { x: number; y: number }, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: menu.y, left: menu.x, visible: false });
+  const [pos, setPos] = useState({ top: anchor.y, left: anchor.x, visible: false });
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    let left = menu.x, top = menu.y;
+    let left = anchor.x, top = anchor.y;
     if (left + el.offsetWidth > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - el.offsetWidth);
     if (top + el.offsetHeight > window.innerHeight - 8) top = Math.max(8, window.innerHeight - 8 - el.offsetHeight);
     setPos({ top: Math.max(8, top), left: Math.max(8, left), visible: true });
-  }, [menu.x, menu.y]);
+  }, [anchor.x, anchor.y]);
   useEffect(() => {
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as HTMLElement)) onClose(); };
     const onScroll = () => onClose();
@@ -263,25 +266,109 @@ function NodeContextMenu({ menu, canLink, label, onPick, onClose }: {
       window.removeEventListener('resize', onClose);
     };
   }, [onClose]);
+  const style: React.CSSProperties = {
+    top: pos.top, left: pos.left, opacity: pos.visible ? 1 : 0,
+    backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+  };
+  return { ref, style };
+}
+
+interface MenuItem { icon: ReactNode; label: string; disabled?: boolean; onPick: () => void }
+
+// Small portal menu for right-clicking a graph node.
+function NodeContextMenu({ menu, items, onClose }: {
+  menu: { x: number; y: number };
+  items: MenuItem[];
+  onClose: () => void;
+}) {
+  const { ref, style } = useAnchoredPopup(menu, onClose);
   return createPortal(
-    <div
-      ref={ref}
-      className="fixed z-tooltip min-w-[160px] rounded-lg py-1 shadow-elevated text-xs"
-      style={{ top: pos.top, left: pos.left, opacity: pos.visible ? 1 : 0, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
-    >
-      <button
-        type="button"
-        disabled={!canLink}
-        onClick={onPick}
-        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <Link2 className="w-3.5 h-3.5" />
-        <span>{label}</span>
-      </button>
+    <div ref={ref} className="fixed z-tooltip min-w-[160px] rounded-lg py-1 shadow-elevated text-xs" style={style}>
+      {items.map(item => (
+        <button
+          key={item.label}
+          type="button"
+          disabled={item.disabled}
+          onClick={item.onPick}
+          className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
     </div>,
     document.body,
   );
 }
+
+// Popup for a node's tags. `chips` null = bulk mode (add only, to every doc in a folder).
+function TagEditor({ anchor, title, chips, suggestions, onAdd, onRemove, onPromote, onClose }: {
+  anchor: { x: number; y: number };
+  title: string;
+  chips: { tag: string; removable: boolean }[] | null;
+  suggestions: string[];
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+  onPromote: (tag: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const { ref, style } = useAnchoredPopup(anchor, onClose);
+  const [draft, setDraft] = useState('');
+  const listId = useId();
+  const submit = () => {
+    const tag = draft.trim().replace(/^#/, '');
+    if (tag) onAdd(tag);
+    setDraft('');
+  };
+  return createPortal(
+    <div ref={ref} className="fixed z-tooltip w-64 rounded-lg p-2 shadow-elevated text-xs space-y-2" style={style}>
+      <div className="text-warm-500 truncate">{title}</div>
+      {chips && chips.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {chips.map((chip, i) => (
+            <span
+              key={chip.tag}
+              title={chip.removable ? undefined : t('vault.graph.fileTag')}
+              className={`flex items-center gap-0.5 pl-1.5 pr-1 py-0.5 rounded-full border text-warm-700 ${chip.removable ? 'border-warm-300' : 'border-dashed border-warm-400'}`}
+            >
+              <button
+                type="button"
+                onClick={() => onPromote(chip.tag)}
+                title={i === 0 ? t('vault.graph.primaryTag') : t('vault.graph.makePrimary')}
+                className={i === 0 ? 'font-semibold' : 'hover:text-warm-900'}
+              >
+                #{chip.tag}
+              </button>
+              {chip.removable && (
+                <button type="button" onClick={() => onRemove(chip.tag)} className="text-warm-400 hover:text-warm-800">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        autoFocus
+        value={draft}
+        maxLength={50}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+        list={listId}
+        placeholder={t('vault.graph.tagPlaceholder')}
+        className="w-full px-2 py-1 rounded-md bg-transparent border border-warm-300 text-warm-800 placeholder:text-warm-400 focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <datalist id={listId}>
+        {suggestions.map(s => <option key={s} value={s} />)}
+      </datalist>
+    </div>,
+    document.body,
+  );
+}
+
+type GroupMode = 'folder' | 'tag' | 'none';
+const UNTAGGED_GROUP = '/'; // tag-group key for docs with no tag ('' + '/')
 
 export default function VaultGraph({ files, edges, selectedPath, onSelectFile, projectId, onGraphChanged }: Props) {
   const { t } = useI18n();
@@ -293,20 +380,55 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   useEffect(() => {
     try { localStorage.setItem(`vault:graph:showLabels:${projectId}`, showLabels ? '1' : '0'); } catch { /* ignore */ }
   }, [showLabels, projectId]);
-  // Folder grouping (default on), persisted per project. Off = one node per file.
-  const [grouped, setGrouped] = useState(() => {
-    try { return localStorage.getItem(`vault:graph:grouped:${projectId}`) !== '0'; } catch { return true; }
+  // Grouping (default: folder), persisted per project.
+  const [groupMode, setGroupMode] = useState<GroupMode>(() => {
+    try {
+      const saved = localStorage.getItem(`vault:graph:groupMode:${projectId}`);
+      return saved === 'tag' || saved === 'none' ? saved : 'folder';
+    } catch { return 'folder'; }
   });
   useEffect(() => {
-    try { localStorage.setItem(`vault:graph:grouped:${projectId}`, grouped ? '1' : '0'); } catch { /* ignore */ }
-  }, [grouped, projectId]);
-  const [currentFolder, setCurrentFolder] = useState('');
-  // Fall back to root when ungrouped or when the folder vanished (deleted/renamed).
-  const folder = grouped && files.some(f => f.relativePath.startsWith(currentFolder)) ? currentFolder : '';
+    try { localStorage.setItem(`vault:graph:groupMode:${projectId}`, groupMode); } catch { /* ignore */ }
+  }, [groupMode, projectId]);
+  // Opened group: folder prefix 'a/b/' or tag-group key 'tag/'; '' = top level.
+  const [openedGroup, setOpenedGroup] = useState('');
+  const changeGroupMode = (mode: GroupMode) => { setGroupMode(mode); setOpenedGroup(''); };
+
+  // Graph-only tags stored in the app DB. Refetched with every vault reload so
+  // tags moved by a rename/move show up.
+  const [graphTags, setGraphTags] = useState<VaultGraphTags>({ files: {}, colors: {} });
+  const reloadTags = useCallback(() => {
+    getVaultGraphTags(projectId).then(setGraphTags).catch(() => { /* keep last known */ });
+  }, [projectId]);
+  useEffect(() => { reloadTags(); }, [reloadTags, files]);
+  // App tags first (their order is the priority), then the doc's own frontmatter / #inline tags.
+  const tagsByPath = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const f of files) m.set(f.relativePath, [...new Set([...(graphTags.files[f.relativePath] ?? []), ...f.tags])]);
+    return m;
+  }, [files, graphTags]);
+  const colorOfTag = useCallback((tag: string) => graphTags.colors[tag] ?? hashTagToHsl(tag), [graphTags]);
+  const tagGroupOf = useCallback((p: string) => `${tagsByPath.get(p)?.[0] ?? ''}/`, [tagsByPath]);
+
+  // Fall back to the top level when the opened folder/tag vanished (deleted, renamed, untagged).
+  const current =
+    groupMode === 'folder' && files.some(f => f.relativePath.startsWith(openedGroup)) ? openedGroup
+    : groupMode === 'tag' && files.some(f => tagGroupOf(f.relativePath) === openedGroup) ? openedGroup
+    : '';
+  const groupLabel = useCallback((key: string) => (
+    groupMode === 'tag'
+      ? key === UNTAGGED_GROUP ? t('vault.graph.untagged') : `#${key.slice(0, -1)}`
+      : key.slice(0, -1).split('/').pop() ?? key
+  ), [groupMode, t]);
+
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
   // Link-drawing mode: relativePath of the source node awaiting a target click.
   const [linkSource, setLinkSource] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; rel: string; stem: string; kind: VaultFile['kind'] } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; key: string } | null>(null);
+  // Tag editor for a doc (key = path) or, in bulk mode, a folder (key ends with '/').
+  const [tagEditor, setTagEditor] = useState<{ x: number; y: number; key: string } | null>(null);
+  // Legend click: dim every doc without this tag.
+  const [focusTag, setFocusTag] = useState<string | null>(null);
   const linkSourceStem = useMemo(
     () => files.find(f => f.relativePath === linkSource)?.stem ?? null,
     [files, linkSource],
@@ -326,7 +448,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   // Esc cancels link mode / closes the menu.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setLinkSource(null); setMenu(null); }
+      if (e.key === 'Escape') { setLinkSource(null); setMenu(null); setTagEditor(null); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -334,15 +456,21 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
 
   const onNodeContextMenu = useCallback<NodeMouseHandler>((e, node) => {
     e.preventDefault();
-    const f = files.find(ff => ff.relativePath === node.id);
-    if (!f) return;
-    setMenu({ x: e.clientX, y: e.clientY, rel: f.relativePath, stem: f.stem, kind: f.kind });
-  }, [files]);
+    // Docs and folders have a menu; tag groups don't.
+    if (node.id.endsWith('/') && groupMode !== 'folder') return;
+    setMenu({ x: e.clientX, y: e.clientY, key: node.id });
+  }, [groupMode]);
 
-  // What the graph shows: nodes inside `folder`, plus outside ("ghost") nodes
-  // that link into it. File-level edges are merged per node pair with a count.
+  // What the graph shows: nodes inside the opened group, plus outside ("ghost")
+  // nodes that link into it. File-level edges are merged per node pair with a count.
   const view = useMemo(() => {
-    const keyOf = (p: string) => grouped ? groupKey(p, folder) : p;
+    const keyOf = groupMode === 'folder' ? (p: string) => groupKey(p, current)
+      : groupMode === 'tag' ? (p: string) => { const g = tagGroupOf(p); return g === current ? p : g; }
+      : (p: string) => p;
+    // Tag mode, opened: its docs are inside, the other tag groups are ghosts.
+    const isInside = groupMode === 'folder' ? (k: string) => k.startsWith(current)
+      : groupMode === 'tag' ? (k: string) => current === '' || !k.endsWith('/')
+      : () => true;
     const counts = new Map<string, number>();
     const fileByKey = new Map<string, VaultFile>();
     for (const f of files) {
@@ -353,7 +481,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     const linkCounts = new Map<string, number>();
     for (const e of edges) {
       const a = keyOf(e.from), b = keyOf(e.to);
-      if (a === b || (!a.startsWith(folder) && !b.startsWith(folder))) continue;
+      if (a === b || (!isInside(a) && !isInside(b))) continue;
       const k = `${a}\t${b}`;
       linkCounts.set(k, (linkCounts.get(k) ?? 0) + 1);
     }
@@ -362,11 +490,11 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
       return { from, to, count };
     });
     const linked = new Set(links.flatMap(l => [l.from, l.to]));
-    const ids = [...counts.keys()].filter(k => k.startsWith(folder) || linked.has(k));
-    let maxFolderCount = 1;
-    for (const [k, c] of counts) if (k.endsWith('/') && c > maxFolderCount) maxFolderCount = c;
-    return { keyOf, counts, fileByKey, links, ids, maxFolderCount };
-  }, [files, edges, grouped, folder]);
+    const ids = [...counts.keys()].filter(k => isInside(k) || linked.has(k));
+    let maxGroupCount = 1;
+    for (const [k, c] of counts) if (k.endsWith('/') && c > maxGroupCount) maxGroupCount = c;
+    return { keyOf, isInside, counts, fileByKey, links, ids, maxGroupCount };
+  }, [files, edges, groupMode, current, tagGroupOf]);
 
   const degree = useMemo(() => {
     const d = new Map<string, number>();
@@ -381,22 +509,28 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     return m;
   }, [degree]);
 
-  const firstTagByPath = useMemo(() => {
-    const m = new Map<string, string | null>();
-    for (const f of files) {
-      const t = f.tags.length ? [...f.tags].sort()[0] : null;
-      m.set(f.relativePath, t);
-    }
-    return m;
-  }, [files]);
+  // Every tag in use (legend, focus, editor suggestions).
+  const legend = useMemo(
+    () => [...new Set([...tagsByPath.values()].flat())].sort((a, b) => a.localeCompare(b)),
+    [tagsByPath],
+  );
+  const activeFocusTag = focusTag && legend.includes(focusTag) ? focusTag : null;
 
-  const legend = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const t of firstTagByPath.values()) {
-      if (t && !m.has(t)) m.set(t, hashTagToHsl(t));
-    }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [firstTagByPath]);
+  // Native color input fires on every drag step — save once it settles, per tag.
+  const colorSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const changeTagColor = useCallback((tag: string, color: string) => {
+    setGraphTags(g => ({ ...g, colors: { ...g.colors, [tag]: color } }));
+    clearTimeout(colorSaveTimers.current.get(tag));
+    colorSaveTimers.current.set(tag, setTimeout(() => {
+      setVaultGraphTagColor(projectId, tag, color).catch(reloadTags);
+    }, 400));
+  }, [projectId, reloadTags]);
+
+  // Optimistic: update locally, resync from the server if the save fails.
+  const saveFileTags = useCallback((path: string, tags: string[]) => {
+    setGraphTags(g => ({ ...g, files: { ...g.files, [path]: tags } }));
+    setVaultGraphFileTags(projectId, path, tags).catch(reloadTags);
+  }, [projectId, reloadTags]);
 
   // Re-run the layout only when the node/edge *set* changes (add/remove/rename).
   // Content-only reloads (new array identity, same paths) keep the current layout.
@@ -411,8 +545,8 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback((p: string) => {
-    // Folder node → drill in. Link mode stays armed so a target can be picked inside.
-    if (p.endsWith('/')) { setCurrentFolder(p); return; }
+    // Group node → drill in. Link mode stays armed so a target can be picked inside.
+    if (p.endsWith('/')) { setOpenedGroup(p); return; }
     if (linkSource) {
       if (p !== linkSource) {
         const target = files.find(f => f.relativePath === p);
@@ -424,51 +558,54 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     onSelectFile(p === selectedPath ? null : p);
   }, [linkSource, files, commitLink, selectedPath, onSelectFile]);
 
-  const matchesSearch = useCallback((file: VaultFile) => {
+  const filtering = search.trim() !== '' || activeFocusTag !== null;
+  const matchesFilter = useCallback((file: VaultFile) => {
+    if (activeFocusTag && !tagsByPath.get(file.relativePath)?.includes(activeFocusTag)) return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return file.stem.toLowerCase().includes(q) || file.title.toLowerCase().includes(q) || file.bodyPreview.toLowerCase().includes(q);
-  }, [search]);
+  }, [search, activeFocusTag, tagsByPath]);
 
-  // A folder node matches search when any file inside it matches.
+  // A group node matches when any file inside it matches.
   const matchedKeys = useMemo(
-    () => new Set(files.filter(matchesSearch).map(f => view.keyOf(f.relativePath))),
-    [files, matchesSearch, view],
+    () => new Set(files.filter(matchesFilter).map(f => view.keyOf(f.relativePath))),
+    [files, matchesFilter, view],
   );
   const selectedKey = selectedPath ? view.keyOf(selectedPath) : null;
 
   const initialNodes: Node[] = useMemo(() => view.ids.map(key => {
     const pos = positions.get(key) ?? { x: 0, y: 0 };
     const highlight = matchedKeys.has(key);
-    const ghost = !key.startsWith(folder);
-    const style = search.trim() && !highlight ? { opacity: 0.18 } : ghost ? { opacity: 0.5 } : undefined;
+    const ghost = !view.isInside(key);
+    const style = filtering && !highlight ? { opacity: 0.18 } : ghost ? { opacity: 0.5 } : undefined;
     if (key.endsWith('/')) {
       const count = view.counts.get(key) ?? 0;
-      const size = NODE_RADIUS_BASE + (count / view.maxFolderCount) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
-      // Ghosts show their full path so you can tell where they sit in the tree.
-      const name = ghost ? key.slice(0, -1) : key.slice(folder.length, -1);
+      const size = NODE_RADIUS_BASE + (count / view.maxGroupCount) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
+      const isTag = groupMode === 'tag';
+      // Folder ghosts show their full path so you can tell where they sit in the tree.
+      const name = !isTag && ghost ? key.slice(0, -1) : groupLabel(key);
+      const color = !isTag ? '#C9A86A' : key === UNTAGGED_GROUP ? '#6B7280' : colorOfTag(key.slice(0, -1));
       return {
         id: key,
-        type: 'folderDot',
+        type: 'groupDot',
         position: { x: pos.x, y: pos.y },
-        data: { id: key, name, count, size, selected: key === selectedKey, onSelect: handleSelect },
+        data: { id: key, name, count, size, selected: key === selectedKey, color, isTag, onSelect: handleSelect },
         style,
       };
     }
     const f = view.fileByKey.get(key)!;
     const deg = degree.get(key) ?? 0;
     const size = NODE_RADIUS_BASE + (deg / maxDegree) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
-    const firstTag = firstTagByPath.get(key) ?? null;
-    const tagColor = firstTag ? hashTagToHsl(firstTag) : null;
+    const primaryTag = tagsByPath.get(key)?.[0];
     return {
       id: key,
       type: 'vaultDot',
       position: { x: pos.x, y: pos.y },
       // Green only for actual search hits — with no query every file "matches" and would hide tag colors.
-      data: { file: f, size, selected: key === selectedPath, highlight: highlight && search.trim() !== '', tagColor, showLabel: showLabels, onSelect: handleSelect },
+      data: { file: f, size, selected: key === selectedPath, highlight: highlight && search.trim() !== '', tagColor: primaryTag ? colorOfTag(primaryTag) : null, showLabel: showLabels, onSelect: handleSelect },
       style,
     };
-  }), [view, folder, positions, degree, maxDegree, firstTagByPath, selectedPath, selectedKey, handleSelect, matchedKeys, search, showLabels]);
+  }), [view, groupMode, groupLabel, colorOfTag, tagsByPath, positions, degree, maxDegree, selectedPath, selectedKey, handleSelect, matchedKeys, filtering, search, showLabels]);
 
   const initialEdges: Edge[] = useMemo(() =>
     view.links.map((l, i) => ({
@@ -494,9 +631,39 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   // Refit after drilling in/out; xyflow queues this until the new nodes are measured.
   useEffect(() => {
     void flowInstance?.fitView({ padding: 0.2 });
-  }, [folder, grouped, flowInstance]);
+  }, [current, groupMode, flowInstance]);
 
-  const crumbs = folder.split('/').filter(Boolean);
+  const crumbs: { key: string; label: string }[] = [
+    { key: '', label: t('vault.graph.root') },
+    ...(groupMode === 'folder'
+      ? current.split('/').filter(Boolean).map((name, i, all) => ({ key: all.slice(0, i + 1).map(s => `${s}/`).join(''), label: name }))
+      : current ? [{ key: current, label: groupLabel(current) }] : []),
+  ];
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const closeTagEditor = useCallback(() => setTagEditor(null), []);
+  const openTagEditor = () => { if (menu) setTagEditor(menu); setMenu(null); };
+  const menuFile = menu && !menu.key.endsWith('/') ? view.fileByKey.get(menu.key) : undefined;
+  const menuItems: MenuItem[] = !menu ? []
+    : menu.key.endsWith('/')
+      ? [{ icon: <Tags className="w-3.5 h-3.5" />, label: t('vault.graph.bulkTag'), onPick: openTagEditor }]
+      : [
+        { icon: <Link2 className="w-3.5 h-3.5" />, label: t('vault.graph.addLink'), disabled: menuFile?.kind !== 'md', onPick: () => { setLinkSource(menu.key); setMenu(null); } },
+        { icon: <Tag className="w-3.5 h-3.5" />, label: t('vault.graph.editTags'), onPick: openTagEditor },
+      ];
+
+  const editingFolder = tagEditor?.key.endsWith('/') ? tagEditor.key : null;
+  const editingAppTags = tagEditor && !editingFolder ? graphTags.files[tagEditor.key] ?? [] : [];
+  const addTagFromEditor = (tag: string) => {
+    if (!tagEditor) return;
+    if (editingFolder) {
+      const paths = files.filter(f => f.relativePath.startsWith(editingFolder)).map(f => f.relativePath);
+      addVaultGraphTagBulk(projectId, paths, tag).then(reloadTags, reloadTags);
+      setTagEditor(null);
+      return;
+    }
+    if (!editingAppTags.includes(tag)) saveFileTags(tagEditor.key, [...editingAppTags, tag]);
+  };
 
   if (files.length === 0) {
     return (
@@ -515,14 +682,21 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
         className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-accent"
       />
       <div className="absolute top-3 right-3 z-10 flex gap-1.5">
-        <button
-          type="button"
-          onClick={() => setGrouped(v => !v)}
-          title={t('vault.graph.groupByFolder')}
-          className={`p-1.5 rounded-lg border transition-colors ${grouped ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
-        >
-          <FolderTree className="w-3.5 h-3.5" />
-        </button>
+        {([
+          ['folder', FolderTree, 'vault.graph.groupByFolder'],
+          ['tag', Tags, 'vault.graph.groupByTag'],
+          ['none', Network, 'vault.graph.noGrouping'],
+        ] as const).map(([mode, Icon, labelKey]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => changeGroupMode(mode)}
+            title={t(labelKey)}
+            className={`p-1.5 rounded-lg border transition-colors ${groupMode === mode ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </button>
+        ))}
         <button
           type="button"
           onClick={() => setShowLabels(v => !v)}
@@ -532,21 +706,20 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
           <Type className="w-3.5 h-3.5" />
         </button>
       </div>
-      {grouped && (
+      {groupMode !== 'none' && (
         <div className="absolute top-12 left-3 z-10 flex items-center flex-wrap gap-0.5 max-w-[70%] px-2 py-1 rounded-lg bg-black/50 border border-warm-700 text-xs text-warm-300">
-          {['', ...crumbs].map((name, i) => {
-            const path = crumbs.slice(0, i).map(s => `${s}/`).join('');
-            const current = path === folder;
+          {crumbs.map((crumb, i) => {
+            const isCurrent = crumb.key === current;
             return (
-              <span key={path} className="flex items-center gap-0.5">
+              <span key={crumb.key} className="flex items-center gap-0.5">
                 {i > 0 && <ChevronRight className="w-3 h-3 text-warm-500" />}
                 <button
                   type="button"
-                  disabled={current}
-                  onClick={() => setCurrentFolder(path)}
-                  className={current ? 'text-warm-100 font-medium' : 'hover:text-warm-100 hover:underline'}
+                  disabled={isCurrent}
+                  onClick={() => setOpenedGroup(crumb.key)}
+                  className={isCurrent ? 'text-warm-100 font-medium' : 'hover:text-warm-100 hover:underline'}
                 >
-                  {i === 0 ? t('vault.graph.root') : name}
+                  {crumb.label}
                 </button>
               </span>
             );
@@ -579,24 +752,47 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
       </ReactFlow>
       {legend.length > 0 && (
         <div className="absolute bottom-3 left-3 z-10 bg-black/50 border border-warm-700 rounded-lg px-2 py-1.5 text-xs max-h-48 overflow-y-auto text-warm-800">
-          {legend.map(([tag, color]) => (
+          {legend.map(tag => (
             <div key={tag} className="flex items-center gap-1.5 py-0.5">
-              <span
-                className="inline-block rounded-full shrink-0"
-                style={{ width: 8, height: 8, background: color }}
-              />
-              <span className="truncate">{tag}</span>
+              <label
+                title={t('vault.graph.pickColor')}
+                className="relative inline-block rounded-full shrink-0 cursor-pointer"
+                style={{ width: 10, height: 10, background: colorOfTag(tag) }}
+              >
+                <input
+                  type="color"
+                  value={graphTags.colors[tag] ?? '#888888'}
+                  onChange={e => changeTagColor(tag, e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setFocusTag(activeFocusTag === tag ? null : tag)}
+                title={t('vault.graph.focusTag')}
+                className={`truncate text-left ${activeFocusTag === tag ? 'text-accent font-semibold' : 'hover:text-warm-100'}`}
+              >
+                {tag}
+              </button>
             </div>
           ))}
         </div>
       )}
-      {menu && (
-        <NodeContextMenu
-          menu={menu}
-          canLink={menu.kind === 'md'}
-          label={t('vault.graph.addLink')}
-          onPick={() => { setLinkSource(menu.rel); setMenu(null); }}
-          onClose={() => setMenu(null)}
+      {menu && menuItems.length > 0 && (
+        <NodeContextMenu menu={menu} items={menuItems} onClose={closeMenu} />
+      )}
+      {tagEditor && (
+        <TagEditor
+          anchor={tagEditor}
+          title={editingFolder
+            ? `${groupLabel(editingFolder)} — ${t('vault.graph.bulkTag')}`
+            : files.find(f => f.relativePath === tagEditor.key)?.stem ?? tagEditor.key}
+          chips={editingFolder ? null : (tagsByPath.get(tagEditor.key) ?? []).map(tag => ({ tag, removable: editingAppTags.includes(tag) }))}
+          suggestions={legend}
+          onAdd={addTagFromEditor}
+          onRemove={tag => saveFileTags(tagEditor.key, editingAppTags.filter(x => x !== tag))}
+          onPromote={tag => saveFileTags(tagEditor.key, [tag, ...editingAppTags.filter(x => x !== tag)])}
+          onClose={closeTagEditor}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { osOpenPath } from '../utils/open-path.js';
 import { isRealpathWithinRoot } from '../utils/path-safety.js';
-import { getProjectById } from '../db/queries.js';
+import { getProjectById, moveVaultFileTags } from '../db/queries.js';
 import { loadVaultIgnore } from '../services/file-scanner.js';
 
 const router = Router();
@@ -393,6 +393,7 @@ router.post('/:id/files/move', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
     fs.renameSync(src.abs, dst.abs);
+    moveVaultFileTags(req.params.id, fromNorm, toNorm);
     res.json({ success: true, from: fromNorm, to: toNorm });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -54,6 +54,28 @@ export function renameVaultFileApi(projectId: string, oldPath: string, newPath: 
   return post(`/api/projects/${projectId}/vault/rename`, { oldPath, newPath });
 }
 
+// Graph-only tags stored in the app DB (not in the files).
+export interface VaultGraphTags {
+  files: Record<string, string[]>;
+  colors: Record<string, string>;
+}
+
+export function getVaultGraphTags(projectId: string): Promise<VaultGraphTags> {
+  return get(`/api/projects/${projectId}/vault/tags`);
+}
+
+export function setVaultGraphFileTags(projectId: string, filePath: string, tags: string[]): Promise<{ success: boolean }> {
+  return put(`/api/projects/${projectId}/vault/tags/file`, { path: filePath, tags });
+}
+
+export function addVaultGraphTagBulk(projectId: string, paths: string[], tag: string): Promise<{ success: boolean }> {
+  return post(`/api/projects/${projectId}/vault/tags/bulk`, { paths, tag });
+}
+
+export function setVaultGraphTagColor(projectId: string, tag: string, color: string): Promise<{ success: boolean }> {
+  return put(`/api/projects/${projectId}/vault/tags/color`, { tag, color });
+}
+
 export function previewVaultInjection(
   projectId: string,
   mode: 'all' | 'selected',

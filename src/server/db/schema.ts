@@ -343,6 +343,23 @@ export function initDatabase(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Doc-graph tags kept in the app (not written into the files). Keyed by
+    -- vault-relative path; sort_order 0 is the representative tag.
+    CREATE TABLE IF NOT EXISTS vault_file_tags (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      relative_path TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (project_id, relative_path, tag)
+    );
+
+    CREATE TABLE IF NOT EXISTS vault_tag_colors (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL,
+      color TEXT NOT NULL,
+      PRIMARY KEY (project_id, tag)
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs

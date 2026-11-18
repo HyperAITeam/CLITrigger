@@ -142,6 +142,7 @@ router.delete('/projects/:id/vault/file', (req: Request, res: Response) => {
     res.status(404).json({ error: 'File not found or could not be deleted' });
     return;
   }
+  queries.deleteVaultFileTags(ctx.project.id, filePath);
   res.json({ success: true });
 });
 
@@ -164,6 +165,74 @@ router.post('/projects/:id/vault/rename', (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to rename file' });
     return;
   }
+  queries.moveVaultFileTags(ctx.project.id, oldPath, newPath);
+  res.json({ success: true });
+});
+
+// ── Graph tags (stored in the app DB, not in the files) ──
+
+const MAX_TAG_LENGTH = 50;
+
+function cleanTag(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const tag = raw.trim().replace(/^#/, '');
+  return tag && tag.length <= MAX_TAG_LENGTH ? tag : null;
+}
+
+function isRelativePathString(p: unknown): p is string {
+  return typeof p === 'string' && p.length > 0 && p.length <= 1024;
+}
+
+// GET /api/projects/:id/vault/tags
+router.get('/projects/:id/vault/tags', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  res.json(queries.getVaultTags(ctx.project.id));
+});
+
+// PUT /api/projects/:id/vault/tags/file — { path, tags } replaces that file's tags
+router.put('/projects/:id/vault/tags/file', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  const { path: filePath, tags } = req.body ?? {};
+  if (!isRelativePathString(filePath) || !Array.isArray(tags)) {
+    res.status(400).json({ error: 'path and tags[] are required' });
+    return;
+  }
+  const cleaned = tags.map(cleanTag);
+  if (cleaned.some(t => t === null)) {
+    res.status(400).json({ error: `Tags must be 1-${MAX_TAG_LENGTH} characters` });
+    return;
+  }
+  queries.setVaultFileTags(ctx.project.id, filePath, [...new Set(cleaned as string[])]);
+  res.json({ success: true });
+});
+
+// POST /api/projects/:id/vault/tags/bulk — { paths, tag } appends tag to every path
+router.post('/projects/:id/vault/tags/bulk', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  const { paths, tag: rawTag } = req.body ?? {};
+  const tag = cleanTag(rawTag);
+  if (!Array.isArray(paths) || !paths.every(isRelativePathString) || !tag) {
+    res.status(400).json({ error: `paths[] and a 1-${MAX_TAG_LENGTH} character tag are required` });
+    return;
+  }
+  queries.addVaultTagToFiles(ctx.project.id, paths, tag);
+  res.json({ success: true });
+});
+
+// PUT /api/projects/:id/vault/tags/color — { tag, color: '#rrggbb' }
+router.put('/projects/:id/vault/tags/color', (req: Request, res: Response) => {
+  const ctx = getProjectRoot(req, res);
+  if (!ctx) return;
+  const { tag: rawTag, color } = req.body ?? {};
+  const tag = cleanTag(rawTag);
+  if (!tag || typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+    res.status(400).json({ error: 'tag and a #rrggbb color are required' });
+    return;
+  }
+  queries.setVaultTagColor(ctx.project.id, tag, color);
   res.json({ success: true });
 });
 

@@ -1152,6 +1152,67 @@ export function deleteSessionTag(id: string): boolean {
   return result.changes > 0;
 }
 
+// ── Vault graph tags ──
+
+export function getVaultTags(projectId: string): { files: Record<string, string[]>; colors: Record<string, string> } {
+  const db = getDatabase();
+  const files: Record<string, string[]> = {};
+  const rows = db.prepare(
+    'SELECT relative_path, tag FROM vault_file_tags WHERE project_id = ? ORDER BY relative_path, sort_order'
+  ).all(projectId) as { relative_path: string; tag: string }[];
+  for (const r of rows) (files[r.relative_path] ??= []).push(r.tag);
+  const colors: Record<string, string> = {};
+  const colorRows = db.prepare('SELECT tag, color FROM vault_tag_colors WHERE project_id = ?').all(projectId) as { tag: string; color: string }[];
+  for (const r of colorRows) colors[r.tag] = r.color;
+  return { files, colors };
+}
+
+// Replace one file's tags; array order becomes sort_order (first = representative).
+export function setVaultFileTags(projectId: string, relativePath: string, tags: string[]): void {
+  const db = getDatabase();
+  const insert = db.prepare('INSERT OR IGNORE INTO vault_file_tags (project_id, relative_path, tag, sort_order) VALUES (?, ?, ?, ?)');
+  db.transaction(() => {
+    db.prepare('DELETE FROM vault_file_tags WHERE project_id = ? AND relative_path = ?').run(projectId, relativePath);
+    tags.forEach((tag, i) => insert.run(projectId, relativePath, tag, i));
+  })();
+}
+
+// Append `tag` to each file (skipped where already present).
+export function addVaultTagToFiles(projectId: string, relativePaths: string[], tag: string): void {
+  const db = getDatabase();
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO vault_file_tags (project_id, relative_path, tag, sort_order)
+    SELECT ?, ?, ?, COALESCE(MAX(sort_order), -1) + 1 FROM vault_file_tags WHERE project_id = ? AND relative_path = ?
+  `);
+  db.transaction(() => {
+    for (const p of relativePaths) insert.run(projectId, p, tag, projectId, p);
+  })();
+}
+
+export function setVaultTagColor(projectId: string, tag: string, color: string): void {
+  const db = getDatabase();
+  db.prepare(
+    'INSERT INTO vault_tag_colors (project_id, tag, color) VALUES (?, ?, ?) ON CONFLICT(project_id, tag) DO UPDATE SET color = excluded.color'
+  ).run(projectId, tag, color);
+}
+
+// Move tags along with a renamed/moved file or folder (`from`/`to` without trailing '/').
+export function moveVaultFileTags(projectId: string, from: string, to: string): void {
+  const db = getDatabase();
+  const under = 'project_id = ? AND (relative_path = ? OR substr(relative_path, 1, ?) = ?)';
+  db.transaction(() => {
+    // Destination didn't exist, so rows there are stale (deleted outside the app) and would collide on the PK.
+    db.prepare(`DELETE FROM vault_file_tags WHERE ${under}`).run(projectId, to, to.length + 1, `${to}/`);
+    db.prepare(`UPDATE vault_file_tags SET relative_path = ? || substr(relative_path, ?) WHERE ${under}`)
+      .run(to, from.length + 1, projectId, from, from.length + 1, `${from}/`);
+  })();
+}
+
+export function deleteVaultFileTags(projectId: string, relativePath: string): void {
+  const db = getDatabase();
+  db.prepare('DELETE FROM vault_file_tags WHERE project_id = ? AND relative_path = ?').run(projectId, relativePath);
+}
+
 // ── Session Aliases ──
 
 export interface SessionAlias {

@@ -310,3 +310,41 @@ describe('Database Queries', () => {
     });
   });
 });
+
+describe('Vault graph tags', () => {
+  let projectId: string;
+  beforeEach(() => {
+    testDb = new Database(':memory:');
+    testDb.pragma('foreign_keys = ON');
+    initDatabase(testDb);
+    projectId = queries.createProject('P', '/tmp/p').id;
+  });
+  afterEach(() => testDb.close());
+
+  it('keeps set order and appends bulk tags without duplicates', () => {
+    queries.setVaultFileTags(projectId, 'a.md', ['x', 'y']);
+    queries.addVaultTagToFiles(projectId, ['a.md', 'b.md'], 'y');
+    queries.addVaultTagToFiles(projectId, ['a.md'], 'z');
+    expect(queries.getVaultTags(projectId).files).toEqual({ 'a.md': ['x', 'y', 'z'], 'b.md': ['y'] });
+  });
+
+  it('moves tags with a renamed folder, not a same-prefix sibling', () => {
+    queries.setVaultFileTags(projectId, 'docs/a.md', ['x']);
+    queries.setVaultFileTags(projectId, 'docs/sub/b.md', ['y']);
+    queries.setVaultFileTags(projectId, 'docs2/c.md', ['z']);
+    queries.setVaultFileTags(projectId, 'notes/a.md', ['stale']);
+    queries.moveVaultFileTags(projectId, 'docs', 'notes');
+    expect(queries.getVaultTags(projectId).files).toEqual({
+      'docs2/c.md': ['z'], 'notes/a.md': ['x'], 'notes/sub/b.md': ['y'],
+    });
+  });
+
+  it('upserts tag colors and cascades on project delete', () => {
+    queries.setVaultTagColor(projectId, 'x', '#111111');
+    queries.setVaultTagColor(projectId, 'x', '#222222');
+    queries.setVaultFileTags(projectId, 'a.md', ['x']);
+    expect(queries.getVaultTags(projectId).colors).toEqual({ x: '#222222' });
+    queries.deleteProject(projectId);
+    expect(queries.getVaultTags(projectId)).toEqual({ files: {}, colors: {} });
+  });
+});
