@@ -464,7 +464,8 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
       id: key,
       type: 'vaultDot',
       position: { x: pos.x, y: pos.y },
-      data: { file: f, size, selected: key === selectedPath, highlight, tagColor, showLabel: showLabels, onSelect: handleSelect },
+      // Green only for actual search hits — with no query every file "matches" and would hide tag colors.
+      data: { file: f, size, selected: key === selectedPath, highlight: highlight && search.trim() !== '', tagColor, showLabel: showLabels, onSelect: handleSelect },
       style,
     };
   }), [view, folder, positions, degree, maxDegree, firstTagByPath, selectedPath, selectedKey, handleSelect, matchedKeys, search, showLabels]);
