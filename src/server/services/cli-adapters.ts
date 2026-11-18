@@ -363,6 +363,9 @@ const codexAdapter: CliAdapter = {
     } else {
       args.push('--dangerously-bypass-approvals-and-sandbox');
     }
+    // The TUI's startup "Update available" dialog defaults to "Update now", so the
+    // auto-delivered first prompt's Enter ran `npm install -g @openai/codex`.
+    if (mode === 'interactive') args.push('-c', 'check_for_update_on_startup=false');
     if (normalizedModel) args.push('--model', normalizedModel);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));

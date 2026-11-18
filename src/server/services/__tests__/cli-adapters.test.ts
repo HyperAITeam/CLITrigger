@@ -23,7 +23,7 @@ describe('cli-adapters', () => {
   it('runs strict interactive sessions without bypass flags', () => {
     const base = { mode: 'interactive' as const, prompt: '', sandboxMode: 'strict' as const };
     expect(getAdapter('claude').buildArgs(base)).toEqual(['--permission-mode', 'auto']);
-    expect(getAdapter('codex').buildArgs(base)).toEqual(['--approve-for-me']);
+    expect(getAdapter('codex').buildArgs(base)).toEqual(['--approve-for-me', '-c', 'check_for_update_on_startup=false']);
     expect(getAdapter('antigravity').buildArgs(base)).toEqual([]);
     // Headless keeps the non-prompting modes.
     expect(getAdapter('claude').buildArgs({ ...base, mode: 'headless' })).toContain('dontAsk');
@@ -61,7 +61,7 @@ describe('cli-adapters', () => {
     });
 
     expect(args).not.toContain('exec');
-    expect(args).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--model', 'o3']);
+    expect(args).toEqual(['--dangerously-bypass-approvals-and-sandbox', '-c', 'check_for_update_on_startup=false', '--model', 'o3']);
   });
 
   it('pins Claude to --session-id on start and --resume <id> when continuing', () => {
