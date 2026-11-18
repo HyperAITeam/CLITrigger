@@ -25,6 +25,9 @@ beforeAll(async () => {
   app.post('/api/sessions/:id/input', (req, res) => {
     res.json({ id: req.params.id, body: req.body });
   });
+  app.post('/api/projects/:id/todos', (req, res) => {
+    res.json({ id: req.params.id, body: req.body });
+  });
   app.get('/api/sessions/:id/output', (req, res) => {
     res.json({ id: req.params.id, query: req.query });
   });
@@ -95,7 +98,7 @@ describe('MCP endpoint', () => {
     expect(prompts.map((p) => p.name).sort()).toEqual(['delegate', 'handoff', 'remember', 'status']);
     const cases: { name: string; arguments: Record<string, string>; expected: string[] }[] = [
       { name: 'handoff', arguments: { instruction: '테스트만 돌리기' }, expected: ['list_projects', 'create_session', '테스트만 돌리기'] },
-      { name: 'delegate', arguments: { scope: 'UI만' }, expected: ['list_projects', 'create_todo', 'UI만'] },
+      { name: 'delegate', arguments: { scope: 'UI만' }, expected: ['list_projects', 'create_todo', 'use_worktree=false', 'UI만'] },
       { name: 'remember', arguments: { topic: '포트 함정' }, expected: ['list_projects', 'list_wiki_nodes', '포트 함정'] },
       { name: 'status', arguments: {}, expected: ['list_projects', 'list_todos', 'get_todo_logs'] },
     ];
@@ -125,6 +128,19 @@ describe('MCP endpoint', () => {
     });
     const text = (result.content as Array<{ type: string; text: string }>)[0].text;
     expect(JSON.parse(text)).toEqual({ id: 's1', body: { text: 'hi', submit: true } });
+    await client.close();
+  });
+
+  it('create_todo maps use_worktree to the 0/1 the todos route expects', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const bodyFor = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: 'create_todo', arguments: { project_id: 'p1', title: 't', ...args } });
+      return JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text).body;
+    };
+    expect((await bodyFor({ use_worktree: false })).use_worktree).toBe(0);
+    expect((await bodyFor({ use_worktree: true })).use_worktree).toBe(1);
+    expect(await bodyFor({})).not.toHaveProperty('use_worktree');
     await client.close();
   });
 

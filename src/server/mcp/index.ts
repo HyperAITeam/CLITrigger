@@ -87,13 +87,14 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 위키 노드를 골라 프롬프트에 넣습니다(기본 none).",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 위키 노드를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정).",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
         priority: z.number().optional(),
         memory_inject_mode: z.enum(['none', 'all', 'auto']).optional(),
+        use_worktree: z.boolean().optional(),
         loop: z.object({
           max_rounds: z.number().int().min(1).max(50),
           check: z.string().optional(),
@@ -105,9 +106,11 @@ function buildServer(baseUrl: string): McpServer {
         }).optional(),
       },
     },
-    ({ project_id, loop, ...body }) =>
+    ({ project_id, loop, use_worktree, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/todos`, {
         ...body,
+        // The REST route takes 0/1 (null = inherit the project setting).
+        ...(use_worktree !== undefined ? { use_worktree: use_worktree ? 1 : 0 } : {}),
         ...(loop ? {
           loop_config: {
             maxRounds: loop.max_rounds,
@@ -386,7 +389,10 @@ function buildServer(baseUrl: string): McpServer {
     ({ scope }) => userPrompt(`지금 대화에서 남은 작업을 CLITrigger 자동 작업(TODO) 여러 개로 나눠 만들어줘. 각 작업은 이 대화를 모르는 CLI가 따로 실행한다. 보통 프로젝트 path 저장소의 현재 HEAD에서 갈라진 새 git worktree에서 돈다.
 
 1. ${findProject}
-2. 남은 작업이 그 HEAD에 없는 변경에 기대는지 확인한다. 커밋하지 않은 변경이나, 현재 디렉터리가 다른 워크트리·브랜치일 때 그 브랜치의 커밋은 새 작업에서 보이지 않는다. 그런 변경에 기대면 사용자에게 상황을 말하고 멈춘다.
+2. 남은 작업이 그 HEAD에 없는 변경에 기대는지 확인한다. 커밋하지 않은 변경이나, 현재 디렉터리가 다른 워크트리·브랜치일 때 그 브랜치의 커밋은 새 worktree에서 보이지 않는다.
+   - 기대지 않으면 그대로 진행한다.
+   - 기대고 현재 디렉터리가 프로젝트 path(작업본) 자체면, 4단계에서 모든 작업에 use_worktree=false를 준다. 이 작업들은 작업본에서 그 변경을 그대로 보면서 한 번에 하나씩 차례로 실행된다.
+   - 기대는데 현재 디렉터리가 프로젝트 path가 아니면(다른 워크트리 등) 그 변경이 작업본에 없으므로 사용자에게 상황을 말하고 멈춘다.
 3. 남은 작업을 서로 독립적으로 끝낼 수 있는 단위로 나눈다.
    - 같은 파일을 고치는 일은 한 작업으로 묶는다. 따로 돌리면 병합할 때 충돌한다.
    - 다른 작업의 결과가 있어야 시작할 수 있는 일은 만들지 않고 마지막에 따로 알려준다.
@@ -394,7 +400,7 @@ function buildServer(baseUrl: string): McpServer {
 4. 작업마다 create_todo(project_id, title, description, memory_inject_mode="auto")를 호출한다.
    - description은 이것만 읽고 작업할 수 있게 쓴다: 목표, 고칠 파일 경로와 위치, 지켜야 할 결정과 주의점, 완료 조건. 코드 전문은 넣지 않는다.
    - 결과를 확인할 명령(테스트, 타입체크, 빌드)이 프로젝트 파일(package.json 스크립트 등)에 있으면 loop={ max_rounds: 3, check: "<그 명령>", stop_when_no_changes: true }를 준다. 파일에서 확인하지 못한 명령은 쓰지 않는다.
-5. start_todo는 호출하지 않는다. 사용자가 CLITrigger에서 확인하고 시작한다. 만든 작업 제목 목록과, 나누지 않고 남긴 일을 알려주고 끝낸다.${scope ? `\n\n나눌 범위: ${scope}` : ''}`),
+5. start_todo는 호출하지 않는다. 사용자가 CLITrigger에서 확인하고 시작한다. 만든 작업 제목 목록과, 나누지 않고 남긴 일을 알려주고 끝낸다. use_worktree=false로 만들었으면 작업본에서 하나씩 실행된다는 점과, 그동안 이 세션에서 같은 파일을 고치면 서로 덮어쓴다는 점도 알려준다.${scope ? `\n\n나눌 범위: ${scope}` : ''}`),
   );
 
   server.registerPrompt(
