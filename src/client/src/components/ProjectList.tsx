@@ -108,7 +108,8 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const handleAddProject = async (name: string, path: string) => {
     try {
       const newProject = await projectsApi.createProject({ name, path });
-      setProjects((prev) => [...prev, newProject]);
+      // The projects:changed broadcast may have reloaded the list first.
+      setProjects((prev) => (prev.some((p) => p.id === newProject.id) ? prev : [...prev, newProject]));
       setShowForm(false);
       window.dispatchEvent(new Event('projects:changed'));
     } catch (err) {
