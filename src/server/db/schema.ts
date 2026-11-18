@@ -438,6 +438,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'sessions', column: 'snapshots', definition: 'TEXT' },
     // Raw-shell sessions: shell id picked in the new-tab menu (NULL = platform default).
     { table: 'sessions', column: 'shell', definition: 'TEXT' },
+    // Manual list order (drag reorder). Ties — every row until the first
+    // reorder, and each new session — fall back to created_at DESC.
+    { table: 'sessions', column: 'sort_order', definition: 'INTEGER NOT NULL DEFAULT 0' },
     // Auto-delegation rule: JSON {"from":"claude","to":"codex"}, NULL = disabled.
     { table: 'projects', column: 'auto_delegate', definition: 'TEXT' },
     // Parent todo id when this todo was auto-created as a delegated review task.

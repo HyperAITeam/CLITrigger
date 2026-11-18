@@ -68,6 +68,10 @@ export function updateSession(
   return put(`/api/sessions/${id}`, data);
 }
 
+export function reorderSessions(projectId: string, ids: string[]): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${projectId}/sessions/reorder`, { ids });
+}
+
 export function deleteSession(id: string): Promise<void> {
   return del(`/api/sessions/${id}`);
 }

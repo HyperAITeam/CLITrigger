@@ -681,6 +681,22 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   }, []);
 
+  const handleReorderSessions = useCallback(async (orderedIds: string[]) => {
+    if (!id) return;
+    setSessions((prev) => {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+      const moved = orderedIds.map((sessionId) => byId.get(sessionId)).filter((s): s is Session => !!s);
+      return [...moved, ...prev.filter((s) => !orderedIds.includes(s.id))];
+    });
+    try {
+      await sessionsApi.reorderSessions(id, orderedIds);
+    } catch (err) {
+      // The server's order is the truth — reload it instead of guessing the old list.
+      sessionsApi.getSessions(id).then(setSessions).catch(() => {});
+      toastError(err instanceof Error ? err.message : String(err));
+    }
+  }, [id, toastError]);
+
   const handleCleanupSession = useCallback(async (sessionId: string, deleteBranch: boolean) => {
     const res = await sessionsApi.cleanupSession(sessionId, deleteBranch);
     setSessions((prev) =>
@@ -945,6 +961,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onStopSession={handleStopSession}
           onDeleteSession={handleDeleteSession}
           onCleanupSession={handleCleanupSession}
+          onReorderSessions={handleReorderSessions}
         />
       )}
       {activeTab === 'automation' && automationSub === 'discussions' && id && (

@@ -1030,7 +1030,15 @@ export function createSession(
 
 export function getSessionsByProjectId(projectId: string): Session[] {
   const db = getDatabase();
-  return db.prepare('SELECT s.*, p.is_git_repo FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.project_id = ? ORDER BY s.created_at DESC').all(projectId) as Session[];
+  return db.prepare('SELECT s.*, p.is_git_repo FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.project_id = ? ORDER BY s.sort_order ASC, s.created_at DESC').all(projectId) as Session[];
+}
+
+export function reorderSessions(projectId: string, orderedIds: string[]): void {
+  const db = getDatabase();
+  const update = db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ? AND project_id = ?');
+  db.transaction(() => {
+    orderedIds.forEach((id, index) => update.run(index, id, projectId));
+  })();
 }
 
 export function getSessionById(id: string): Session | undefined {

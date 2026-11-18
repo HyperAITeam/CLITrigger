@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus } from 'lucide-react';
 import CursorContextMenu, {
   CtxMenuSeparator,
@@ -39,6 +39,7 @@ interface SessionListProps {
   onStopSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onCleanupSession: (id: string, deleteBranch: boolean) => Promise<void>;
+  onReorderSessions: (orderedIds: string[]) => void;
 }
 
 // Keep state visible without turning every bit of metadata into a coloured chip.
@@ -52,6 +53,15 @@ const STATUS_DOT: Record<string, string> = {
   stopped: 'bg-status-warning',
 };
 
+/** New flat id order after dropping block `sourceIndex` into gap `gapIndex`
+ *  (gap i = before block i), or null when the drop changes nothing. */
+export function moveBlock(blocks: string[][], sourceIndex: number, gapIndex: number): string[] | null {
+  if (gapIndex === sourceIndex || gapIndex === sourceIndex + 1) return null;
+  const reordered = blocks.filter((_, index) => index !== sourceIndex);
+  reordered.splice(gapIndex > sourceIndex ? gapIndex - 1 : gapIndex, 0, blocks[sourceIndex]);
+  return reordered.flat();
+}
+
 export default function SessionList({
   projectId,
   sessions,
@@ -64,6 +74,7 @@ export default function SessionList({
   onStopSession,
   onDeleteSession,
   onCleanupSession,
+  onReorderSessions,
 }: SessionListProps) {
   const { t } = useI18n();
   const { confirm } = useDialog();
@@ -91,6 +102,78 @@ export default function SessionList({
     }
     return result;
   }, [sessions, windowGroups]);
+
+  // Drag reorder moves blocks: sessions sharing a window travel together.
+  const blocks = useMemo(() => {
+    const result: string[][] = [];
+    for (const { session, position } of orderedSessions) {
+      if (position === 'middle' || position === 'last') result[result.length - 1].push(session.id);
+      else result.push([session.id]);
+    }
+    return result;
+  }, [orderedSessions]);
+  const blockIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    blocks.forEach((ids, index) => ids.forEach((id) => map.set(id, index)));
+    return map;
+  }, [blocks]);
+  const listRef = useRef<HTMLDivElement>(null);
+  // gapIndex i = drop before block i (blocks.length = after the last).
+  const [drag, setDrag] = useState<{ sourceIndex: number; gapIndex: number } | null>(null);
+  // Swallows the click that follows mouseup so a drop doesn't open the window.
+  const dragJustHappenedRef = useRef(false);
+
+  // Mouse events, not HTML5 draggable — same reason as the Sidebar project
+  // reorder (Edge/Chrome show an undismissable split-view drop target).
+  const handleRowMouseDown = useCallback((sessionId: string, event: React.MouseEvent) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
+    const sourceIndex = blockIndexById.get(sessionId);
+    if (sourceIndex === undefined) return;
+    event.preventDefault(); // no text selection while dragging
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let gapIndex: number | null = null;
+
+    // A block counts as passed once the cursor is below its vertical midpoint.
+    const computeGapIndex = (clientY: number): number => {
+      const bounds: { top: number; bottom: number }[] = [];
+      listRef.current?.querySelectorAll<HTMLElement>('[data-block-index]').forEach((row) => {
+        const index = Number(row.dataset.blockIndex);
+        const rect = row.getBoundingClientRect();
+        bounds[index] = { top: bounds[index]?.top ?? rect.top, bottom: rect.bottom };
+      });
+      const index = bounds.findIndex((bound) => clientY < (bound.top + bound.bottom) / 2);
+      return index === -1 ? bounds.length : index;
+    };
+
+    const onMove = (moveEvent: MouseEvent) => {
+      if (gapIndex === null && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 6) return;
+      const next = computeGapIndex(moveEvent.clientY);
+      if (next === gapIndex) return;
+      gapIndex = next;
+      setDrag({ sourceIndex, gapIndex: next });
+    };
+    const finish = (commit: boolean) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('keydown', onKey);
+      if (gapIndex === null) return; // plain click
+      dragJustHappenedRef.current = true;
+      requestAnimationFrame(() => { dragJustHappenedRef.current = false; });
+      setDrag(null);
+      const nextOrder = commit ? moveBlock(blocks, sourceIndex, gapIndex) : null;
+      if (nextOrder) onReorderSessions(nextOrder);
+    };
+    const onUp = () => finish(true);
+    const onKey = (keyEvent: KeyboardEvent) => { if (keyEvent.key === 'Escape') finish(false); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('keydown', onKey);
+  }, [blockIndexById, blocks, onReorderSessions]);
+  const dropGapIndex = drag && drag.gapIndex !== drag.sourceIndex && drag.gapIndex !== drag.sourceIndex + 1
+    ? drag.gapIndex
+    : null;
+
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -285,7 +368,7 @@ export default function SessionList({
           <EmptyState icon={TerminalSquare} title={t('session.empty')} description={t('session.emptyHint')} />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" ref={listRef}>
           {orderedSessions.map(({ session, position }) => {
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
@@ -303,11 +386,18 @@ export default function SessionList({
               middle: '!mt-0 rounded-none border-t-0 hover:!translate-y-0',
               last: '!mt-0 rounded-t-none border-t-0 hover:!translate-y-0',
             }[position];
+            const blockIndex = blockIndexById.get(session.id) ?? 0;
+            // Drop marker as the card's own shadow: no layout shift (which
+            // would move the rects mid-drag), and not clipped by overflow-hidden.
+            const dropAbove = dropGapIndex === blockIndex && (position === 'single' || position === 'first');
+            const dropBelow = dropGapIndex === blocks.length && blockIndex === blocks.length - 1 && (position === 'single' || position === 'last');
 
             return (
               <div
                 key={session.id}
-                className={`card overflow-hidden ${joinClass} ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''}`}
+                data-block-index={blockIndex}
+                className={`card overflow-hidden ${joinClass} ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''} ${drag?.sourceIndex === blockIndex ? 'opacity-50' : ''}`}
+                style={dropAbove ? { boxShadow: '0 -3px 0 0 var(--color-accent)' } : dropBelow ? { boxShadow: '0 3px 0 0 var(--color-accent)' } : undefined}
                 onContextMenu={(e) => {
                   if (isNativeContextMenuTarget(e)) return;
                   e.preventDefault();
@@ -317,7 +407,12 @@ export default function SessionList({
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-warm-50/50 transition-colors"
-                  onClick={() => isPopped ? recallPopout(session.id) : openOrFocus(session.id, 'open')}
+                  onMouseDown={(e) => handleRowMouseDown(session.id, e)}
+                  onClick={() => {
+                    if (dragJustHappenedRef.current) return;
+                    if (isPopped) recallPopout(session.id);
+                    else openOrFocus(session.id, 'open');
+                  }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">

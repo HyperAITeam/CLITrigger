@@ -108,6 +108,23 @@ router.get('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respons
   }
 });
 
+// POST /api/projects/:id/sessions/reorder — { ids } in display order. Ids of
+// other projects are ignored; sessions left out keep their sort_order.
+router.post('/projects/:id/sessions/reorder', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+      res.status(400).json({ error: 'ids must be a string array' });
+      return;
+    }
+    queries.reorderSessions(req.params.id, ids);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // GET /api/projects/:id/sessions/processes — one OS enumeration, a process
 // tree per running session (rooted at its PTY pid). On-demand only: the
 // enumeration costs 1.5–2.5 s on Windows, so the client never polls this.
