@@ -280,7 +280,7 @@ function buildServer(baseUrl: string): McpServer {
     'spawn_session',
     {
       description:
-        "하위 세션을 띄워 prompt를 맡깁니다(서브에이전트처럼). 세션을 만들고 바로 시작하며, CLI가 준비되면 prompt를 자동으로 제출합니다. CLITrigger 터미널 안에서 실행 중이면 환경변수 CLITRIGGER_PROJECT_ID를 project_id로, CLITRIGGER_SESSION_ID를 parent_session_id로 주세요. 부모를 주면 UI에서 부모 세션 아래에 묶여 보입니다. cli_tool은 claude/codex/antigravity 중에서 골라 다른 CLI에 맡길 수 있습니다(생략 시 프로젝트 기본값). 하위 세션은 이 대화를 모르므로 prompt만 읽고 작업할 수 있게 쓰세요. 결과는 wait_session_state(state='blocked')로 턴이 끝나길 기다린 뒤 read_session_output으로 읽고, 다 쓰면 stop_session으로 끕니다.",
+        "서브세션(별도의 CLITrigger 터미널 세션)을 띄워 prompt를 맡깁니다. 세션을 만들고 바로 시작하며, CLI가 준비되면 prompt를 자동으로 제출합니다. CLITrigger 터미널 안에서 실행 중이면 환경변수 CLITRIGGER_PROJECT_ID를 project_id로, CLITRIGGER_SESSION_ID를 parent_session_id로 주세요. 부모를 주면 UI에서 부모 세션 아래에 묶여 보입니다. cli_tool은 claude/codex/antigravity 중에서 골라 다른 CLI에 맡길 수 있습니다(생략 시 프로젝트 기본값). 서브세션은 이 대화를 모르므로 prompt만 읽고 작업할 수 있게 쓰세요. 결과는 wait_session_state(state='blocked')로 턴이 끝나길 기다린 뒤 read_session_output으로 읽고, 다 쓰면 stop_session으로 끕니다.",
       inputSchema: {
         project_id: z.string(),
         prompt: z.string(),
