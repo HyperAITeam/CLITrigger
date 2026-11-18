@@ -307,6 +307,9 @@ router.get('/:id/files/binary', (req: Request<{ id: string }>, res: Response) =>
     res.setHeader('Content-Type', mime);
     // SVG can carry scripts; sandbox it so opening the URL directly can't run JS.
     if (mime === 'image/svg+xml') res.setHeader('Content-Security-Policy', 'sandbox');
+    // The preview panel shows PDFs in a same-origin <iframe>; the app-wide
+    // `frame-ancestors 'none'` from helmet would leave it blank.
+    if (mime === 'application/pdf') res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
     res.sendFile(safe.abs);
