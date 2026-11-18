@@ -11,6 +11,9 @@ import { stripAnsi } from './pty-output-filter.js';
 
 export type ClaudeMode = CliMode;
 
+// ponytail: calibration knob; raise if a CLI still leaves the first prompt unsent at startup
+const STDIN_SUBMIT_DELAY_MS = 300;
+
 // Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
 // server-only secrets so an agent or raw-shell can't read them — otherwise a
 // prompt-injected agent could exfiltrate SESSION_SECRET and forge session cookies.
@@ -200,6 +203,19 @@ export class ClaudeManager {
       // Trust prompt tracking: block stdin delivery only while trust prompt is visible
       let trustPending = false;
 
+      // Text and submit key as separate writes: Claude Code 2.1.327 strips a CR
+      // that arrives in the same chunk as the text while it is still starting up
+      // ("Removed 1 invisible character from your prompt"), leaving the prompt unsent.
+      const deliverStdinPrompt = (): void => {
+        if (!stdinPrompt) return;
+        stdinDelivered = true;
+        try { ptyProcess.write(stdinPrompt.replace(/\n$/, '')); } catch { /* PTY may have exited */ }
+        setTimeout(() => {
+          if (exited) return;
+          try { ptyProcess.write(submitSeq); } catch { /* PTY may have exited */ }
+        }, STDIN_SUBMIT_DELAY_MS);
+      };
+
       ptyProcess.onData((data) => {
         // Raw byte fan-out: feeds xterm.js terminal subscribers (replay comes
         // from DB session_raw_chunks, so nothing is buffered here).
@@ -245,8 +261,7 @@ export class ClaudeManager {
         if (delayStdin && stdinPrompt && !stdinDelivered && !exited && !trustPending) {
           const readyMatched = readyPattern?.test(clean) ?? false;
           if (readyMatched || /[›>$%⏵]\s*$/.test(clean) || /[☰○]\s*$/.test(clean)) {
-            stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
+            deliverStdinPrompt();
           }
         }
 
@@ -294,17 +309,11 @@ export class ClaudeManager {
       // wait for the ready indicator (handled in onData) with a 5s fallback.
       if (stdinPrompt && !delayStdin) {
         setImmediate(() => {
-          if (!stdinDelivered && !exited) {
-            stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
-          }
+          if (!stdinDelivered && !exited) deliverStdinPrompt();
         });
       } else if (stdinPrompt && delayStdin) {
         setTimeout(() => {
-          if (!stdinDelivered && !exited) {
-            stdinDelivered = true;
-            try { ptyProcess.write(stdinPrompt.replace(/\n$/, submitSeq)); } catch { /* PTY may have exited */ }
-          }
+          if (!stdinDelivered && !exited) deliverStdinPrompt();
         }, 5000);
       }
 
