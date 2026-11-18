@@ -284,6 +284,7 @@ export interface Session {
   memory_raw_file_paths?: string | null;
   tag_id?: string | null;
   cli_session_id?: string | null; // Claude conversation UUID; set once the session has started
+  parent_session_id?: string | null; // lead session that spawned this one via MCP spawn_session
   created_at: string;
   updated_at: string;
   is_git_repo?: number; // joined from the owning project (read-only)

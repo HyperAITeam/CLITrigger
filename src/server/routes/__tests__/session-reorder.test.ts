@@ -69,3 +69,18 @@ describe('session reorder', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('sub-session parent', () => {
+  it('stores parent_session_id and rejects an unknown parent', async () => {
+    const lead = await create('p2', 'Lead');
+    const child = await call<{ parent_session_id: string | null }>('POST', '/api/projects/p2/sessions', { title: 'Child', parent_session_id: lead.id });
+    expect(child.parent_session_id).toBe(lead.id);
+
+    const res = await fetch(`${base}/api/projects/p2/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Orphan', parent_session_id: 'no-such-session' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});

@@ -985,6 +985,7 @@ export interface Session {
   tag_id: string | null;
   cli_session_id: string | null;
   shell: string | null;
+  parent_session_id: string | null;
   created_at: string;
   updated_at: string;
   is_git_repo?: number; // joined from projects (read-only); not a sessions column
@@ -1002,13 +1003,14 @@ export function createSession(
   memoryRawFilePaths?: string | null,
   tagId?: string | null,
   shell?: string | null,
+  parentSessionId?: string | null,
 ): Session {
   const db = getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, shell, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sessions (id, project_id, title, description, cli_tool, cli_model, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, shell, parent_session_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     projectId,
@@ -1022,6 +1024,7 @@ export function createSession(
     memoryRawFilePaths ?? null,
     tagId ?? null,
     shell ?? null,
+    parentSessionId ?? null,
     now,
     now,
   );

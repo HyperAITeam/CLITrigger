@@ -47,7 +47,11 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
 
     // cli_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { title, description, cli_tool, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, shell } = req.body;
+    const { title, description, cli_tool, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, tag_id, shell, parent_session_id } = req.body;
+    if (parent_session_id !== undefined && !(typeof parent_session_id === 'string' && queries.getSessionById(parent_session_id))) {
+      res.status(400).json({ error: 'Invalid parent_session_id' });
+      return;
+    }
     const normalizedShell = cli_tool === 'raw-shell' && getAvailableShells().some((s) => s.id === shell) ? shell as string : null;
     const trimmedTitle = typeof title === 'string' ? title.trim() : '';
     const finalTitle = trimmedTitle || `Session ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
@@ -82,6 +86,7 @@ router.post('/projects/:id/sessions', (req: Request<{ id: string }>, res: Respon
       normalizedRaw === undefined ? null : normalizedRaw,
       normalizedTagId,
       normalizedShell,
+      parent_session_id,
     );
     // Lets the UI list sessions created elsewhere (e.g. MCP create_session).
     broadcaster.broadcast({ type: 'session:created', session });
@@ -402,10 +407,10 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
       return;
     }
 
-    const body = (req.body ?? {}) as { cols?: unknown; rows?: unknown; continueSession?: unknown };
+    const body = (req.body ?? {}) as { cols?: unknown; rows?: unknown; continueSession?: unknown; autoSubmit?: unknown };
     const hasCols = body.cols !== undefined;
     const hasRows = body.rows !== undefined;
-    let opts: { cols?: number; rows?: number; continueSession?: boolean } | undefined;
+    let opts: { cols?: number; rows?: number; continueSession?: boolean; autoSubmit?: boolean } | undefined;
     if (hasCols !== hasRows) {
       res.status(400).json({ error: 'cols and rows must both be provided or both omitted' });
       return;
@@ -433,6 +438,9 @@ router.post('/sessions/:id/start', async (req: Request<{ id: string }>, res: Res
       res.status(400).json({ error: 'continueSession must be a boolean' });
       return;
     }
+    // MCP spawn_session: send the description as soon as the CLI is ready
+    // instead of holding it for the user's Send/Skip pre-flight.
+    if (body.autoSubmit === true) opts = { ...(opts ?? {}), autoSubmit: true };
 
     await sessionManager.startSession(req.params.id, opts);
 

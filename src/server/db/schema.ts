@@ -437,6 +437,9 @@ export function initDatabase(db: Database.Database): void {
     // --resume <id>, so root (non-worktree) sessions never hit --continue's
     // "latest conversation in cwd" ambiguity.
     { table: 'sessions', column: 'cli_session_id', definition: 'TEXT' },
+    // Session that spawned this one via MCP spawn_session. No FK: a deleted
+    // parent just leaves the child shown as a top-level session.
+    { table: 'sessions', column: 'parent_session_id', definition: 'TEXT' },
     { table: 'projects', column: 'vcs_type', definition: 'TEXT' },
     { table: 'projects', column: 'svn_enabled', definition: 'INTEGER DEFAULT 0' },
     // UI-only: JSON array of primary tab keys hidden for this project. NULL = all visible.

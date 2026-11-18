@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus } from 'lucide-react';
+import { GitBranch, Play, RotateCcw, Square, Trash2, TerminalSquare, Archive, Edit2, ExternalLink, Maximize2, Plus, CornerDownRight } from 'lucide-react';
 import CursorContextMenu, {
   CtxMenuSeparator,
   ctxMenuItemClass,
@@ -62,6 +62,26 @@ export function moveBlock(blocks: string[][], sourceIndex: number, gapIndex: num
   return reordered.flat();
 }
 
+/** Sub-sessions (MCP spawn_session) right after their parent, depth-first.
+ *  A session whose parent is not in the list shows as top-level. */
+export function nestSessions(sessions: Session[]): { session: Session; depth: number }[] {
+  const ids = new Set(sessions.map((session) => session.id));
+  const childrenOf = new Map<string, Session[]>();
+  const roots: Session[] = [];
+  for (const session of sessions) {
+    const parentId = session.parent_session_id;
+    if (parentId && ids.has(parentId)) childrenOf.set(parentId, [...(childrenOf.get(parentId) ?? []), session]);
+    else roots.push(session);
+  }
+  const result: { session: Session; depth: number }[] = [];
+  const visit = (session: Session, depth: number) => {
+    result.push({ session, depth });
+    for (const child of childrenOf.get(session.id) ?? []) visit(child, depth + 1);
+  };
+  roots.forEach((session) => visit(session, 0));
+  return result;
+}
+
 export default function SessionList({
   projectId,
   sessions,
@@ -84,20 +104,22 @@ export default function SessionList({
   // Pull sessions sharing a window up to their first member's slot so the rows
   // render as one joined block, mirroring the tabs docked together.
   const orderedSessions = useMemo(() => {
+    const nested = nestSessions(sessions);
+    const depthById = new Map(nested.map(({ session, depth }) => [session.id, depth]));
     const byGroup = new Map<string, Session[]>();
-    for (const s of sessions) {
+    for (const { session: s } of nested) {
       const groupId = windowGroups[s.id];
       if (groupId) byGroup.set(groupId, [...(byGroup.get(groupId) ?? []), s]);
     }
     const placed = new Set<string>();
-    const result: { session: Session; position: 'single' | 'first' | 'middle' | 'last' }[] = [];
-    for (const s of sessions) {
+    const result: { session: Session; position: 'single' | 'first' | 'middle' | 'last'; depth: number }[] = [];
+    for (const { session: s } of nested) {
       if (placed.has(s.id)) continue;
       const members = byGroup.get(windowGroups[s.id] ?? '') ?? [s];
       members.forEach((member, i) => {
         placed.add(member.id);
         const position = members.length === 1 ? 'single' : i === 0 ? 'first' : i === members.length - 1 ? 'last' : 'middle';
-        result.push({ session: member, position });
+        result.push({ session: member, position, depth: depthById.get(member.id) ?? 0 });
       });
     }
     return result;
@@ -369,7 +391,7 @@ export default function SessionList({
         </div>
       ) : (
         <div className="space-y-3" ref={listRef}>
-          {orderedSessions.map(({ session, position }) => {
+          {orderedSessions.map(({ session, position, depth }) => {
             const canStart = ['pending', 'failed', 'stopped', 'completed'].includes(session.status);
             const canStop = session.status === 'running';
             const canEdit = session.status !== 'running';
@@ -397,7 +419,10 @@ export default function SessionList({
                 key={session.id}
                 data-block-index={blockIndex}
                 className={`card overflow-hidden ${joinClass} ${isEditing ? 'border-l-4 border-accent bg-warm-100/30' : ''} ${drag?.sourceIndex === blockIndex ? 'opacity-50' : ''}`}
-                style={dropAbove ? { boxShadow: '0 -3px 0 0 var(--color-accent)' } : dropBelow ? { boxShadow: '0 3px 0 0 var(--color-accent)' } : undefined}
+                style={{
+                  marginLeft: depth * 24 || undefined,
+                  boxShadow: dropAbove ? '0 -3px 0 0 var(--color-accent)' : dropBelow ? '0 3px 0 0 var(--color-accent)' : undefined,
+                }}
                 onContextMenu={(e) => {
                   if (isNativeContextMenuTarget(e)) return;
                   e.preventDefault();
@@ -417,6 +442,7 @@ export default function SessionList({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
+                        {depth > 0 && <CornerDownRight size={14} className="shrink-0 text-warm-400" aria-hidden="true" />}
                         {session.tag_id && tagsById.get(session.tag_id) && (
                           <span
                             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-2xs font-medium"

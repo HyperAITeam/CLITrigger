@@ -228,7 +228,7 @@ export class SessionManager {
    * plugin or curl direct hit), fall back to 100x30 — small enough that a
    * later wider client still renders the welcome banner cleanly.
    */
-  async startSession(sessionId: string, opts?: { cols?: number; rows?: number; continueSession?: boolean }): Promise<void> {
+  async startSession(sessionId: string, opts?: { cols?: number; rows?: number; continueSession?: boolean; autoSubmit?: boolean }): Promise<void> {
     const session = queries.getSessionById(sessionId);
     if (!session) throw new Error('Session not found');
 
@@ -291,8 +291,11 @@ export class SessionManager {
     // Raw-shell never auto-submits an initial prompt — running an arbitrary
     // string in a shell would execute it as a command, which is unsafe and
     // not what "session description" means for raw shells.
-    if (!isRawShell && !resume && prompt.trim()) {
-      this.pendingInitialPrompts.set(sessionId, prompt);
+    // autoSubmit (MCP spawn_session) skips the hold: claudeManager delivers the
+    // prompt itself once the CLI shows its ready indicator, as for todos.
+    const initialPrompt = !isRawShell && !resume && prompt.trim() ? prompt : '';
+    if (initialPrompt && !opts?.autoSubmit) {
+      this.pendingInitialPrompts.set(sessionId, initialPrompt);
     } else {
       this.pendingInitialPrompts.delete(sessionId);
     }
@@ -367,9 +370,11 @@ export class SessionManager {
 
     try {
       const result = await claudeManager.startClaude(
-        workDir, '', cliModel, undefined, 'interactive', cliTool,
+        workDir, opts?.autoSubmit ? initialPrompt : '', cliModel, undefined, 'interactive', cliTool,
         undefined, project.path, (project.session_sandbox_mode as SandboxMode) || 'strict', resume,
         opts?.cols ?? 100, opts?.rows ?? 30, cliSessionId, session.shell,
+        // Lets an agent in this terminal name itself as parent_session_id in MCP spawn_session.
+        { CLITRIGGER_SESSION_ID: sessionId, CLITRIGGER_PROJECT_ID: project.id },
       );
       pid = result.pid;
       exitPromise = result.exitPromise;

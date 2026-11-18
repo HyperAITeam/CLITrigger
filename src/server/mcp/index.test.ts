@@ -13,6 +13,7 @@ import { mountMcp, listMcpCatalog } from './index.js';
 const TOKEN = 'test-mcp-token-abc';
 let server: Server;
 let mcpUrl: URL;
+let lastCreatedSessionBody: unknown;
 
 beforeAll(async () => {
   setSetting('mcp.token', TOKEN);
@@ -23,6 +24,17 @@ beforeAll(async () => {
     res.json([{ id: 'p1', name: 'demo' }]);
   });
   app.post('/api/sessions/:id/input', (req, res) => {
+    res.json({ id: req.params.id, body: req.body });
+  });
+  app.post('/api/projects/:id/sessions', (req, res) => {
+    lastCreatedSessionBody = req.body;
+    if (req.body.parent_session_id === 'missing') {
+      res.status(400).json({ error: 'Invalid parent_session_id' });
+      return;
+    }
+    res.status(201).json({ id: 'child1', body: req.body });
+  });
+  app.post('/api/sessions/:id/start', (req, res) => {
     res.json({ id: req.params.id, body: req.body });
   });
   app.post('/api/projects/:id/todos', (req, res) => {
@@ -81,6 +93,7 @@ describe('MCP endpoint', () => {
       'list_wiki_nodes',
       'read_session_output',
       'send_session_input',
+      'spawn_session',
       'start_session',
       'start_todo',
       'stop_session',
@@ -112,7 +125,7 @@ describe('MCP endpoint', () => {
 
   it('lists the catalog for the settings UI in-process', async () => {
     const catalog = await listMcpCatalog();
-    expect(catalog.tools).toHaveLength(24);
+    expect(catalog.tools).toHaveLength(25);
     expect(catalog.tools.find((tool) => tool.name === 'list_projects')?.description).toBeTruthy();
     const handoff = catalog.prompts.find((prompt) => prompt.name === 'handoff');
     expect(handoff?.title).toBe('새 세션으로 넘기기');
@@ -128,6 +141,26 @@ describe('MCP endpoint', () => {
     });
     const text = (result.content as Array<{ type: string; text: string }>)[0].text;
     expect(JSON.parse(text)).toEqual({ id: 's1', body: { text: 'hi', submit: true } });
+    await client.close();
+  });
+
+  it('spawn_session creates the child with the prompt as description, then starts it with autoSubmit', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: 'spawn_session',
+      arguments: { project_id: 'p1', prompt: 'do it', parent_session_id: 'lead1', cli_tool: 'codex' },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(JSON.parse(text)).toEqual({ id: 'child1', body: { autoSubmit: true } });
+    expect(lastCreatedSessionBody).toEqual({ description: 'do it', parent_session_id: 'lead1', cli_tool: 'codex' });
+
+    const failed = await client.callTool({
+      name: 'spawn_session',
+      arguments: { project_id: 'p1', prompt: 'do it', parent_session_id: 'missing' },
+    });
+    expect(failed.isError).toBe(true);
+    expect((failed.content as Array<{ type: string; text: string }>)[0].text).toContain('Invalid parent_session_id');
     await client.close();
   });
 

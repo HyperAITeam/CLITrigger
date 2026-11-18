@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { moveBlock } from './SessionList';
+import { moveBlock, nestSessions } from './SessionList';
+import type { Session } from '../types';
 
 // Blocks: a single row, a two-session window group, another single row.
 const blocks = [['a'], ['b1', 'b2'], ['c']];
@@ -19,5 +20,18 @@ describe('moveBlock', () => {
   it('returns null for the gaps right around the source block', () => {
     expect(moveBlock(blocks, 1, 1)).toBeNull();
     expect(moveBlock(blocks, 1, 2)).toBeNull();
+  });
+});
+
+describe('nestSessions', () => {
+  const session = (id: string, parent_session_id?: string) => ({ id, parent_session_id }) as Session;
+
+  it('pulls sub-sessions right under their parent, depth-first', () => {
+    const nested = nestSessions([session('child', 'lead'), session('other'), session('lead'), session('grandchild', 'child')]);
+    expect(nested.map(({ session: s, depth }) => `${s.id}:${depth}`)).toEqual(['other:0', 'lead:0', 'child:1', 'grandchild:2']);
+  });
+
+  it('shows a session whose parent is gone as top-level', () => {
+    expect(nestSessions([session('orphan', 'deleted')])).toEqual([{ session: session('orphan', 'deleted'), depth: 0 }]);
   });
 });
