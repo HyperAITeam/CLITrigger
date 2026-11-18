@@ -10,12 +10,13 @@ import {
   type Node,
   type Edge,
   type NodeMouseHandler,
+  type ReactFlowInstance,
   BackgroundVariant,
   useNodesState,
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Type, Link2 } from 'lucide-react';
+import { Type, Link2, Folder, FolderTree, ChevronRight } from 'lucide-react';
 import type { VaultFile, VaultEdge as VaultEdgeType } from '../api/vault';
 import { getVaultFileContent, saveVaultFile } from '../api/vault';
 import { useI18n } from '../i18n';
@@ -67,6 +68,18 @@ function addRelatedLink(content: string, stem: string): string | null {
   }
   lines.splice(insertAt, 0, bullet);
   return lines.join('\n');
+}
+
+// Graph node key for `path` while viewing `folder` ('' = root, else 'a/b/').
+// Inside the folder: its immediate child (subfolder 'a/b/c/' or the file).
+// Outside: the child of the deepest ancestor of `folder` that contains it,
+// e.g. folder 'docs/api/' + 'docs/guide/x.md' → 'docs/guide/'. Folder keys end with '/'.
+export function groupKey(path: string, folder: string): string {
+  let base = folder;
+  while (base && !path.startsWith(base)) base = base.slice(0, base.lastIndexOf('/', base.length - 2) + 1);
+  const rest = path.slice(base.length);
+  const slash = rest.indexOf('/');
+  return slash === -1 ? path : base + rest.slice(0, slash + 1);
 }
 
 function hashTagToHsl(tag: string): string {
@@ -151,16 +164,43 @@ function runForceLayout(
   return out;
 }
 
+const centeredHandle: React.CSSProperties = {
+  width: 1, height: 1, minWidth: 0, minHeight: 0,
+  background: 'transparent', border: 'none',
+  top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+};
+
+function FolderDot({ data }: { data: { id: string; name: string; count: number; size: number; selected: boolean; onSelect: (key: string) => void } }) {
+  const { id, name, count, size, selected } = data;
+  return (
+    <div
+      onClick={() => data.onSelect(id)}
+      style={{ width: size * 2 + 24, height: size * 2 + 24 }}
+      className="flex items-center justify-center cursor-pointer group"
+    >
+      <Handle type="target" position={Position.Top} style={centeredHandle} isConnectable={false} />
+      <Handle type="source" position={Position.Top} style={centeredHandle} isConnectable={false} />
+      <div
+        style={{ width: size * 2, height: size * 2, background: '#C9A86A', boxShadow: selected ? '0 0 0 3px #60A5FA' : undefined }}
+        className="rounded-md flex items-center justify-center transition-transform group-hover:scale-110"
+      >
+        <Folder className="w-1/2 h-1/2 text-black/60" />
+      </div>
+      <div
+        className="absolute pointer-events-none whitespace-nowrap text-[11px] font-medium text-gray-100"
+        style={{ top: size * 2 + 14 }}
+      >
+        {name} <span className="text-gray-400">{count}</span>
+      </div>
+    </div>
+  );
+}
+
 function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: boolean; highlight: boolean; tagColor: string | null; showLabel: boolean; onSelect: (p: string) => void } }) {
   const { file, size, selected, highlight, tagColor, showLabel } = data;
   const { t } = useI18n();
   const fill = selected ? '#3B82F6' : highlight ? '#10B981' : tagColor ?? '#E5E7EB';
   const ring = selected ? '#60A5FA' : 'transparent';
-  const centeredHandle: React.CSSProperties = {
-    width: 1, height: 1, minWidth: 0, minHeight: 0,
-    background: 'transparent', border: 'none',
-    top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-  };
   return (
     <div
       onClick={() => data.onSelect(file.relativePath)}
@@ -190,7 +230,7 @@ function VaultDot({ data }: { data: { file: VaultFile; size: number; selected: b
   );
 }
 
-const nodeTypes = { vaultDot: VaultDot };
+const nodeTypes = { vaultDot: VaultDot, folderDot: FolderDot };
 
 // Small portal menu for right-clicking a graph node. Follows the project's
 // floating-element rule: createPortal + position:fixed + viewport clamp.
@@ -253,6 +293,17 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   useEffect(() => {
     try { localStorage.setItem(`vault:graph:showLabels:${projectId}`, showLabels ? '1' : '0'); } catch { /* ignore */ }
   }, [showLabels, projectId]);
+  // Folder grouping (default on), persisted per project. Off = one node per file.
+  const [grouped, setGrouped] = useState(() => {
+    try { return localStorage.getItem(`vault:graph:grouped:${projectId}`) !== '0'; } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(`vault:graph:grouped:${projectId}`, grouped ? '1' : '0'); } catch { /* ignore */ }
+  }, [grouped, projectId]);
+  const [currentFolder, setCurrentFolder] = useState('');
+  // Fall back to root when ungrouped or when the folder vanished (deleted/renamed).
+  const folder = grouped && files.some(f => f.relativePath.startsWith(currentFolder)) ? currentFolder : '';
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
   // Link-drawing mode: relativePath of the source node awaiting a target click.
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; rel: string; stem: string; kind: VaultFile['kind'] } | null>(null);
@@ -288,12 +339,41 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     setMenu({ x: e.clientX, y: e.clientY, rel: f.relativePath, stem: f.stem, kind: f.kind });
   }, [files]);
 
+  // What the graph shows: nodes inside `folder`, plus outside ("ghost") nodes
+  // that link into it. File-level edges are merged per node pair with a count.
+  const view = useMemo(() => {
+    const keyOf = (p: string) => grouped ? groupKey(p, folder) : p;
+    const counts = new Map<string, number>();
+    const fileByKey = new Map<string, VaultFile>();
+    for (const f of files) {
+      const k = keyOf(f.relativePath);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+      if (!k.endsWith('/')) fileByKey.set(k, f);
+    }
+    const linkCounts = new Map<string, number>();
+    for (const e of edges) {
+      const a = keyOf(e.from), b = keyOf(e.to);
+      if (a === b || (!a.startsWith(folder) && !b.startsWith(folder))) continue;
+      const k = `${a}\t${b}`;
+      linkCounts.set(k, (linkCounts.get(k) ?? 0) + 1);
+    }
+    const links = [...linkCounts].map(([k, count]) => {
+      const [from, to] = k.split('\t');
+      return { from, to, count };
+    });
+    const linked = new Set(links.flatMap(l => [l.from, l.to]));
+    const ids = [...counts.keys()].filter(k => k.startsWith(folder) || linked.has(k));
+    let maxFolderCount = 1;
+    for (const [k, c] of counts) if (k.endsWith('/') && c > maxFolderCount) maxFolderCount = c;
+    return { keyOf, counts, fileByKey, links, ids, maxFolderCount };
+  }, [files, edges, grouped, folder]);
+
   const degree = useMemo(() => {
     const d = new Map<string, number>();
-    const inc = (p: string) => d.set(p, (d.get(p) ?? 0) + 1);
-    for (const e of edges) { inc(e.from); inc(e.to); }
+    const inc = (p: string, n: number) => d.set(p, (d.get(p) ?? 0) + n);
+    for (const l of view.links) { inc(l.from, l.count); inc(l.to, l.count); }
     return d;
-  }, [edges]);
+  }, [view]);
 
   const maxDegree = useMemo(() => {
     let m = 1;
@@ -321,18 +401,18 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   // Re-run the layout only when the node/edge *set* changes (add/remove/rename).
   // Content-only reloads (new array identity, same paths) keep the current layout.
   const layoutKey = useMemo(() => {
-    const ids = files.map(f => f.relativePath).sort().join('\n');
-    const links = edges.map(e => `${e.from}\t${e.to}`).sort().join('\n');
+    const ids = [...view.ids].sort().join('\n');
+    const links = view.links.map(l => `${l.from}\t${l.to}`).sort().join('\n');
     return `${ids}\0${links}`;
-  }, [files, edges]);
+  }, [view]);
 
   const positions = useMemo(() => {
-    const ids = files.map(f => f.relativePath);
-    const links = edges.map(e => [e.from, e.to] as [string, string]);
-    return runForceLayout(ids, links);
+    return runForceLayout(view.ids, view.links.map(l => [l.from, l.to] as [string, string]));
   }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback((p: string) => {
+    // Folder node → drill in. Link mode stays armed so a target can be picked inside.
+    if (p.endsWith('/')) { setCurrentFolder(p); return; }
     if (linkSource) {
       if (p !== linkSource) {
         const target = files.find(f => f.relativePath === p);
@@ -350,33 +430,57 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     return file.stem.toLowerCase().includes(q) || file.title.toLowerCase().includes(q) || file.bodyPreview.toLowerCase().includes(q);
   }, [search]);
 
-  const initialNodes: Node[] = useMemo(() => files.map(f => {
-    const pos = positions.get(f.relativePath) ?? { x: 0, y: 0 };
-    const deg = degree.get(f.relativePath) ?? 0;
+  // A folder node matches search when any file inside it matches.
+  const matchedKeys = useMemo(
+    () => new Set(files.filter(matchesSearch).map(f => view.keyOf(f.relativePath))),
+    [files, matchesSearch, view],
+  );
+  const selectedKey = selectedPath ? view.keyOf(selectedPath) : null;
+
+  const initialNodes: Node[] = useMemo(() => view.ids.map(key => {
+    const pos = positions.get(key) ?? { x: 0, y: 0 };
+    const highlight = matchedKeys.has(key);
+    const ghost = !key.startsWith(folder);
+    const style = search.trim() && !highlight ? { opacity: 0.18 } : ghost ? { opacity: 0.5 } : undefined;
+    if (key.endsWith('/')) {
+      const count = view.counts.get(key) ?? 0;
+      const size = NODE_RADIUS_BASE + (count / view.maxFolderCount) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
+      // Ghosts show their full path so you can tell where they sit in the tree.
+      const name = ghost ? key.slice(0, -1) : key.slice(folder.length, -1);
+      return {
+        id: key,
+        type: 'folderDot',
+        position: { x: pos.x, y: pos.y },
+        data: { id: key, name, count, size, selected: key === selectedKey, onSelect: handleSelect },
+        style,
+      };
+    }
+    const f = view.fileByKey.get(key)!;
+    const deg = degree.get(key) ?? 0;
     const size = NODE_RADIUS_BASE + (deg / maxDegree) * (NODE_RADIUS_MAX - NODE_RADIUS_BASE);
-    const highlight = matchesSearch(f);
-    const firstTag = firstTagByPath.get(f.relativePath) ?? null;
+    const firstTag = firstTagByPath.get(key) ?? null;
     const tagColor = firstTag ? hashTagToHsl(firstTag) : null;
     return {
-      id: f.relativePath,
+      id: key,
       type: 'vaultDot',
       position: { x: pos.x, y: pos.y },
-      data: { file: f, size, selected: f.relativePath === selectedPath, highlight, tagColor, showLabel: showLabels, onSelect: handleSelect },
-      style: search.trim() && !highlight ? { opacity: 0.18 } : undefined,
+      data: { file: f, size, selected: key === selectedPath, highlight, tagColor, showLabel: showLabels, onSelect: handleSelect },
+      style,
     };
-  }), [files, positions, degree, maxDegree, firstTagByPath, selectedPath, handleSelect, matchesSearch, search, showLabels]);
+  }), [view, folder, positions, degree, maxDegree, firstTagByPath, selectedPath, selectedKey, handleSelect, matchedKeys, search, showLabels]);
 
   const initialEdges: Edge[] = useMemo(() =>
-    edges.map((e, i) => ({
+    view.links.map((l, i) => ({
       id: `ve-${i}`,
-      source: e.from,
-      target: e.to,
+      source: l.from,
+      target: l.to,
       type: 'straight',
-      style: EDGE_STYLE,
+      // Merged folder links get thicker with more underlying doc links.
+      style: l.count > 1 ? { ...EDGE_STYLE, strokeWidth: Math.min(1 + Math.log2(l.count), 4) } : EDGE_STYLE,
       // Arrowhead at the target = link direction (from → to).
       markerEnd: { type: MarkerType.ArrowClosed, color: '#9CA3AF', width: 16, height: 16 },
     })),
-  [edges]);
+  [view]);
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialNodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -385,6 +489,13 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     setFlowNodes(initialNodes);
     setFlowEdges(initialEdges);
   }, [initialNodes, initialEdges, setFlowNodes, setFlowEdges]);
+
+  // Refit after drilling in/out; xyflow queues this until the new nodes are measured.
+  useEffect(() => {
+    void flowInstance?.fitView({ padding: 0.2 });
+  }, [folder, grouped, flowInstance]);
+
+  const crumbs = folder.split('/').filter(Boolean);
 
   if (files.length === 0) {
     return (
@@ -402,14 +513,45 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
         placeholder={t('vault.searchPlaceholder')}
         className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-lg bg-black/50 text-warm-800 placeholder:text-warm-400 border border-warm-700 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-accent"
       />
-      <button
-        type="button"
-        onClick={() => setShowLabels(v => !v)}
-        title={t('vault.graph.showLabels')}
-        className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg border transition-colors ${showLabels ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
-      >
-        <Type className="w-3.5 h-3.5" />
-      </button>
+      <div className="absolute top-3 right-3 z-10 flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => setGrouped(v => !v)}
+          title={t('vault.graph.groupByFolder')}
+          className={`p-1.5 rounded-lg border transition-colors ${grouped ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
+        >
+          <FolderTree className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowLabels(v => !v)}
+          title={t('vault.graph.showLabels')}
+          className={`p-1.5 rounded-lg border transition-colors ${showLabels ? 'bg-accent border-accent text-white' : 'bg-black/50 border-warm-700 text-warm-300 hover:text-warm-100'}`}
+        >
+          <Type className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {grouped && (
+        <div className="absolute top-12 left-3 z-10 flex items-center flex-wrap gap-0.5 max-w-[70%] px-2 py-1 rounded-lg bg-black/50 border border-warm-700 text-xs text-warm-300">
+          {['', ...crumbs].map((name, i) => {
+            const path = crumbs.slice(0, i).map(s => `${s}/`).join('');
+            const current = path === folder;
+            return (
+              <span key={path} className="flex items-center gap-0.5">
+                {i > 0 && <ChevronRight className="w-3 h-3 text-warm-500" />}
+                <button
+                  type="button"
+                  disabled={current}
+                  onClick={() => setCurrentFolder(path)}
+                  className={current ? 'text-warm-100 font-medium' : 'hover:text-warm-100 hover:underline'}
+                >
+                  {i === 0 ? t('vault.graph.root') : name}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
       {linkSource && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-accent border border-accent text-white text-xs shadow-elevated whitespace-nowrap pointer-events-none">
           {linkSourceStem ? `${linkSourceStem} → ` : ''}{t('vault.graph.linkHint')}
@@ -423,6 +565,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
         nodeTypes={nodeTypes}
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={() => { setLinkSource(null); setMenu(null); }}
+        onInit={setFlowInstance}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
