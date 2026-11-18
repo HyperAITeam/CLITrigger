@@ -14,11 +14,12 @@
 // (host removes this tab from the group's tree).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2, GitCompare, Clipboard } from 'lucide-react';
+import { AlertCircle, Play, Send, ChevronDown, ChevronUp, Loader2, GitCompare, Clipboard, ListTodo } from 'lucide-react';
 import SessionTerminal from '../SessionTerminal';
 import SessionDiffPanel from '../SessionDiffPanel';
 import { CMD, CMD_FONT } from '../terminal-theme';
 import { useI18n } from '../../i18n';
+import { useToast } from '../../hooks/useToast';
 import * as sessionsApi from '../../api/sessions';
 import { useSessionFontSize } from '../../hooks/useSessionFontSize';
 import { useSessionTheme } from '../../hooks/useSessionTheme';
@@ -63,6 +64,7 @@ export default function SessionPane({
   remountKey = 0,
 }: SessionPaneProps) {
   const { t } = useI18n();
+  const { error: toastError } = useToast();
 
   // Always start at 'pendingFit' when an interactive PTY is expected — even
   // for restored running sessions. Going straight to 'subscribed' at mount
@@ -264,6 +266,22 @@ export default function SessionPane({
 
   const isRunning = session.status === 'running';
   const subscribed = phase === 'subscribed';
+  // Only Claude exposes MCP prompts as slash commands; a pending first prompt blocks input.
+  const canDelegate = isRunning && (session.cli_tool || 'claude') === 'claude' && pendingPromptLength === null;
+  const handleDelegate = async () => {
+    try {
+      // Typed as keystrokes, Claude's first Enter only accepts the slash-command
+      // autocomplete and the second submits (verified on Claude Code 2.1.327).
+      // If a version submits on the first, the second hits an empty prompt — a no-op.
+      await sessionsApi.sendSessionInput(session.id, '/mcp__clitrigger__delegate');
+      for (let enterCount = 0; enterCount < 2; enterCount++) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await sessionsApi.sendSessionInput(session.id, '', true);
+      }
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : String(err));
+    }
+  };
   const [fontSize] = useSessionFontSize(session.id);
   const [, terminalTheme] = useSessionTheme(session.id);
 
@@ -364,21 +382,23 @@ export default function SessionPane({
         onToggleDiff={() => { if (canDiff) setDiffOpen((o) => !o); }}
       />
       {overlayContent}
-      {canDiff && !diffOpen && (
-        <button
-          onClick={() => setDiffOpen(true)}
-          title={`${t('session.diff.title') || 'Diff'} (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+Shift+D)`}
-          style={{
-            position: 'absolute', top: 4, right: 8, zIndex: 1002,
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontFamily: CMD_FONT, fontSize: 10, color: CMD.dim,
-            background: 'rgba(20,20,28,0.7)',
-            border: `1px solid ${CMD.separator}`,
-            padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
-          }}
-        >
-          <GitCompare size={12} /> Diff
-        </button>
+      {(canDelegate || (canDiff && !diffOpen)) && (
+        <div style={{ position: 'absolute', top: 4, right: 8, zIndex: 1002, display: 'flex', gap: 4 }}>
+          {canDelegate && (
+            <button onClick={handleDelegate} title={t('session.delegate.title')} style={paneCornerButtonStyle}>
+              <ListTodo size={12} /> {t('session.delegate')}
+            </button>
+          )}
+          {canDiff && !diffOpen && (
+            <button
+              onClick={() => setDiffOpen(true)}
+              title={`${t('session.diff.title') || 'Diff'} (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+Shift+D)`}
+              style={paneCornerButtonStyle}
+            >
+              <GitCompare size={12} /> Diff
+            </button>
+          )}
+        </div>
       )}
       {pendingPromptLength !== null && (
         <div style={pendingBannerStyle}>
@@ -504,6 +524,14 @@ function pendingButtonStyle(variant: 'primary' | 'neutral' | 'danger'): React.CS
   }
   return { ...base, color: CMD.bright };
 }
+
+const paneCornerButtonStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  fontFamily: CMD_FONT, fontSize: 10, color: CMD.dim,
+  background: 'rgba(20,20,28,0.7)',
+  border: `1px solid ${CMD.separator}`,
+  padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+};
 
 const overlayStyle: React.CSSProperties = {
   position: 'absolute', inset: 0,

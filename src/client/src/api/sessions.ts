@@ -95,6 +95,10 @@ export function skipInitialPrompt(id: string): Promise<{ skipped: boolean }> {
   return post(`/api/sessions/${id}/skip-initial`, {});
 }
 
+export function sendSessionInput(id: string, text: string, submit = false): Promise<{ written: boolean; submitted: boolean }> {
+  return post(`/api/sessions/${id}/input`, { text, submit });
+}
+
 export function stopSession(id: string): Promise<Session> {
   return post(`/api/sessions/${id}/stop`);
 }
