@@ -259,7 +259,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         );
       }
     });
-  }, [onEvent, sendNotification, t]);
+  }, [onEvent, sendNotification, t, id]);
 
   const handleAddTodo = useCallback(async (title: string, description: string, cliTool?: string, images?: Array<{ name: string; data: string }>, dependsOn?: string, maxTurns?: number, useWorktree?: number | null, memoryInjectMode?: 'none' | 'all' | 'selected' | 'auto', memoryNodeIds?: string[], memoryRawFilePaths?: string[], loopConfig?: LoopConfig | null) => {
     if (!id) return;
