@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import cron from 'node-cron';
 import * as queries from '../db/queries.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 import { scheduler } from '../services/scheduler.js';
 import { logStreamer } from '../services/log-streamer.js';
 import { cleanupTodoImages } from './images.js';
@@ -58,6 +59,7 @@ router.post('/projects/:id/schedules', (req: Request<{ id: string }>, res: Respo
       scheduler.registerJob(schedule);
     }
 
+    broadcaster.broadcast({ type: 'schedules:changed', projectId: req.params.id });
     res.status(201).json(schedule);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -157,6 +159,7 @@ router.delete('/schedules/:id', (req: Request<{ id: string }>, res: Response) =>
 
     scheduler.unregisterJob(req.params.id);
     queries.deleteSchedule(req.params.id);
+    broadcaster.broadcast({ type: 'schedules:changed', projectId: schedule.project_id });
     res.status(204).send();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

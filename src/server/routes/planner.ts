@@ -2,6 +2,7 @@ import { Router, Request, Response, text } from 'express';
 import path from 'path';
 import fs from 'fs';
 import * as queries from '../db/queries.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 import { getDatabase } from '../db/connection.js';
 import { getPlannerImagePaths, cleanupPlannerImages, cleanupPlannerPageFiles } from './images.js';
 
@@ -280,6 +281,7 @@ router.post('/projects/:id/planner', (req: Request<{ id: string }>, res: Respons
     const item = queries.createPlannerItem(
       req.params.id, title, description, tags, due_date, priority, undefined, page_id
     );
+    broadcaster.broadcast({ type: 'planner:changed', projectId: req.params.id });
     res.status(201).json(item);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -342,6 +344,7 @@ router.delete('/planner/:id', (req: Request<{ id: string }>, res: Response) => {
     }
     cleanupPlannerImages(req.params.id);
     queries.deletePlannerItem(req.params.id);
+    broadcaster.broadcast({ type: 'planner:changed', projectId: existing.project_id });
     res.status(204).send();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

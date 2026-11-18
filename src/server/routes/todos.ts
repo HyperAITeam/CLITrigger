@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createTodo, getTodosByProjectId, getTodoById, updateTodo, deleteTodo } from '../db/queries.js';
 import { getProjectById } from '../db/queries.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent, MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from '../services/prompt-guard.js';
 import { parseLoopConfig } from '../services/task-loop.js';
 import { cleanupTodoImages } from './images.js';
@@ -80,6 +81,8 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
     const normalizedRawFilePaths = normalizeRawFilePaths(memory_raw_file_paths);
     const todo = createTodo(projectId, title, description, priority, cli_tool, undefined, undefined, depends_on, parsedMaxTurns || undefined, normalizedUseWorktree, normalizedMemMode, normalizedMemIds, normalizedRawFilePaths === undefined ? null : normalizedRawFilePaths);
     const saved = normalizedLoop ? (updateTodo(todo.id, { loop_config: normalizedLoop }) ?? todo) : todo;
+    // Lets the UI list todos created elsewhere (e.g. MCP create_todo).
+    broadcaster.broadcast({ type: 'todo:created', todo: saved });
     res.status(201).json(saved);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -38,7 +38,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
   const { error: toastError } = useToast();
   const { confirm } = useDialog();
 
-  useEffect(() => {
+  const loadProjects = () => {
     projectsApi.getProjects()
       .then((data) => {
         setProjects(data);
@@ -52,6 +52,10 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
       })
       .catch((err) => toastError(getErrorMessage(err, t('errors.projectsLoad'))))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProjects();
     projectsApi.getActiveWork()
       .then(setActiveWork)
       .catch(() => { /* ignore */ });
@@ -59,6 +63,7 @@ export default function ProjectList({ onEvent }: ProjectListProps) {
 
   useEffect(() => {
     const unsubscribe = onEvent((event) => {
+      if (event.type === 'projects:changed') loadProjects();
       if (event.type === 'project:status-changed' && event.projectId) {
         setStatusMap((prev) => ({
           ...prev,

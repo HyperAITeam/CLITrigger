@@ -10,6 +10,7 @@ import { parseAutoDelegate } from '../services/auto-delegate.js';
 import { parseLoopConfig } from '../services/task-loop.js';
 import { isSvnRepository } from '../lib/svn.js';
 import { cleanupProjectImages } from './images.js';
+import { broadcaster } from '../websocket/broadcaster.js';
 
 const router = Router();
 
@@ -246,6 +247,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Users enable it later via Settings → "Enable SVN" which triggers detection.
     const vcsType: string | null = isGitRepo ? 'git' : null;
     const project = createProject(name, safePath, default_branch, isGitRepo ? 1 : 0, vcsType);
+    broadcaster.broadcast({ type: 'projects:changed' });
     res.status(201).json(project);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

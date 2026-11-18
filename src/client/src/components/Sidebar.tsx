@@ -185,6 +185,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
       if (event.type === 'todo:status-changed') {
         loadReviewCount();
       }
+      if (event.type === 'projects:changed') {
+        loadProjects();
+      }
       if (event.type === 'memory:ingest-finished') {
         const project = projects.find(p => p.id === event.projectId);
         const projectLabel = project?.name ?? '';

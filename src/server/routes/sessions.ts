@@ -359,6 +359,7 @@ router.delete('/sessions/:id', (req: Request<{ id: string }>, res: Response) => 
     }
 
     queries.deleteSession(req.params.id);
+    broadcaster.broadcast({ type: 'session:deleted', sessionId: req.params.id });
     res.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

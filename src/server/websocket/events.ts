@@ -16,6 +16,12 @@ export type WSEvent =
   | { type: 'discussion:log'; discussionId: string; messageId: string; message: string; logType: string; agentName: string }
   | { type: 'discussion:commit'; discussionId: string; messageId: string; commitHash: string; message: string }
   | { type: 'session:created'; session: Session }
+  | { type: 'session:deleted'; sessionId: string }
+  // Coarse "list changed → refetch" signals for rows created/deleted outside
+  // the viewing client (e.g. MCP tools).
+  | { type: 'planner:changed'; projectId: string }
+  | { type: 'schedules:changed'; projectId: string }
+  | { type: 'projects:changed' }
   | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null; cli_session_id?: string | null; resumable?: boolean }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }

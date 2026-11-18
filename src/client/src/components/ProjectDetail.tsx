@@ -30,6 +30,13 @@ import WebPanel from './WebPanel';
 const AnalyticsPanel = lazy(() => import('./AnalyticsPanel'));
 const VaultLayout = lazy(() => import('./vault/VaultLayout'));
 
+// The server broadcasts creates (todo:created, planner/schedules refetch) before
+// the create call returns, so a row may already be listed — replace, don't duplicate.
+function upsertById<T extends { id: string }>(list: T[], item: T, prepend = false): T[] {
+  if (list.some((entry) => entry.id === item.id)) return list.map((entry) => (entry.id === item.id ? item : entry));
+  return prepend ? [item, ...list] : [...list, item];
+}
+
 interface ProjectDetailProps {
   onEvent: (cb: (event: WsEvent) => void) => () => void;
   connected: boolean;
@@ -238,6 +245,20 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         const created = event.session;
         setSessions((prev) => (prev.some((s) => s.id === created.id) ? prev : [created, ...prev]));
       }
+      if (event.type === 'session:deleted' && event.sessionId) {
+        setSessions((prev) => prev.filter((s) => s.id !== event.sessionId));
+      }
+      if (event.type === 'planner:changed' && id && event.projectId === id) {
+        Promise.all([plannerApi.getPlannerTags(id), plannerApi.getPlannerItems(id)])
+          .then(([tags, items]) => {
+            setPlannerTags(tags);
+            setPlannerItems(items);
+          })
+          .catch(() => {});
+      }
+      if (event.type === 'schedules:changed' && id && event.projectId === id) {
+        schedulesApi.getSchedules(id).then(setSchedules).catch(() => {});
+      }
       if (event.type === 'session:status-changed' && event.sessionId) {
         setSessions((prev) =>
           prev.map((s) => {
@@ -275,7 +296,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       const result = await todosApi.uploadTodoImages(newTodo.id, images.map(img => ({ name: img.name, data: img.data })));
       newTodo.images = JSON.stringify(result.images);
     }
-    setTodos((prev) => [...prev, newTodo]);
+    setTodos((prev) => upsertById(prev, newTodo));
   }, [id]);
 
   // File explorer right-click → 작업으로 보내기: create a task referencing the
@@ -454,7 +475,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       description: fixDescription,
       cli_tool: failedTodo.cli_tool ?? undefined,
     });
-    setTodos((prev) => [...prev, newTodo]);
+    setTodos((prev) => upsertById(prev, newTodo));
     // Auto-start the fix task
     try {
       const started = await todosApi.startTodo(newTodo.id, 'headless');
@@ -484,7 +505,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       schedule_type: data.scheduleType,
       run_at: data.runAt,
     });
-    setSchedules((prev) => [newSchedule, ...prev]);
+    setSchedules((prev) => upsertById(prev, newSchedule, true));
   }, [id]);
 
   const handleToggleSchedule = useCallback(async (scheduleId: string, activate: boolean) => {
@@ -512,7 +533,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   const handleAddPlannerItem = useCallback(async (data: { title: string; description?: string; tags?: string; due_date?: string; priority?: number }): Promise<PlannerItem> => {
     if (!id) throw new Error('No project id');
     const item = await plannerApi.createPlannerItem(id, data);
-    setPlannerItems((prev) => [item, ...prev]);
+    setPlannerItems((prev) => upsertById(prev, item, true));
     if (data.tags) {
       const tags = await plannerApi.getPlannerTags(id);
       setPlannerTags(tags);
