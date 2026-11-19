@@ -78,7 +78,10 @@ export type BusMessage =
   | { t: 'dock-commit'; from: string; to: string; x: number; y: number; commitId: string;
       sessions: { id: string; color?: string; intentInfo?: unknown }[]; activeId?: string }
   | { t: 'dock-commit-ack'; from: string; to: string; commitId: string; accepted: boolean }
-  | { t: 'dock-end'; from: string };
+  | { t: 'dock-end'; from: string }
+  // any window → main: the user just looked at these sessions, so the
+  // sidebar's workspace badge (useWorkspaceAttention) drops them.
+  | { t: 'sessions-seen'; ids: string[] };
 
 export interface PopoutBus {
   post: (msg: BusMessage) => void;

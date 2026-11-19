@@ -8,13 +8,6 @@ import * as queries from '../db/queries.js';
 import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
 import { broadcastProjectStatus } from './project-status.js';
 
-function broadcastDiscussionProjectStatus(discussionId: string): void {
-  try {
-    const d = queries.getDiscussionById(discussionId);
-    if (d) broadcastProjectStatus(d.project_id);
-  } catch { /* ignore */ }
-}
-
 // Wraps the WS broadcast so every discussion status change also refreshes
 // the parent project's status (sidebar dot pulses on running discussions).
 function dispatchDiscussionStatus(payload: {
@@ -23,8 +16,10 @@ function dispatchDiscussionStatus(payload: {
   currentRound: number;
   currentAgentId: string | null;
 }): void {
-  broadcaster.broadcast({ type: 'discussion:status-changed', ...payload });
-  broadcastDiscussionProjectStatus(payload.discussionId);
+  let projectId: string | undefined;
+  try { projectId = queries.getDiscussionById(payload.discussionId)?.project_id; } catch { /* ignore */ }
+  broadcaster.broadcast({ type: 'discussion:status-changed', projectId, ...payload });
+  if (projectId) broadcastProjectStatus(projectId);
 }
 
 export class DiscussionOrchestrator {

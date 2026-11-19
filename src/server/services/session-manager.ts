@@ -148,14 +148,14 @@ export class SessionManager {
    * Memory-bounded by the upstream ring buffer in claudeManager and by
    * `trimSessionRawChunks` (~2MB rolling) on the DB side.
    */
-  private subscribeRawForSession(sessionId: string, pid: number, hints?: AgentStateHints): void {
+  private subscribeRawForSession(sessionId: string, projectId: string, pid: number, hints?: AgentStateHints): void {
     let pending: Buffer[] = [];
     let pendingBytes = 0;
     let bytesSinceTrim = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tracker = new AgentStateTracker(hints, (state, reason) => {
-      broadcaster.broadcast({ type: 'session:agent-state', sessionId, state, reason });
+      broadcaster.broadcast({ type: 'session:agent-state', projectId, sessionId, state, reason });
     });
     this.agentTrackers.set(sessionId, tracker);
 
@@ -379,7 +379,7 @@ export class SessionManager {
       // Subscribe to raw PTY bytes for the xterm.js terminal channel. Sessions
       // show the real terminal; classified session_logs per output line were
       // dropped as wasted DB churn.
-      this.subscribeRawForSession(sessionId, pid, adapter.agentStateHints);
+      this.subscribeRawForSession(sessionId, project.id, pid, adapter.agentStateHints);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.startupInputBuffer.delete(sessionId);

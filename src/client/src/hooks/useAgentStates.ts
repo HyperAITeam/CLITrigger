@@ -9,6 +9,23 @@
 import { createContext, useEffect, useRef, useState } from 'react';
 import type { WsEvent } from './useWebSocket';
 import type { AgentState } from '../types';
+import { openBus, type PopoutBus } from '../components/popout/popoutBus';
+
+// The sidebar's workspace badge (useWorkspaceAttention) runs in the main
+// window. It checks this window's focused panes synchronously and hears about
+// panes looked at in any window (popouts too) over the bus.
+const mountedFocus = new Set<{ current: ReadonlySet<string> }>();
+let seenBus: PopoutBus | null = null;
+
+export function isSessionFocused(sessionId: string): boolean {
+  for (const ref of mountedFocus) if (ref.current.has(sessionId)) return true;
+  return false;
+}
+
+function postSessionsSeen(ids: Iterable<string>): void {
+  const list = [...ids];
+  if (list.length > 0) (seenBus ??= openBus()).post({ t: 'sessions-seen', ids: list });
+}
 
 export type AttentionState = 'blocked' | 'done';
 
@@ -41,6 +58,11 @@ export function useAgentStates(
   const onAttentionRef = useRef(onAttention);
   onAttentionRef.current = onAttention;
 
+  useEffect(() => {
+    mountedFocus.add(focusedRef);
+    return () => { mountedFocus.delete(focusedRef); };
+  }, []);
+
   useEffect(() => onEvent((event) => {
     if (event.type !== 'session:agent-state' || !event.sessionId || !event.state) return;
     const sid = event.sessionId;
@@ -55,6 +77,8 @@ export function useAgentStates(
       setAttention((prev) => (prev.has(sid) ? prev : new Set(prev).add(sid)));
       onAttentionRef.current?.(sid, next as AttentionState);
     } else {
+      // Seen in a popout — the main window's sidebar can't check that focus itself.
+      if (noteworthy) postSessionsSeen([sid]);
       // Agent resumed (or the change happened in plain sight) — a stale badge would lie.
       setAttention((prev) => {
         if (!prev.has(sid)) return prev;
@@ -67,6 +91,7 @@ export function useAgentStates(
 
   // Focusing a pane acknowledges its badge.
   useEffect(() => {
+    postSessionsSeen(focusedIds);
     setAttention((prev) => {
       let copy: Set<string> | null = null;
       for (const sid of focusedIds) {

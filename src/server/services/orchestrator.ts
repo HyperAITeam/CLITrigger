@@ -52,7 +52,7 @@ export class Orchestrator {
           queries.createTaskLog(todo.id, 'error', 'Process exited unexpectedly (detected by liveness check).');
           queries.updateTodo(todo.id, { process_pid: 0 });
         } catch { /* ignore */ }
-        broadcaster.broadcast({ type: 'todo:status-changed', todoId: todo.id, status: 'failed' });
+        broadcaster.broadcast({ type: 'todo:status-changed', projectId: todo.project_id, todoId: todo.id, status: 'failed' });
         this.broadcastProjectStatus(todo.project_id);
       }
     }
@@ -275,7 +275,7 @@ export class Orchestrator {
     queries.updateTodo(todoId, { process_pid: 0, execution_mode: null });
     queries.createTaskLog(todoId, 'output', 'Task stopped by user.');
 
-    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'stopped' });
+    broadcaster.broadcast({ type: 'todo:status-changed', projectId: todo.project_id, todoId, status: 'stopped' });
     this.broadcastProjectStatus(todo.project_id);
   }
 
@@ -312,7 +312,7 @@ export class Orchestrator {
         queries.updateTodoStatus(todoId, 'failed');
         queries.updateTodo(todoId, { execution_mode: null, process_pid: 0 });
         queries.createTaskLog(todoId, 'error', 'Follow-up prompt is empty.', roundNumber);
-        broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+        broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
         this.broadcastProjectStatus(projectId);
         return;
       }
@@ -354,7 +354,7 @@ export class Orchestrator {
         queries.updateTodoStatus(todoId, 'failed');
         queries.updateTodo(todoId, { execution_mode: null, process_pid: 0 });
         queries.createTaskLog(todoId, 'error', 'Cannot continue: worktree no longer exists. Use Retry to start fresh.', roundNumber);
-        broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+        broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
         this.broadcastProjectStatus(projectId);
         return;
       } else {
@@ -392,6 +392,7 @@ export class Orchestrator {
                 // Broadcast parent update so UI reflects the cleanup
                 broadcaster.broadcast({
                   type: 'todo:status-changed',
+                  projectId: parentTodo.project_id,
                   todoId: parentTodo.id,
                   status: parentTodo.status,
                   worktree_path: null,
@@ -655,7 +656,7 @@ Complete the task in the current directory.`;
     queries.createTaskLog(todoId, 'output', logMsg, roundNumber);
 
     // Broadcast status change with mode and worktree info
-    broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName, round_count: roundNumber });
+    broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'running', mode, worktree_path: worktreePath, branch_name: branchName, round_count: roundNumber });
     this.broadcastProjectStatus(projectId);
 
     // Handle process exit asynchronously
@@ -703,7 +704,7 @@ Complete the task in the current directory.`;
                 queries.updateTodoStatus(todoId, 'failed');
                 queries.createTaskLog(todoId, 'error', 'Context switch restart failed.', roundNumber);
               } catch { /* ignore */ }
-              broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+              broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
               this.broadcastProjectStatus(projectId);
             });
             return;
@@ -728,7 +729,7 @@ Complete the task in the current directory.`;
 
           captureReviewMetadata(todoId).catch(() => { /* ignore */ });
           broadcaster.broadcast({ type: 'todo:log', todoId, message: failMsg, logType: 'error' });
-          broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+          broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
           this.broadcastProjectStatus(projectId);
         } else {
           // Success path
@@ -758,7 +759,7 @@ Complete the task in the current directory.`;
                 queries.updateTodoStatus(todoId, 'failed');
                 queries.createTaskLog(todoId, 'error', 'Loop restart failed.', nextRound);
               } catch { /* ignore */ }
-              broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+              broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
               this.broadcastProjectStatus(projectId);
             });
             return;
@@ -776,7 +777,7 @@ Complete the task in the current directory.`;
 
             captureReviewMetadata(todoId).catch(() => { /* ignore */ });
             broadcaster.broadcast({ type: 'todo:log', todoId, message: failMsg, logType: 'error' });
-            broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+            broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
             this.broadcastProjectStatus(projectId);
           } else {
             if (loop && evaluated) {
@@ -793,7 +794,7 @@ Complete the task in the current directory.`;
 
             captureReviewMetadata(todoId).catch(() => { /* ignore */ });
             broadcaster.broadcast({ type: 'todo:log', todoId, message: doneMsg, logType: 'output' });
-            broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'completed' });
+            broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'completed' });
             this.broadcastProjectStatus(projectId);
 
             try {
@@ -821,7 +822,7 @@ Complete the task in the current directory.`;
         queries.updateTodoStatus(todoId, 'failed');
         queries.updateTodo(todoId, { process_pid: 0 });
       } catch { /* ignore */ }
-      broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+      broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
       this.broadcastProjectStatus(projectId);
     });
   }
@@ -885,7 +886,7 @@ Complete the task in the current directory.`;
       queries.createTaskLog(todoId, 'error',
         `Maximum context switches (${MAX_CONTEXT_SWITCHES}) exceeded. Stopping task.`);
       queries.updateTodo(todoId, { process_pid: 0 });
-      broadcaster.broadcast({ type: 'todo:status-changed', todoId, status: 'failed' });
+      broadcaster.broadcast({ type: 'todo:status-changed', projectId, todoId, status: 'failed' });
       this.broadcastProjectStatus(projectId);
       return;
     }

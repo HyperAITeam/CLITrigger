@@ -2,7 +2,7 @@ import type { Session, Todo } from '../db/queries.js';
 import type { AgentState } from '../services/agent-state-detector.js';
 
 export type WSEvent =
-  | { type: 'todo:status-changed'; todoId: string; status: string; mode?: string; worktree_path?: string | null; branch_name?: string | null; round_count?: number }
+  | { type: 'todo:status-changed'; projectId: string; todoId: string; status: string; mode?: string; worktree_path?: string | null; branch_name?: string | null; round_count?: number }
   | { type: 'todo:created'; todo: Todo }
   | { type: 'todo:log'; todoId: string; message: string; logType: string }
   | { type: 'project:status-changed'; projectId: string; running: number; completed: number; total: number; running_sessions?: number; running_discussions?: number }
@@ -11,7 +11,7 @@ export type WSEvent =
   | { type: 'schedule:run-triggered'; scheduleId: string; runId: string; todoId: string }
   | { type: 'schedule:run-skipped'; scheduleId: string; runId: string; reason: string }
   | { type: 'todo:context-switch'; todoId: string; fromCli: string; toCli: string; switchCount: number }
-  | { type: 'discussion:status-changed'; discussionId: string; status: string; currentRound: number; currentAgentId: string | null }
+  | { type: 'discussion:status-changed'; projectId?: string; discussionId: string; status: string; currentRound: number; currentAgentId: string | null }
   | { type: 'discussion:message-changed'; discussionId: string; messageId: string; agentId: string; agentName: string; round: number; status: string }
   | { type: 'discussion:log'; discussionId: string; messageId: string; message: string; logType: string; agentName: string }
   | { type: 'discussion:commit'; discussionId: string; messageId: string; commitHash: string; message: string }
@@ -25,7 +25,9 @@ export type WSEvent =
   | { type: 'session:status-changed'; sessionId: string; status: string; worktree_path?: string | null; branch_name?: string | null; cli_session_id?: string | null; resumable?: boolean }
   | { type: 'session:log'; sessionId: string; message: string; logType: string }
   | { type: 'session:replay-end'; sessionId: string }
-  | { type: 'session:agent-state'; sessionId: string; state: AgentState; reason?: string }
+  // projectId only on live transitions; the per-client resend after
+  // `session:subscribe` omits it (the sidebar badge counts transitions only).
+  | { type: 'session:agent-state'; projectId?: string; sessionId: string; state: AgentState; reason?: string }
   | { type: 'rate-limit:updated'; resetsAt: number; status: string | null }
   | { type: 'vault:changed'; projectId: string }
   | { type: 'git:changed'; projectId: string };

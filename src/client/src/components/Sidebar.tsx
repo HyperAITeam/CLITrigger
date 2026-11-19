@@ -11,6 +11,7 @@ import type { FavoriteInput } from '../api/favorites';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
+import { useWorkspaceAttention } from '../hooks/useWorkspaceAttention';
 import { useToast } from '../hooks/useToast';
 import { useDialog } from '../hooks/useDialog';
 import type { WsEvent } from '../hooks/useWebSocket';
@@ -70,6 +71,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
 
   // Extract active project ID from URL
   const activeProjectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] || null;
+  const attentionCounts = useWorkspaceAttention(onEvent, activeProjectId);
 
   useEffect(() => {
     loadProjects();
@@ -439,6 +441,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               : 0;
             const hasActivity = activeWork > 0;
             const tagColor = resolveProjectColor(project);
+            const attentionCount = attentionCounts[project.id] ?? 0;
             return (
               <Link
                 key={project.id}
@@ -457,6 +460,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                   className={`w-2.5 h-2.5 rounded-[3px] ${hasActivity ? 'workspace-dot-pulse' : ''}`}
                   style={{ backgroundColor: tagColor, opacity: isActive || hasActivity ? 1 : 0.55 }}
                 />
+                {attentionCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 font-semibold text-center bg-status-error text-white"
+                    title={t('sidebar.attention').replace('{n}', String(attentionCount))}
+                  >
+                    {attentionCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -591,6 +602,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
               : 0;
             const hasActivity = activeWork > 0;
             const tagColor = resolveProjectColor(project);
+            const attentionCount = attentionCounts[project.id] ?? 0;
             const isDragSource = dragSourceId === project.id;
             const showAbove = dragSourceId !== null && dragOverGapIndex === index;
             const showBelow = dragSourceId !== null
@@ -632,6 +644,14 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
                       : project.name}
                   />
                   <span className="truncate flex-1">{project.name}</span>
+                  {attentionCount > 0 && (
+                    <span
+                      className="flex-shrink-0 text-2xs px-1.5 py-0.5 rounded-full font-medium bg-status-error text-white"
+                      title={t('sidebar.attention').replace('{n}', String(attentionCount))}
+                    >
+                      {attentionCount}
+                    </span>
+                  )}
                   <IconButton
                     onClick={(e) => handleDeleteProject(project.id, e)}
                     label={t('projects.delete')}
