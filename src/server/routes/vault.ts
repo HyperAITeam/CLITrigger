@@ -125,6 +125,8 @@ router.post('/projects/:id/vault/file', (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to create file' });
     return;
   }
+  // A new file must not inherit tags left by an earlier file at this path.
+  queries.deleteVaultFileTags(ctx.project.id, filePath);
   res.status(201).json({ success: true });
 });
 
@@ -187,7 +189,19 @@ function isRelativePathString(p: unknown): p is string {
 router.get('/projects/:id/vault/tags', (req: Request, res: Response) => {
   const ctx = getProjectRoot(req, res);
   if (!ctx) return;
-  res.json(queries.getVaultTags(ctx.project.id));
+  const tags = queries.getVaultTags(ctx.project.id);
+  // Drop tags of files deleted outside the app (explorer, git, CLI) so a later
+  // file at the same path starts untagged. Skipped while the root itself is
+  // unreachable (unplugged drive) — that would wipe every tag.
+  // ponytail: a file that only vanished temporarily (branch switch) loses its tags too.
+  if (fs.existsSync(ctx.root)) {
+    for (const filePath of Object.keys(tags.files)) {
+      if (fs.existsSync(pathModule.join(ctx.root, filePath))) continue;
+      queries.deleteVaultFileTags(ctx.project.id, filePath);
+      delete tags.files[filePath];
+    }
+  }
+  res.json(tags);
 });
 
 // PUT /api/projects/:id/vault/tags/file — { path, tags } replaces that file's tags
@@ -202,6 +216,10 @@ router.put('/projects/:id/vault/tags/file', (req: Request, res: Response) => {
   const cleaned = tags.map(cleanTag);
   if (cleaned.some(t => t === null)) {
     res.status(400).json({ error: `Tags must be 1-${MAX_TAG_LENGTH} characters` });
+    return;
+  }
+  if (cleaned.length > 0 && !fs.existsSync(pathModule.join(ctx.root, filePath))) {
+    res.status(404).json({ error: 'File not found' });
     return;
   }
   queries.setVaultFileTags(ctx.project.id, filePath, [...new Set(cleaned as string[])]);

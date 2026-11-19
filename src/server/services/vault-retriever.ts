@@ -92,6 +92,9 @@ export async function selectRelevantFiles(
 
   const candidates = scanVault(projectRoot, excludePatterns);
   if (candidates.length === 0) return { selectedPaths: [], candidateCount: 0, reason: 'no-candidates' };
+  // Same order as the docs graph: app-DB tags first, then the file's own tags.
+  const appTags = queries.getVaultTags(projectId).files;
+  for (const f of candidates) f.tags = [...new Set([...(appTags[f.relativePath] ?? []), ...f.tags])];
 
   const { lines, pathSet } = buildCandidatePool(candidates);
   if (lines.length === 0) return { selectedPaths: [], candidateCount: 0, reason: 'no-candidates' };
