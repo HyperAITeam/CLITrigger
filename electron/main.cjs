@@ -437,6 +437,18 @@ ipcMain.on('window:minimize-self', (event) => {
   win.minimize();
 });
 
+// Maximize/restore toggle for the same frameless top bar.
+ipcMain.on('window:toggle-maximize-self', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+});
+ipcMain.handle('window:is-maximized-self', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return !!win && !win.isDestroyed() && win.isMaximized();
+});
+
 // Move the sender's OS window (popout tab-bar drag). 'start' snapshots the
 // bounds; each 'move' carries the TOTAL cursor delta since then (renderer
 // screenX DIPs = bounds DIPs), so a dropped or reordered IPC can't drift the

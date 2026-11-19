@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ExternalLink, Minus, X } from 'lucide-react';
+import { ExternalLink, Maximize2, Minimize2, Minus, X } from 'lucide-react';
 import StackView from '../group/StackView';
 import LayoutNodeView from '../group/LayoutNodeView';
 import DockOverlay, { detectDockZone, hitTestStackAt, type DockTargetRect } from '../group/DockOverlay';
@@ -768,11 +768,32 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
   // The dock chip in main stays as the handle to bring it back: its focus
   // path already restores a minimized window.
   const electronWindowApi = (window as unknown as {
-    electronAPI?: { windowMinimize?: () => void };
+    electronAPI?: {
+      windowMinimize?: () => void;
+      windowToggleMaximize?: () => void;
+      windowIsMaximized?: () => Promise<boolean>;
+    };
   }).electronAPI;
   const canMinimize = !!electronWindowApi?.windowMinimize;
   const handleMinimize = useCallback(() => {
     electronWindowApi?.windowMinimize?.();
+  }, [electronWindowApi]);
+
+  // Maximize/restore the OS window (Electron only). Every state change —
+  // our button, native double-click on the drag bar, Win+Up — ends in a
+  // resize, so re-query there to keep the icon honest.
+  const canMaximize = !!electronWindowApi?.windowToggleMaximize;
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  useEffect(() => {
+    const query = electronWindowApi?.windowIsMaximized;
+    if (!query) return;
+    const sync = () => { query().then(setIsWindowMaximized).catch(() => {}); };
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, [electronWindowApi]);
+  const handleToggleMaximize = useCallback(() => {
+    electronWindowApi?.windowToggleMaximize?.();
   }, [electronWindowApi]);
 
   // Re-dock: hand the group back to main, then close ourselves. The main
@@ -911,6 +932,16 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             <Minus size={14} />
           </button>
         )}
+        {canMaximize && (
+          <button
+            onClick={handleToggleMaximize}
+            style={chromeBtnStyle}
+            aria-label="toggle-maximize-popout"
+            title={isWindowMaximized ? t('session.restoreSize') : t('session.maximize')}
+          >
+            {isWindowMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        )}
         <button
           onClick={handleReDock}
           style={chromeBtnStyle}
@@ -976,6 +1007,8 @@ export default function PopoutPage({ sendMessage, subscribeBinary, onEvent }: Po
             // the body, and the window buttons live in the tab bar.
             groupActions={{
               onMinimizeGroup: canMinimize ? handleMinimize : undefined,
+              onToggleMaximize: canMaximize ? handleToggleMaximize : undefined,
+              isMaximized: isWindowMaximized,
               onReDockGroup: handleReDock,
               onCloseGroup: handleCloseWindow,
               onApplyLayoutPreset: handleLayoutPreset,

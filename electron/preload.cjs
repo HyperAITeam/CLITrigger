@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // titlebar buttons, so their own top bar needs this bridge — the web
   // platform has no window.minimize().
   windowMinimize: () => ipcRenderer.send('window:minimize-self'),
+  windowToggleMaximize: () => ipcRenderer.send('window:toggle-maximize-self'),
+  windowIsMaximized: () => ipcRenderer.invoke('window:is-maximized-self'),
   // Move this window by dragging its tab bar (single-stack popouts). The
   // renderer drives the gesture from mousemove screen deltas; main anchors on
   // the bounds captured at 'start', so deltas never accumulate error.
