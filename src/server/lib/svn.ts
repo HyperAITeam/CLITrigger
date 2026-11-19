@@ -56,27 +56,30 @@ export interface SvnRunResult {
  *
  * With `onLine`, the command is spawned instead of buffered so each stdout
  * line surfaces while it runs (long `svn update` progress); the full stdout
- * is still returned so callers parse it exactly as before.
+ * is still returned so callers parse it exactly as before. `signal` kills
+ * the svn process when aborted.
  */
 export async function runSvn(
   args: string[],
   cwd?: string,
   onLine?: (line: string) => void,
+  signal?: AbortSignal,
 ): Promise<SvnRunResult> {
   const finalArgs = ['--non-interactive', ...args];
-  if (onLine) return streamSvn(finalArgs, cwd, onLine);
+  if (onLine) return streamSvn(finalArgs, cwd, onLine, signal);
   const { stdout, stderr } = await execFileAsync('svn', finalArgs, {
     cwd,
     env: SVN_ENV,
     maxBuffer: 32 * 1024 * 1024,
     windowsHide: true,
+    signal,
   });
   return { stdout, stderr };
 }
 
-function streamSvn(finalArgs: string[], cwd: string | undefined, onLine: (line: string) => void): Promise<SvnRunResult> {
+function streamSvn(finalArgs: string[], cwd: string | undefined, onLine: (line: string) => void, signal?: AbortSignal): Promise<SvnRunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn('svn', finalArgs, { cwd, env: SVN_ENV, windowsHide: true });
+    const child = spawn('svn', finalArgs, { cwd, env: SVN_ENV, windowsHide: true, signal });
     let stdout = '';
     let stderr = '';
     let partial = '';

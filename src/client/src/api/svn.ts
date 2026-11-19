@@ -1,4 +1,4 @@
-import { ApiError, get, post } from './client';
+import { get, post } from './client';
 import type { CommitFile, GitStatusFile, GitLogEntry, GitLogResult } from './projects';
 
 // SVN reuses git-shaped types so DiffViewer/CommitFileList work unchanged.
@@ -34,9 +34,11 @@ export function getSvnInfo(id: string): Promise<SvnInfo> {
   return get(`/api/projects/${id}/svn-info`);
 }
 
-// `url` targets a repository URL (e.g. an svn:externals entry) instead of the working copy.
-export function getSvnLog(id: string, skip = 0, limit = 50, url?: string): Promise<GitLogResult> {
-  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+// `url` targets a repository URL (e.g. an svn:externals entry) instead of the
+// working copy. `before` = the oldest revision already shown (next page).
+export function getSvnLog(id: string, before?: string, limit = 50, url?: string): Promise<GitLogResult> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (before) params.set('before', before);
   if (url) params.set('url', url);
   return get(`/api/projects/${id}/svn-log?${params}`);
 }
@@ -76,84 +78,103 @@ export function getSvnProperties(id: string, file?: string): Promise<{ propertie
   return get(`/api/projects/${id}/svn-properties${qs ? `?${qs}` : ''}`);
 }
 
-export function svnPropset(id: string, name: string, value: string, file?: string): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-propset`, { name, value, file });
+// ── Commands (server-side jobs) ──────────────────────────────────────────────
+// Every mutating command runs as a job on the server, one at a time per
+// working copy: the POST returns the job id at once and the client polls
+// /svn-job. A command therefore outlives the panel (tab switch, reload) and a
+// remounted panel picks it up again.
+
+export type SvnJobKind = 'update' | 'commit' | 'cleanup' | 'add' | 'revert' | 'delete' | 'resolve' | 'changelist' | 'propset';
+
+export interface SvnJob {
+  id: string;
+  kind: SvnJobKind;
+  revision?: string;
+  cancellable: boolean;
+  startedAt: string;
+  count: number;          // files touched so far (update progress)
+  line: string;           // latest progress line
+  finishedAt?: string;
+  ok?: boolean;
+  result?: unknown;
+  error?: string;         // 'cancelled' when stopped by the user
 }
 
-export function svnAdd(id: string, files: string[]): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-add`, { files });
+export function getSvnJobs(id: string): Promise<{ running: SvnJob | null; last: SvnJob | null }> {
+  return get(`/api/projects/${id}/svn-job`);
 }
 
-export function svnRevert(id: string, files: string[]): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-revert`, { files });
+export function cancelSvnJob(id: string): Promise<{ ok: boolean }> {
+  return post(`/api/projects/${id}/svn-job/cancel`, {});
 }
 
-export function svnDelete(id: string, files: string[], keepLocal = false): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-delete`, { files, keepLocal });
+// Jobs this window started or watched whose result no panel has applied yet.
+const unconsumedJobs = new Set<string>();
+const JOB_POLL_MS = 500;
+const JOB_POLL_MAX_FAILURES = 10;
+
+/** Start a command; resolves with its job id. A 409 ApiError means another command holds the copy. */
+export async function startSvnJob(id: string, kind: SvnJobKind, body: Record<string, unknown>): Promise<string> {
+  const { jobId } = await post<{ jobId: string }>(`/api/projects/${id}/svn-${kind}`, body);
+  unconsumedJobs.add(jobId);
+  return jobId;
 }
 
-export function svnResolve(id: string, files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base' = 'working'): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-resolve`, { files, accept });
-}
-
-export function svnChangelist(id: string, name: string | null, files: string[]): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-changelist`, { name, files });
-}
-
-export function svnCommit(id: string, message: string, files?: string[]): Promise<{ ok: boolean; revision: string | null; output: string }> {
-  return post(`/api/projects/${id}/svn-commit`, { message, files });
-}
-
-// Reads the NDJSON progress stream: every {"line":…} goes to `onLine`, the
-// final {"done":…} is the result, {"error":…} throws.
-export async function svnUpdate(
+/**
+ * Poll until job `jobId` finishes and return it (ok or not). `onProgress`
+ * gets the running job on every poll. Returns null once `signal` aborts —
+ * the job keeps running and the next `findSvnJobToAttach` picks it up.
+ */
+export async function waitSvnJob(
   id: string,
-  revision?: string,
-  onLine?: (line: string) => void,
-): Promise<{ ok: boolean; revision: string | null; output: string; conflicts: string[] }> {
-  const res = await fetch(`/api/projects/${id}/svn-update`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ revision }),
-  });
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-    throw new ApiError(401, 'Unauthorized');
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let message = '';
-    try { message = JSON.parse(text).error ?? ''; } catch { /* not JSON */ }
-    throw new ApiError(res.status, message || `HTTP ${res.status}`);
-  }
-
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let done: { ok: boolean; revision: string | null; output: string; conflicts: string[] } | null = null;
-  const handle = (raw: string) => {
-    if (!raw.trim()) return;
-    const msg = JSON.parse(raw) as { line?: string; done?: typeof done; error?: string };
-    if (msg.error) throw new Error(msg.error);
-    if (msg.done) done = msg.done;
-    else if (msg.line !== undefined) onLine?.(msg.line);
-  };
+  jobId: string,
+  opts: { signal?: AbortSignal; onProgress?: (job: SvnJob) => void } = {},
+): Promise<SvnJob | null> {
+  let failures = 0;
   for (;;) {
-    const { value, done: finished } = await reader.read();
-    if (finished) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    lines.forEach(handle);
+    if (opts.signal?.aborted) return null;
+    let state: { running: SvnJob | null; last: SvnJob | null };
+    try {
+      state = await getSvnJobs(id);
+      failures = 0;
+    } catch (err) {
+      // A blip (server busy, tunnel hiccup) must not abandon a long update.
+      if (++failures >= JOB_POLL_MAX_FAILURES) throw err;
+      await new Promise((resolve) => setTimeout(resolve, JOB_POLL_MS));
+      continue;
+    }
+    if (opts.signal?.aborted) return null;
+    if (state.running?.id === jobId) {
+      opts.onProgress?.(state.running);
+    } else {
+      unconsumedJobs.delete(jobId);
+      if (state.last?.id === jobId) return state.last;
+      throw new Error('SVN command state was lost (server restarted?)');
+    }
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_MS));
   }
-  handle(buffer);
-  if (!done) throw new Error('svn update ended without a result');
-  return done;
 }
 
-export function svnCleanup(id: string): Promise<{ ok: boolean }> {
-  return post(`/api/projects/${id}/svn-cleanup`, {});
+/** The job a freshly mounted panel should show: a running one, or a finished one nobody applied yet. */
+export async function findSvnJobToAttach(id: string): Promise<SvnJob | null> {
+  const { running, last } = await getSvnJobs(id);
+  if (running) {
+    unconsumedJobs.add(running.id);
+    return running;
+  }
+  if (last && unconsumedJobs.delete(last.id)) return last;
+  return null;
+}
+
+/** Start a command and wait for it: its result, or its error thrown. */
+export async function runSvnJob<T>(id: string, kind: SvnJobKind, body: Record<string, unknown>): Promise<T> {
+  const job = await waitSvnJob(id, await startSvnJob(id, kind, body));
+  if (!job?.ok) throw new Error(job?.error ?? 'SVN command failed');
+  return job.result as T;
+}
+
+export function svnPropset(id: string, name: string, value: string, file?: string): Promise<void> {
+  return runSvnJob(id, 'propset', { name, value, file });
 }
 
 export type { GitLogEntry };

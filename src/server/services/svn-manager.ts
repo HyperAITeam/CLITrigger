@@ -1,3 +1,5 @@
+import fs from 'fs';
+import nodePath from 'path';
 import { runSvn } from '../lib/svn.js';
 
 /**
@@ -62,8 +64,12 @@ class SvnManager {
   async getStatus(dirPath: string, opts: { showUpdates?: boolean } = {}): Promise<SvnStatus> {
     const args = ['status', '--xml'];
     if (opts.showUpdates) args.push('--show-updates');
-    args.push(dirPath);
-    const { stdout } = await runSvn(args);
+    args.push(pathArg(dirPath));
+    // Both read-only; `info` (branch/revision line) no longer waits for the scan.
+    const [{ stdout }, info] = await Promise.all([
+      runSvn(args),
+      this.getInfo(dirPath).catch(() => null),
+    ]);
 
     const files: SvnStatusFile[] = [];
     let behind = 0;
@@ -78,7 +84,7 @@ class SvnManager {
     while ((cl = clRe.exec(stdout)) !== null) {
       const name = unescapeXml(cl[1]);
       let p: RegExpExecArray | null;
-      while ((p = clPathRe.exec(cl[2])) !== null) clMap.set(p[1], name);
+      while ((p = clPathRe.exec(cl[2])) !== null) clMap.set(unescapeXml(p[1]), name);
     }
 
     // Each <entry> has a <wc-status> with `item` (working copy state) and
@@ -86,7 +92,8 @@ class SvnManager {
     const entryRe = /<entry\b[^>]*\bpath="([^"]+)"[^>]*>([\s\S]*?)<\/entry>/g;
     let m: RegExpExecArray | null;
     while ((m = entryRe.exec(stdout)) !== null) {
-      const fullPath = m[1];
+      // Attribute values are XML-escaped: "a&amp;b.txt" is the file a&b.txt.
+      const fullPath = unescapeXml(m[1]);
       const inner = m[2];
       const wcMatch = /<wc-status\b[^>]*\bitem="([^"]+)"/.exec(inner);
       const propsMatch = /<wc-status\b[^>]*\bprops="([^"]+)"/.exec(inner);
@@ -107,8 +114,6 @@ class SvnManager {
       }
     }
 
-    // Working copy info for branch/tracking/revision display.
-    const info = await this.getInfo(dirPath).catch(() => null);
     return {
       branch: info?.relativeUrl ?? '',
       tracking: info?.url ?? null,
@@ -127,7 +132,7 @@ class SvnManager {
     repositoryRoot: string;
     revision: string;
   }> {
-    const { stdout } = await runSvn(['info', '--xml', dirPath]);
+    const { stdout } = await runSvn(['info', '--xml', pathArg(dirPath)]);
     const url = extractTag(stdout, 'url') ?? '';
     const relativeUrl = extractTag(stdout, 'relative-url') ?? '';
     const repositoryRoot = extractTag(stdout, 'root') ?? '';
@@ -147,19 +152,23 @@ class SvnManager {
    * URL (used by the externals editor to browse an external's history).
    * Relative external forms (`^/`, `//`, `/`, `../`) are resolved first.
    */
-  async getLog(dirPath: string, options: { skip?: number; limit?: number; url?: string } = {}): Promise<SvnLogResult> {
-    const skip = Math.max(0, options.skip ?? 0);
+  async getLog(dirPath: string, options: { before?: string; limit?: number; url?: string } = {}): Promise<SvnLogResult> {
     const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
-    const target = options.url ? await this.resolveExternalUrl(dirPath, options.url) : dirPath;
+    const target = options.url ? await this.resolveExternalUrl(dirPath, options.url) : pathArg(dirPath);
 
-    // SVN has no native skip. Approximate by fetching limit+skip+1 from HEAD
-    // and slicing. For deep history this is wasteful, but pages 0–10 cost
-    // <1MB of XML against typical repos, which is acceptable.
-    const fetchCount = skip + limit + 1;
     // Explicit HEAD:1 — for a working-copy path svn defaults to BASE:1, which
-    // hides every server commit newer than the last `svn update`.
+    // hides every server commit newer than the last `svn update`. Later pages
+    // start below the oldest revision already shown (`before`), so each page
+    // costs one page of XML instead of everything above it.
+    let range = 'HEAD:1';
+    if (options.before !== undefined) {
+      if (!/^\d+$/.test(options.before)) throw new Error('Invalid revision');
+      const top = parseInt(options.before, 10) - 1;
+      if (top < 1) return { commits: [], hasMore: false };
+      range = `${top}:1`;
+    }
     const { stdout } = await runSvn([
-      'log', '--xml', '-r', 'HEAD:1', '-l', String(fetchCount), target,
+      'log', '--xml', '-r', range, '-l', String(limit + 1), target,
     ], dirPath);
 
     const all: SvnLogEntry[] = [];
@@ -182,12 +191,7 @@ class SvnManager {
       });
     }
 
-    const sliced = all.slice(skip, skip + limit + 1);
-    const hasMore = sliced.length > limit;
-    return {
-      commits: hasMore ? sliced.slice(0, limit) : sliced,
-      hasMore,
-    };
+    return { commits: all.slice(0, limit), hasMore: all.length > limit };
   }
 
   /** HEAD revision of the repository an (external) URL lives in — `svn info URL`. */
@@ -222,7 +226,7 @@ class SvnManager {
   async getCommitFiles(dirPath: string, revision: string): Promise<SvnCommitFile[]> {
     if (!/^\d+$/.test(revision)) throw new Error('Invalid revision');
     const { stdout } = await runSvn([
-      'log', '--xml', '-v', '-r', revision, dirPath,
+      'log', '--xml', '-v', '-r', revision, pathArg(dirPath),
     ]);
 
     const files: SvnCommitFile[] = [];
@@ -280,16 +284,26 @@ class SvnManager {
       // Single -r REV (no colon) compares that revision to the working copy.
       args.push('-r', revision);
     }
-    if (file) args.push(file);
-    else args.push(dirPath);
-    const { stdout } = await runSvn(args, dirPath);
-    return stdout;
+    // Unlike the other commands, `svn diff` takes a local path literally:
+    // "icon@2x.png" works and a trailing '@' breaks it (checked on svn 1.14).
+    args.push(file ?? dirPath);
+    try {
+      const { stdout } = await runSvn(args, dirPath);
+      return stdout;
+    } catch (err) {
+      // svn diff refuses unversioned files; show a new file as all-added.
+      if (file && !revision && (await this.statusOf(dirPath, [file])).get(normPath(file))?.item === 'unversioned') {
+        const added = addedFileDiff(dirPath, file);
+        if (added !== null) return added;
+      }
+      throw err;
+    }
   }
 
   // ── Properties (LOCAL — reads the working copy, no server contact) ─────────
 
   async getProperties(dirPath: string, target?: string): Promise<SvnProperty[]> {
-    const { stdout } = await runSvn(['proplist', '-v', '--xml', target ?? dirPath], dirPath);
+    const { stdout } = await runSvn(['proplist', '-v', '--xml', pathArg(target ?? dirPath)], dirPath);
     const props: SvnProperty[] = [];
     const re = /<property\b[^>]*\bname="([^"]+)"[^>]*>([\s\S]*?)<\/property>/g;
     let m: RegExpExecArray | null;
@@ -300,122 +314,175 @@ class SvnManager {
   }
 
   async setProperty(dirPath: string, name: string, value: string, target?: string): Promise<void> {
-    await runSvn(['propset', name, value, target ?? dirPath], dirPath);
+    await runSvn(['propset', name, value, pathArg(target ?? dirPath)], dirPath);
   }
 
-  /**
-   * Split `files` into [propsOnly, rest]. A props-only target is one whose
-   * only local change is a property (e.g. a directory whose svn:externals was
-   * bumped). svn's default depth is infinity, so committing or reverting such
-   * a directory by path would drag every modified descendant along; callers
-   * act on these with --depth empty. Best-effort: if detection fails, every
-   * file lands in `rest` (the pre-existing behaviour).
-   */
-  private async splitPropsOnly(dirPath: string, files: string[]): Promise<[string[], string[]]> {
-    const norm = (s: string) => s.replace(/\\/g, '/').replace(/\/+$/, '');
-    const propsOnly = new Set<string>();
+  /** `svn status --depth empty` of exactly these paths, keyed by normPath. Empty on failure. */
+  private async statusOf(dirPath: string, files: string[]): Promise<Map<string, { item: string; props: string }>> {
+    const result = new Map<string, { item: string; props: string }>();
     try {
-      const { stdout } = await runSvn(['status', '--xml', '--depth', 'empty', ...files], dirPath);
+      const { stdout } = await runSvn(['status', '--xml', '--depth', 'empty', ...files.map(pathArg)], dirPath);
       const entryRe = /<entry\b[^>]*\bpath="([^"]+)"[^>]*>[\s\S]*?<wc-status\b([^>]*)>/g;
       let m: RegExpExecArray | null;
       while ((m = entryRe.exec(stdout)) !== null) {
-        const item = /\bitem="([^"]+)"/.exec(m[2])?.[1] ?? 'normal';
-        const props = /\bprops="([^"]+)"/.exec(m[2])?.[1] ?? 'none';
-        if (mapSvnStatusToChar(item) === ' ' && mapSvnWcStatusToChar(item, props) !== ' ') {
-          propsOnly.add(norm(unescapeXml(m[1])));
-        }
+        result.set(normPath(unescapeXml(m[1])), {
+          item: /\bitem="([^"]+)"/.exec(m[2])?.[1] ?? 'normal',
+          props: /\bprops="([^"]+)"/.exec(m[2])?.[1] ?? 'none',
+        });
       }
-    } catch { /* fall back to default depth for everything */ }
-    const a: string[] = [];
-    const b: string[] = [];
-    for (const f of files) (propsOnly.has(norm(f)) ? a : b).push(f);
-    return [a, b];
+    } catch { /* callers fall back to plain behaviour */ }
+    return result;
   }
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
   async add(dirPath: string, files: string[]): Promise<void> {
     if (files.length === 0) return;
-    await runSvn(['add', '--parents', '--force', ...files], dirPath);
+    await runSvn(['add', '--parents', '--force', ...files.map(pathArg)], dirPath);
   }
 
+  /**
+   * A props-only target is one whose only local change is a property (e.g. a
+   * directory whose svn:externals was bumped). svn's default depth is
+   * infinity, so reverting such a directory by path would drag every modified
+   * descendant along; it is reverted with --depth empty instead. Best-effort:
+   * if detection fails, everything takes the plain -R path.
+   */
   async revert(dirPath: string, files: string[]): Promise<void> {
     if (files.length === 0) return;
-    const [propsOnly, rest] = await this.splitPropsOnly(dirPath, files);
-    if (propsOnly.length > 0) await runSvn(['revert', '--depth', 'empty', ...propsOnly], dirPath);
-    if (rest.length > 0) await runSvn(['revert', '-R', ...rest], dirPath);
+    const status = await this.statusOf(dirPath, files);
+    const propsOnly = files.filter((f) => isPropsOnly(status.get(normPath(f))));
+    const rest = files.filter((f) => !propsOnly.includes(f));
+    if (propsOnly.length > 0) await runSvn(['revert', '--depth', 'empty', ...propsOnly.map(pathArg)], dirPath);
+    if (rest.length > 0) await runSvn(['revert', '-R', ...rest.map(pathArg)], dirPath);
   }
 
   async remove(dirPath: string, files: string[], keepLocal = false): Promise<void> {
     if (files.length === 0) return;
     const args = ['delete'];
     if (keepLocal) args.push('--keep-local');
-    args.push(...files);
+    args.push(...files.map(pathArg));
     await runSvn(args, dirPath);
   }
 
   async resolve(dirPath: string, files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base' = 'working'): Promise<void> {
     if (files.length === 0) return;
-    await runSvn(['resolve', `--accept=${accept}`, ...files], dirPath);
+    await runSvn(['resolve', `--accept=${accept}`, ...files.map(pathArg)], dirPath);
   }
 
   /** Assign files to a native changelist, or remove them from any (name === null). */
   async changelist(dirPath: string, name: string | null, files: string[]): Promise<void> {
     if (files.length === 0) return;
-    const args = name ? ['changelist', name, ...files] : ['changelist', '--remove', ...files];
+    const args = name ? ['changelist', name, ...files.map(pathArg)] : ['changelist', '--remove', ...files.map(pathArg)];
     await runSvn(args, dirPath);
   }
 
-  async commit(dirPath: string, message: string, files?: string[]): Promise<{ revision: string | null; output: string }> {
+  async commit(dirPath: string, message: string, files?: string[]): Promise<{ revision: string | null }> {
     if (!message.trim()) throw new Error('Commit message is required');
     const args = ['commit', '-m', message];
     if (files && files.length > 0) {
+      const status = await this.statusOf(dirPath, files);
+      const itemOf = (f: string) => status.get(normPath(f))?.item;
+      // svn commit refuses selected files that aren't scheduled yet; like
+      // TortoiseSVN, add the new ones and schedule the missing ones for deletion.
+      await this.add(dirPath, files.filter((f) => itemOf(f) === 'unversioned'));
+      await this.remove(dirPath, files.filter((f) => itemOf(f) === 'missing'));
       // --depth applies to the whole command; explicitly listed files and
       // children still commit, only a directory's unselected descendants stay out.
-      const [propsOnly] = await this.splitPropsOnly(dirPath, files);
-      if (propsOnly.length > 0) args.push('--depth', 'empty');
-      args.push(...files);
+      // ponytail: a new directory committed together with a props-only one keeps
+      // its children uncommitted (depth empty); commit them separately if it bites.
+      if (files.some((f) => isPropsOnly(status.get(normPath(f))))) args.push('--depth', 'empty');
+      args.push(...files.map(pathArg));
     } else {
-      args.push(dirPath);
+      args.push(pathArg(dirPath));
     }
     const { stdout } = await runSvn(args, dirPath);
     // svn prints "Committed revision N." on success
     const revMatch = /Committed revision (\d+)\./.exec(stdout);
-    return { revision: revMatch?.[1] ?? null, output: stdout };
+    return { revision: revMatch?.[1] ?? null };
   }
 
   // `onLine` receives each progress line as svn prints it, with the working
-  // copy prefix stripped so the UI can show "U  src/foo.cpp" while it runs.
+  // copy prefix stripped so the UI can show "U    src/foo.cpp" while it runs.
+  // Aborting `signal` kills svn and runs cleanup so the copy isn't left locked.
   async update(
     dirPath: string,
     revision?: string,
     onLine?: (line: string) => void,
-  ): Promise<{ revision: string | null; output: string; conflicts: string[] }> {
+    signal?: AbortSignal,
+  ): Promise<{ revision: string | null; conflicts: string[] }> {
     const args = ['update'];
     if (revision) args.push('-r', revision);
-    args.push(dirPath);
-    const { stdout } = await runSvn(args, undefined, onLine && ((line) => {
-      const m = /^([ ADUCGE]{1,4})\s+(.+)$/.exec(line);
-      onLine(m ? `${m[1]} ${relativizePath(m[2], dirPath)}` : line);
-    }));
-    const revMatch = /(?:At revision|Updated to revision) (\d+)\./.exec(stdout);
-    // Update lines are "<up to 4 status columns>   <path>"; a 'C' in any
-    // column is a text/prop/tree conflict. Summary lines ("Updated to
-    // revision N.", "Summary of conflicts:") never match the status class.
+    args.push(pathArg(dirPath));
+    let stdout: string;
+    try {
+      ({ stdout } = await runSvn(args, undefined, onLine && ((line) => {
+        const m = UPDATE_LINE.exec(line);
+        onLine(m ? `${m[1]} ${relativizePath(m[2], dirPath)}` : line);
+      }), signal));
+    } catch (err) {
+      if (signal?.aborted) await this.cleanup(dirPath).catch(() => { /* reported by the next command */ });
+      throw err;
+    }
+    // A 'C' in any status column is a text/prop/tree conflict. Summary lines
+    // ("Updated to revision N.", "  Text conflicts: 1") never match UPDATE_LINE.
     const conflicts: string[] = [];
     for (const line of stdout.split(/\r?\n/)) {
-      const m = /^([ ADUCGE]{1,4})\s+(.+)$/.exec(line);
+      const m = UPDATE_LINE.exec(line);
       if (m && m[1].includes('C')) conflicts.push(relativizePath(m[2], dirPath));
     }
-    return { revision: revMatch?.[1] ?? null, output: stdout, conflicts };
+    // The summary line is localized on some svn builds; `svn info` is not.
+    const revMatch = /(?:At revision|Updated to revision) (\d+)\./.exec(stdout);
+    const updatedTo = revMatch?.[1] ?? ((await this.getInfo(dirPath).catch(() => null))?.revision || null);
+    return { revision: updatedTo, conflicts };
   }
 
   async cleanup(dirPath: string): Promise<void> {
-    await runSvn(['cleanup', dirPath]);
+    await runSvn(['cleanup', pathArg(dirPath)]);
   }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+// `svn update` progress row: 4 status columns (text, props, lock, tree), a
+// space, the path.
+const UPDATE_LINE = /^([ADUCGER ][UCG ][B ][C ]) (.+)$/;
+
+/**
+ * svn reads "name@rev" as a peg revision, so a path that itself contains '@'
+ * (icon@2x.png) needs a trailing '@' to be taken literally.
+ */
+function pathArg(p: string): string {
+  return p.includes('@') ? `${p}@` : p;
+}
+
+function normPath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function isPropsOnly(s: { item: string; props: string } | undefined): boolean {
+  return !!s && mapSvnStatusToChar(s.item) === ' ' && mapSvnWcStatusToChar(s.item, s.props) !== ' ';
+}
+
+const ADDED_DIFF_MAX_BYTES = 1024 * 1024;
+
+/** svn-style diff showing an unversioned file as entirely added; null if it can't be read. */
+function addedFileDiff(dirPath: string, file: string): string | null {
+  const root = nodePath.resolve(dirPath);
+  const abs = nodePath.resolve(root, file);
+  if (!abs.startsWith(root + nodePath.sep)) return null;
+  let stat: fs.Stats;
+  try { stat = fs.statSync(abs); } catch { return null; }
+  if (!stat.isFile()) return null;
+  const name = normPath(file);
+  const header = `Index: ${name}\n${'='.repeat(67)}\n--- ${name}\t(nonexistent)\n+++ ${name}\t(working copy)\n`;
+  const text = stat.size > ADDED_DIFF_MAX_BYTES ? '\0' : fs.readFileSync(abs, 'utf8');
+  if (text.includes('\0')) return `${header}Cannot display: file marked as a binary type.\n`;
+  const lines = text.split(/\r?\n/);
+  if (lines[lines.length - 1] === '') lines.pop();
+  if (lines.length === 0) return header;
+  return `${header}@@ -0,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join('\n')}\n`;
+}
 
 /**
  * Map SVN's `wc-status item` value to a single status char compatible with

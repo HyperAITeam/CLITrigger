@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, Cloud, Download, Folder, FolderTree, Hash, List, Loader2, Paintbrush, Settings2, X, type LucideIcon } from 'lucide-react';
 import type { Project } from '../types';
 import * as svnApi from '../api/svn';
-import type { SvnFile, SvnStatusResult } from '../api/svn';
+import type { SvnFile, SvnJob, SvnJobKind, SvnStatusResult } from '../api/svn';
+import { ApiError } from '../api/client';
 import type { CommitFile, GitLogEntry, GitStatusFile } from '../api/projects';
 import { getCliStatus } from '../api/cli-status';
 import { useI18n } from '../i18n';
@@ -36,6 +37,23 @@ const pendingChangelistsCache = new Map<string, string[]>();
 const commitMessageCache = new Map<string, string>();
 
 const charOf = (f: GitStatusFile) => f.working_dir.trim() || '?';
+
+// What the panel shows of the job it follows (a placeholder until the first poll).
+type JobView = Pick<SvnJob, 'kind' | 'revision' | 'count' | 'line' | 'cancellable'>;
+const jobView = (j: SvnJob): JobView =>
+  ({ kind: j.kind, revision: j.revision, count: j.count, line: j.line, cancellable: j.cancellable });
+
+const JOB_LABEL_KEYS: Record<SvnJobKind, string> = {
+  update: 'svn.update',
+  commit: 'svn.commit',
+  cleanup: 'svn.cleanup',
+  add: 'svn.add',
+  revert: 'svn.revert',
+  delete: 'svn.delete',
+  resolve: 'svn.resolve',
+  changelist: 'svn.moveToChangelist',
+  propset: 'svn.properties',
+};
 
 const charColor = (ch: string) =>
   ch === 'A' ? 'text-status-success'
@@ -125,10 +143,11 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [workingDiffLoading, setWorkingDiffLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState(() => commitMessageCache.get(project.id) ?? '');
   useEffect(() => { commitMessageCache.set(project.id, commitMessage); }, [project.id, commitMessage]);
-  const [actionBusy, setActionBusy] = useState(false);
-  // Non-null while any command runs — which is also why the sidebar commands
-  // go dim. `count`/`line` are filled by commands that stream progress.
-  const [progress, setProgress] = useState<{ label: string; count: number; line: string } | null>(null);
+  // The server-side command this panel is following (see api/svn.ts jobs).
+  // Non-null while it runs — which is also why the sidebar commands go dim.
+  const [job, setJob] = useState<JobView | null>(null);
+  const jobRef = useRef(job);
+  jobRef.current = job;
 
   const applyStatus = useCallback((s: SvnStatusResult) => {
     statusCache.set(project.id, s);
@@ -142,31 +161,46 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     setActiveFile((prev) => (prev && !s.files.some((f) => f.path === prev) ? null : prev));
   }, [project.id]);
 
+  // Scans can overlap (command finished, refreshTrigger, dialog closed); only
+  // the newest one may apply, or a slow older scan overwrites a fresher list.
+  const statusSeq = useRef(0);
+
   // LOCAL only — safe to run on mount / refreshTrigger. Never adds --show-updates.
   // With a cached result, skip the loading gate so the previous file list stays
   // visible and gets replaced silently once the fresh scan finishes.
   const refreshStatus = useCallback(async () => {
+    const seq = ++statusSeq.current;
     const hasCache = statusCache.has(project.id);
     if (!hasCache) setStatusLoading(true);
     setError(null);
     try {
-      applyStatus(await svnApi.getSvnStatus(project.id));
+      const s = await svnApi.getSvnStatus(project.id);
+      if (seq === statusSeq.current) applyStatus(s);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load SVN status');
+      if (seq === statusSeq.current) setError(err instanceof Error ? err.message : 'Failed to load SVN status');
     } finally {
       if (!hasCache) setStatusLoading(false);
     }
   }, [project.id, applyStatus]);
 
-  useEffect(() => { refreshStatus(); }, [refreshStatus, refreshTrigger]);
+  // The mount scan is started by the job-attach effect below (it waits for a
+  // running command first); later triggers rescan unless a command is running —
+  // that one rescans when it finishes.
+  const skipFirstTrigger = useRef(true);
+  useEffect(() => {
+    if (skipFirstTrigger.current) { skipFirstTrigger.current = false; return; }
+    if (!jobRef.current) refreshStatus();
+  }, [refreshStatus, refreshTrigger]);
 
   // SERVER: `svn status -u`. Only ever called from the explicit button.
   const checkRepository = useCallback(async () => {
+    const seq = ++statusSeq.current;
     setRemoteChecking(true);
     setError(null);
     setActionFlash(null);
     try {
       const s = await svnApi.getSvnStatus(project.id, true);
+      if (seq !== statusSeq.current) return;
       applyStatus(s);
       setActionFlash(s.behind > 0 ? t('svn.behindCount').replace('{n}', String(s.behind)) : t('svn.upToDate'));
     } catch (err) {
@@ -203,70 +237,134 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     });
   };
 
-  // Every command in this panel funnels through here, so the running-command
-  // banner and the disabled state are set in one place. `label` names the
-  // command for the banner.
-  const runAction = async (label: string, action: () => Promise<unknown>, successMsg?: string) => {
-    setActionBusy(true);
-    setProgress({ label, count: 0, line: '' });
-    setError(null);
-    setActionFlash(null);
-    try {
-      await action();
-      if (successMsg) setActionFlash(successMsg);
-      await refreshStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setActionBusy(false);
-      setProgress(null);
-    }
-  };
+  // ── Commands (server-side jobs) ───────────────────────────────────────────
+  // Every command funnels through runCommand → followJob, so the banner and
+  // the disabled state are set in one place. A command started here and one
+  // picked up after a remount (tab switch mid-update) both end in finishJob,
+  // so its result is applied exactly once either way.
+  const signalRef = useRef<AbortSignal | null>(null);
 
-  // ── File-level operations (LOCAL) — invoked from the row context menu ─────
-  const doAdd = (files: string[]) => runAction(t('svn.add'), () => svnApi.svnAdd(project.id, files));
-  const doRevert = (files: string[]) => runAction(t('svn.revert'), () => svnApi.svnRevert(project.id, files));
-  const doDelete = (files: string[]) => runAction(t('svn.delete'), () => svnApi.svnDelete(project.id, files));
-  const doResolve = (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') =>
-    runAction(t('svn.resolve'), () => svnApi.svnResolve(project.id, files, accept));
-  const doChangelist = (name: string | null, files: string[]) =>
-    runAction(
-      t(name ? 'svn.moveToChangelist' : 'svn.removeFromChangelist'),
-      () => svnApi.svnChangelist(project.id, name, files),
-    );
-
-  // ── Global commands ───────────────────────────────────────────────────────
   // Files `svn update` reported as conflicted ('C' in any status column) —
   // shown as a warning banner until every 'C' row is resolved.
   const [updateConflicts, setUpdateConflicts] = useState<string[] | null>(null);
-  const applyUpdateResult = (r: { revision: string | null; conflicts: string[] }) => {
-    if (r.conflicts.length > 0) {
-      setUpdateConflicts(r.conflicts);
-    } else {
-      setActionFlash(r.revision ? t('svn.updateSuccess').replace('{rev}', r.revision) : t('svn.update'));
+
+  const jobLabel = (j: JobView) =>
+    `${t(JOB_LABEL_KEYS[j.kind])}${j.kind === 'update' && j.revision ? ` r${j.revision}` : ''}`;
+
+  const finishJob = (done: SvnJob) => {
+    if (!done.ok) {
+      setError(done.error === 'cancelled' ? t('svn.cancelled') : (done.error ?? 'Action failed'));
+      return;
+    }
+    const result = (done.result ?? {}) as { revision?: string | null; conflicts?: string[] };
+    if (done.kind === 'update') {
+      if (result.conflicts?.length) setUpdateConflicts(result.conflicts);
+      else setActionFlash(result.revision ? t('svn.updateSuccess').replace('{rev}', result.revision) : t('svn.update'));
+    } else if (done.kind === 'commit') {
+      commitMessageCache.delete(project.id);
+      setCommitMessage('');
+      if (result.revision) setActionFlash(t('svn.commitSuccess').replace('{rev}', result.revision));
+    } else if (done.kind === 'cleanup') {
+      setActionFlash(t('svn.cleanupSuccess'));
     }
   };
-  // Live `svn update` progress — latest line plus how many files it touched.
-  const trackUpdateLine = (line: string) =>
-    setProgress((prev) => prev && {
-      ...prev,
-      count: prev.count + (/^[ ADUCGE]{1,4}\s+\S/.test(line) ? 1 : 0),
-      line,
-    });
 
-  // Which sidebar command is running, so its button can show the spinner.
-  // `runAction` already swallows errors, so the finally here always fires.
-  const [sidebarCmd, setSidebarCmd] = useState<'update' | 'revision' | 'cleanup' | null>(null);
-  const runSidebarCmd = async (key: NonNullable<typeof sidebarCmd>, run: () => Promise<void>) => {
-    setSidebarCmd(key);
-    try { await run(); } finally { setSidebarCmd(null); }
+  // Follow job `jobId` to its end, apply it, rescan. Stops quietly when the
+  // panel unmounts — the job keeps running on the server.
+  const followJob = async (jobId: string) => {
+    const signal = signalRef.current ?? undefined;
+    let done: SvnJob | null = null;
+    let lost: unknown = null;
+    try {
+      done = await svnApi.waitSvnJob(project.id, jobId, {
+        signal,
+        onProgress: (running) => setJob(jobView(running)),
+      });
+    } catch (err) {
+      lost = err;
+    }
+    if (signal?.aborted) return;
+    // Rescan first: refreshStatus clears the error line the result may set.
+    await refreshStatus();
+    if (done) finishJob(done);
+    else if (lost) setError(lost instanceof Error ? lost.message : 'Action failed');
+    jobRef.current = null;
+    setJob(null);
   };
 
-  const handleUpdate = () =>
-    runSidebarCmd('update', () =>
-      runAction(t('svn.update'), async () => {
-        applyUpdateResult(await svnApi.svnUpdate(project.id, undefined, trackUpdateLine));
-      }));
+  // Pick up a command still running — or one that finished while no panel was
+  // mounted — instead of looking idle and letting a second command collide
+  // with its working-copy lock. Otherwise just scan.
+  const attachJob = async () => {
+    const signal = signalRef.current;
+    let found: SvnJob | null = null;
+    try { found = await svnApi.findSvnJobToAttach(project.id); } catch { /* fall back to a plain scan */ }
+    if (signal?.aborted) return;
+    if (found && !found.finishedAt) {
+      jobRef.current = jobView(found);
+      setJob(jobRef.current);
+      await followJob(found.id);
+      return;
+    }
+    await refreshStatus();
+    if (found) finishJob(found);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    signalRef.current = controller.signal;
+    attachJob();
+    return () => controller.abort();
+    // Mount-only: the panel is keyed by project.id, so these closures stay valid.
+  }, []);
+
+  const runCommand = async (kind: SvnJobKind, body: Record<string, unknown> = {}) => {
+    if (jobRef.current) return;
+    setError(null);
+    setActionFlash(null);
+    jobRef.current = {
+      kind,
+      revision: typeof body.revision === 'string' ? body.revision : undefined,
+      count: 0,
+      line: '',
+      cancellable: kind === 'update',
+    };
+    setJob(jobRef.current);
+    let jobId: string;
+    try {
+      jobId = await svnApi.startSvnJob(project.id, kind, body);
+    } catch (err) {
+      jobRef.current = null;
+      setJob(null);
+      if (err instanceof ApiError && err.status === 409) {
+        // Another window or device runs a command on this copy: show and follow it.
+        setError(t('svn.busy'));
+        attachJob();
+      } else {
+        setError(err instanceof Error ? err.message : 'Action failed');
+      }
+      return;
+    }
+    await followJob(jobId);
+  };
+
+  const cancelJob = () => {
+    svnApi.cancelSvnJob(project.id).catch((err) => setError(err instanceof Error ? err.message : 'Cancel failed'));
+  };
+
+  // ── File-level operations (LOCAL) — invoked from the row context menu ─────
+  const doAdd = (files: string[]) => runCommand('add', { files });
+  const doRevert = (files: string[]) => runCommand('revert', { files });
+  const doDelete = (files: string[]) => runCommand('delete', { files });
+  const doResolve = (files: string[], accept: 'working' | 'mine-full' | 'theirs-full' | 'base') =>
+    runCommand('resolve', { files, accept });
+  const doChangelist = (name: string | null, files: string[]) => runCommand('changelist', { name, files });
+
+  // ── Global commands ───────────────────────────────────────────────────────
+  // Which sidebar command is running, so its button can show the spinner.
+  const sidebarCmd = job?.kind === 'update' ? (job.revision ? 'revision' : 'update') : job?.kind === 'cleanup' ? 'cleanup' : null;
+
+  const handleUpdate = () => runCommand('update');
 
   const [showRevDialog, setShowRevDialog] = useState(false);
   const [revInput, setRevInput] = useState('');
@@ -274,16 +372,11 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     const rev = revInput.trim();
     if (!rev) return;
     setShowRevDialog(false);
-    runSidebarCmd('revision', () =>
-      runAction(`${t('svn.update')} r${rev}`, async () => {
-        applyUpdateResult(await svnApi.svnUpdate(project.id, rev, trackUpdateLine));
-        setRevInput('');
-      }));
+    setRevInput('');
+    runCommand('update', { revision: rev });
   };
 
-  const handleCleanup = () =>
-    runSidebarCmd('cleanup', () =>
-      runAction(t('svn.cleanup'), () => svnApi.svnCleanup(project.id), t('svn.cleanupSuccess')));
+  const handleCleanup = () => runCommand('cleanup');
 
   // ── New changelist dialog. Non-null = files pending assignment; an empty
   // array (from clicking empty space) creates a client-side empty changelist.
@@ -327,11 +420,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
       return;
     }
     const files = selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined;
-    runAction(t('svn.commit'), async () => {
-      const r = await svnApi.svnCommit(project.id, commitMessage.trim(), files);
-      setCommitMessage('');
-      if (r.revision) setActionFlash(t('svn.commitSuccess').replace('{rev}', r.revision));
-    });
+    runCommand('commit', { message: commitMessage.trim(), files });
   };
 
   // ── Log (SERVER: `svn log`) — fetched only on explicit user action ────────
@@ -345,32 +434,42 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
   const [revDiff, setRevDiff] = useState('');
   const [revDiffLoading, setRevDiffLoading] = useState(false);
 
-  const loadLog = useCallback(async (skip = 0) => {
+  // `before` = oldest revision already listed (load more); omitted = reload.
+  // Only the newest request applies — a slow reload must not clobber a page.
+  const logSeq = useRef(0);
+  const loadLog = useCallback(async (before?: string) => {
+    const seq = ++logSeq.current;
     setLogLoading(true);
     setError(null);
     try {
-      const r = await svnApi.getSvnLog(project.id, skip, 50);
-      setLogEntries((prev) => (skip === 0 ? r.commits : [...prev, ...r.commits]));
+      const r = await svnApi.getSvnLog(project.id, before, 50);
+      if (seq !== logSeq.current) return;
+      setLogEntries((prev) => (before ? [...prev, ...r.commits] : r.commits));
       setLogHasMore(r.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Log failed');
+      if (seq === logSeq.current) setError(err instanceof Error ? err.message : 'Log failed');
     } finally {
-      setLogLoading(false);
+      if (seq === logSeq.current) setLogLoading(false);
     }
   }, [project.id]);
 
+  // Clicking through revisions quickly: show the files of the last one clicked,
+  // not of whichever request happened to return last.
+  const selectedRevRef = useRef<string | null>(null);
   const selectRevision = useCallback(async (rev: string) => {
+    selectedRevRef.current = rev;
     setSelectedRev(rev);
     setRevSelectedFile(null);
     setRevDiff('');
+    setRevFiles([]);
     setRevFilesLoading(true);
     try {
       const r = await svnApi.getSvnCommitFiles(project.id, rev);
-      setRevFiles(r.files);
+      if (selectedRevRef.current === rev) setRevFiles(r.files);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load revision files');
+      if (selectedRevRef.current === rev) setError(err instanceof Error ? err.message : 'Failed to load revision files');
     } finally {
-      setRevFilesLoading(false);
+      if (selectedRevRef.current === rev) setRevFilesLoading(false);
     }
   }, [project.id]);
 
@@ -434,7 +533,7 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
     return parts.join('  ·  ');
   }, [status]);
 
-  const busy = actionBusy || statusLoading || remoteChecking;
+  const busy = job !== null || statusLoading || remoteChecking;
 
   // Auto-dismiss the update-conflict banner once no 'C' rows remain.
   useEffect(() => {
@@ -449,16 +548,19 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
           {t('svn.cliMissing')}
         </div>
       )}
-      {progress && (
+      {job && (
         <div className="card mb-2 px-3 py-2 bg-accent/10 border border-accent/30 text-2xs text-accent flex items-center gap-2">
           <Loader2 size={12} className="shrink-0 animate-spin" />
           <span className="shrink-0 font-semibold">
-            {t('svn.running').replace('{cmd}', progress.label)}
-            {progress.count > 0 && ` (${t('svn.updateProgress').replace('{n}', String(progress.count))})`}
+            {t('svn.running').replace('{cmd}', jobLabel(job))}
+            {job.count > 0 && ` (${t('svn.updateProgress').replace('{n}', String(job.count))})`}
           </span>
-          <span className="flex-1 min-w-0 truncate font-mono" title={progress.line}>
-            {progress.line}
+          <span className="flex-1 min-w-0 truncate font-mono" title={job.line}>
+            {job.line}
           </span>
+          {job.cancellable && (
+            <button onClick={cancelJob} className="shrink-0 hover:underline">{t('svn.cancel')}</button>
+          )}
         </div>
       )}
       {updateConflicts && updateConflicts.length > 0 && (
@@ -572,8 +674,8 @@ export default function SvnStatusPanel({ project, refreshTrigger }: SvnStatusPan
               entries={logEntries}
               loading={logLoading}
               hasMore={logHasMore}
-              onLoad={() => loadLog(0)}
-              onLoadMore={() => loadLog(logEntries.length)}
+              onLoad={() => loadLog()}
+              onLoadMore={() => loadLog(logEntries[logEntries.length - 1]?.hash)}
               selectedRev={selectedRev}
               onSelectRev={selectRevision}
               onRevContextMenu={openLogCtxMenu}
@@ -850,10 +952,13 @@ interface DirTree {
   path: string;              // full path of this dir (post-compaction)
   dirs: DirTree[];
   files: SvnFile[];
+  dirCount: number;          // all descendant dirs (filled once by countDir)
+  fileCount: number;         // all descendant files
 }
 
 function buildDirTree(files: SvnFile[]): DirTree {
-  const root: DirTree = { name: '', path: '', dirs: [], files: [] };
+  const root: DirTree = { name: '', path: '', dirs: [], files: [], dirCount: 0, fileCount: 0 };
+  const byPath = new Map<string, DirTree>();
   for (const f of files) {
     const parts = f.path.split('/');
     parts.pop(); // drop the file name; only dir segments remain
@@ -861,10 +966,11 @@ function buildDirTree(files: SvnFile[]): DirTree {
     let acc = '';
     for (const part of parts) {
       acc = acc ? `${acc}/${part}` : part;
-      let child = node.dirs.find((d) => d.name === part);
+      let child = byPath.get(acc);
       if (!child) {
-        child = { name: part, path: acc, dirs: [], files: [] };
+        child = { name: part, path: acc, dirs: [], files: [], dirCount: 0, fileCount: 0 };
         node.dirs.push(child);
+        byPath.set(acc, child);
       }
       node = child;
     }
@@ -872,6 +978,7 @@ function buildDirTree(files: SvnFile[]): DirTree {
   }
   compactDirs(root);
   sortDir(root);
+  countDir(root);
   return root;
 }
 
@@ -882,7 +989,7 @@ function compactDirs(node: DirTree): void {
     let cur = d;
     while (cur.dirs.length === 1 && cur.files.length === 0) {
       const only = cur.dirs[0];
-      cur = { name: `${cur.name}/${only.name}`, path: only.path, dirs: only.dirs, files: only.files };
+      cur = { ...only, name: `${cur.name}/${only.name}` };
     }
     return cur;
   });
@@ -895,15 +1002,16 @@ function sortDir(node: DirTree): void {
   node.dirs.forEach(sortDir);
 }
 
-function countDir(node: DirTree): { dirs: number; files: number } {
-  let dirs = node.dirs.length;
-  let files = node.files.length;
+// Bottom-up, once per tree build — rows read the totals instead of re-walking
+// their subtree on every render.
+function countDir(node: DirTree): void {
+  node.dirCount = node.dirs.length;
+  node.fileCount = node.files.length;
   for (const d of node.dirs) {
-    const c = countDir(d);
-    dirs += c.dirs;
-    files += c.files;
+    countDir(d);
+    node.dirCount += d.dirCount;
+    node.fileCount += d.fileCount;
   }
-  return { dirs, files };
 }
 
 // All files under a directory subtree (this dir + every descendant) — the
@@ -914,9 +1022,9 @@ function collectFiles(node: DirTree): SvnFile[] {
   return out;
 }
 
+// Stable callbacks only. Rows are memoized, so per-row state (selected,
+// active) travels as its own props and a click re-renders just that row.
 interface FileRowShared {
-  selectedFiles: Set<string>;
-  activeFile: string | null;
   onActivate: (path: string) => void;
   onToggle: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, file: GitStatusFile) => void;
@@ -1096,15 +1204,17 @@ function ConflictResolveButton({ onResolve, onOpen }: {
   );
 }
 
-function FileRow({ file, indent, showDir, shared }: {
+const FileRow = memo(function FileRow({ file, indent, showDir, selected, active, shared }: {
   file: GitStatusFile;
   indent: number;
   showDir?: boolean;
+  selected: boolean;
+  active: boolean;
   shared: FileRowShared;
 }) {
   const { t } = useI18n();
   const ch = charOf(file);
-  const isActive = shared.activeFile === file.path;
+  const isActive = active;
   return (
     <div
       draggable
@@ -1118,7 +1228,7 @@ function FileRow({ file, indent, showDir, shared }: {
     >
       <input
         type="checkbox"
-        checked={shared.selectedFiles.has(file.path)}
+        checked={selected}
         onChange={(e) => { e.stopPropagation(); shared.onToggle(file.path); }}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0"
@@ -1145,22 +1255,23 @@ function FileRow({ file, indent, showDir, shared }: {
       </button>
     </div>
   );
-}
+});
 
-function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps, onDirContextMenu }: {
+function DirNode({ node, depth, collapsed, onToggleCollapse, selectedFiles, activeFile, fileProps, onDirContextMenu }: {
   node: DirTree;
   depth: number;
   collapsed: Set<string>;
   onToggleCollapse: (path: string) => void;
+  selectedFiles: Set<string>;
+  activeFile: string | null;
   fileProps: FileRowShared;
   onDirContextMenu: (e: React.MouseEvent, node: DirTree) => void;
 }) {
   const { t } = useI18n();
   const isCollapsed = collapsed.has(node.path);
-  const c = countDir(node);
-  const countLabel = c.dirs > 0
-    ? t('svn.dirFileCount').replace('{d}', String(c.dirs)).replace('{f}', String(c.files))
-    : t('svn.fileCount').replace('{f}', String(c.files));
+  const countLabel = node.dirCount > 0
+    ? t('svn.dirFileCount').replace('{d}', String(node.dirCount)).replace('{f}', String(node.fileCount))
+    : t('svn.fileCount').replace('{f}', String(node.fileCount));
   return (
     <>
       <div
@@ -1179,10 +1290,10 @@ function DirNode({ node, depth, collapsed, onToggleCollapse, fileProps, onDirCon
       {!isCollapsed && (
         <>
           {node.dirs.map((d) => (
-            <DirNode key={d.path} node={d} depth={depth + 1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} fileProps={fileProps} onDirContextMenu={onDirContextMenu} />
+            <DirNode key={d.path} node={d} depth={depth + 1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} selectedFiles={selectedFiles} activeFile={activeFile} fileProps={fileProps} onDirContextMenu={onDirContextMenu} />
           ))}
           {node.files.map((f) => (
-            <FileRow key={f.path} file={f} indent={depth + 1} shared={fileProps} />
+            <FileRow key={f.path} file={f} indent={depth + 1} selected={selectedFiles.has(f.path)} active={activeFile === f.path} shared={fileProps} />
           ))}
         </>
       )}
@@ -1232,6 +1343,103 @@ export function partitionSections(files: SvnFile[], pendingNames: string[], orde
     return ra - rb;
   });
 }
+
+// The changed-files list. Memoized: it re-renders only when the list, the
+// selection, collapse or drag state change — not on commit-message typing or
+// command progress polls in the surrounding view.
+const FileListBody = memo(function FileListBody({
+  sections, groupByDir, statusLoading, collapsed, onToggleCollapse, selectedFiles, activeFile,
+  onSelectMany, dragOverKey, setDragOverKey, onDropSection, onGroupContextMenu, fileProps,
+}: {
+  sections: ClSection[];
+  groupByDir: boolean;
+  statusLoading: boolean;
+  collapsed: Set<string>;
+  onToggleCollapse: (key: string) => void;
+  selectedFiles: Set<string>;
+  activeFile: string | null;
+  onSelectMany: (paths: string[], select: boolean) => void;
+  dragOverKey: string | null;
+  setDragOverKey: React.Dispatch<React.SetStateAction<string | null>>;
+  onDropSection: (e: React.DragEvent, sec: ClSection) => void;
+  onGroupContextMenu: (e: React.MouseEvent, label: string, files: SvnFile[], dirPath: string | null, changelist?: string) => void;
+  fileProps: FileRowShared;
+}) {
+  const { t } = useI18n();
+  // Trees are rebuilt only when the sections change, not on every selection click.
+  const trees = useMemo(
+    () => (groupByDir ? new Map(sections.map((sec) => [sec.key, buildDirTree(sec.files)])) : null),
+    [sections, groupByDir],
+  );
+  return (
+    <>
+      {statusLoading ? (
+        <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
+      ) : sections.length === 0 ? (
+        <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
+      ) : (
+        sections.map((sec) => {
+          const secKey = `§${sec.key}`;
+          const isCollapsed = collapsed.has(secKey);
+          const selCount = sec.files.reduce((n, f) => n + (selectedFiles.has(f.path) ? 1 : 0), 0);
+          const allSelected = sec.files.length > 0 && selCount === sec.files.length;
+          const tree = trees?.get(sec.key) ?? null;
+          const droppable = sec.key !== 'unversioned' && sec.key !== 'missing';
+          const isDropTarget = dragOverKey === sec.key;
+          return (
+            <div key={sec.key}>
+              <div
+                draggable
+                onClick={() => onToggleCollapse(secKey)}
+                onContextMenu={(e) => onGroupContextMenu(e, sec.label, sec.files, null, sec.key.startsWith('cl:') ? sec.label : undefined)}
+                onDragStart={(e) => { e.dataTransfer.setData(CL_DRAG_TYPE, sec.key); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragOver={(e) => {
+                  if (!droppable && !e.dataTransfer.types.includes(CL_DRAG_TYPE)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverKey !== sec.key) setDragOverKey(sec.key);
+                }}
+                onDragLeave={() => setDragOverKey((k) => (k === sec.key ? null : k))}
+                onDrop={(e) => onDropSection(e, sec)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-y border-warm-200/70 ${
+                  isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-100 hover:bg-warm-200/60'
+                }`}
+              >
+                {isCollapsed
+                  ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
+                  : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-warm-400" />}
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = selCount > 0 && !allSelected; }}
+                  onChange={(e) => { e.stopPropagation(); onSelectMany(sec.files.map((f) => f.path), !allSelected); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0"
+                />
+                <span className="truncate text-warm-800 font-bold">{sec.label}</span>
+                <span className="text-warm-400 text-2xs ml-1 shrink-0">{sec.files.length}</span>
+              </div>
+              {!isCollapsed && (tree ? (
+                <>
+                  {tree.dirs.map((d) => (
+                    <DirNode key={d.path} node={d} depth={1} collapsed={collapsed} onToggleCollapse={onToggleCollapse} selectedFiles={selectedFiles} activeFile={activeFile} fileProps={fileProps} onDirContextMenu={(e, n) => onGroupContextMenu(e, n.path, collectFiles(n), n.path)} />
+                  ))}
+                  {tree.files.map((f) => (
+                    <FileRow key={f.path} file={f} indent={1} selected={selectedFiles.has(f.path)} active={activeFile === f.path} shared={fileProps} />
+                  ))}
+                </>
+              ) : (
+                sec.files.map((f) => (
+                  <FileRow key={f.path} file={f} indent={1} showDir selected={selectedFiles.has(f.path)} active={activeFile === f.path} shared={fileProps} />
+                ))
+              ))}
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+});
 
 // ── Modifications view (LOCAL) ───────────────────────────────────────────────
 
@@ -1311,26 +1519,33 @@ function ModificationsView(props: {
     try { localStorage.setItem('svn.groupByDir', String(next)); } catch { /* ignore */ }
     return next;
   });
-  const toggleCollapse = (path: string) => setCollapsed((prev) => {
+  const toggleCollapse = useCallback((path: string) => setCollapsed((prev) => {
     const next = new Set(prev);
     if (next.has(path)) next.delete(path); else next.add(path);
     return next;
-  });
-  const fileProps: FileRowShared = {
-    selectedFiles: props.selectedFiles,
-    activeFile: props.activeFile,
-    onActivate: props.onActivate,
-    onToggle: props.onToggle,
-    onContextMenu: props.onContextMenu,
+  }), []);
+  // The file list (FileListBody, memoized) gets callbacks that never change
+  // identity and read the latest props through this ref — so typing a commit
+  // message or a progress poll re-renders this view but not every row.
+  const latest = useRef(props);
+  latest.current = props;
+  const fileProps = useMemo<FileRowShared>(() => ({
+    onActivate: (path) => latest.current.onActivate(path),
+    onToggle: (path) => latest.current.onToggle(path),
+    onContextMenu: (e, file) => latest.current.onContextMenu(e, file),
     onDragStart: (e, file) => {
-      const paths = props.selectedFiles.size > 0 && props.selectedFiles.has(file.path)
-        ? props.statusFiles.filter((f) => props.selectedFiles.has(f.path)).map((f) => f.path)
+      const { selectedFiles, statusFiles } = latest.current;
+      const paths = selectedFiles.size > 0 && selectedFiles.has(file.path)
+        ? statusFiles.filter((f) => selectedFiles.has(f.path)).map((f) => f.path)
         : [file.path];
       e.dataTransfer.setData('text/plain', JSON.stringify(paths));
       e.dataTransfer.effectAllowed = 'move';
     },
-    onResolve: props.onResolve,
-  };
+    onResolve: (path, accept) => latest.current.onResolve(path, accept),
+  }), []);
+  const onGroupContextMenu = useCallback<typeof props.onGroupContextMenu>(
+    (...args) => latest.current.onGroupContextMenu(...args), []);
+  const onSelectMany = useCallback((paths: string[], select: boolean) => latest.current.onSelectMany(paths, select), []);
 
   // Drop a dragged file set onto a changelist section header. Native `svn
   // changelist` only accepts versioned paths, so unversioned '?' rows are
@@ -1346,12 +1561,16 @@ function ModificationsView(props: {
     if (sec.key === 'unversioned' || sec.key === 'missing') return;
     let paths: string[];
     try { paths = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+    const byPath = new Map(props.statusFiles.map((f) => [f.path, f]));
     const files = paths.filter((p) => {
-      const f = props.statusFiles.find((x) => x.path === p);
+      const f = byPath.get(p);
       return f && charOf(f) !== '?';
     });
     if (files.length) props.onChangelist(sec.key.startsWith('cl:') ? sec.label : null, files);
   };
+  const dropRef = useRef(dropOnSection);
+  dropRef.current = dropOnSection;
+  const onDropSection = useCallback((e: React.DragEvent, sec: ClSection) => dropRef.current(e, sec), []);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -1452,70 +1671,21 @@ function ModificationsView(props: {
             className="flex-1 overflow-y-auto"
             onContextMenu={(e) => { e.preventDefault(); setEmptyMenu({ x: e.clientX, y: e.clientY }); }}
           >
-            {props.statusLoading ? (
-              <div className="p-6 text-center text-xs text-warm-400">{t('git.loadingFiles')}</div>
-            ) : sections.length === 0 ? (
-              <div className="p-6 text-center text-xs text-warm-400">{t('svn.noChanges')}</div>
-            ) : (
-              sections.map((sec) => {
-                const secKey = `§${sec.key}`;
-                const isCollapsed = collapsed.has(secKey);
-                const selCount = sec.files.reduce((n, f) => n + (props.selectedFiles.has(f.path) ? 1 : 0), 0);
-                const allSelected = sec.files.length > 0 && selCount === sec.files.length;
-                const tree = groupByDir ? buildDirTree(sec.files) : null;
-                const droppable = sec.key !== 'unversioned' && sec.key !== 'missing';
-                const isDropTarget = dragOverKey === sec.key;
-                return (
-                  <div key={sec.key}>
-                    <div
-                      draggable
-                      onClick={() => toggleCollapse(secKey)}
-                      onContextMenu={(e) => props.onGroupContextMenu(e, sec.label, sec.files, null, sec.key.startsWith('cl:') ? sec.label : undefined)}
-                      onDragStart={(e) => { e.dataTransfer.setData(CL_DRAG_TYPE, sec.key); e.dataTransfer.effectAllowed = 'move'; }}
-                      onDragOver={(e) => {
-                        if (!droppable && !e.dataTransfer.types.includes(CL_DRAG_TYPE)) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        if (dragOverKey !== sec.key) setDragOverKey(sec.key);
-                      }}
-                      onDragLeave={() => setDragOverKey((k) => (k === sec.key ? null : k))}
-                      onDrop={(e) => dropOnSection(e, sec)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs select-none border-y border-warm-200/70 ${
-                        isDropTarget ? 'bg-accent/20 ring-1 ring-inset ring-accent' : 'bg-warm-100 hover:bg-warm-200/60'
-                      }`}
-                    >
-                      {isCollapsed
-                        ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-warm-400" />
-                        : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-warm-400" />}
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        ref={(el) => { if (el) el.indeterminate = selCount > 0 && !allSelected; }}
-                        onChange={(e) => { e.stopPropagation(); props.onSelectMany(sec.files.map((f) => f.path), !allSelected); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="shrink-0"
-                      />
-                      <span className="truncate text-warm-800 font-bold">{sec.label}</span>
-                      <span className="text-warm-400 text-2xs ml-1 shrink-0">{sec.files.length}</span>
-                    </div>
-                    {!isCollapsed && (tree ? (
-                      <>
-                        {tree.dirs.map((d) => (
-                          <DirNode key={d.path} node={d} depth={1} collapsed={collapsed} onToggleCollapse={toggleCollapse} fileProps={fileProps} onDirContextMenu={(e, n) => props.onGroupContextMenu(e, n.path, collectFiles(n), n.path)} />
-                        ))}
-                        {tree.files.map((f) => (
-                          <FileRow key={f.path} file={f} indent={1} shared={fileProps} />
-                        ))}
-                      </>
-                    ) : (
-                      sec.files.map((f) => (
-                        <FileRow key={f.path} file={f} indent={1} showDir shared={fileProps} />
-                      ))
-                    ))}
-                  </div>
-                );
-              })
-            )}
+            <FileListBody
+              sections={sections}
+              groupByDir={groupByDir}
+              statusLoading={props.statusLoading}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              selectedFiles={props.selectedFiles}
+              activeFile={props.activeFile}
+              onSelectMany={onSelectMany}
+              dragOverKey={dragOverKey}
+              setDragOverKey={setDragOverKey}
+              onDropSection={onDropSection}
+              onGroupContextMenu={onGroupContextMenu}
+              fileProps={fileProps}
+            />
           </div>
           {emptyMenu && (
             <CursorContextMenu x={emptyMenu.x} y={emptyMenu.y} onClose={() => setEmptyMenu(null)}>
@@ -1894,7 +2064,7 @@ function PropertiesDialog({ projectId, file, onClose }: {
       setEditing(null);
       setReloadKey((k) => k + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save property');
+      setError(err instanceof ApiError && err.status === 409 ? t('svn.busy') : err instanceof Error ? err.message : 'Failed to save property');
     } finally {
       setSaving(false);
     }

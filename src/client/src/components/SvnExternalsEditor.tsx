@@ -81,14 +81,15 @@ export default function SvnExternalsEditor({ projectId, value, saving, onSave, o
     setFindingHead(false);
   };
 
-  const loadLog = async (url: string, skip: number) => {
+  // `before` = oldest revision already listed (load more); omitted = first page.
+  const loadLog = async (url: string, before?: string) => {
     setLogLoading(true);
     setError(null);
     try {
-      const r = await svnApi.getSvnLog(projectId, skip, 50, url);
+      const r = await svnApi.getSvnLog(projectId, before, 50, url);
       setLog((prev) => ({
         url,
-        commits: skip > 0 && prev?.url === url ? [...prev.commits, ...r.commits] : r.commits,
+        commits: before && prev?.url === url ? [...prev.commits, ...r.commits] : r.commits,
         hasMore: r.hasMore,
       }));
     } catch (err) {
@@ -172,7 +173,7 @@ export default function SvnExternalsEditor({ projectId, value, saving, onSave, o
             />
             <Button
               size="sm"
-              onClick={() => loadLog(current.url.trim(), 0)}
+              onClick={() => loadLog(current.url.trim())}
               disabled={logLoading || !current.url.trim()}
             >
               {logLoading ? t('svn.checking') : t('svn.ext.showLog')}
@@ -198,7 +199,7 @@ export default function SvnExternalsEditor({ projectId, value, saving, onSave, o
               ))}
               {visibleLog.hasMore && (
                 <button
-                  onClick={() => loadLog(visibleLog.url, visibleLog.commits.length)}
+                  onClick={() => loadLog(visibleLog.url, visibleLog.commits[visibleLog.commits.length - 1]?.hash)}
                   disabled={logLoading}
                   className="w-full px-2 py-1 text-warm-400 hover:text-accent"
                 >

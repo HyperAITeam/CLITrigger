@@ -149,3 +149,54 @@ describe('svnManager property-only changes', () => {
     expect(mockedRunSvn).toHaveBeenLastCalledWith(['commit', '-m', 'plain', 'a.txt'], 'C:/wc');
   });
 });
+
+describe('svnManager paths and selections', () => {
+  afterEach(() => {
+    mockedRunSvn.mockImplementation(defaultRunSvn);
+    mockedRunSvn.mockClear();
+  });
+
+  it('unescapes XML in status paths', async () => {
+    withStatus(entry('C:/wc/R&amp;D/a&apos;b.txt', 'modified'));
+    expect((await svnManager.getStatus('C:/wc')).files.map((f) => f.path)).toEqual(["R&D/a'b.txt"]);
+  });
+
+  it("passes paths containing '@' with a trailing '@' so svn doesn't read a peg revision", async () => {
+    withStatus(entry('icon@2x.png', 'modified'));
+    await svnManager.revert('C:/wc', ['icon@2x.png']);
+    expect(mockedRunSvn).toHaveBeenCalledWith(['revert', '-R', 'icon@2x.png@'], 'C:/wc');
+    // svn diff is the exception: it takes the path literally.
+    await svnManager.getDiff('C:/wc', 'icon@2x.png');
+    expect(mockedRunSvn).toHaveBeenLastCalledWith(['diff', '--internal-diff', 'icon@2x.png'], 'C:/wc');
+  });
+
+  it('adds selected unversioned files and deletes selected missing ones before committing', async () => {
+    withStatus(entry('new.txt', 'unversioned') + entry('gone.txt', 'missing') + entry('a.txt', 'modified'), 'Committed revision 13.');
+    const result = await svnManager.commit('C:/wc', 'msg', ['new.txt', 'gone.txt', 'a.txt']);
+    expect(result).toEqual({ revision: '13' });
+    expect(mockedRunSvn).toHaveBeenCalledWith(['add', '--parents', '--force', 'new.txt'], 'C:/wc');
+    expect(mockedRunSvn).toHaveBeenCalledWith(['delete', 'gone.txt'], 'C:/wc');
+    expect(mockedRunSvn).toHaveBeenLastCalledWith(['commit', '-m', 'msg', 'new.txt', 'gone.txt', 'a.txt'], 'C:/wc');
+  });
+
+  it('counts replaced and broken-lock rows, not summary lines, and falls back to svn info for the revision', async () => {
+    const localized = ['R    C:/wc/re.txt', '  B  C:/wc/locked.txt', '  Text conflicts: 1', '리비전 99로 갱신했습니다.'].join('\n');
+    mockedRunSvn.mockImplementation(async (args: string[], _cwd, onLine) => {
+      if (args[0] === 'info') return ok(INFO_XML);
+      localized.split('\n').forEach((line) => onLine?.(line));
+      return ok(localized);
+    });
+    const seen: string[] = [];
+    const result = await svnManager.update('C:/wc', undefined, (line) => seen.push(line));
+    expect(seen.slice(0, 2)).toEqual(['R    re.txt', '  B  locked.txt']);
+    expect(result).toEqual({ revision: '10', conflicts: [] });
+  });
+
+  it('pages the log by revision below the last one shown', async () => {
+    await svnManager.getLog('C:/wc', { before: '120', limit: 50 });
+    expect(mockedRunSvn).toHaveBeenLastCalledWith(['log', '--xml', '-r', '119:1', '-l', '51', 'C:/wc'], 'C:/wc');
+    mockedRunSvn.mockClear();
+    expect(await svnManager.getLog('C:/wc', { before: '1' })).toEqual({ commits: [], hasMore: false });
+    expect(mockedRunSvn).not.toHaveBeenCalled();
+  });
+});
