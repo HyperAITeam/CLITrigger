@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 
 let capturedPrompt = '';
-vi.mock('../memory-ingest.js', () => ({
+vi.mock('../headless-cli.js', () => ({
   resolveCliTool: () => 'claude',
   runHeadless: vi.fn(async (_tool: string, prompt: string) => {
     capturedPrompt = prompt;

@@ -5,8 +5,7 @@ import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { logStreamer } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
-import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
+import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { validatePromptContent } from './prompt-guard.js';
 import { debugLogger, type DebugSession } from './debug-logger.js';
@@ -560,8 +559,6 @@ Complete the task in the current directory.`;
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
-        nodeIds: parseMemoryNodeIds(todo.memory_node_ids),
-        rawFilePaths,
         vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${todo.title}\n${todo.description ?? ''}`.trim(),

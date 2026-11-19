@@ -32,7 +32,7 @@ const TOOL_GROUPS = [
   { noun: 'planner', label: 'tabs.planner' },
   { noun: 'schedule', label: 'tabs.schedules' },
   { noun: 'session', label: 'tabs.sessions' },
-  { noun: 'wiki', label: 'tabs.wiki' },
+  { noun: 'vault', label: 'tabs.files' },
 ];
 
 function groupTools(tools: McpCatalog['tools']) {

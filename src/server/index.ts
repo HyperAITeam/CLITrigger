@@ -9,6 +9,7 @@ import { createServer } from 'http';
 import crypto from 'crypto';
 import { getDatabase } from './db/connection.js';
 import { getTodosByStatus, updateTodoStatus, updateTodo, cleanOldLogs, getAllProjects, getDiscussionsByStatus, updateDiscussionStatus, updateDiscussion, getSessionsByStatus, updateSessionStatus, updateSession } from './db/queries.js';
+import { migrateAllProjectWikis } from './services/wiki-migration.js';
 import { initAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -39,7 +40,6 @@ import sessionTagsRouter from './routes/session-tags.js';
 import sessionAliasesRouter from './routes/session-aliases.js';
 import sessionSettingsRouter from './routes/session-settings.js';
 import plannerRouter from './routes/planner.js';
-import memoryRouter from './routes/memory.js';
 import vaultRouter from './routes/vault.js';
 import reviewRouter from './routes/review.js';
 import personalRouter from './routes/personal.js';
@@ -176,6 +176,9 @@ for (const p of getAllProjects()) {
   } catch { /* ignore */ }
 }
 
+// One-time: write the retired DB wiki out as .clitrigger/wiki/ md files
+migrateAllProjectWikis();
+
 // Auto-cleanup old logs (default 30 days)
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '30', 10);
 const cleaned = cleanOldLogs(LOG_RETENTION_DAYS);
@@ -259,7 +262,6 @@ app.use('/api', sessionTagsRouter);
 app.use('/api', sessionAliasesRouter);
 app.use('/api', sessionSettingsRouter);
 app.use('/api', plannerRouter);
-app.use('/api', memoryRouter);
 app.use('/api', vaultRouter);
 app.use('/api/review', reviewRouter);
 app.use('/api', personalRouter);

@@ -374,69 +374,9 @@ export interface Favorite {
   updated_at: string;
 }
 
-// ── Long-term Memory (LLM-Wiki) ──
+// ── Context injection (vault documents) ──
 
 export type MemoryInjectMode = 'none' | 'all' | 'selected' | 'auto';
-
-export type MemoryRelationType = 'related' | 'precedes' | 'example_of' | 'counter_example' | 'refines';
-
-export type MemoryLogEventType = 'ingest' | 'lint' | 'retrieve' | 'merge';
-export type MemoryLogSeverity = 'info' | 'warning' | 'error';
-
-export interface MemoryLog {
-  id: string;
-  project_id: string;
-  event_type: MemoryLogEventType;
-  severity: MemoryLogSeverity;
-  source_type: string | null;
-  source_id: string | null;
-  source_title: string | null;
-  message: string;
-  metadata: string | null;
-  created_at: string;
-}
-
-export interface MemoryNode {
-  id: string;
-  project_id: string;
-  title: string;
-  body: string;
-  tags: string | null;
-  position_x: number | null;
-  position_y: number | null;
-  pinned: number;
-  source_type: string | null;
-  source_id: string | null;
-  source_path: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MemoryEdge {
-  id: string;
-  project_id: string;
-  from_node_id: string;
-  to_node_id: string;
-  relation_type: MemoryRelationType;
-  label: string | null;
-  created_at: string;
-}
-
-export interface MemoryGraph {
-  nodes: MemoryNode[];
-  edges: MemoryEdge[];
-}
-
-export interface MemoryBacklink {
-  id: string;
-  title: string;
-  snippet: string;
-}
-
-export interface MemoryWikilinkResolution {
-  title: string;
-  nodeId: string | null;
-}
 
 // Global personal organizer (project-agnostic, no execution).
 export interface PersonalItem {

@@ -5,8 +5,7 @@ import { claudeManager } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import * as queries from '../db/queries.js';
-import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
+import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
 import { broadcastProjectStatus } from './project-status.js';
 
 function broadcastDiscussionProjectStatus(discussionId: string): void {
@@ -262,8 +261,6 @@ export class DiscussionOrchestrator {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
-        nodeIds: parseMemoryNodeIds(discussion.memory_node_ids),
-        rawFilePaths,
         vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${discussion.title}\n${discussion.description ?? ''}`.trim(),

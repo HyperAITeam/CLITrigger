@@ -1,6 +1,6 @@
 import * as queries from '../db/queries.js';
 import { scanVault, type VaultFile } from './file-scanner.js';
-import { runHeadless, resolveCliTool } from './memory-ingest.js';
+import { runHeadless, resolveCliTool } from './headless-cli.js';
 
 const RETRIEVAL_MAX_FILES = 10;
 const RETRIEVAL_TIMEOUT_MS = 60_000;

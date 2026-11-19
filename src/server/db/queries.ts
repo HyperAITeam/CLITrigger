@@ -1790,7 +1790,7 @@ export function cleanOldLogs(daysToKeep: number): number {
   return taskResult.changes + discussionResult.changes + sessionResult.changes;
 }
 
-// ── Memory (LLM-Wiki) ──
+// ── Memory (retired LLM-Wiki — read once by services/wiki-migration.ts) ──
 
 export type MemoryRelationType = 'related' | 'precedes' | 'example_of' | 'counter_example' | 'refines';
 
@@ -1820,205 +1820,14 @@ export interface MemoryEdge {
   created_at: string;
 }
 
-export function createMemoryNode(
-  projectId: string,
-  title: string,
-  body: string,
-  tags?: string | null,
-  pinned: number = 0,
-  sourceType?: string | null,
-  sourceId?: string | null,
-  sourcePath?: string | null,
-): MemoryNode {
-  const db = getDatabase();
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO memory_nodes (id, project_id, title, body, tags, pinned, source_type, source_id, source_path, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, title, body ?? '', tags ?? null, pinned ? 1 : 0, sourceType ?? null, sourceId ?? null, sourcePath ?? null, now, now);
-  return getMemoryNodeById(id)!;
-}
-
 export function getMemoryNodesByProjectId(projectId: string): MemoryNode[] {
   const db = getDatabase();
   return db.prepare('SELECT * FROM memory_nodes WHERE project_id = ? ORDER BY pinned DESC, updated_at DESC').all(projectId) as MemoryNode[];
 }
 
-export function getMemoryNodeById(id: string): MemoryNode | undefined {
-  const db = getDatabase();
-  return db.prepare('SELECT * FROM memory_nodes WHERE id = ?').get(id) as MemoryNode | undefined;
-}
-
-export function getMemoryNodesByIds(projectId: string, ids: string[]): MemoryNode[] {
-  if (ids.length === 0) return [];
-  const db = getDatabase();
-  const placeholders = ids.map(() => '?').join(',');
-  return db.prepare(
-    `SELECT * FROM memory_nodes WHERE project_id = ? AND id IN (${placeholders})`,
-  ).all(projectId, ...ids) as MemoryNode[];
-}
-
-export function getMemoryNodeByTitle(projectId: string, title: string): MemoryNode | undefined {
-  const db = getDatabase();
-  return db.prepare(
-    'SELECT * FROM memory_nodes WHERE project_id = ? AND title = ? COLLATE NOCASE LIMIT 1'
-  ).get(projectId, title) as MemoryNode | undefined;
-}
-
-export function updateMemoryNode(
-  id: string,
-  updates: Partial<Pick<MemoryNode, 'title' | 'body' | 'tags' | 'pinned' | 'source_type' | 'source_id' | 'source_path'>>,
-): MemoryNode | undefined {
-  const db = getDatabase();
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title); }
-  if (updates.body !== undefined) { fields.push('body = ?'); values.push(updates.body); }
-  if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags); }
-  if (updates.pinned !== undefined) { fields.push('pinned = ?'); values.push(updates.pinned ? 1 : 0); }
-  if (updates.source_type !== undefined) { fields.push('source_type = ?'); values.push(updates.source_type); }
-  if (updates.source_id !== undefined) { fields.push('source_id = ?'); values.push(updates.source_id); }
-  if (updates.source_path !== undefined) { fields.push('source_path = ?'); values.push(updates.source_path); }
-
-  if (fields.length === 0) return getMemoryNodeById(id);
-
-  fields.push('updated_at = ?');
-  values.push(new Date().toISOString());
-  values.push(id);
-
-  db.prepare(`UPDATE memory_nodes SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  return getMemoryNodeById(id);
-}
-
-export function updateMemoryNodePosition(id: string, x: number, y: number): void {
-  const db = getDatabase();
-  db.prepare('UPDATE memory_nodes SET position_x = ?, position_y = ?, updated_at = ? WHERE id = ?')
-    .run(x, y, new Date().toISOString(), id);
-}
-
-export function deleteMemoryNode(id: string): boolean {
-  const db = getDatabase();
-  const result = db.prepare('DELETE FROM memory_nodes WHERE id = ?').run(id);
-  return result.changes > 0;
-}
-
-export function createMemoryEdge(
-  projectId: string,
-  fromNodeId: string,
-  toNodeId: string,
-  relationType: MemoryRelationType = 'related',
-  label?: string | null,
-): MemoryEdge {
-  const db = getDatabase();
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO memory_edges (id, project_id, from_node_id, to_node_id, relation_type, label, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, fromNodeId, toNodeId, relationType, label ?? null, now);
-  return getMemoryEdgeById(id)!;
-}
-
-export function getMemoryEdgeById(id: string): MemoryEdge | undefined {
-  const db = getDatabase();
-  return db.prepare('SELECT * FROM memory_edges WHERE id = ?').get(id) as MemoryEdge | undefined;
-}
-
 export function getMemoryEdgesByProjectId(projectId: string): MemoryEdge[] {
   const db = getDatabase();
   return db.prepare('SELECT * FROM memory_edges WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as MemoryEdge[];
-}
-
-export function getMemoryEdgesForNodes(nodeIds: string[]): MemoryEdge[] {
-  if (nodeIds.length === 0) return [];
-  const db = getDatabase();
-  const placeholders = nodeIds.map(() => '?').join(',');
-  return db.prepare(
-    `SELECT * FROM memory_edges
-      WHERE from_node_id IN (${placeholders})
-        AND to_node_id IN (${placeholders})`
-  ).all(...nodeIds, ...nodeIds) as MemoryEdge[];
-}
-
-export function updateMemoryEdge(
-  id: string,
-  updates: Partial<Pick<MemoryEdge, 'relation_type' | 'label'>>,
-): MemoryEdge | undefined {
-  const db = getDatabase();
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (updates.relation_type !== undefined) { fields.push('relation_type = ?'); values.push(updates.relation_type); }
-  if (updates.label !== undefined) { fields.push('label = ?'); values.push(updates.label); }
-
-  if (fields.length === 0) return getMemoryEdgeById(id);
-
-  values.push(id);
-  db.prepare(`UPDATE memory_edges SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  return getMemoryEdgeById(id);
-}
-
-export function deleteMemoryEdge(id: string): boolean {
-  const db = getDatabase();
-  const result = db.prepare('DELETE FROM memory_edges WHERE id = ?').run(id);
-  return result.changes > 0;
-}
-
-export type MemoryLogEventType = 'ingest' | 'lint' | 'retrieve' | 'merge';
-export type MemoryLogSeverity = 'info' | 'warning' | 'error';
-
-export interface MemoryLog {
-  id: string;
-  project_id: string;
-  event_type: MemoryLogEventType;
-  severity: MemoryLogSeverity;
-  source_type: string | null;
-  source_id: string | null;
-  source_title: string | null;
-  message: string;
-  metadata: string | null;
-  created_at: string;
-}
-
-export function createMemoryLog(
-  projectId: string,
-  eventType: MemoryLogEventType,
-  message: string,
-  opts?: {
-    severity?: MemoryLogSeverity;
-    sourceType?: string | null;
-    sourceId?: string | null;
-    sourceTitle?: string | null;
-    metadata?: Record<string, unknown> | null;
-  },
-): MemoryLog {
-  const db = getDatabase();
-  const id = uuidv4();
-  const metaJson = opts?.metadata ? JSON.stringify(opts.metadata) : null;
-  db.prepare(
-    `INSERT INTO memory_logs (id, project_id, event_type, severity, source_type, source_id, source_title, message, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    projectId,
-    eventType,
-    opts?.severity ?? 'info',
-    opts?.sourceType ?? null,
-    opts?.sourceId ?? null,
-    opts?.sourceTitle ?? null,
-    message,
-    metaJson,
-  );
-  return db.prepare('SELECT * FROM memory_logs WHERE id = ?').get(id) as MemoryLog;
-}
-
-export function getMemoryLogsByProjectId(projectId: string, limit = 200): MemoryLog[] {
-  const db = getDatabase();
-  return db.prepare(
-    'SELECT * FROM memory_logs WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
-  ).all(projectId, limit) as MemoryLog[];
 }
 
 // ── Personal items (global, project-agnostic personal organizer) ───────────

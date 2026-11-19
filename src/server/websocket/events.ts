@@ -28,28 +28,4 @@ export type WSEvent =
   | { type: 'session:agent-state'; sessionId: string; state: AgentState; reason?: string }
   | { type: 'rate-limit:updated'; resetsAt: number; status: string | null }
   | { type: 'vault:changed'; projectId: string }
-  | { type: 'git:changed'; projectId: string }
-  | {
-      type: 'memory:ingest-finished';
-      projectId: string;
-      sourceType: 'todo' | 'discussion' | 'manual';
-      sourceId: string | null;
-      sourceTitle: string | null;
-      created: number;
-      updated: number;
-      edgesAdded: number;
-      skipped: {
-        parseFailed: boolean;
-        proposedCreate: number;
-        proposedUpdate: number;
-        proposedEdges: number;
-        duplicateTitle: number;
-        uniqueConflict: number;
-        emptyTitle: number;
-        invalidUpdateId: number;
-        invalidEdgeRef: number;
-        selfEdge: number;
-        edgeUniqueConflict: number;
-      };
-      error?: string;
-    };
+  | { type: 'git:changed'; projectId: string };

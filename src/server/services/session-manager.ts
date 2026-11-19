@@ -5,8 +5,7 @@ import { worktreeManager } from './worktree-manager.js';
 import { getAdapter, supportsInteractiveMode, type CliTool, type SandboxMode } from './cli-adapters.js';
 import { AgentStateTracker, type AgentState, type AgentStateHints } from './agent-state-detector.js';
 import { broadcaster, encodeSessionFrame } from '../websocket/broadcaster.js';
-import { applyMemoryInjection } from './memory-inject-hook.js';
-import { parseMemoryNodeIds, parseRawFilePaths, type MemoryInjectMode } from './memory-injector.js';
+import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
 import { broadcastProjectStatus } from './project-status.js';
 import { snapshotWorkingTree } from '../lib/git-diff.js';
 import { hasClaudeConversation } from '../lib/claude-conversations.js';
@@ -270,8 +269,6 @@ export class SessionManager {
       const memBlock = await applyMemoryInjection({
         projectId: project.id,
         mode: memMode,
-        nodeIds: parseMemoryNodeIds(session.memory_node_ids),
-        rawFilePaths,
         vaultFilePaths: rawFilePaths,
         projectRoot: project.path,
         query: `${session.title}\n${session.description ?? ''}`.trim(),
