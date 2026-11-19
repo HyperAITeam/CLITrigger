@@ -87,7 +87,7 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 위키 노드를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정).",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정).",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
@@ -429,20 +429,22 @@ function buildServer(baseUrl: string): McpServer {
 5. start_todo는 호출하지 않는다. 사용자가 CLITrigger에서 확인하고 시작한다. 만든 작업 제목 목록과, 나누지 않고 남긴 일을 알려주고 끝낸다. use_worktree=false로 만들었으면 작업본에서 하나씩 실행된다는 점과, 그동안 이 세션에서 같은 파일을 고치면 서로 덮어쓴다는 점도 알려준다.${scope ? `\n\n나눌 범위: ${scope}` : ''}`),
   );
 
+  // Knowledge lives as plain md files in the vault; the CLI writes them with
+  // its own file tools, so no write tool is needed here.
   server.registerPrompt(
     'remember',
     {
-      title: '위키에 남기기',
-      description: '지금 대화에서 얻은 결정·함정·관례를 CLITrigger 프로젝트 위키에 정리합니다.',
+      title: '문서로 남기기',
+      description: '지금 대화에서 얻은 결정·함정·관례를 CLITrigger 프로젝트 문서(.clitrigger/wiki)로 정리합니다.',
       argsSchema: { topic: z.string().optional().describe('남길 주제 (생략 시 대화에서 고름)') },
     },
-    ({ topic }) => userPrompt(`지금 대화에서 앞으로의 작업에도 쓸모 있는 지식을 CLITrigger 프로젝트 위키에 남겨줘. 위키는 이후 자동 작업에 장기 기억으로 주입될 수 있다.
+    ({ topic }) => userPrompt(`지금 대화에서 앞으로의 작업에도 쓸모 있는 지식을 CLITrigger 프로젝트 문서로 남겨줘. 프로젝트 문서는 이후 자동 작업에 장기 기억으로 주입될 수 있다.
 
 1. ${findProject}
 2. 남길 것을 고른다: 내린 결정과 그 이유, 겪은 함정과 해결법, 이 프로젝트만의 관례. 코드나 git 기록만 봐도 알 수 있는 것, 이번 작업의 진행 상황, 이번에만 해당하는 내용은 뺀다. 남길 게 없으면 그렇다고 말하고 끝낸다.
-3. list_wiki_nodes로 기존 노드를 확인한다. 태그에 __wiki_schema__가 있는 노드는 이 위키의 작성 규칙이니 따른다. __wiki_schema__·__wiki_index__ 태그 노드 자체는 고치지 않는다(인덱스는 자동으로 다시 만들어진다). 같은 주제의 노드가 있으면 update_wiki_node로 그 노드의 body에 합친다. 기존 내용은 지우지 말고 틀린 부분만 고친다. 없으면 create_wiki_node로 만든다. 제목은 주제를 나타내는 짧은 명사구로 하고 기존 제목과 겹치지 않게 한다.
-4. body는 짧은 마크다운으로 쓰고 항목마다 이유를 붙인다. 관련된 기존 노드가 있으면 [[제목]]으로 링크한다.
-5. 만들거나 고친 노드 제목을 알려주고 끝낸다.${topic ? `\n\n남길 주제: ${topic}` : ''}`),
+3. 문서는 그 프로젝트 path 아래 .clitrigger/wiki/ 폴더에 md 파일로 둔다. 현재 디렉터리가 워크트리여도 프로젝트 path 기준 절대 경로를 쓴다. 그 폴더의 기존 문서를 확인해 같은 주제의 문서가 있으면 그 파일에 합친다. 기존 내용은 지우지 말고 틀린 부분만 고친다. 없으면 새 파일을 만든다. 파일 이름은 주제를 나타내는 짧은 명사구로 하고 기존 파일 이름과 겹치지 않게 한다.
+4. 파일 맨 앞 frontmatter에 tags: [태그, ...]를 적는다. 첫 태그가 문서 그래프의 대표 태그(노드 색·묶음 기준)다. 기존 문서가 쓰는 태그를 먼저 재사용한다. 본문은 짧은 마크다운으로 쓰고 항목마다 이유를 붙인다. 관련된 기존 문서가 있으면 [[파일 이름]]으로 링크한다.
+5. 만들거나 고친 파일 경로를 알려주고 끝낸다.${topic ? `\n\n남길 주제: ${topic}` : ''}`),
   );
 
   server.registerPrompt(
@@ -459,56 +461,47 @@ function buildServer(baseUrl: string): McpServer {
 4. 짧게 보고한다: 상태별 개수, 실행 중인 작업, 실패한 작업과 원인, 완료됐지만 아직 병합하지 않은 작업. 재시작·중지 같은 조치는 제안만 하고 실행하지 않는다.`),
   );
 
-  // ── Wiki (내부적으로는 memory node) ────────────────────────────────────────
+  // ── Vault tags (app DB, the files themselves are never edited) ────────────
   server.registerTool(
-    'create_wiki_node',
+    'list_vault_tags',
     {
       description:
-        '프로젝트 위키(Wiki, 지식 노트)에 노드를 생성합니다. 실행과 무관한 문서/메모입니다. title은 프로젝트 내에서 고유해야 합니다.',
+        '프로젝트 문서(Vault)에 앱이 붙인 태그와 태그 색을 반환합니다: { files: { 경로: [태그...] }, colors: { 태그: "#rrggbb" } }. md 파일 안의 frontmatter tags·#태그는 여기에 없고 파일에서 바로 읽힙니다.',
+      inputSchema: { project_id: z.string() },
+    },
+    ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/vault/tags`)),
+  );
+
+  server.registerTool(
+    'set_vault_file_tags',
+    {
+      description:
+        '프로젝트 문서(Vault) 파일 하나의 태그를 정합니다. 태그는 CLITrigger DB에 저장되고 파일은 바뀌지 않아 html·pdf에도 붙일 수 있습니다. 그 파일의 기존 앱 태그를 통째로 바꾸므로, 유지하려면 list_vault_tags로 확인해 합쳐서 보내세요(빈 배열이면 모두 지움). 첫 태그가 대표 태그로 문서 그래프의 노드 색과 묶음 기준입니다. path는 프로젝트 path 기준 상대 경로이고 파일이 있어야 합니다.',
       inputSchema: {
         project_id: z.string(),
-        title: z.string(),
-        body: z.string().optional(),
-        tags: z.array(z.string()).optional(),
-        pinned: z.boolean().optional(),
+        path: z.string(),
+        tags: z.array(z.string()),
+      },
+    },
+    ({ project_id, path, tags }) =>
+      run(() => callApi(baseUrl, token, 'PUT', `/api/projects/${project_id}/vault/tags/file`, {
+        path: path.replace(/\\/g, '/').replace(/^\.\//, ''),
+        tags,
+      })),
+  );
+
+  server.registerTool(
+    'set_vault_tag_color',
+    {
+      description: '문서 그래프에서 태그의 색을 정합니다. 프로젝트 전체에서 그 태그 이름에 적용됩니다. 색을 정하지 않은 태그는 이름으로 자동 색이 정해집니다.',
+      inputSchema: {
+        project_id: z.string(),
+        tag: z.string(),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       },
     },
     ({ project_id, ...body }) =>
-      run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/memory/nodes`, body)),
-  );
-
-  server.registerTool(
-    'list_wiki_nodes',
-    {
-      description: '프로젝트 위키(Wiki)의 노드를 본문까지 모두 반환합니다. 노드를 새로 만들기 전에 같은 주제가 있는지 확인할 때 쓰세요.',
-      inputSchema: { project_id: z.string() },
-    },
-    // ponytail: returns every node with its full body; add a title-only listing if wikis grow large.
-    ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/memory/nodes`)),
-  );
-
-  server.registerTool(
-    'update_wiki_node',
-    {
-      description: '위키(Wiki) 노드를 수정합니다. 준 필드만 바뀝니다. body는 통째로 교체되므로 내용을 덧붙일 때는 기존 body에 합쳐서 보내세요.',
-      inputSchema: {
-        node_id: z.string(),
-        title: z.string().optional(),
-        body: z.string().optional(),
-        tags: z.array(z.string()).optional(),
-        pinned: z.boolean().optional(),
-      },
-    },
-    ({ node_id, ...body }) => run(() => callApi(baseUrl, token, 'PUT', `/api/memory/nodes/${node_id}`, body)),
-  );
-
-  server.registerTool(
-    'delete_wiki_node',
-    {
-      description: '위키(Wiki) 노드를 삭제합니다.',
-      inputSchema: { node_id: z.string() },
-    },
-    ({ node_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/memory/nodes/${node_id}`)),
+      run(() => callApi(baseUrl, token, 'PUT', `/api/projects/${project_id}/vault/tags/color`, body)),
   );
 
   return server;

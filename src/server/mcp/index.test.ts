@@ -43,6 +43,9 @@ beforeAll(async () => {
   app.get('/api/sessions/:id/output', (req, res) => {
     res.json({ id: req.params.id, query: req.query });
   });
+  app.put('/api/projects/:id/vault/tags/file', (req, res) => {
+    res.json({ id: req.params.id, body: req.body });
+  });
   mountMcp(app);
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
@@ -80,25 +83,24 @@ describe('MCP endpoint', () => {
       'create_schedule',
       'create_session',
       'create_todo',
-      'create_wiki_node',
       'delete_planner_item',
       'delete_schedule',
       'delete_session',
-      'delete_wiki_node',
       'get_project_status',
       'get_session_state',
       'get_todo_logs',
       'list_projects',
       'list_todos',
-      'list_wiki_nodes',
+      'list_vault_tags',
       'read_session_output',
       'send_session_input',
+      'set_vault_file_tags',
+      'set_vault_tag_color',
       'spawn_session',
       'start_session',
       'start_todo',
       'stop_session',
       'stop_todo',
-      'update_wiki_node',
       'wait_session_state',
     ]);
     await client.close();
@@ -112,7 +114,7 @@ describe('MCP endpoint', () => {
     const cases: { name: string; arguments: Record<string, string>; expected: string[] }[] = [
       { name: 'handoff', arguments: { instruction: '테스트만 돌리기' }, expected: ['list_projects', 'create_session', '테스트만 돌리기'] },
       { name: 'delegate', arguments: { scope: 'UI만' }, expected: ['list_projects', 'create_todo', 'use_worktree=false', 'UI만'] },
-      { name: 'remember', arguments: { topic: '포트 함정' }, expected: ['list_projects', 'list_wiki_nodes', '포트 함정'] },
+      { name: 'remember', arguments: { topic: '포트 함정' }, expected: ['list_projects', '.clitrigger/wiki/', 'frontmatter', '포트 함정'] },
       { name: 'status', arguments: {}, expected: ['list_projects', 'list_todos', 'get_todo_logs'] },
     ];
     for (const { name, arguments: args, expected } of cases) {
@@ -125,7 +127,7 @@ describe('MCP endpoint', () => {
 
   it('lists the catalog for the settings UI in-process', async () => {
     const catalog = await listMcpCatalog();
-    expect(catalog.tools).toHaveLength(25);
+    expect(catalog.tools).toHaveLength(24);
     expect(catalog.tools.find((tool) => tool.name === 'list_projects')?.description).toBeTruthy();
     const handoff = catalog.prompts.find((prompt) => prompt.name === 'handoff');
     expect(handoff?.title).toBe('새 세션으로 넘기기');
@@ -174,6 +176,18 @@ describe('MCP endpoint', () => {
     expect((await bodyFor({ use_worktree: false })).use_worktree).toBe(0);
     expect((await bodyFor({ use_worktree: true })).use_worktree).toBe(1);
     expect(await bodyFor({})).not.toHaveProperty('use_worktree');
+    await client.close();
+  });
+
+  it('set_vault_file_tags normalizes Windows-style paths to the vault form', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: 'set_vault_file_tags',
+      arguments: { project_id: 'p1', path: '.\\.clitrigger\\docs\\a.html', tags: ['GPU'] },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(JSON.parse(text)).toEqual({ id: 'p1', body: { path: '.clitrigger/docs/a.html', tags: ['GPU'] } });
     await client.close();
   });
 
