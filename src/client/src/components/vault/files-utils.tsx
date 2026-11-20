@@ -1,6 +1,6 @@
 import {
   FileText, FileImage, FileCode, FileVideo, FileAudio,
-  Folder, FolderOpen,
+  Folder, FolderOpen, FolderSymlink,
 } from 'lucide-react';
 import { markdown } from '@codemirror/lang-markdown';
 import { html } from '@codemirror/lang-html';
@@ -70,6 +70,7 @@ export function formatSize(n: number | null): string {
 }
 
 export function iconFor(entry: FileEntry, expanded: boolean) {
+  if (entry.linkPath) return <FolderSymlink className="w-4 h-4 text-sky-500 shrink-0" />;
   if (entry.type === 'directory') {
     return expanded
       ? <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />

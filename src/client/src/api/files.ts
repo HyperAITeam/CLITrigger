@@ -9,6 +9,8 @@ export interface FileEntry {
   // True only when hidden by a `.vaultignore` pattern (not dotfiles/defaults),
   // so the context menu can offer "unhide" instead of "hide".
   ignored?: boolean;
+  // Set on the virtual `@alias` root entries of linked doc folders: the real folder path.
+  linkPath?: string;
 }
 
 export interface ListFilesResult {

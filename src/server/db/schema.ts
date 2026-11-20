@@ -360,6 +360,16 @@ export function initDatabase(db: Database.Database): void {
       color TEXT NOT NULL,
       PRIMARY KEY (project_id, tag)
     );
+
+    -- Tags of files in linked doc folders (projects.vault_links). Keyed by the
+    -- absolute path (forward slashes) so every project linking the folder
+    -- shares them.
+    CREATE TABLE IF NOT EXISTS vault_linked_file_tags (
+      file_path TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (file_path, tag)
+    );
   `);
 
   // Backwards-compatible migration: add new columns to existing DBs
@@ -470,6 +480,9 @@ export function initDatabase(db: Database.Database): void {
     { table: 'projects', column: 'analytics_cleared_at', definition: 'TEXT' },
     // Terminal sessions' own sandbox switch, separate from todos' sandbox_mode.
     { table: 'projects', column: 'session_sandbox_mode', definition: "TEXT DEFAULT 'strict'" },
+    // Doc folders outside the project shown in the Documents tab: JSON array of
+    // { alias, path }, NULL = none. See services/vault-roots.ts.
+    { table: 'projects', column: 'vault_links', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

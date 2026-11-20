@@ -558,10 +558,9 @@ Complete the task in the current directory.`;
     const rawFilePaths = parseRawFilePaths(todo.memory_raw_file_paths);
     if (memMode !== 'none' || rawFilePaths.length > 0) {
       const memBlock = await applyMemoryInjection({
-        projectId: project.id,
+        project,
         mode: memMode,
         vaultFilePaths: rawFilePaths,
-        projectRoot: project.path,
         query: `${todo.title}\n${todo.description ?? ''}`.trim(),
         log: (type, message) => queries.createTaskLog(todoId, type, message, roundNumber),
       });

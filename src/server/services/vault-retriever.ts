@@ -1,5 +1,6 @@
 import * as queries from '../db/queries.js';
-import { scanVault, type VaultFile } from './file-scanner.js';
+import type { VaultFile } from './file-scanner.js';
+import { scanProjectVault, getProjectVaultTags } from './vault-roots.js';
 import { runHeadless, resolveCliTool } from './headless-cli.js';
 
 const RETRIEVAL_MAX_FILES = 10;
@@ -79,21 +80,17 @@ function safeParsePathArray(raw: string, validPaths: Set<string>): string[] {
 }
 
 export async function selectRelevantFiles(
-  projectId: string,
-  projectRoot: string,
+  project: queries.Project,
   taskQuery: string,
   excludePatterns?: string[],
 ): Promise<VaultRetrievalResult> {
-  const project = queries.getProjectById(projectId);
-  if (!project) return { selectedPaths: [], candidateCount: 0, reason: 'no-candidates' };
-
   const trimmedQuery = (taskQuery || '').trim();
   if (!trimmedQuery) return { selectedPaths: [], candidateCount: 0, reason: 'no-query' };
 
-  const candidates = scanVault(projectRoot, excludePatterns);
+  const candidates = scanProjectVault(project, excludePatterns);
   if (candidates.length === 0) return { selectedPaths: [], candidateCount: 0, reason: 'no-candidates' };
   // Same order as the docs graph: app-DB tags first, then the file's own tags.
-  const appTags = queries.getVaultTags(projectId).files;
+  const appTags = getProjectVaultTags(project).files;
   for (const f of candidates) f.tags = [...new Set([...(appTags[f.relativePath] ?? []), ...f.tags])];
 
   const { lines, pathSet } = buildCandidatePool(candidates);

@@ -1,14 +1,14 @@
+import type { Project } from '../db/queries.js';
 import { buildVaultBlock, type VaultInjectMode } from './vault-injector.js';
 import { selectRelevantFiles } from './vault-retriever.js';
 
 export type MemoryInjectMode = 'none' | 'all' | 'selected' | 'auto';
 
 export interface MemoryInjectionContext {
-  projectId: string;
+  project: Project;
   mode: MemoryInjectMode;
-  /** Vault file paths (project-relative) injected when mode='selected'. */
+  /** Vault file paths (project-relative, `@alias/...` for linked folders) injected when mode='selected'. */
   vaultFilePaths: string[];
-  projectRoot: string;
   /** Required for mode='auto' — task title + description, agent prompt, etc. */
   query?: string;
   log: (type: string, message: string) => void;
@@ -26,7 +26,7 @@ export function parseRawFilePaths(raw: string | null | undefined): string[] {
 }
 
 export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise<string | null> {
-  if (ctx.mode === 'none' || !ctx.projectRoot) return null;
+  if (ctx.mode === 'none' || !ctx.project.path) return null;
 
   let effectiveMode: VaultInjectMode = ctx.mode;
   let effectivePaths = ctx.vaultFilePaths.filter(Boolean);
@@ -38,7 +38,7 @@ export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise
       return null;
     }
     ctx.log('output', `[vault] inject mode='auto' — running retrieval...`);
-    const res = await selectRelevantFiles(ctx.projectId, ctx.projectRoot, query);
+    const res = await selectRelevantFiles(ctx.project, query);
     if (res.selectedPaths.length === 0) {
       const reason = res.reason ?? 'unknown';
       ctx.log('output', `[vault] auto retrieval picked 0 files (${reason}, ${res.candidateCount} candidate(s)) — skipped`);
@@ -50,7 +50,7 @@ export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise
   }
 
   const result = buildVaultBlock({
-    projectRoot: ctx.projectRoot,
+    project: ctx.project,
     mode: effectiveMode,
     filePaths: effectivePaths,
   });

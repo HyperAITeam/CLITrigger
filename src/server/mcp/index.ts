@@ -476,7 +476,7 @@ function buildServer(baseUrl: string): McpServer {
     'set_vault_file_tags',
     {
       description:
-        '프로젝트 문서(Vault) 파일 하나의 태그를 정합니다. 태그는 CLITrigger DB에 저장되고 파일은 바뀌지 않아 html·pdf에도 붙일 수 있습니다. 그 파일의 기존 앱 태그를 통째로 바꾸므로, 유지하려면 list_vault_tags로 확인해 합쳐서 보내세요(빈 배열이면 모두 지움). 첫 태그가 대표 태그로 문서 그래프의 노드 색과 묶음 기준입니다. path는 프로젝트 path 기준 상대 경로이고 파일이 있어야 합니다. 폴더 경로를 주면 그 폴더 자체의 태그가 되어 문서 그래프의 폴더 노드 색이 됩니다.',
+        '프로젝트 문서(Vault) 파일 하나의 태그를 정합니다. 태그는 CLITrigger DB에 저장되고 파일은 바뀌지 않아 html·pdf에도 붙일 수 있습니다. 그 파일의 기존 앱 태그를 통째로 바꾸므로, 유지하려면 list_vault_tags로 확인해 합쳐서 보내세요(빈 배열이면 모두 지움). 첫 태그가 대표 태그로 문서 그래프의 노드 색과 묶음 기준입니다. path는 프로젝트 path 기준 상대 경로이고 파일이 있어야 합니다. 프로젝트에 연결한 외부 문서 폴더의 파일은 @별칭/상대경로로 적고(list_vault_tags에 보이는 형식), 그 태그는 같은 폴더를 연결한 모든 프로젝트가 함께 씁니다. 폴더 경로를 주면 그 폴더 자체의 태그가 되어 문서 그래프의 폴더 노드 색이 됩니다.',
       inputSchema: {
         project_id: z.string(),
         path: z.string(),

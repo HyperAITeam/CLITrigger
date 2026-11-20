@@ -3,8 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import { osOpenPath } from '../utils/open-path.js';
 import { isRealpathWithinRoot } from '../utils/path-safety.js';
-import { getProjectById, moveVaultFileTags } from '../db/queries.js';
+import { getProjectById, type Project } from '../db/queries.js';
 import { loadVaultIgnore } from '../services/file-scanner.js';
+import { resolveVaultPath, parseVaultLinks, moveVaultPathTags, LINK_PREFIX, type VaultLink } from '../services/vault-roots.js';
 
 const router = Router();
 
@@ -29,20 +30,18 @@ const MIME_BY_EXT: Record<string, string> = {
   '.ogg': 'audio/ogg',
 };
 
-// Resolve a request's `path` query against the project root, enforcing that
-// the resolved path stays inside the root. Returns null on any traversal /
-// missing-project failure (caller should 403/404 accordingly).
-function resolveSafe(projectId: string, relPath: string): { root: string; abs: string } | null {
+// Resolve a request's `path` query against the project root — or a linked
+// doc folder for `@alias/...` paths — enforcing that the resolved path stays
+// inside that root. Returns null on any traversal / missing-project failure
+// (caller should 403/404 accordingly).
+function resolveSafe(projectId: string, relPath: string): { project: Project; root: string; rel: string; abs: string; link: VaultLink | null } | null {
   const project = getProjectById(projectId);
   if (!project) return null;
-  const root = path.resolve(project.path);
-  const rel = (relPath ?? '').replace(/^[\\/]+/, '');
-  const abs = path.resolve(root, rel);
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
-  if (abs !== root && !abs.startsWith(rootWithSep)) return null;
+  const resolved = resolveVaultPath(project, relPath ?? '');
+  if (!resolved) return null;
   // Resolve symlinks too, so an in-tree symlink can't point outside the root.
-  if (!isRealpathWithinRoot(root, abs)) return null;
-  return { root, abs };
+  if (!isRealpathWithinRoot(resolved.root, resolved.abs)) return null;
+  return { project, ...resolved };
 }
 
 interface FileEntry {
@@ -55,6 +54,8 @@ interface FileEntry {
   // dotfiles / DEFAULT_HIDDEN), so the UI can offer "unhide" — removing the
   // pattern would actually re-reveal it.
   ignored: boolean;
+  // Set on the virtual `@alias` entries of linked doc folders: the real folder path.
+  linkPath?: string;
 }
 
 // GET /api/projects/:id/files?path=<rel>&showHidden=1
@@ -93,7 +94,8 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
 
     const entries: FileEntry[] = [];
     for (const d of dirents) {
-      const rel = (relPath ? `${relPath}/${d.name}` : d.name).replace(/\\/g, '/');
+      // Matched against the .vaultignore of the folder's own root.
+      const rel = (safe.rel ? `${safe.rel}/${d.name}` : d.name).replace(/\\/g, '/');
       const ignored = ig.ignores(d.isDirectory() ? rel + '/' : rel);
       const hidden = d.name.startsWith('.') || DEFAULT_HIDDEN.has(d.name) || ignored;
       if (!showHidden && (DEFAULT_HIDDEN.has(d.name) || ignored)) continue;
@@ -112,6 +114,16 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
       } catch { /* skip stat failures (permission denied, broken symlink) */ }
 
       entries.push({ name: d.name, type, size, mtime, hidden, ignored });
+    }
+
+    if (!safe.link && !safe.rel) {
+      for (const link of parseVaultLinks(safe.project.vault_links)) {
+        let mtime: number | null = null;
+        try {
+          mtime = fs.statSync(link.path).mtimeMs;
+        } catch { /* unreachable folder (unplugged drive) — still listed */ }
+        entries.push({ name: LINK_PREFIX + link.alias, type: 'directory', size: null, mtime, hidden: false, ignored: false, linkPath: link.path });
+      }
     }
 
     // Directories first, then files; case-insensitive name sort within each group.
@@ -371,6 +383,12 @@ router.post('/:id/files/move', (req: Request<{ id: string }>, res: Response) => 
       res.status(403).json({ error: 'Path is outside project root or project not found' });
       return;
     }
+    // Linked folders: their `@alias` entry is virtual, and a rename across
+    // roots could cross drives.
+    if (!src.rel || !dst.rel || src.root !== dst.root) {
+      res.status(400).json({ error: 'Cannot move between the project and a linked folder' });
+      return;
+    }
     const fromNorm = from.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     const toNorm = to.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     if (fromNorm === toNorm) {
@@ -396,7 +414,7 @@ router.post('/:id/files/move', (req: Request<{ id: string }>, res: Response) => 
       return;
     }
     fs.renameSync(src.abs, dst.abs);
-    moveVaultFileTags(req.params.id, fromNorm, toNorm);
+    moveVaultPathTags(src.project, fromNorm, toNorm);
     res.json({ success: true, from: fromNorm, to: toNorm });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

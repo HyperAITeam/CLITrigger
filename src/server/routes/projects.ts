@@ -11,6 +11,8 @@ import { parseLoopConfig } from '../services/task-loop.js';
 import { isSvnRepository } from '../lib/svn.js';
 import { cleanupProjectImages } from './images.js';
 import { broadcaster } from '../websocket/broadcaster.js';
+import { normalizeVaultLinks } from '../services/vault-roots.js';
+import { vaultWatcher } from '../services/vault-watcher.js';
 
 const router = Router();
 
@@ -372,7 +374,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
 
     // claude_model is no longer accepted — model selection was removed and
     // execution always uses the CLI's default model.
-    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, session_sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, svn_enabled, hidden_tabs, color } = req.body;
+    const { name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, session_sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, svn_enabled, hidden_tabs, color, vault_links } = req.body;
 
     if (auto_delegate !== undefined && auto_delegate !== null && parseAutoDelegate(auto_delegate) === null) {
       res.status(400).json({ error: 'auto_delegate must be JSON like {"from":"claude","to":"codex"} with valid CLI tools' });
@@ -381,6 +383,15 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
     if (loop_defaults !== undefined && loop_defaults !== null && parseLoopConfig(loop_defaults) === null) {
       res.status(400).json({ error: 'loop_defaults must be LoopConfig JSON with maxRounds (1-50)' });
       return;
+    }
+    let vaultLinksPatch: string | null | undefined = undefined;
+    if (vault_links !== undefined) {
+      const normalized = normalizeVaultLinks(vault_links, existing);
+      if ('error' in normalized) {
+        res.status(400).json({ error: normalized.error });
+        return;
+      }
+      vaultLinksPatch = normalized.value;
     }
 
     // Handle SVN enable/disable transitions:
@@ -404,7 +415,14 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
       name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, session_sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, hidden_tabs, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
+      ...(vaultLinksPatch !== undefined ? { vault_links: vaultLinksPatch } : {}),
     });
+
+    // Linked doc folders changed: watch the new set and let open Documents tabs reload.
+    if (vaultLinksPatch !== undefined && vaultLinksPatch !== existing.vault_links) {
+      vaultWatcher.refresh(req.params.id);
+      broadcaster.broadcast({ type: 'vault:changed', projectId: req.params.id });
+    }
 
     const cliChanged = cli_tool !== undefined && cli_tool !== existing.cli_tool;
 

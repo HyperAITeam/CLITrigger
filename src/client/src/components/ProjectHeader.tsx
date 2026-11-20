@@ -11,8 +11,9 @@ import { CLI_TOOLS, type CliTool, getToolConfig } from '../cli-tools';
 import { getClientPlugins } from '../plugins/registry';
 import HarnessPanel from '../plugins/harness/HarnessPanel';
 import ProjectProcessesPanel from './ProjectProcessesPanel';
-import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch } from 'lucide-react';
+import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch, X } from 'lucide-react';
 import IconButton from './IconButton';
+import { useToast } from '../hooks/useToast';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -23,6 +24,7 @@ interface ProjectHeaderProps {
 
 export default function ProjectHeader({ project, todos, sessions, onProjectUpdate }: ProjectHeaderProps) {
   const { t } = useI18n();
+  const { error: toastError } = useToast();
 
   const [showSettings, setShowSettings] = useState(false);
   const [settingsSection, setSettingsSection] = useState<string>('execution');
@@ -75,6 +77,25 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
       return project.auto_delegate ? JSON.parse(project.auto_delegate) : null;
     } catch { return null; }
   });
+
+  // Doc folders outside the project, shown in the Documents tab as `@alias` (projects.vault_links).
+  const [vaultLinks, setVaultLinks] = useState<{ alias: string; path: string }[]>(() => {
+    try {
+      return project.vault_links ? JSON.parse(project.vault_links) : [];
+    } catch { return []; }
+  });
+  const updateVaultLink = (index: number, patch: Partial<{ alias: string; path: string }>) =>
+    setVaultLinks((prev) => prev.map((link, i) => (i === index ? { ...link, ...patch } : link)));
+  const browseVaultLink = async (index: number) => {
+    try {
+      const { path } = await projectsApi.browseNativeFolder(vaultLinks[index].path || undefined);
+      if (!path) return;
+      // Default the alias to the folder name (server allows letters, digits, _ . -).
+      const folderName = path.split(/[\\/]/).filter(Boolean).pop() ?? '';
+      const alias = vaultLinks[index].alias || folderName.replace(/[^\p{L}\p{N}_.-]+/gu, '-').slice(0, 40);
+      updateVaultLink(index, { path, alias });
+    } catch { /* user cancelled */ }
+  };
 
   // Default loop rule template: prefilled into new todos that turn the loop on
   const [loopDefaultsEnabled, setLoopDefaultsEnabled] = useState(!!parseLoopConfig(project.loop_defaults));
@@ -161,6 +182,10 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
         cli_fallback_chain: fallbackChain.length > 0 ? JSON.stringify(fallbackChain) : null,
         auto_delegate: autoDelegate ? JSON.stringify(autoDelegate) : null,
         loop_defaults: loopDefaultsEnabled ? JSON.stringify(configFromDraft(loopDefaultsDraft)) : null,
+        vault_links: (() => {
+          const filled = vaultLinks.filter((link) => link.alias.trim() || link.path.trim());
+          return filled.length > 0 ? JSON.stringify(filled) : null;
+        })(),
       });
 
       // Save plugin configs to plugin_configs table
@@ -172,8 +197,9 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
 
       onProjectUpdate(updated);
       setShowSettings(false);
-    } catch {
-      // ignore
+    } catch (err) {
+      // Mostly a rejected linked doc folder (missing folder, bad alias) — say why.
+      if (err instanceof Error) toastError(err.message);
     } finally {
       setSaving(false);
     }
@@ -690,6 +716,51 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
               <span className="text-xs text-warm-600">{t('header.tabShowEnable').replace('{tab}', t(`tabs.${settingsSection}`))}</span>
             </label>
           </div>
+          )}
+
+          {/* Documents tab only: doc folders outside the project, shown as `@alias`. */}
+          {settingsSection === 'files' && (
+            <div className="mt-3 p-4 border border-warm-200 rounded-xl">
+              <h4 className="text-sm font-semibold text-warm-700 mb-2">{t('header.vaultLinksTitle')}</h4>
+              <p className="text-2xs text-warm-500 mb-3">{t('header.vaultLinksHint')}</p>
+              {vaultLinks.map((link, index) => (
+                <div key={index} className="flex items-center gap-2 mb-2">
+                  <span className="text-xs text-warm-500">@</span>
+                  <input
+                    type="text"
+                    value={link.alias}
+                    onChange={(e) => updateVaultLink(index, { alias: e.target.value })}
+                    placeholder={t('header.vaultLinksAlias')}
+                    className="input-field text-xs w-32 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={link.path}
+                    onChange={(e) => updateVaultLink(index, { path: e.target.value })}
+                    placeholder={t('header.vaultLinksPath')}
+                    className="input-field text-xs font-mono flex-1 min-w-0"
+                  />
+                  <IconButton label={t('header.vaultLinksBrowse')} size="sm" onClick={() => browseVaultLink(index)}>
+                    <FolderOpen className="w-3.5 h-3.5" />
+                  </IconButton>
+                  <IconButton
+                    label={t('header.vaultLinksRemove')}
+                    size="sm"
+                    variant="danger"
+                    onClick={() => setVaultLinks((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </IconButton>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setVaultLinks((prev) => [...prev, { alias: '', path: '' }])}
+                className="btn-ghost text-xs"
+              >
+                + {t('header.vaultLinksAdd')}
+              </button>
+            </div>
           )}
 
           {/* Terminal tab only: session sandbox switch + on-demand process view for running sessions. */}

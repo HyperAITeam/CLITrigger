@@ -1,12 +1,12 @@
 import fs from 'fs';
-import path from 'path';
-import { scanVault, type VaultFile } from './file-scanner.js';
+import type { Project } from '../db/queries.js';
+import { resolveVaultPath, scanProjectVault } from './vault-roots.js';
 import { parseWikilinks } from './memory-wikilinks.js';
 
 export type VaultInjectMode = 'none' | 'all' | 'selected' | 'auto';
 
 export interface VaultInjectionRequest {
-  projectRoot: string;
+  project: Pick<Project, 'id' | 'path' | 'vault_links'>;
   mode: VaultInjectMode;
   filePaths?: string[];
   excludePatterns?: string[];
@@ -29,12 +29,12 @@ export function buildVaultBlock(req: VaultInjectionRequest): VaultInjectionResul
   let files: { relativePath: string; tags: string[]; content: string; kind: 'md' | 'html' }[];
 
   if (req.mode === 'all') {
-    const vaultFiles = scanVault(req.projectRoot, req.excludePatterns);
-    files = readFileContents(req.projectRoot, vaultFiles.map(f => f.relativePath));
+    const vaultFiles = scanProjectVault(req.project, req.excludePatterns);
+    files = readFileContents(req.project, vaultFiles.map(f => f.relativePath));
   } else {
     const paths = (req.filePaths ?? []).filter(Boolean);
     if (paths.length === 0) return null;
-    files = readFileContents(req.projectRoot, paths);
+    files = readFileContents(req.project, paths);
   }
 
   if (files.length === 0) return null;
@@ -62,15 +62,15 @@ export function buildVaultBlock(req: VaultInjectionRequest): VaultInjectionResul
 }
 
 function readFileContents(
-  projectRoot: string,
+  project: VaultInjectionRequest['project'],
   paths: string[],
 ): { relativePath: string; tags: string[]; content: string; kind: 'md' | 'html' }[] {
-  const resolved = path.resolve(projectRoot);
   const results: { relativePath: string; tags: string[]; content: string; kind: 'md' | 'html' }[] = [];
 
   for (const rel of paths) {
-    const abs = path.resolve(resolved, rel);
-    if (!abs.startsWith(resolved + path.sep) && abs !== resolved) continue;
+    const resolved = resolveVaultPath(project, rel);
+    if (!resolved) continue;
+    const abs = resolved.abs;
     const lower = abs.toLowerCase();
     const isMd = lower.endsWith('.md');
     const isHtml = lower.endsWith('.html') || lower.endsWith('.htm');
@@ -87,7 +87,9 @@ function readFileContents(
     }
 
     const tags = isMd ? extractTags(content) : [];
-    results.push({ relativePath: rel.replace(/\\/g, '/'), tags, content, kind: isMd ? 'md' : 'html' });
+    // A linked-folder file gets its real path: `@alias/...` means nothing outside the app.
+    const shownPath = resolved.link ? abs.replace(/\\/g, '/') : rel.replace(/\\/g, '/');
+    results.push({ relativePath: shownPath, tags, content, kind: isMd ? 'md' : 'html' });
   }
 
   return results;

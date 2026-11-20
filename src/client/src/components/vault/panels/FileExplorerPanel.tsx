@@ -81,7 +81,7 @@ function TreeRow({
   return (
     <button
       type="button"
-      draggable
+      draggable={!entry.linkPath}
       onDragStart={(e) => {
         e.dataTransfer.setData(DND_PATH_TYPE, fullPath);
         e.dataTransfer.setData('text/plain', fullPath);
@@ -284,9 +284,11 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
+function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
   state: ContextMenuState;
   projectId: string;
+  // Path to copy: the real folder path for linked-folder entries.
+  realPath: string;
   isPinned: boolean;
   onTogglePin: () => void;
   onHide: () => void;
@@ -388,7 +390,7 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
     onClose();
   };
   const copyPath = () => {
-    navigator.clipboard.writeText(state.path).catch(() => { /* swallow */ });
+    navigator.clipboard.writeText(realPath).catch(() => { /* swallow */ });
     onClose();
   };
 
@@ -526,8 +528,9 @@ function ContextMenu({ state, projectId, isPinned, onTogglePin, onHide, onUnhide
       )}
       {/* When the entry is hidden specifically by a .vaultignore pattern,
           offer to unhide (remove the pattern) instead of hide. Dotfiles /
-          DEFAULT_HIDDEN aren't `ignored`, so they keep the plain "hide". */}
-      {state.entry.ignored ? (
+          DEFAULT_HIDDEN aren't `ignored`, so they keep the plain "hide".
+          A linked folder's own `@alias` entry can't be hidden. */}
+      {state.entry.linkPath ? null : state.entry.ignored ? (
         <button
           type="button"
           onClick={() => { onUnhide(); onClose(); }}
@@ -717,6 +720,15 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
 
   const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
 
+  // `@alias/...` paths of linked doc folders only mean something inside the
+  // app; terminals and the clipboard get the real path.
+  const toRealPath = useCallback((p: string) => {
+    const slash = p.indexOf('/');
+    const head = slash < 0 ? p : p.slice(0, slash);
+    const linkPath = rootEntries?.find((e) => e.linkPath && e.name === head)?.linkPath;
+    return linkPath ? linkPath + (slash < 0 ? '' : p.slice(slash)) : p;
+  }, [rootEntries]);
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div
@@ -792,6 +804,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
         <ContextMenu
           state={contextMenu}
           projectId={projectId}
+          realPath={toRealPath(contextMenu.path)}
           isPinned={pinnedPaths.has(contextMenu.path)}
           onTogglePin={() => togglePin(contextMenu.path, contextMenu.entry)}
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
@@ -804,13 +817,13 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onSendToTerminal={(sessionId) => {
             if (!windows) return;
             const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
-            windows.sendToSession(sessionId, paths.map(quoteIfSpace).join(' '));
+            windows.sendToSession(sessionId, paths.map(toRealPath).map(quoteIfSpace).join(' '));
             success(t('files.sentToTerminal'));
           }}
           onSendToNewTerminal={() => {
             if (!windows) return;
             const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
-            windows.sendToNewTerminal(paths.map(quoteIfSpace).join(' '), contextMenu.entry.name).catch(() => { /* swallow — createSession error */ });
+            windows.sendToNewTerminal(paths.map(toRealPath).map(quoteIfSpace).join(' '), contextMenu.entry.name).catch(() => { /* swallow — createSession error */ });
             success(t('files.sentToTerminal'));
           }}
           onCreateTask={onCreateTask ? async () => {

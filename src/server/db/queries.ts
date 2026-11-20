@@ -28,6 +28,7 @@ export interface Project {
   memory_auto_ingest: number;
   auto_delegate: string | null;
   loop_defaults: string | null;
+  vault_links: string | null;
   color: string | null;
   sort_order: number;
   created_at: string;
@@ -71,7 +72,7 @@ export function getProjectById(id: string): Project | undefined {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project | undefined;
 }
 
-export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'hidden_tabs' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'session_sandbox_mode' | 'debug_logging' | 'use_worktree' | 'auto_commit' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'auto_delegate' | 'loop_defaults' | 'color'>>): Project | undefined {
+export function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'default_branch' | 'is_git_repo' | 'vcs_type' | 'svn_enabled' | 'hidden_tabs' | 'max_concurrent' | 'claude_model' | 'claude_options' | 'cli_tool' | 'cli_fallback_chain' | 'default_max_turns' | 'sandbox_mode' | 'session_sandbox_mode' | 'debug_logging' | 'use_worktree' | 'auto_commit' | 'show_token_usage' | 'npm_auto_install' | 'memory_auto_ingest' | 'auto_delegate' | 'loop_defaults' | 'vault_links' | 'color'>>): Project | undefined {
   const db = getDatabase();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -99,6 +100,7 @@ export function updateProject(id: string, updates: Partial<Pick<Project, 'name' 
   if (updates.memory_auto_ingest !== undefined) { fields.push('memory_auto_ingest = ?'); values.push(updates.memory_auto_ingest); }
   if (updates.auto_delegate !== undefined) { fields.push('auto_delegate = ?'); values.push(updates.auto_delegate); }
   if (updates.loop_defaults !== undefined) { fields.push('loop_defaults = ?'); values.push(updates.loop_defaults); }
+  if (updates.vault_links !== undefined) { fields.push('vault_links = ?'); values.push(updates.vault_links); }
   if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color); }
 
   if (fields.length === 0) return getProjectById(id);
@@ -1214,6 +1216,55 @@ export function moveVaultFileTags(projectId: string, from: string, to: string): 
 export function deleteVaultFileTags(projectId: string, relativePath: string): void {
   const db = getDatabase();
   db.prepare('DELETE FROM vault_file_tags WHERE project_id = ? AND relative_path = ?').run(projectId, relativePath);
+}
+
+// ── Linked doc folder tags (shared across projects, keyed by absolute path) ──
+
+// Tags of every file under `rootPath`, keyed by the path relative to it.
+export function getLinkedVaultTags(rootPath: string): Record<string, string[]> {
+  const db = getDatabase();
+  const prefix = `${rootPath}/`;
+  const rows = db.prepare(
+    'SELECT file_path, tag FROM vault_linked_file_tags WHERE file_path = ? OR substr(file_path, 1, ?) = ? ORDER BY file_path, sort_order'
+  ).all(rootPath, prefix.length, prefix) as { file_path: string; tag: string }[];
+  const files: Record<string, string[]> = {};
+  for (const r of rows) (files[r.file_path.slice(prefix.length)] ??= []).push(r.tag);
+  return files;
+}
+
+export function setLinkedVaultFileTags(filePath: string, tags: string[]): void {
+  const db = getDatabase();
+  const insert = db.prepare('INSERT OR IGNORE INTO vault_linked_file_tags (file_path, tag, sort_order) VALUES (?, ?, ?)');
+  db.transaction(() => {
+    db.prepare('DELETE FROM vault_linked_file_tags WHERE file_path = ?').run(filePath);
+    tags.forEach((tag, i) => insert.run(filePath, tag, i));
+  })();
+}
+
+export function addLinkedVaultTagToFiles(filePaths: string[], tag: string): void {
+  const db = getDatabase();
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO vault_linked_file_tags (file_path, tag, sort_order)
+    SELECT ?, ?, COALESCE(MAX(sort_order), -1) + 1 FROM vault_linked_file_tags WHERE file_path = ?
+  `);
+  db.transaction(() => {
+    for (const p of filePaths) insert.run(p, tag, p);
+  })();
+}
+
+export function moveLinkedVaultFileTags(from: string, to: string): void {
+  const db = getDatabase();
+  const under = '(file_path = ? OR substr(file_path, 1, ?) = ?)';
+  db.transaction(() => {
+    db.prepare(`DELETE FROM vault_linked_file_tags WHERE ${under}`).run(to, to.length + 1, `${to}/`);
+    db.prepare(`UPDATE vault_linked_file_tags SET file_path = ? || substr(file_path, ?) WHERE ${under}`)
+      .run(to, from.length + 1, from, from.length + 1, `${from}/`);
+  })();
+}
+
+export function deleteLinkedVaultFileTags(filePath: string): void {
+  const db = getDatabase();
+  db.prepare('DELETE FROM vault_linked_file_tags WHERE file_path = ?').run(filePath);
 }
 
 // ── Session Aliases ──

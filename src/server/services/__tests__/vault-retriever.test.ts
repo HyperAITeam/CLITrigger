@@ -33,7 +33,7 @@ describe('selectRelevantFiles', () => {
     queries.setVaultFileTags('p1', 'a.html', ['GPU']);
     queries.setVaultFileTags('p1', 'b.md', ['app']);
 
-    const result = await selectRelevantFiles('p1', root, 'GPU 작업');
+    const result = await selectRelevantFiles(queries.getProjectById('p1')!, 'GPU 작업');
 
     expect(result.selectedPaths).toEqual(['a.html']);
     expect(capturedPrompt).toContain('path="a.html" title="Report" [GPU]');

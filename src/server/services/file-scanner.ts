@@ -269,9 +269,7 @@ export function scanVault(projectRoot: string, excludePatterns?: string[]): Vaul
   return files;
 }
 
-export function buildVaultGraph(projectRoot: string, excludePatterns?: string[]): VaultGraph {
-  const files = scanVault(projectRoot, excludePatterns);
-
+export function buildVaultGraph(files: VaultFile[]): VaultGraph {
   const stemIndex = new Map<string, string[]>();
   for (const f of files) {
     const key = f.stem.toLowerCase();
@@ -374,9 +372,8 @@ export function renameVaultFile(projectRoot: string, oldPath: string, newPath: s
   }
 }
 
-export function searchVault(projectRoot: string, query: string, excludePatterns?: string[]): VaultFile[] {
+export function searchVault(files: VaultFile[], query: string): VaultFile[] {
   if (!query.trim()) return [];
-  const files = scanVault(projectRoot, excludePatterns);
   const q = query.toLowerCase();
   return files.filter(f =>
     f.stem.toLowerCase().includes(q) ||

@@ -254,10 +254,9 @@ export class DiscussionOrchestrator {
     const rawFilePaths = parseRawFilePaths(discussion.memory_raw_file_paths);
     if (memMode !== 'none' || rawFilePaths.length > 0) {
       const memBlock = await applyMemoryInjection({
-        projectId: project.id,
+        project,
         mode: memMode,
         vaultFilePaths: rawFilePaths,
-        projectRoot: project.path,
         query: `${discussion.title}\n${discussion.description ?? ''}`.trim(),
         log: (type, msg) => queries.createDiscussionLog(discussionId, messageId, type, msg),
       });

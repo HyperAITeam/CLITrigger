@@ -267,10 +267,9 @@ export class SessionManager {
     const rawFilePaths = parseRawFilePaths(session.memory_raw_file_paths);
     if (!isRawShell && !resume && (memMode !== 'none' || rawFilePaths.length > 0)) {
       const memBlock = await applyMemoryInjection({
-        projectId: project.id,
+        project,
         mode: memMode,
         vaultFilePaths: rawFilePaths,
-        projectRoot: project.path,
         query: `${session.title}\n${session.description ?? ''}`.trim(),
         log: (type, message) => queries.createSessionLog(sessionId, type, message),
       });
