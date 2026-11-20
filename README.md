@@ -95,9 +95,9 @@ That's a normal Tuesday.
 
 **Auto-delegate.** A project rule like "when Claude finishes, have Codex review it". The review runs as a chained task on the same branch. Delegated tasks never delegate again, so no loops.
 
-**Sandbox mode.** Strict mode writes the CLI's permission file so it can only touch the worktree. Nothing outside it.
+**Sandbox mode.** Strict mode writes the CLI's permission file so it can only touch the worktree. Nothing outside it. Terminal sessions start sandboxed too, so the CLI asks before anything risky, unless you switch that off per project. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#sandbox-mode)
 
-**Docs.** A per-project folder of markdown with `[[wikilinks]]` and a graph view. Pick files and they go into the prompt, whichever CLI you're using. There's also a wiki that accumulates lessons from past runs and gets injected as long-term memory. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
+**Docs.** A per-project folder of markdown with `[[wikilinks]]` and a graph view, grouped by folder or by tag, with tags you can put on any file or folder without touching it. Pick files and they go into the prompt, whichever CLI you're using. Lessons from past runs are saved as plain markdown in the same folder, so there's no separate wiki to keep in sync. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Docs with wikilink graph" width="800">
@@ -123,7 +123,7 @@ That's a normal Tuesday.
 
 **Notifications.** A bell in the sidebar turns on OS notifications for finished and failed runs. Click one and it jumps to that session.
 
-**MCP server.** CLITrigger exposes itself over HTTP as an MCP server. Paste the config from Settings → MCP into Claude Desktop or Claude Code and you can list projects, create and start tasks, and check status from a chat. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server)
+**MCP server.** CLITrigger exposes itself over HTTP as an MCP server. Register it with Claude Code, Codex, or Antigravity in one click from Settings → MCP (or paste the config into Claude Desktop), and you can list projects, create and start tasks, hand the rest of a conversation off to new sessions or auto tasks, and check status from a chat. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server)
 
 **Analytics.** Cost and tokens per project, split by CLI, status, and date. Useful for noticing that one loop task ate half the month. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#analytics)
 
@@ -151,7 +151,7 @@ That's a normal Tuesday.
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Docked sessions" width="800">
 </div>
 
-**Integrations.** Jira, GitHub Issues, and Notion as plugins. gstack skills as an execution hook. A Harness panel for editing each CLI's settings, memory, MCP config, and toggling skills and hooks without opening the dotfiles.
+**Integrations.** Jira, GitHub Issues, and Notion as plugins. gstack skills as an execution hook. A Harness panel for editing each CLI's settings, memory, MCP config, and toggling skills, hooks, and plugins without opening the dotfiles.
 
 **Small things.** A Files tab to browse the repo. A Favorites launcher for the tools you open ten times a day. Web panel tabs in the desktop app for keeping Notion or a dashboard next to your sessions. A process panel showing which CLI processes are actually alive.
 

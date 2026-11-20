@@ -95,9 +95,9 @@ CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 도구다. 할 일을 
 
 **자동 위임.** "Claude가 끝내면 Codex가 리뷰한다" 같은 프로젝트 규칙. 리뷰는 같은 브랜치 위에서 체인 작업으로 돈다. 위임된 작업은 다시 위임하지 않으니 무한 루프는 없다.
 
-**샌드박스 모드.** strict로 켜면 CLI 권한 파일을 써서 worktree 바깥은 아예 못 건드리게 한다.
+**샌드박스 모드.** strict로 켜면 CLI 권한 파일을 써서 worktree 바깥은 아예 못 건드리게 한다. 터미널 세션도 샌드박스로 시작해서 위험한 동작은 CLI가 먼저 묻는다. 프로젝트별로 끌 수 있다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#샌드박스-모드)
 
-**문서.** 프로젝트별 마크다운 폴더에 `[[wikilink]]`와 그래프 뷰. 파일을 골라 프롬프트에 넣으면 어떤 CLI를 쓰든 똑같이 들어간다. 지난 실행에서 얻은 교훈을 쌓아두는 위키도 있는데, 장기 기억으로 프롬프트에 주입된다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize-KR#볼트)
+**문서.** 프로젝트별 마크다운 폴더에 `[[wikilink]]`와 그래프 뷰. 그래프는 폴더나 태그로 묶어 보고, 태그는 파일을 건드리지 않고 아무 파일·폴더에나 붙인다. 파일을 골라 프롬프트에 넣으면 어떤 CLI를 쓰든 똑같이 들어간다. 지난 실행에서 얻은 교훈도 같은 폴더에 평범한 마크다운으로 쌓이니, 따로 맞춰 둘 위키가 없다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize-KR#볼트)
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="wikilink 그래프가 있는 문서" width="800">
@@ -123,7 +123,7 @@ CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 도구다. 할 일을 
 
 **알림.** 사이드바의 종 아이콘을 켜면 완료와 실패를 OS 알림으로 받는다. 알림을 클릭하면 그 세션으로 바로 간다.
 
-**MCP 서버.** CLITrigger 자체가 HTTP MCP 서버다. 설정 → MCP에서 config를 복사해 Claude Desktop이나 Claude Code에 붙여 넣으면, 채팅으로 프로젝트 조회, 작업 생성과 실행, 상태 확인이 된다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server-KR)
+**MCP 서버.** CLITrigger 자체가 HTTP MCP 서버다. 설정 → MCP에서 Claude Code, Codex, Antigravity에 클릭 한 번으로 등록하면(Claude Desktop은 config를 붙여 넣으면), 채팅으로 프로젝트 조회, 작업 생성과 실행, 남은 대화를 새 세션이나 자동 작업으로 넘기기, 상태 확인이 된다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/MCP-Server-KR)
 
 **통계.** 프로젝트별 비용과 토큰을 CLI, 상태, 날짜로 나눠 본다. 루프 작업 하나가 한 달 예산 절반을 먹었다는 걸 알아채는 용도. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship-KR#분석)
 
@@ -151,7 +151,7 @@ CLITrigger는 그 CLI들을 큐에 올려놓고 돌리는 도구다. 할 일을 
   <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="도킹된 세션들" width="800">
 </div>
 
-**연동.** Jira, GitHub Issues, Notion이 플러그인으로 붙는다. gstack 스킬은 실행 훅으로. Harness 패널에서는 각 CLI의 설정, 메모리, MCP config를 고치고 스킬과 훅을 켜고 끌 수 있다. dotfile을 열 필요가 없다.
+**연동.** Jira, GitHub Issues, Notion이 플러그인으로 붙는다. gstack 스킬은 실행 훅으로. Harness 패널에서는 각 CLI의 설정, 메모리, MCP config를 고치고 스킬, 훅, 플러그인을 켜고 끌 수 있다. dotfile을 열 필요가 없다.
 
 **자잘한 것들.** 저장소를 둘러보는 Files 탭. 하루에 열 번 여는 도구를 모아둔 즐겨찾기 런처. 데스크톱 앱에서 Notion이나 대시보드를 세션 옆에 띄워두는 웹 패널 탭. 어떤 CLI 프로세스가 실제로 살아 있는지 보여주는 프로세스 패널.
 
