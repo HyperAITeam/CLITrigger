@@ -425,7 +425,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   // Link-drawing mode: relativePath of the source node awaiting a target click.
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; key: string } | null>(null);
-  // Tag editor for a doc (key = path) or, in bulk mode, a folder (key ends with '/').
+  // Tag editor for a doc or a folder itself (key = path, no trailing '/') or, in bulk mode, a folder (key ends with '/').
   const [tagEditor, setTagEditor] = useState<{ x: number; y: number; key: string } | null>(null);
   // Legend click: dim every doc without this tag.
   const [focusTag, setFocusTag] = useState<string | null>(null);
@@ -509,10 +509,10 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
     return m;
   }, [degree]);
 
-  // Every tag in use (legend, focus, editor suggestions).
+  // Every tag in use (legend, focus, editor suggestions), folders' own tags included.
   const legend = useMemo(
-    () => [...new Set([...tagsByPath.values()].flat())].sort((a, b) => a.localeCompare(b)),
-    [tagsByPath],
+    () => [...new Set([...tagsByPath.values(), ...Object.values(graphTags.files)].flat())].sort((a, b) => a.localeCompare(b)),
+    [tagsByPath, graphTags],
   );
   const activeFocusTag = focusTag && legend.includes(focusTag) ? focusTag : null;
 
@@ -584,7 +584,10 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
       const isTag = groupMode === 'tag';
       // Folder ghosts show their full path so you can tell where they sit in the tree.
       const name = !isTag && ghost ? key.slice(0, -1) : groupLabel(key);
-      const color = !isTag ? '#C9A86A' : key === UNTAGGED_GROUP ? '#6B7280' : colorOfTag(key.slice(0, -1));
+      // A folder takes its own primary tag's color (app DB, stored under the folder path).
+      const folderTag = isTag ? undefined : graphTags.files[key.slice(0, -1)]?.[0];
+      const color = isTag ? (key === UNTAGGED_GROUP ? '#6B7280' : colorOfTag(key.slice(0, -1)))
+        : folderTag ? colorOfTag(folderTag) : '#C9A86A';
       return {
         id: key,
         type: 'groupDot',
@@ -605,7 +608,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
       data: { file: f, size, selected: key === selectedPath, highlight: highlight && search.trim() !== '', tagColor: primaryTag ? colorOfTag(primaryTag) : null, showLabel: showLabels, onSelect: handleSelect },
       style,
     };
-  }), [view, groupMode, groupLabel, colorOfTag, tagsByPath, positions, degree, maxDegree, selectedPath, selectedKey, handleSelect, matchedKeys, filtering, search, showLabels]);
+  }), [view, groupMode, groupLabel, colorOfTag, graphTags, tagsByPath, positions, degree, maxDegree, selectedPath, selectedKey, handleSelect, matchedKeys, filtering, search, showLabels]);
 
   const initialEdges: Edge[] = useMemo(() =>
     view.links.map((l, i) => ({
@@ -646,7 +649,10 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
   const menuFile = menu && !menu.key.endsWith('/') ? view.fileByKey.get(menu.key) : undefined;
   const menuItems: MenuItem[] = !menu ? []
     : menu.key.endsWith('/')
-      ? [{ icon: <Tags className="w-3.5 h-3.5" />, label: t('vault.graph.bulkTag'), onPick: openTagEditor }]
+      ? [
+        { icon: <Tag className="w-3.5 h-3.5" />, label: t('vault.graph.editTags'), onPick: () => { setTagEditor({ ...menu, key: menu.key.slice(0, -1) }); setMenu(null); } },
+        { icon: <Tags className="w-3.5 h-3.5" />, label: t('vault.graph.bulkTag'), onPick: openTagEditor },
+      ]
       : [
         { icon: <Link2 className="w-3.5 h-3.5" />, label: t('vault.graph.addLink'), disabled: menuFile?.kind !== 'md', onPick: () => { setLinkSource(menu.key); setMenu(null); } },
         { icon: <Tag className="w-3.5 h-3.5" />, label: t('vault.graph.editTags'), onPick: openTagEditor },
@@ -787,7 +793,7 @@ export default function VaultGraph({ files, edges, selectedPath, onSelectFile, p
           title={editingFolder
             ? `${groupLabel(editingFolder)} — ${t('vault.graph.bulkTag')}`
             : files.find(f => f.relativePath === tagEditor.key)?.stem ?? tagEditor.key}
-          chips={editingFolder ? null : (tagsByPath.get(tagEditor.key) ?? []).map(tag => ({ tag, removable: editingAppTags.includes(tag) }))}
+          chips={editingFolder ? null : (tagsByPath.get(tagEditor.key) ?? editingAppTags).map(tag => ({ tag, removable: editingAppTags.includes(tag) }))}
           suggestions={legend}
           onAdd={addTagFromEditor}
           onRemove={tag => saveFileTags(tagEditor.key, editingAppTags.filter(x => x !== tag))}
