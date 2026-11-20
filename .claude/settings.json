@@ -41,8 +41,8 @@
       "Edit(F:/OSgoodYZ/CLITrigger/.worktrees/feature-task-c12gpm/**)",
       "Write(F:/OSgoodYZ/CLITrigger/.worktrees/feature-task-c12gpm/**)",
       "Bash(*)",
-      "Glob(*)",
-      "Grep(*)",
+      "Glob",
+      "Grep",
       "TodoRead",
       "TodoWrite",
       "WebFetch(*)"

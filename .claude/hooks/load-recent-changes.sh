@@ -40,9 +40,7 @@ if [ -f "$LESSONS_FILE" ]; then
   fi
 fi
 
-# Output as JSON for Claude Code hook system
+# SessionStart stdout is added to context as plain text, so no JSON encoding is needed
 if [ -n "$CONTEXT" ]; then
-  # Escape for JSON
-  ESCAPED=$(echo -e "$CONTEXT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo "\"$CONTEXT\"")
-  echo "{\"additionalContext\": $ESCAPED}"
+  echo -e "$CONTEXT"
 fi
