@@ -43,6 +43,12 @@ beforeAll(async () => {
   app.get('/api/sessions/:id/output', (req, res) => {
     res.json({ id: req.params.id, query: req.query });
   });
+  app.get('/api/projects/:id', (req, res) => {
+    res.json({ id: req.params.id, loop_defaults: JSON.stringify({ maxRounds: 3, check: 'npm test' }) });
+  });
+  app.put('/api/projects/:id', (req, res) => {
+    res.json({ id: req.params.id, body: req.body });
+  });
   app.put('/api/projects/:id/vault/tags/file', (req, res) => {
     res.json({ id: req.params.id, body: req.body });
   });
@@ -101,6 +107,7 @@ describe('MCP endpoint', () => {
       'start_todo',
       'stop_session',
       'stop_todo',
+      'update_project_settings',
       'wait_session_state',
     ]);
     await client.close();
@@ -127,7 +134,7 @@ describe('MCP endpoint', () => {
 
   it('lists the catalog for the settings UI in-process', async () => {
     const catalog = await listMcpCatalog();
-    expect(catalog.tools).toHaveLength(24);
+    expect(catalog.tools).toHaveLength(25);
     expect(catalog.tools.find((tool) => tool.name === 'list_projects')?.description).toBeTruthy();
     const handoff = catalog.prompts.find((prompt) => prompt.name === 'handoff');
     expect(handoff?.title).toBe('새 세션으로 넘기기');
@@ -176,6 +183,22 @@ describe('MCP endpoint', () => {
     expect((await bodyFor({ use_worktree: false })).use_worktree).toBe(0);
     expect((await bodyFor({ use_worktree: true })).use_worktree).toBe(1);
     expect(await bodyFor({})).not.toHaveProperty('use_worktree');
+    await client.close();
+  });
+
+  it('update_project_settings maps flags to 0/1 and merges loop_defaults into the stored rules', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const bodyFor = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: 'update_project_settings', arguments: { project_id: 'p1', ...args } });
+      return JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text).body;
+    };
+    expect(await bodyFor({ default_max_turns: 50, use_worktree: false })).toEqual({ default_max_turns: 50, use_worktree: 0 });
+    const merged = await bodyFor({ loop_defaults: { max_rounds: 8 } });
+    expect(JSON.parse(merged.loop_defaults)).toEqual({ maxRounds: 8, check: 'npm test' });
+    expect(await bodyFor({ loop_defaults: null })).toEqual({ loop_defaults: null });
+    const outOfRange = await client.callTool({ name: 'update_project_settings', arguments: { project_id: 'p1', default_max_turns: 1000 } });
+    expect(outOfRange.isError).toBe(true);
     await client.close();
   });
 

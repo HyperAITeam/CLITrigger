@@ -165,6 +165,61 @@ function buildServer(baseUrl: string): McpServer {
     ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/status`)),
   );
 
+  // ponytail: sandbox modes and claude_options are left out so an agent can't widen its own permissions.
+  server.registerTool(
+    'update_project_settings',
+    {
+      description:
+        "프로젝트 실행 설정을 바꿉니다. 준 항목만 바뀌고 나머지는 그대로입니다. 현재 값은 list_projects 결과에 있습니다. default_max_turns는 자동 작업 한 번 실행(루프면 한 라운드)에서 Claude가 쓸 수 있는 최대 턴 수(--max-turns)입니다. loop_defaults는 UI에서 새 작업의 루프를 켤 때 미리 채워지는 기본 루프 규칙으로, 준 필드만 기존 규칙에 합칩니다(max_rounds = 최대 반복 횟수). 문자열 필드는 빈 문자열, max_cost_usd는 0이면 해제되고, loop_defaults=null이면 기본 루프 규칙을 끕니다. 이미 만든 작업과 create_todo의 loop에는 적용되지 않습니다.",
+      inputSchema: {
+        project_id: z.string(),
+        default_max_turns: z.number().int().min(5).max(200).optional(),
+        max_concurrent: z.number().int().min(1).max(10).optional(),
+        cli_tool: z.enum(['claude', 'codex', 'antigravity']).optional(),
+        use_worktree: z.boolean().optional(),
+        auto_commit: z.boolean().optional(),
+        npm_auto_install: z.boolean().optional(),
+        loop_defaults: z.object({
+          max_rounds: z.number().int().min(1).max(50).optional(),
+          check: z.string().optional(),
+          done_phrase: z.string().optional(),
+          rules: z.string().optional(),
+          max_cost_usd: z.number().min(0).optional(),
+          stop_when_no_changes: z.boolean().optional(),
+          resume: z.boolean().optional(),
+        }).nullable().optional(),
+      },
+    },
+    ({ project_id, loop_defaults, use_worktree, auto_commit, npm_auto_install, ...body }) =>
+      run(async () => {
+        // The REST route takes 0/1 flags and loop_defaults as a JSON string.
+        const flags = Object.entries({ use_worktree, auto_commit, npm_auto_install })
+          .filter(([, value]) => value !== undefined)
+          .map(([key, value]) => [key, value ? 1 : 0]);
+        let loopDefaults: string | null | undefined = loop_defaults === null ? null : undefined;
+        if (loop_defaults) {
+          const current = await callApi(baseUrl, token, 'GET', `/api/projects/${project_id}`);
+          if (!current.ok) return current;
+          const stored = (current.data as { loop_defaults: string | null }).loop_defaults;
+          const patch = Object.entries({
+            maxRounds: loop_defaults.max_rounds,
+            check: loop_defaults.check,
+            donePhrase: loop_defaults.done_phrase,
+            rules: loop_defaults.rules,
+            maxCostUsd: loop_defaults.max_cost_usd,
+            stopWhenNoChanges: loop_defaults.stop_when_no_changes,
+            resume: loop_defaults.resume,
+          }).filter(([, value]) => value !== undefined);
+          loopDefaults = JSON.stringify({ ...(stored ? JSON.parse(stored) : {}), ...Object.fromEntries(patch) });
+        }
+        return callApi(baseUrl, token, 'PUT', `/api/projects/${project_id}`, {
+          ...body,
+          ...Object.fromEntries(flags),
+          ...(loopDefaults !== undefined ? { loop_defaults: loopDefaults } : {}),
+        });
+      }),
+  );
+
   server.registerTool(
     'get_todo_logs',
     {
