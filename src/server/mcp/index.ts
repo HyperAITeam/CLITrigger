@@ -87,12 +87,14 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정).",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정). cli_tool을 생략하면 프로젝트 기본 CLI로 실행합니다. model은 그 CLI의 --model에 그대로 넘어가며(예: claude는 opus·sonnet·haiku 또는 전체 모델 ID), 모델 이름은 CLI마다 다르므로 model을 주면 cli_tool도 함께 주세요. 생략하면 CLI 기본 모델이고, 없는 모델이면 실행할 때 CLI가 오류를 냅니다.",
       inputSchema: {
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
         priority: z.number().optional(),
+        cli_tool: z.enum(['claude', 'codex', 'antigravity']).optional(),
+        model: z.string().optional(),
         memory_inject_mode: z.enum(['none', 'all', 'auto']).optional(),
         use_worktree: z.boolean().optional(),
         loop: z.object({
@@ -106,9 +108,10 @@ function buildServer(baseUrl: string): McpServer {
         }).optional(),
       },
     },
-    ({ project_id, loop, use_worktree, ...body }) =>
+    ({ project_id, loop, use_worktree, model, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/todos`, {
         ...body,
+        ...(model ? { cli_model: model } : {}),
         // The REST route takes 0/1 (null = inherit the project setting).
         ...(use_worktree !== undefined ? { use_worktree: use_worktree ? 1 : 0 } : {}),
         ...(loop ? {

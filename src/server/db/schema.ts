@@ -549,6 +549,16 @@ export function initDatabase(db: Database.Database): void {
   // once no 'gemini' rows remain these UPDATEs are no-ops.
   migrateGeminiToAntigravity(db);
 
+  // Tasks now run on an explicitly picked model (MCP create_todo). Clear the
+  // model values left from the removed model picker once, so they don't start
+  // applying (or get copied onto tasks by syncProjectCliDefaults).
+  if (!db.prepare("SELECT 1 FROM app_settings WHERE key = 'migration.legacy_models_cleared'").get()) {
+    db.transaction(() => {
+      db.exec('UPDATE todos SET cli_model = NULL; UPDATE projects SET claude_model = NULL;');
+      db.prepare("INSERT INTO app_settings (key, value) VALUES ('migration.legacy_models_cleared', '1')").run();
+    })();
+  }
+
   // Seed cli_models if empty
   const modelCount = db.prepare('SELECT COUNT(*) as count FROM cli_models').get() as { count: number };
   if (modelCount.count === 0) {

@@ -569,10 +569,9 @@ Complete the task in the current directory.`;
       }
     }
 
-    // Model selection was removed from the product — always run on the CLI's
-    // default model. Stored todo.cli_model / project.claude_model values are
-    // intentionally ignored (legacy DB rows may still carry them).
-    const claudeModel = undefined;
+    // The CLI's default model unless the task named one (MCP create_todo).
+    // project.claude_model is legacy and ignored.
+    const claudeModel = todo.cli_model ?? undefined;
     const claudeOptions = project.claude_options ? project.claude_options : undefined;
     const DEFAULT_MAX_TURNS = 30;
     const maxTurns = todo.max_turns ?? project.default_max_turns ?? DEFAULT_MAX_TURNS;

@@ -183,6 +183,9 @@ describe('MCP endpoint', () => {
     expect((await bodyFor({ use_worktree: false })).use_worktree).toBe(0);
     expect((await bodyFor({ use_worktree: true })).use_worktree).toBe(1);
     expect(await bodyFor({})).not.toHaveProperty('use_worktree');
+    const withModel = await bodyFor({ cli_tool: 'claude', model: 'opus' });
+    expect(withModel).toMatchObject({ cli_tool: 'claude', cli_model: 'opus' });
+    expect(withModel).not.toHaveProperty('model');
     await client.close();
   });
 

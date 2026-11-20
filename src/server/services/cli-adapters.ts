@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
-import { isModelSupported } from '../db/queries.js';
 import type { AgentStateHints } from './agent-state-detector.js';
 
 export type CliTool = 'claude' | 'antigravity' | 'codex' | 'raw-shell';
@@ -104,13 +103,6 @@ export function sanitizeExtraOptions(extraOptions: string): string[] {
   }
 
   return sanitized;
-}
-
-function normalizeModel(model: string | undefined, cliTool: CliTool): string | undefined {
-  if (!model) return undefined;
-  if (isModelSupported(cliTool, model)) return model;
-  console.warn(`Unsupported ${cliTool} model "${model}" ignored; falling back to default model.`);
-  return undefined;
 }
 
 /**
@@ -229,7 +221,6 @@ const claudeAdapter: CliAdapter = {
     blocked: /Do you want to|Would you like to|Yes, allow|Allow once|Yes, I accept|❯\s*1\.|\(y\/n\)|Esc to cancel/i,
   },
   buildArgs({ mode, prompt, model, extraOptions, maxTurns, sandboxMode, continueSession, cliSessionId }) {
-    const normalizedModel = normalizeModel(model, 'claude');
     const args: string[] = [];
     if (sandboxMode === 'strict') {
       // Interactive: auto mode's classifier approves safe actions and asks the
@@ -250,7 +241,7 @@ const claudeAdapter: CliAdapter = {
     } else if (cliSessionId) {
       args.push('--session-id', cliSessionId);
     }
-    if (normalizedModel) args.push('--model', normalizedModel);
+    if (model) args.push('--model', model);
     if (maxTurns && maxTurns > 0) args.push('--max-turns', String(maxTurns));
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
@@ -307,12 +298,11 @@ const antigravityAdapter: CliAdapter = {
     // PROVISIONAL: verify with `agy --help` that --headless reads the prompt from
     // stdin. If it instead requires `-p <prompt>` inline, move the prompt into
     // args here and make needsStdin(mode) return only mode === 'interactive'.
-    const normalizedModel = normalizeModel(model, 'antigravity');
     const args: string[] = [];
     if (mode !== 'interactive' || sandboxMode !== 'strict') args.push('--dangerously-skip-permissions');
     if (mode !== 'interactive') args.push('--headless');
     if (continueSession) args.push('--continue');
-    if (normalizedModel) args.push('--model', normalizedModel);
+    if (model) args.push('--model', model);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }
@@ -339,7 +329,6 @@ const codexAdapter: CliAdapter = {
   // No auto-respond rules yet — add once real startup/update prompts are captured.
   autoRespondRules: [],
   buildArgs({ mode, prompt, model, extraOptions, workDir, projectPath, sandboxMode, continueSession }) {
-    const normalizedModel = normalizeModel(model, 'codex');
     const args: string[] = [];
     if (mode !== 'interactive') {
       args.push('exec');
@@ -366,7 +355,7 @@ const codexAdapter: CliAdapter = {
     // The TUI's startup "Update available" dialog defaults to "Update now", so the
     // auto-delivered first prompt's Enter ran `npm install -g @openai/codex`.
     if (mode === 'interactive') args.push('-c', 'check_for_update_on_startup=false');
-    if (normalizedModel) args.push('--model', normalizedModel);
+    if (model) args.push('--model', model);
     if (extraOptions) {
       args.push(...sanitizeExtraOptions(extraOptions));
     }

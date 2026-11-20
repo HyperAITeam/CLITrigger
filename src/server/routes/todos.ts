@@ -9,6 +9,8 @@ import { cleanupTodoImages } from './images.js';
 const router = Router();
 
 const RAW_DIR_PREFIX = '.clitrigger/raw/';
+// Model ids/aliases like `opus`, `claude-sonnet-4-5[1m]`, `gpt-5.1-codex` — no shell metacharacters.
+const MODEL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/[\]-]{0,99}$/;
 
 function normalizeRawFilePaths(input: unknown): string | null | undefined {
   if (input === undefined) return undefined;
@@ -43,11 +45,15 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       return;
     }
 
-    // cli_model is no longer accepted — model selection was removed and
-    // execution always uses the CLI's default model.
-    const { title, description, priority, cli_tool, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, loop_config } = req.body;
+    // The UI has no model picker (no model list to maintain). An explicit
+    // cli_model (MCP create_todo) goes to the CLI as-is; omitted = CLI default.
+    const { title, description, priority, cli_tool, cli_model, depends_on, max_turns, use_worktree, memory_inject_mode, memory_node_ids, memory_raw_file_paths, loop_config } = req.body;
     if (!title) {
       res.status(400).json({ error: 'title is required' });
+      return;
+    }
+    if (cli_model != null && (typeof cli_model !== 'string' || !MODEL_NAME_PATTERN.test(cli_model))) {
+      res.status(400).json({ error: 'Invalid cli_model' });
       return;
     }
     const normalizedLoop = normalizeLoopConfig(loop_config);
@@ -79,7 +85,7 @@ router.post('/projects/:id/todos', (req: Request<{ id: string }>, res: Response)
       ? (memory_node_ids.length > 0 ? JSON.stringify(memory_node_ids.map(String)) : null)
       : (typeof memory_node_ids === 'string' && memory_node_ids ? memory_node_ids : null);
     const normalizedRawFilePaths = normalizeRawFilePaths(memory_raw_file_paths);
-    const todo = createTodo(projectId, title, description, priority, cli_tool, undefined, undefined, depends_on, parsedMaxTurns || undefined, normalizedUseWorktree, normalizedMemMode, normalizedMemIds, normalizedRawFilePaths === undefined ? null : normalizedRawFilePaths);
+    const todo = createTodo(projectId, title, description, priority, cli_tool, cli_model || undefined, undefined, depends_on, parsedMaxTurns || undefined, normalizedUseWorktree, normalizedMemMode, normalizedMemIds, normalizedRawFilePaths === undefined ? null : normalizedRawFilePaths);
     const saved = normalizedLoop ? (updateTodo(todo.id, { loop_config: normalizedLoop }) ?? todo) : todo;
     // Lets the UI list todos created elsewhere (e.g. MCP create_todo).
     broadcaster.broadcast({ type: 'todo:created', todo: saved });
@@ -140,6 +146,8 @@ router.put('/todos/:id', (req: Request<{ id: string }>, res: Response) => {
     const normalizedRawFilePaths = normalizeRawFilePaths(memory_raw_file_paths);
     const todo = updateTodo(req.params.id, {
       title, description, priority, cli_tool, depends_on, position_x, position_y,
+      // A model picked for one CLI means nothing to another.
+      ...(cli_tool !== undefined && cli_tool !== existing.cli_tool ? { cli_model: null } : {}),
       ...(parsedMaxTurns !== undefined ? { max_turns: parsedMaxTurns } : {}),
       ...(normalizedUseWorktree !== undefined ? { use_worktree: normalizedUseWorktree } : {}),
       ...(normalizedMemMode !== undefined ? { memory_inject_mode: normalizedMemMode } : {}),
