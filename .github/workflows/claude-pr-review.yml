@@ -62,11 +62,15 @@ jobs:
 
       - name: Run Claude Code review
         if: steps.diff.outputs.skip != 'true'
+        # PR author-controlled text goes through env, never ${{ }} in the
+        # script: an expression is pasted into the shell source before it runs.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
           BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
-          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
           DIFF=$(cat /tmp/pr-diff.txt)
 
           REVIEW=$(claude --print --dangerously-skip-permissions <<PROMPT
@@ -81,7 +85,7 @@ jobs:
           ## PR information
           - **PR #${PR_NUMBER}**: ${PR_TITLE}
           - **Branch**: ${HEAD_BRANCH} → ${BASE_BRANCH}
-          - **Description**: ${{ github.event.pull_request.body }}
+          - **Description**: ${PR_BODY}
 
           ## Diff
           \`\`\`diff
