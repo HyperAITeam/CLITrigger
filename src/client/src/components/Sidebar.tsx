@@ -414,10 +414,9 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
         >
           <Inbox size={16} />
           {reviewCount !== null && reviewCount > 0 && (
-            <span
-              className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-            />
+            <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 font-semibold text-center bg-status-error text-white">
+              {reviewCount}
+            </span>
           )}
         </Link>
         <Link
@@ -551,10 +550,7 @@ export default function Sidebar({ onLogout, authRequired, connected, onEvent, on
           <Inbox size={16} />
           <span className="flex-1">{t('sidebar.review')}</span>
           {reviewCount !== null && reviewCount > 0 && (
-            <span
-              className="text-2xs px-1.5 py-0.5 rounded-full font-medium"
-              style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}
-            >
+            <span className="text-2xs px-1.5 py-0.5 rounded-full font-medium bg-status-error text-white">
               {reviewCount}
             </span>
           )}
