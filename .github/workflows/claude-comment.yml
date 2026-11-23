@@ -6,11 +6,13 @@ on:
 
 jobs:
   claude-command:
-    # issue_comment fires on both issues and PRs — filter for @claude mention
+    # issue_comment fires on both issues and PRs — filter for @claude mention.
+    # Only people with repo access may drive this self-hosted runner.
     if: >-
       contains(github.event.comment.body, '@claude') &&
       !github.event.issue.pull_request &&
-      github.event.comment.user.login != 'github-actions[bot]'
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: self-hosted
     permissions:
       contents: write
@@ -38,14 +40,14 @@ jobs:
           npm ci
           cd src/client && npm ci
 
+      # Comment/issue text reaches scripts only through env: a ${{ }} expression
+      # is pasted into the shell source before it runs.
       - name: Extract command
         id: cmd
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           # Extract everything after @claude
-          COMMENT_BODY=$(cat <<'COMMENT_EOF'
-          ${{ github.event.comment.body }}
-          COMMENT_EOF
-          )
           COMMAND=$(echo "$COMMENT_BODY" | sed 's/.*@claude[[:space:]]*//')
           echo "command<<CMD_EOF" >> "$GITHUB_OUTPUT"
           echo "$COMMAND" >> "$GITHUB_OUTPUT"
@@ -53,13 +55,17 @@ jobs:
 
       - name: Create branch and run Claude
         id: claude
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMAND: ${{ steps.cmd.outputs.command }}
         run: |
           ISSUE_NUMBER="${{ github.event.issue.number }}"
           BRANCH_NAME="claude/comment-${ISSUE_NUMBER}-$(date +%s)"
           git checkout -b "$BRANCH_NAME"
           echo "branch=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-          claude --print --dangerously-skip-permissions <<'PROMPT'
+          claude --print --dangerously-skip-permissions <<PROMPT
           You are working on CLITrigger — a Node.js monorepo (server + React client) that orchestrates CLI AI tools (Claude, Gemini, Codex).
 
           ## Project structure
@@ -69,27 +75,27 @@ jobs:
           - Key services: orchestrator, scheduler, claude-manager, tunnel-manager
 
           ## Context
-          **Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}**
+          **Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}**
 
-          ${{ github.event.issue.body }}
+          ${ISSUE_BODY}
 
           ## Command from @${{ github.event.comment.user.login }}
-          ${{ steps.cmd.outputs.command }}
+          ${COMMAND}
 
           ## Rules
           1. Implement exactly what was requested in the command above
           2. If adding i18n strings, add both Korean (ko) and English (en) translations in src/client/src/i18n.tsx
-          3. Run `npm run typecheck` to verify no type errors
-          4. Run `npm test` to verify all tests pass
+          3. Run \`npm run typecheck\` to verify no type errors
+          4. Run \`npm test\` to verify all tests pass
           5. Commit your changes with a descriptive message
           PROMPT
 
       - name: Push and create PR
+        env:
+          COMMAND: ${{ steps.cmd.outputs.command }}
         run: |
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
           BRANCH_NAME="${{ steps.claude.outputs.branch }}"
-          COMMAND="${{ steps.cmd.outputs.command }}"
 
           if git diff --quiet && git diff --cached --quiet; then
             echo "No changes were made by Claude"
@@ -139,7 +145,8 @@ jobs:
     if: >-
       contains(github.event.comment.body, '@claude') &&
       github.event.issue.pull_request &&
-      github.event.comment.user.login != 'github-actions[bot]'
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: self-hosted
     permissions:
       contents: write
@@ -177,22 +184,23 @@ jobs:
 
       - name: Extract command
         id: cmd
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          COMMENT_BODY=$(cat <<'COMMENT_EOF'
-          ${{ github.event.comment.body }}
-          COMMENT_EOF
-          )
           COMMAND=$(echo "$COMMENT_BODY" | sed 's/.*@claude[[:space:]]*//')
           echo "command<<CMD_EOF" >> "$GITHUB_OUTPUT"
           echo "$COMMAND" >> "$GITHUB_OUTPUT"
           echo "CMD_EOF" >> "$GITHUB_OUTPUT"
 
       - name: Run Claude on PR branch
+        env:
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          COMMAND: ${{ steps.cmd.outputs.command }}
         run: |
           PR_NUMBER="${{ github.event.issue.number }}"
           PR_DIFF=$(gh pr diff "$PR_NUMBER" 2>/dev/null || echo "(no diff available)")
 
-          claude --print --dangerously-skip-permissions <<'PROMPT'
+          claude --print --dangerously-skip-permissions <<PROMPT
           You are working on CLITrigger — a Node.js monorepo (server + React client) that orchestrates CLI AI tools (Claude, Gemini, Codex).
 
           ## Project structure
@@ -202,24 +210,26 @@ jobs:
           - Key services: orchestrator, scheduler, claude-manager, tunnel-manager
 
           ## Context
-          This is PR #${{ github.event.issue.number }}.
-          You are on the PR branch: ${{ steps.pr.outputs.branch }}
+          This is PR #${PR_NUMBER}.
+          You are on the PR branch: ${BRANCH}
 
           ## Command from @${{ github.event.comment.user.login }}
-          ${{ steps.cmd.outputs.command }}
+          ${COMMAND}
 
           ## Rules
           1. Implement exactly what was requested in the command above
           2. If adding i18n strings, add both Korean (ko) and English (en) translations in src/client/src/i18n.tsx
-          3. Run `npm run typecheck` to verify no type errors
-          4. Run `npm test` to verify all tests pass
+          3. Run \`npm run typecheck\` to verify no type errors
+          4. Run \`npm test\` to verify all tests pass
           5. Commit your changes with a descriptive message
           PROMPT
 
       - name: Push changes
+        env:
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          COMMAND: ${{ steps.cmd.outputs.command }}
         run: |
           PR_NUMBER="${{ github.event.issue.number }}"
-          BRANCH="${{ steps.pr.outputs.branch }}"
 
           if git diff --quiet && git diff --cached --quiet; then
             gh pr comment "$PR_NUMBER" --body "$(cat <<'EOF'
@@ -233,7 +243,6 @@ jobs:
           fi
 
           git add -A
-          COMMAND="${{ steps.cmd.outputs.command }}"
           git diff --cached --quiet || git commit -m "feat(pr): ${COMMAND:0:72}"
 
           git push origin "$BRANCH"

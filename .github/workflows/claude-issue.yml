@@ -29,15 +29,19 @@ jobs:
           npm ci
           cd src/client && npm ci
 
+      # Issue text reaches scripts only through env: a ${{ }} expression is
+      # pasted into the shell source before it runs.
       - name: Run Claude Code
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
           BRANCH_NAME="claude/issue-${ISSUE_NUMBER}"
 
           git checkout -b "$BRANCH_NAME"
 
-          claude --print --dangerously-skip-permissions <<'PROMPT'
+          claude --print --dangerously-skip-permissions <<PROMPT
           You are working on CLITrigger — a Node.js monorepo (server + React client) that orchestrates CLI AI tools (Claude, Gemini, Codex).
 
           ## Project structure
@@ -49,22 +53,23 @@ jobs:
           ## Your task
           Implement the changes requested in this GitHub issue:
 
-          **Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}**
+          **Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}**
 
-          ${{ github.event.issue.body }}
+          ${ISSUE_BODY}
 
           ## Rules
           1. Implement the changes described in the issue
           2. If adding i18n strings, add both Korean (ko) and English (en) translations in src/client/src/i18n.tsx
-          3. Run `npm run typecheck` to verify no type errors
-          4. Run `npm test` to verify all tests pass
+          3. Run \`npm run typecheck\` to verify no type errors
+          4. Run \`npm test\` to verify all tests pass
           5. Commit your changes with a descriptive message
           PROMPT
 
       - name: Push and create PR
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
           BRANCH_NAME="claude/issue-${ISSUE_NUMBER}"
 
           # Check if there are any changes to commit
