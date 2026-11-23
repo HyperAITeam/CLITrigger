@@ -70,7 +70,9 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/node": "^2.1.2",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@types/iarna__toml": "^2.0.5",
     "better-sqlite3": "^12.11.1",
     "cloudflared": "^0.7.1",

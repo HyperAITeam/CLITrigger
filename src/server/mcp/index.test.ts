@@ -4,8 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { setSetting } from '../db/app-settings.js';
 import { closeDatabase } from '../db/connection.js';
 import { mountMcp, listMcpCatalog } from './index.js';
@@ -68,7 +67,9 @@ function makeClient(token: string) {
   const transport = new StreamableHTTPClientTransport(mcpUrl, {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });
-  const client = new Client({ name: 'test', version: '1.0.0' });
+  // Pinned to the 2026-07-28 revision Claude Code speaks; the 2025 handshake
+  // has its own test below.
+  const client = new Client({ name: 'test', version: '1.0.0' }, { versionNegotiation: { mode: { pin: '2026-07-28' } } });
   return { client, transport };
 }
 
@@ -229,9 +230,41 @@ describe('MCP endpoint', () => {
     await client.close();
   });
 
+  // Codex and Antigravity still speak the 2025 protocol: initialize, then
+  // plain JSON-RPC POSTs with no per-request _meta envelope.
+  it('serves 2025-era clients through the initialize handshake', async () => {
+    const post = async (body: unknown) => {
+      const res = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          'MCP-Protocol-Version': '2025-06-18',
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      // The legacy leg may answer as SSE; take the JSON-RPC payload either way.
+      const payload = text.startsWith('{') ? text : text.split('\n').find((line) => line.startsWith('data: '))!.slice(6);
+      return JSON.parse(payload);
+    };
+    const init = await post({
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'codex', version: '0' } },
+    });
+    expect(init.result.protocolVersion).toBe('2025-06-18');
+    const listed = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+    expect(listed.result.tools.some((tool: { name: string }) => tool.name === 'create_todo')).toBe(true);
+    const called = await post({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_projects', arguments: {} } });
+    expect(called.result.content[0].text).toContain('demo');
+  });
+
   it('calls list_projects and returns loopback API data', async () => {
     const { client, transport } = makeClient(TOKEN);
     await client.connect(transport);
+    // Claude Code negotiates the 2026-07-28 revision (needed for MCP tasks).
+    expect(client.getNegotiatedProtocolVersion()).toBe('2026-07-28');
     const result = await client.callTool({ name: 'list_projects', arguments: {} });
     const text = (result.content as Array<{ type: string; text: string }>)[0].text;
     expect(text).toContain('demo');

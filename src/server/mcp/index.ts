@@ -1,9 +1,8 @@
 import type { Express, Request, Response, RequestHandler } from 'express';
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { McpServer, InMemoryTransport, createMcpHandler } from '@modelcontextprotocol/server';
+import { toNodeHandler } from '@modelcontextprotocol/node';
+import { Client } from '@modelcontextprotocol/client';
 import { getSetting } from '../db/app-settings.js';
 import { matchesMcpToken } from '../middleware/auth.js';
 
@@ -74,11 +73,11 @@ function buildServer(baseUrl: string): McpServer {
     'create_project',
     {
       description: '새 프로젝트를 등록합니다. path는 로컬 절대 경로여야 합니다.',
-      inputSchema: {
+      inputSchema: z.object({
         name: z.string(),
         path: z.string(),
         default_branch: z.string().optional(),
-      },
+      }),
     },
     (args) => run(() => callApi(baseUrl, token, 'POST', '/api/projects', args)),
   );
@@ -88,7 +87,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정). cli_tool을 생략하면 프로젝트 기본 CLI로 실행합니다. model은 그 CLI의 --model에 그대로 넘어가며(예: claude는 opus·sonnet·haiku 또는 전체 모델 ID), 모델 이름은 CLI마다 다르므로 model을 주면 cli_tool도 함께 주세요. 생략하면 CLI 기본 모델이고, 없는 모델이면 실행할 때 CLI가 오류를 냅니다.",
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
@@ -106,7 +105,7 @@ function buildServer(baseUrl: string): McpServer {
           stop_when_no_changes: z.boolean().optional(),
           resume: z.boolean().optional(),
         }).optional(),
-      },
+      }),
     },
     ({ project_id, loop, use_worktree, model, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/todos`, {
@@ -132,10 +131,10 @@ function buildServer(baseUrl: string): McpServer {
     'start_todo',
     {
       description: '자동 작업(TODO) 실행을 시작합니다. mode 기본값은 headless(자율 실행).',
-      inputSchema: {
+      inputSchema: z.object({
         todo_id: z.string(),
         mode: z.enum(['headless', 'interactive', 'verbose']).optional(),
-      },
+      }),
     },
     ({ todo_id, mode }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/todos/${todo_id}/start`, { mode: mode ?? 'headless' })),
@@ -145,7 +144,7 @@ function buildServer(baseUrl: string): McpServer {
     'stop_todo',
     {
       description: '실행 중인 할일을 중지합니다.',
-      inputSchema: { todo_id: z.string() },
+      inputSchema: z.object({ todo_id: z.string() }),
     },
     ({ todo_id }) => run(() => callApi(baseUrl, token, 'POST', `/api/todos/${todo_id}/stop`)),
   );
@@ -154,7 +153,7 @@ function buildServer(baseUrl: string): McpServer {
     'list_todos',
     {
       description: '프로젝트의 자동 작업(TODO) 목록을 반환합니다. status는 pending/running/completed/failed/stopped/merged입니다.',
-      inputSchema: { project_id: z.string() },
+      inputSchema: z.object({ project_id: z.string() }),
     },
     ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/todos`)),
   );
@@ -163,7 +162,7 @@ function buildServer(baseUrl: string): McpServer {
     'get_project_status',
     {
       description: '프로젝트의 실행 상태 요약을 반환합니다.',
-      inputSchema: { project_id: z.string() },
+      inputSchema: z.object({ project_id: z.string() }),
     },
     ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/status`)),
   );
@@ -174,7 +173,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         "프로젝트 실행 설정을 바꿉니다. 준 항목만 바뀌고 나머지는 그대로입니다. 현재 값은 list_projects 결과에 있습니다. default_max_turns는 자동 작업 한 번 실행(루프면 한 라운드)에서 Claude가 쓸 수 있는 최대 턴 수(--max-turns)입니다. loop_defaults는 UI에서 새 작업의 루프를 켤 때 미리 채워지는 기본 루프 규칙으로, 준 필드만 기존 규칙에 합칩니다(max_rounds = 최대 반복 횟수). 문자열 필드는 빈 문자열, max_cost_usd는 0이면 해제되고, loop_defaults=null이면 기본 루프 규칙을 끕니다. 이미 만든 작업과 create_todo의 loop에는 적용되지 않습니다.",
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         default_max_turns: z.number().int().min(5).max(200).optional(),
         max_concurrent: z.number().int().min(1).max(10).optional(),
@@ -191,7 +190,7 @@ function buildServer(baseUrl: string): McpServer {
           stop_when_no_changes: z.boolean().optional(),
           resume: z.boolean().optional(),
         }).nullable().optional(),
-      },
+      }),
     },
     ({ project_id, loop_defaults, use_worktree, auto_commit, npm_auto_install, ...body }) =>
       run(async () => {
@@ -227,7 +226,7 @@ function buildServer(baseUrl: string): McpServer {
     'get_todo_logs',
     {
       description: '할일의 실행 로그를 반환합니다.',
-      inputSchema: { todo_id: z.string() },
+      inputSchema: z.object({ todo_id: z.string() }),
     },
     ({ todo_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/todos/${todo_id}/logs`)),
   );
@@ -238,13 +237,13 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         "플래너(계획 보드)에 항목을 추가합니다. 실행되지 않는 계획·메모용이며, 나중에 작업·루틴·터미널로 변환해서 실행합니다. 사용자가 명시적으로 '플래너/계획에 정리'라고 할 때만 쓰세요. 실제로 실행할 작업이면 create_todo를 쓰세요.",
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
         priority: z.number().optional(),
         due_date: z.string().optional(),
-      },
+      }),
     },
     ({ project_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/planner`, body)),
@@ -254,7 +253,7 @@ function buildServer(baseUrl: string): McpServer {
     'delete_planner_item',
     {
       description: '플래너 항목을 삭제합니다.',
-      inputSchema: { item_id: z.string() },
+      inputSchema: z.object({ item_id: z.string() }),
     },
     ({ item_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/planner/${item_id}`)),
   );
@@ -265,7 +264,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '루틴(예약/반복 자동 실행)을 생성합니다. recurring은 cron_expression, once는 run_at(ISO)이 필요합니다. 정해진 시각/주기에 자동 작업을 반복 실행할 때 쓰세요.',
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         title: z.string(),
         description: z.string().optional(),
@@ -273,7 +272,7 @@ function buildServer(baseUrl: string): McpServer {
         cron_expression: z.string().optional(),
         run_at: z.string().optional(),
         cli_tool: z.string().optional(),
-      },
+      }),
     },
     ({ project_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/schedules`, body)),
@@ -283,7 +282,7 @@ function buildServer(baseUrl: string): McpServer {
     'delete_schedule',
     {
       description: '스케줄을 삭제합니다.',
-      inputSchema: { schedule_id: z.string() },
+      inputSchema: z.object({ schedule_id: z.string() }),
     },
     ({ schedule_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/schedules/${schedule_id}`)),
   );
@@ -294,13 +293,13 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '인터랙티브 터미널 세션(사용자가 직접 CLI와 대화)을 생성합니다. 자동 실행이 아니라 수동 대화용입니다. title 생략 시 자동 생성됩니다. description은 첫 프롬프트로 보류되어 사용자가 UI에서 세션을 시작한 뒤 확인하고 보냅니다(보류 중 send_session_input은 409) — 에이전트가 직접 구동할 세션이면 description 없이 만드세요.',
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         title: z.string().optional(),
         description: z.string().optional(),
         cli_tool: z.string().optional(),
         use_worktree: z.boolean().optional(),
-      },
+      }),
     },
     ({ project_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/projects/${project_id}/sessions`, body)),
@@ -310,7 +309,7 @@ function buildServer(baseUrl: string): McpServer {
     'delete_session',
     {
       description: '세션을 삭제합니다.',
-      inputSchema: { session_id: z.string() },
+      inputSchema: z.object({ session_id: z.string() }),
     },
     ({ session_id }) => run(() => callApi(baseUrl, token, 'DELETE', `/api/sessions/${session_id}`)),
   );
@@ -321,11 +320,11 @@ function buildServer(baseUrl: string): McpServer {
     'start_session',
     {
       description: '세션의 터미널(PTY)을 시작합니다. cols/rows는 둘 다 주거나 둘 다 생략합니다(기본 100x30).',
-      inputSchema: {
+      inputSchema: z.object({
         session_id: z.string(),
         cols: z.number().int().optional(),
         rows: z.number().int().optional(),
-      },
+      }),
     },
     ({ session_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/start`, body)),
@@ -339,14 +338,14 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         "서브세션(별도의 CLITrigger 터미널 세션)을 띄워 prompt를 맡깁니다. 세션을 만들고 바로 시작하며, CLI가 준비되면 prompt를 자동으로 제출합니다. CLITrigger 터미널 안에서 실행 중이면 환경변수 CLITRIGGER_PROJECT_ID를 project_id로, CLITRIGGER_SESSION_ID를 parent_session_id로 주세요. 부모를 주면 UI에서 부모 세션 아래에 묶여 보입니다. cli_tool은 claude/codex/antigravity 중에서 골라 다른 CLI에 맡길 수 있습니다(생략 시 프로젝트 기본값). 서브세션은 이 대화를 모르므로 prompt만 읽고 작업할 수 있게 쓰세요. 결과는 wait_session_state(state='blocked')로 턴이 끝나길 기다린 뒤 read_session_output으로 읽고, 다 쓰면 stop_session으로 끕니다.",
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         prompt: z.string(),
         parent_session_id: z.string().optional(),
         title: z.string().optional(),
         cli_tool: z.enum(['claude', 'codex', 'antigravity']).optional(),
         use_worktree: z.boolean().optional(),
-      },
+      }),
     },
     ({ project_id, prompt, ...body }) =>
       run(async () => {
@@ -361,7 +360,7 @@ function buildServer(baseUrl: string): McpServer {
     'stop_session',
     {
       description: '실행 중인 세션을 중지합니다.',
-      inputSchema: { session_id: z.string() },
+      inputSchema: z.object({ session_id: z.string() }),
     },
     ({ session_id }) => run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/stop`)),
   );
@@ -371,11 +370,11 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '실행 중인 세션의 터미널(PTY)에 키 입력을 그대로 씁니다 — 임의 명령 실행이 가능하므로 주의. submit=true면 Enter를 덧붙여 제출합니다(빈 text + submit=true는 Enter만 보내 다이얼로그 확인에 사용). 초기 프롬프트가 대기 중이면 409.',
-      inputSchema: {
+      inputSchema: z.object({
         session_id: z.string(),
         text: z.string(),
         submit: z.boolean().optional(),
-      },
+      }),
     },
     ({ session_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/input`, body)),
@@ -386,11 +385,11 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '세션 터미널의 최근 출력을 읽습니다. 기본은 ANSI 이스케이프와 TUI 노이즈를 제거한 텍스트(strip_ansi=false로 원문). tail_bytes 기본 16384, 최대 262144. 종료된 세션의 마지막 화면도 읽을 수 있습니다.',
-      inputSchema: {
+      inputSchema: z.object({
         session_id: z.string(),
         tail_bytes: z.number().int().optional(),
         strip_ansi: z.boolean().optional(),
-      },
+      }),
     },
     ({ session_id, tail_bytes, strip_ansi }) => {
       const query = new URLSearchParams();
@@ -406,7 +405,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '세션 정보와 에이전트 상태(agent_state: working=작업 중, blocked=사용자 입력 대기, idle=시작 직후 대기, done=종료, unknown=감지 불가)를 반환합니다.',
-      inputSchema: { session_id: z.string() },
+      inputSchema: z.object({ session_id: z.string() }),
     },
     ({ session_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}`)),
   );
@@ -416,11 +415,11 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '세션의 agent_state가 지정 상태가 될 때까지(또는 프로세스가 끝날 때까지) 대기합니다. timeout_ms 기본 55000, 최대 600000. 타임아웃이어도 200으로 { matched: false, status, agent_state }를 돌려주므로 matched가 true가 될 때까지 반복 호출하세요.',
-      inputSchema: {
+      inputSchema: z.object({
         session_id: z.string(),
         state: z.enum(['blocked', 'done', 'idle']),
         timeout_ms: z.number().int().optional(),
-      },
+      }),
     },
     ({ session_id, state, timeout_ms }) => {
       // ponytail: 55s default stays under the usual 60s MCP client per-call timeout
@@ -444,7 +443,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       title: '새 세션으로 넘기기',
       description: '지금 대화의 작업 맥락을 요약해 CLITrigger 새 세션의 첫 프롬프트로 넘깁니다.',
-      argsSchema: { instruction: z.string().optional().describe('새 세션이 이어서 할 일 (생략 시 남은 작업 전체)') },
+      argsSchema: z.object({ instruction: z.string().optional().describe('새 세션이 이어서 할 일 (생략 시 남은 작업 전체)') }),
     },
     ({ instruction }) => userPrompt(`지금까지 이 대화에서 한 작업을 CLITrigger의 새 세션으로 넘겨줘. 새 세션은 이 대화를 모르므로 아래 요약만 읽고 바로 이어서 작업할 수 있어야 해.
 
@@ -468,7 +467,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       title: '병렬 작업으로 나누기',
       description: '지금 대화에서 남은 작업을 서로 독립된 자동 작업(TODO) 여러 개로 나눠 CLITrigger에 만듭니다.',
-      argsSchema: { scope: z.string().optional().describe('나눌 작업 범위 (생략 시 남은 작업 전체)') },
+      argsSchema: z.object({ scope: z.string().optional().describe('나눌 작업 범위 (생략 시 남은 작업 전체)') }),
     },
     ({ scope }) => userPrompt(`지금 대화에서 남은 작업을 CLITrigger 자동 작업(TODO) 여러 개로 나눠 만들어줘. 각 작업은 이 대화를 모르는 CLI가 따로 실행한다. 보통 프로젝트 path 저장소의 현재 HEAD에서 갈라진 새 git worktree에서 돈다.
 
@@ -494,7 +493,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       title: '문서로 남기기',
       description: '지금 대화에서 얻은 결정·함정·관례를 CLITrigger 프로젝트 문서(.clitrigger/wiki)로 정리합니다.',
-      argsSchema: { topic: z.string().optional().describe('남길 주제 (생략 시 대화에서 고름)') },
+      argsSchema: z.object({ topic: z.string().optional().describe('남길 주제 (생략 시 대화에서 고름)') }),
     },
     ({ topic }) => userPrompt(`지금 대화에서 앞으로의 작업에도 쓸모 있는 지식을 CLITrigger 프로젝트 문서로 남겨줘. 프로젝트 문서는 이후 자동 작업에 장기 기억으로 주입될 수 있다.
 
@@ -525,7 +524,7 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '프로젝트 문서(Vault)에 앱이 붙인 태그와 태그 색을 반환합니다: { files: { 경로: [태그...] }, colors: { 태그: "#rrggbb" } }. md 파일 안의 frontmatter tags·#태그는 여기에 없고 파일에서 바로 읽힙니다.',
-      inputSchema: { project_id: z.string() },
+      inputSchema: z.object({ project_id: z.string() }),
     },
     ({ project_id }) => run(() => callApi(baseUrl, token, 'GET', `/api/projects/${project_id}/vault/tags`)),
   );
@@ -535,11 +534,11 @@ function buildServer(baseUrl: string): McpServer {
     {
       description:
         '프로젝트 문서(Vault) 파일 하나의 태그를 정합니다. 태그는 CLITrigger DB에 저장되고 파일은 바뀌지 않아 html·pdf에도 붙일 수 있습니다. 그 파일의 기존 앱 태그를 통째로 바꾸므로, 유지하려면 list_vault_tags로 확인해 합쳐서 보내세요(빈 배열이면 모두 지움). 첫 태그가 대표 태그로 문서 그래프의 노드 색과 묶음 기준입니다. path는 프로젝트 path 기준 상대 경로이고 파일이 있어야 합니다. 프로젝트에 연결한 외부 문서 폴더의 파일은 @별칭/상대경로로 적고(list_vault_tags에 보이는 형식), 그 태그는 같은 폴더를 연결한 모든 프로젝트가 함께 씁니다. 폴더 경로를 주면 그 폴더 자체의 태그가 되어 문서 그래프의 폴더 노드 색이 됩니다.',
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         path: z.string(),
         tags: z.array(z.string()),
-      },
+      }),
     },
     ({ project_id, path, tags }) =>
       run(() => callApi(baseUrl, token, 'PUT', `/api/projects/${project_id}/vault/tags/file`, {
@@ -552,11 +551,11 @@ function buildServer(baseUrl: string): McpServer {
     'set_vault_tag_color',
     {
       description: '문서 그래프에서 태그의 색을 정합니다. 프로젝트 전체에서 그 태그 이름에 적용됩니다. 색을 정하지 않은 태그는 이름으로 자동 색이 정해집니다.',
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string(),
         tag: z.string(),
         color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-      },
+      }),
     },
     ({ project_id, ...body }) =>
       run(() => callApi(baseUrl, token, 'PUT', `/api/projects/${project_id}/vault/tags/color`, body)),
@@ -617,17 +616,12 @@ export function mountMcp(app: Express): void {
     // Loopback target = the actual bound port (server may have retried past
     // EADDRINUSE), taken from the incoming connection.
     const baseUrl = `http://127.0.0.1:${req.socket.localPort}`;
-    const server = buildServer(baseUrl);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-    res.on('close', () => {
-      transport.close();
-      server.close();
-    });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    // One factory serves both protocol eras: 2026-07-28 clients (Claude Code)
+    // and the 2025 initialize handshake (Codex, Antigravity) through the SDK's
+    // stateless legacy fallback.
+    const handler = createMcpHandler(() => buildServer(baseUrl), { responseMode: 'json' });
+    res.on('close', () => { void handler.close(); });
+    await toNodeHandler(handler)(req, res, req.body);
   });
 
   // Stateless server: no SSE stream (GET) or session teardown (DELETE).
