@@ -13,9 +13,9 @@ CLITrigger의 MCP 서버(`src/server/mcp/`)가 쓰는 SDK를 올린다. SDK는 �
 
 ## 현재 상태
 
-- 브랜치: `!git branch --show-current`
-- 작업 트리: `!git status --short`
-- 설치된 버전: `!node -p "['server','node','client'].map(p=>p+' '+require('./node_modules/@modelcontextprotocol/'+p+'/package.json').version).join(', ')"`
+- 브랜치: !`git branch --show-current`
+- 작업 트리: !`git status --short`
+- 설치된 버전: !`node -p "['server','node','client'].map(p=>p+' '+require('./node_modules/@modelcontextprotocol/'+p+'/package.json').version).join(', ')"`
 
 ## 1단계: 새 버전 확인
 

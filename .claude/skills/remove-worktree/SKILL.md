@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 ## Current context
 
-- Worktree list: `!git worktree list --porcelain`
+- Worktree list: !`git worktree list --porcelain`
 
 ## Instructions
 

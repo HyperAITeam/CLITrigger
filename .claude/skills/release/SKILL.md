@@ -11,10 +11,10 @@ Bump `package.json` version, commit, and create a git tag for npm release.
 
 ## Current context
 
-- Current branch: `!git branch --show-current`
-- Working tree status: `!git status --short`
-- Current version: `!node -p "require('./package.json').version"`
-- Recent tags: `!git tag --sort=-v:refname | head -5`
+- Current branch: !`git branch --show-current`
+- Working tree status: !`git status --short`
+- Current version: !`node -p "require('./package.json').version"`
+- Recent tags: !`git tag --sort=-v:refname | head -5`
 
 ## Instructions
 

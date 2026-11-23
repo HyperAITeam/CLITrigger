@@ -11,10 +11,10 @@ Squash-merge the current worktree branch back into the target branch with a comp
 
 ## Current context
 
-- Git dir: `!git rev-parse --git-dir`
-- Current branch: `!git branch --show-current`
-- Recent commits: `!git log --oneline -20`
-- Working tree status: `!git status --short`
+- Git dir: !`git rev-parse --git-dir`
+- Current branch: !`git branch --show-current`
+- Recent commits: !`git log --oneline -20`
+- Working tree status: !`git status --short`
 
 ## Instructions
 
