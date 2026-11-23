@@ -6,7 +6,8 @@ on:
 
 jobs:
   claude-review:
-    # Dependabot PRs get no secrets (the review would fail anyway), and their
+    # Dependabot PRs (security updates can still be switched on in the repo
+    # settings) get no secrets, so the review would fail anyway, and their
     # `npm ci` would run a freshly published package's install scripts on this
     # self-hosted machine. Fork PRs are skipped for the same reason: their
     # package.json is the PR author's.
