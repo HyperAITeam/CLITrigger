@@ -6,7 +6,10 @@ on:
 
 jobs:
   claude-review:
-    if: github.event.pull_request.draft == false
+    # Dependabot PRs get no secrets (the review would fail anyway), and their
+    # `npm ci` would run a freshly published package's install scripts on this
+    # self-hosted machine.
+    if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
     runs-on: self-hosted
     permissions:
       contents: read

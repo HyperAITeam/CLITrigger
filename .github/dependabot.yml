@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Weekly PRs for the MCP SDK only; CI runs the MCP tests on each PR.
+  # Merge by hand: major versions need code changes.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Malicious releases are usually pulled within days; only propose a
+    # version once it has been public for a week.
+    cooldown:
+      default-days: 7
+    allow:
+      - dependency-name: "@modelcontextprotocol/*"
+    groups:
+      mcp-sdk:
+        patterns: ["@modelcontextprotocol/*"]
