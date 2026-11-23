@@ -49,7 +49,7 @@ clitrigger-plugin.zip
 .clitrigger/
 
 # Electron build output
-release/
+/release/
 
 # TODO attachment images the orchestrator copies into the work dir (see orchestrator.ts)
 .task-images/
