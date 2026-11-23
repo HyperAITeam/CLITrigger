@@ -5,6 +5,7 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import { Client } from '@modelcontextprotocol/client';
 import { getSetting } from '../db/app-settings.js';
 import { matchesMcpToken } from '../middleware/auth.js';
+import { TASKS_EXTENSION, clientSupportsTasks, registerTaskHandlers, startTask } from './tasks.js';
 
 // CLITrigger's MCP server. Tools are thin wrappers over the app's own REST API,
 // called back over loopback — so they reuse the stable HTTP contract (and its
@@ -22,6 +23,7 @@ async function callApi(
   method: string,
   apiPath: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<ApiResult> {
   const res = await fetch(`${baseUrl}${apiPath}`, {
     method,
@@ -30,6 +32,7 @@ async function callApi(
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
   const text = await res.text();
   let data: unknown = null;
@@ -61,7 +64,11 @@ async function run(fn: () => Promise<ApiResult>) {
 function buildServer(baseUrl: string): McpServer {
   const token = getSetting('mcp.token') || '';
   // Version of the MCP tool interface, independent of the app version.
-  const server = new McpServer({ name: 'clitrigger', version: '1.0.0' });
+  const server = new McpServer(
+    { name: 'clitrigger', version: '1.0.0' },
+    { capabilities: { extensions: { [TASKS_EXTENSION]: {} } } },
+  );
+  registerTaskHandlers(server);
 
   server.registerTool(
     'list_projects',
@@ -414,17 +421,28 @@ function buildServer(baseUrl: string): McpServer {
     'wait_session_state',
     {
       description:
-        '세션의 agent_state가 지정 상태가 될 때까지(또는 프로세스가 끝날 때까지) 대기합니다. timeout_ms 기본 55000, 최대 600000. 타임아웃이어도 200으로 { matched: false, status, agent_state }를 돌려주므로 matched가 true가 될 때까지 반복 호출하세요.',
+        '세션의 agent_state가 지정 상태가 될 때까지(또는 프로세스가 끝날 때까지) 대기합니다. 결과는 { matched, status, agent_state }입니다. MCP tasks를 지원하는 클라이언트에서는 백그라운드 작업으로 실행되어 timeout_ms(기본 30분, 최대 60분) 동안 기다리므로 한 번만 호출하면 됩니다. 그 밖의 클라이언트에서는 timeout_ms 기본 55000, 최대 600000이고, 타임아웃이어도 matched: false로 돌려주므로 matched가 true가 될 때까지 반복 호출하세요.',
       inputSchema: z.object({
         session_id: z.string(),
         state: z.enum(['blocked', 'done', 'idle']),
         timeout_ms: z.number().int().optional(),
       }),
     },
-    ({ session_id, state, timeout_ms }) => {
-      // ponytail: 55s default stays under the usual 60s MCP client per-call timeout
-      const query = new URLSearchParams({ state, timeout: String(timeout_ms ?? 55_000) });
-      return run(() => callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}/wait?${query}`));
+    ({ session_id, state, timeout_ms }, ctx) => {
+      // ponytail: 55s (the default, and each task-mode chunk) stays under the usual 60s MCP client per-call timeout
+      const waitOnce = (timeout: number, signal?: AbortSignal) =>
+        callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}/wait?${new URLSearchParams({ state, timeout: String(timeout) })}`, undefined, signal);
+      if (!clientSupportsTasks(ctx.mcpReq.envelope)) return run(() => waitOnce(timeout_ms ?? 55_000));
+      const deadline = Date.now() + Math.min(timeout_ms ?? 30 * 60_000, 60 * 60_000);
+      const task = startTask((signal) => run(async () => {
+        for (;;) {
+          const result = await waitOnce(Math.min(55_000, Math.max(0, deadline - Date.now())), signal);
+          const data = result.data as { matched?: boolean; status?: string | null } | null;
+          if (!result.ok || data?.matched || data?.status !== 'running' || Date.now() >= deadline) return result;
+        }
+      }));
+      // The SDK's ToolCallback type predates the tasks extension; the runtime passes resultType 'task' through.
+      return task as unknown as { content: [] };
     },
   );
 

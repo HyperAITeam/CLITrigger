@@ -13,6 +13,7 @@ const TOKEN = 'test-mcp-token-abc';
 let server: Server;
 let mcpUrl: URL;
 let lastCreatedSessionBody: unknown;
+const waitCalls: string[] = [];
 
 beforeAll(async () => {
   setSetting('mcp.token', TOKEN);
@@ -38,6 +39,13 @@ beforeAll(async () => {
   });
   app.post('/api/projects/:id/todos', (req, res) => {
     res.json({ id: req.params.id, body: req.body });
+  });
+  // 's-slow' matches on the second wait call; 's-never' never matches.
+  app.get('/api/sessions/:id/wait', (req, res) => {
+    waitCalls.push(req.params.id);
+    const calls = waitCalls.filter((id) => id === req.params.id).length;
+    const matched = req.params.id === 's-slow' && calls >= 2;
+    setTimeout(() => res.json({ matched, status: 'running', agent_state: matched ? 'blocked' : 'working' }), 20);
   });
   app.get('/api/sessions/:id/output', (req, res) => {
     res.json({ id: req.params.id, query: req.query });
@@ -258,6 +266,81 @@ describe('MCP endpoint', () => {
     expect(listed.result.tools.some((tool: { name: string }) => tool.name === 'create_todo')).toBe(true);
     const called = await post({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_projects', arguments: {} } });
     expect(called.result.content[0].text).toContain('demo');
+  });
+
+  describe('MCP tasks (2026-07-28 extension)', () => {
+    // Shaped like Claude Code's requests: the per-request _meta envelope.
+    const modernPost = async (id: number, method: string, params: Record<string, unknown>, withTasks: boolean) => {
+      const res = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': method,
+          // The 2026-07-28 transport mirrors params.name / params.taskId into Mcp-Name.
+          ...(params.name ?? params.taskId ? { 'Mcp-Name': String(params.name ?? params.taskId) } : {}),
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id, method,
+          params: {
+            ...params,
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientInfo': { name: 'claude-code', version: '0' },
+              'io.modelcontextprotocol/clientCapabilities': withTasks ? { extensions: { 'io.modelcontextprotocol/tasks': {} } } : {},
+            },
+          },
+        }),
+      });
+      return res.json();
+    };
+    const pollUntilSettled = async (taskId: string) => {
+      for (let i = 0; i < 100; i++) {
+        const { result } = await modernPost(100 + i, 'tasks/get', { taskId }, true);
+        if (result.status !== 'working') return result;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error('task never settled');
+    };
+
+    it('advertises the tasks extension in server/discover', async () => {
+      const { result } = await modernPost(1, 'server/discover', {}, true);
+      expect(result.capabilities.extensions).toHaveProperty(['io.modelcontextprotocol/tasks']);
+    });
+
+    it('wait_session_state returns a task to a declaring client and keeps waiting until the state matches', async () => {
+      const created = await modernPost(2, 'tools/call', { name: 'wait_session_state', arguments: { session_id: 's-slow', state: 'blocked' } }, true);
+      expect(created.result).toMatchObject({ resultType: 'task', status: 'working', ttlMs: expect.any(Number) });
+      expect(created.result.taskId).toEqual(expect.any(String));
+      expect(created.result.createdAt).toEqual(expect.any(String));
+      expect(created.result.lastUpdatedAt).toEqual(expect.any(String));
+
+      const settled = await pollUntilSettled(created.result.taskId);
+      expect(settled.status).toBe('completed');
+      expect(settled.resultType).toBe('complete');
+      expect(JSON.parse(settled.result.content[0].text)).toMatchObject({ matched: true });
+      expect(waitCalls.filter((id) => id === 's-slow')).toHaveLength(2);
+    });
+
+    it('wait_session_state answers directly when the client did not declare tasks', async () => {
+      const { result } = await modernPost(3, 'tools/call', { name: 'wait_session_state', arguments: { session_id: 's-never', state: 'blocked', timeout_ms: 10 } }, false);
+      expect(result.resultType).toBe('complete');
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ matched: false });
+    });
+
+    it('tasks/cancel stops a running task', async () => {
+      const created = await modernPost(4, 'tools/call', { name: 'wait_session_state', arguments: { session_id: 's-never', state: 'blocked' } }, true);
+      const cancelled = await modernPost(5, 'tasks/cancel', { taskId: created.result.taskId }, true);
+      expect(cancelled.result.resultType).toBe('complete');
+      const { result } = await modernPost(6, 'tasks/get', { taskId: created.result.taskId }, true);
+      expect(result.status).toBe('cancelled');
+      const missing = await modernPost(7, 'tasks/get', { taskId: 'nope' }, true);
+      expect(missing.error.code).toBe(-32602);
+      const undeclared = await modernPost(8, 'tasks/get', { taskId: created.result.taskId }, false);
+      expect(undeclared.error.code).toBe(-32021);
+    });
   });
 
   it('calls list_projects and returns loopback API data', async () => {
