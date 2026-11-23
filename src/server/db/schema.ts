@@ -483,6 +483,9 @@ export function initDatabase(db: Database.Database): void {
     // Doc folders outside the project shown in the Documents tab: JSON array of
     // { alias, path }, NULL = none. See services/vault-roots.ts.
     { table: 'projects', column: 'vault_links', definition: 'TEXT' },
+    // Review queue "mark reviewed": hidden from the queue/badge while set.
+    // Any status change (re-run) clears it so a new result resurfaces.
+    { table: 'todos', column: 'review_dismissed_at', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of migrations) {

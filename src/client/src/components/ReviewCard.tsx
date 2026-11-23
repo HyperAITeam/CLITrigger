@@ -17,6 +17,7 @@ interface ReviewCardProps {
   onApprove: () => Promise<void> | void;
   onContinue: (prompt: string) => Promise<void> | void;
   onDiscard: () => Promise<void> | void;
+  onDismiss: () => Promise<void> | void;
   busy: boolean;
 }
 
@@ -70,6 +71,7 @@ export default function ReviewCard({
   onApprove,
   onContinue,
   onDiscard,
+  onDismiss,
   busy,
 }: ReviewCardProps) {
   const { t } = useI18n();
@@ -233,9 +235,17 @@ export default function ReviewCard({
           </button>
         )}
         <button
+          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          disabled={busy}
+          className="btn-ghost text-xs px-3 py-1.5 ml-auto"
+          title={t('review.dismissHint')}
+        >
+          {t('review.dismiss')}
+        </button>
+        <button
           onClick={(e) => { e.stopPropagation(); onDiscard(); }}
           disabled={busy}
-          className="btn-ghost text-xs px-3 py-1.5 ml-auto text-status-error hover:text-status-error"
+          className="btn-ghost text-xs px-3 py-1.5 text-status-error hover:text-status-error"
         >
           {t('review.discard')}
         </button>

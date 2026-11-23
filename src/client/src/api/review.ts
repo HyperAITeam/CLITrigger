@@ -1,4 +1,4 @@
-import { get } from './client';
+import { get, post } from './client';
 import type { ReviewQueueResponse, ReviewSummary } from '../types';
 
 export interface ReviewQuery {
@@ -20,6 +20,10 @@ export function getReviewQueue(query: ReviewQuery = {}): Promise<ReviewQueueResp
 
 export function getReviewSummary(query: ReviewQuery = {}): Promise<ReviewSummary> {
   return get(`/api/review/summary${buildQuery(query)}`);
+}
+
+export function dismissReviewItems(ids: string[]): Promise<{ dismissed: number }> {
+  return post('/api/review/dismiss', { ids });
 }
 
 export interface ReviewDiffFile {

@@ -308,6 +308,27 @@ describe('Database Queries', () => {
         total: 0, running: 0, completed: 0, running_sessions: 0, running_discussions: 0,
       });
     });
+
+    it('hides dismissed review items until the todo changes status again', () => {
+      const project = queries.createProject('R', '/tmp/r-' + Date.now());
+      const a = queries.createTodo(project.id, 'A');
+      const b = queries.createTodo(project.id, 'B');
+      queries.updateTodoStatus(a.id, 'completed');
+      queries.updateTodoStatus(b.id, 'completed');
+      const since = new Date(Date.now() - 60_000).toISOString();
+      const ids = () => queries.getReviewQueue(since, ['completed']).map((t) => t.id).sort();
+
+      expect(queries.dismissReviewItems([a.id])).toBe(1);
+      expect(ids()).toEqual([b.id]);
+      expect(queries.getReviewSummary(since, ['completed']).total_todos).toBe(1);
+
+      queries.updateTodo(a.id, { worktree_path: null });
+      expect(ids()).toEqual([b.id]);
+
+      queries.updateTodoStatus(a.id, 'running');
+      queries.updateTodoStatus(a.id, 'completed');
+      expect(ids()).toEqual([a.id, b.id].sort());
+    });
   });
 });
 

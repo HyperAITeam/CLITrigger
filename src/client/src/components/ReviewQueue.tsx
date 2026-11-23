@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Inbox, RefreshCw, X } from 'lucide-react';
+import { CheckCheck, Inbox, RefreshCw, X } from 'lucide-react';
 import type { ReviewItem, ReviewSummary, TaskLog } from '../types';
 import * as reviewApi from '../api/review';
 import * as todosApi from '../api/todos';
@@ -166,6 +166,24 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
     }
   }, [t, confirm, toastError]);
 
+  // Hide from the queue only — the todo and its branch stay in the project.
+  const handleDismiss = useCallback(async (targets: ReviewItem[]) => {
+    try {
+      await reviewApi.dismissReviewItems(targets.map((i) => i.id));
+      window.dispatchEvent(new Event('review:changed'));
+      load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toastError(`${t('review.dismissFailed')}: ${msg}`);
+    }
+  }, [load, t, toastError]);
+
+  const handleDismissAll = async () => {
+    const message = t('review.dismissAllConfirm').replace('{n}', String(filtered.length));
+    if (!(await confirm({ message }))) return;
+    handleDismiss(filtered);
+  };
+
   const handleOpen = useCallback(async (item: ReviewItem) => {
     setOpenItem(item);
     setOpenLogs([]);
@@ -229,14 +247,25 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
               {t('review.subtitle')}
             </p>
           </div>
-          <button
-            onClick={load}
-            className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
-            disabled={loading}
-          >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            {t('review.refresh')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDismissAll}
+              className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+              disabled={filtered.length === 0}
+              title={t('review.dismissHint')}
+            >
+              <CheckCheck size={12} />
+              {t('review.dismissAll')}
+            </button>
+            <button
+              onClick={load}
+              className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+              disabled={loading}
+            >
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              {t('review.refresh')}
+            </button>
+          </div>
         </div>
 
         {/* Cost ribbon */}
@@ -342,6 +371,7 @@ export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
                   onApprove={() => handleApprove(item)}
                   onContinue={(p) => handleContinue(item, p)}
                   onDiscard={() => handleDiscard(item)}
+                  onDismiss={() => handleDismiss([item])}
                   busy={!!busyMap[item.id]}
                 />
                 </div>

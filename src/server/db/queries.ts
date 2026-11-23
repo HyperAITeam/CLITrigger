@@ -264,7 +264,7 @@ export function updateTodo(id: string, updates: Partial<Pick<Todo, 'title' | 'de
 
 export function updateTodoStatus(id: string, status: string): Todo | undefined {
   const db = getDatabase();
-  db.prepare('UPDATE todos SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), id);
+  db.prepare('UPDATE todos SET status = ?, updated_at = ?, review_dismissed_at = NULL WHERE id = ?').run(status, new Date().toISOString(), id);
   return getTodoById(id);
 }
 
@@ -1774,8 +1774,19 @@ export function getReviewQueue(sinceIso: string, statuses: string[]): ReviewQueu
        JOIN projects p ON p.id = t.project_id
       WHERE t.status IN (${placeholders})
         AND t.updated_at >= ?
+        AND t.review_dismissed_at IS NULL
       ORDER BY t.updated_at DESC`
   ).all(...statuses, sinceIso) as ReviewQueueRow[];
+}
+
+export function dismissReviewItems(ids: string[]): number {
+  if (ids.length === 0) return 0;
+  const db = getDatabase();
+  const placeholders = ids.map(() => '?').join(',');
+  // Leaves updated_at alone so the todo keeps its place in project views.
+  return db.prepare(
+    `UPDATE todos SET review_dismissed_at = ? WHERE id IN (${placeholders})`
+  ).run(new Date().toISOString(), ...ids).changes;
 }
 
 export interface ReviewSummary {
@@ -1798,12 +1809,12 @@ export function getReviewSummary(sinceIso: string, statuses: string[]): ReviewSu
             COALESCE(SUM(total_cost_usd), 0) AS cost,
             COALESCE(SUM(total_tokens), 0) AS tokens
        FROM todos
-      WHERE status IN (${placeholders}) AND updated_at >= ?`
+      WHERE status IN (${placeholders}) AND updated_at >= ? AND review_dismissed_at IS NULL`
   ).get(...statuses, sinceIso) as { n: number; cost: number; tokens: number };
 
   const byStatusRows = db.prepare(
     `SELECT status, COUNT(*) AS n FROM todos
-      WHERE status IN (${placeholders}) AND updated_at >= ?
+      WHERE status IN (${placeholders}) AND updated_at >= ? AND review_dismissed_at IS NULL
       GROUP BY status`
   ).all(...statuses, sinceIso) as Array<{ status: string; n: number }>;
   const by_status: Record<string, number> = {};
@@ -1816,7 +1827,7 @@ export function getReviewSummary(sinceIso: string, statuses: string[]): ReviewSu
             COALESCE(SUM(t.total_tokens), 0) AS total_tokens
        FROM todos t
        JOIN projects p ON p.id = t.project_id
-      WHERE t.status IN (${placeholders}) AND t.updated_at >= ?
+      WHERE t.status IN (${placeholders}) AND t.updated_at >= ? AND t.review_dismissed_at IS NULL
       GROUP BY COALESCE(t.cli_tool, p.cli_tool, 'claude')
       ORDER BY total_tokens DESC`
   ).all(...statuses, sinceIso) as Array<{ cli_tool: string; count: number; total_cost_usd: number; total_tokens: number }>;

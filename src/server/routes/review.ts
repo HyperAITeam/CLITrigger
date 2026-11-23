@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Router, Request, Response } from 'express';
-import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, type ReviewQueueRow } from '../db/queries.js';
+import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, dismissReviewItems, type ReviewQueueRow } from '../db/queries.js';
 import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 
 const router = Router();
@@ -60,6 +60,19 @@ router.get('/summary', (req: Request, res: Response) => {
     const statuses = parseStatuses(req);
     const summary = getReviewSummary(since, statuses);
     res.json({ since, statuses, ...summary });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+router.post('/dismiss', (req: Request, res: Response) => {
+  const ids: unknown = req.body?.ids;
+  if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) {
+    return res.status(400).json({ error: 'ids must be a string array' });
+  }
+  try {
+    res.json({ dismissed: dismissReviewItems(ids) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
