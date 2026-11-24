@@ -7,6 +7,7 @@
 // has read them.
 
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -28,6 +29,17 @@ export async function writeImageToClipboard(buffer: Buffer): Promise<void> {
 }
 
 function writeForPlatform(buffer: Buffer): Promise<void> {
+  // Desktop app: the server runs in the Electron main process, so write via
+  // Chromium's clipboard (~30ms) instead of spawning a child. On Windows a
+  // freshly spawned PowerShell intermittently stalled >10s before its host
+  // even started, timing out every paste for minutes at a time.
+  if (process.versions.electron && (process as { type?: string }).type === 'browser') {
+    const { clipboard, nativeImage } = createRequire(import.meta.url)('electron');
+    const image = nativeImage.createFromBuffer(buffer);
+    if (image.isEmpty()) return Promise.reject(new Error('Unsupported image data'));
+    clipboard.writeImage(image);
+    return Promise.resolve();
+  }
   if (process.platform === 'win32') return writeWin32(buffer);
   if (process.platform === 'darwin') return writeMac(buffer);
   return writeLinux(buffer);
