@@ -37,6 +37,8 @@ function writeWin32(buffer: Buffer): Promise<void> {
   // PowerShell reads base64 from stdin → MemoryStream → Image → SetImage.
   // Stays in memory; no temp file touches disk.
   const script = [
+    // UTF-8 stderr so the error message survives on non-English Windows (CP949 etc.)
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "$ErrorActionPreference = 'Stop'",
     "Add-Type -AssemblyName System.Windows.Forms",
     "Add-Type -AssemblyName System.Drawing",
