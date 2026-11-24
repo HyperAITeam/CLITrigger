@@ -97,6 +97,10 @@ function runChild(cmd: string, args: string[], stdin: string | Buffer | null, op
       reject(new Error(`${cmd} timed out after ${SPAWN_TIMEOUT_MS}ms`));
     }, SPAWN_TIMEOUT_MS);
     proc.on('error', err => { clearTimeout(timer); reject(err); });
+    // Child exiting before draining stdin (startup failure, timeout kill) makes the
+    // pending write fail with EOF/EPIPE; unhandled, that crashes the Electron main
+    // process. 'close' still rejects with the exit code + stderr.
+    proc.stdin.on('error', () => {});
     proc.on('close', code => {
       clearTimeout(timer);
       if (code === 0) resolve();
