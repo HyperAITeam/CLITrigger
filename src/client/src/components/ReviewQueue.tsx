@@ -16,7 +16,7 @@ interface ReviewQueueProps {
 }
 
 type WindowHours = 12 | 24 | 168;
-type FilterMode = 'all' | 'risky' | 'quickWins' | 'failed';
+type FilterMode = 'all' | 'completed' | 'failed' | 'stopped';
 
 const WINDOWS: Array<{ hours: WindowHours; key: string }> = [
   { hours: 12, key: 'review.window.12h' },
@@ -26,9 +26,9 @@ const WINDOWS: Array<{ hours: WindowHours; key: string }> = [
 
 const FILTERS: Array<{ id: FilterMode; key: string }> = [
   { id: 'all', key: 'review.filter.all' },
-  { id: 'risky', key: 'review.filter.risky' },
-  { id: 'quickWins', key: 'review.filter.quickWins' },
-  { id: 'failed', key: 'review.filter.failed' },
+  { id: 'completed', key: 'status.completed' },
+  { id: 'failed', key: 'status.failed' },
+  { id: 'stopped', key: 'status.stopped' },
 ];
 
 function formatTokens(n: number): string {
@@ -39,16 +39,7 @@ function formatTokens(n: number): string {
 }
 
 function applyFilter(items: ReviewItem[], filter: FilterMode): ReviewItem[] {
-  switch (filter) {
-    case 'all':
-      return items;
-    case 'risky':
-      return items.filter((i) => i.risk === 'high' || i.status === 'failed');
-    case 'quickWins':
-      return items.filter((i) => i.risk === 'low' && i.status === 'completed' && (i.total_cost_usd ?? 0) < 1);
-    case 'failed':
-      return items.filter((i) => i.status === 'failed' || i.status === 'stopped');
-  }
+  return filter === 'all' ? items : items.filter((i) => i.status === filter);
 }
 
 export default function ReviewQueue({ onEvent }: ReviewQueueProps) {
