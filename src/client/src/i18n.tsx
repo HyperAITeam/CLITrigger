@@ -1801,7 +1801,7 @@ const translations = {
     'review.window.7d': '7일',
     'review.filter.all': '전체',
     'review.filter.risky': '위험',
-    'review.filter.quickWins': 'Quick wins',
+    'review.filter.quickWins': '빠른 승인',
     'review.filter.failed': '실패',
     'review.risk.low': '낮은 위험',
     'review.risk.medium': '중간 위험',
