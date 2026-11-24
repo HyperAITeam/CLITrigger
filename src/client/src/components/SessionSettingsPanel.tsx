@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitBranch, Type, Bug } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitBranch, Type, Bug, Gauge } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDialog } from '../hooks/useDialog';
 import { useToast } from '../hooks/useToast';
@@ -40,6 +40,8 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   const [savingImeDebug, setSavingImeDebug] = useState(false);
   const [pasteDebug, setPasteDebug] = useState(false);
   const [savingPasteDebug, setSavingPasteDebug] = useState(false);
+  const [usageWidget, setUsageWidget] = useState(true);
+  const [savingUsageWidget, setSavingUsageWidget] = useState(false);
   const fontSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [newName, setNewName] = useState('');
@@ -72,6 +74,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         setGlobalDefaultFontSize(settings.defaultFontSize);
         setImeDebug(settings.imeDebug);
         setPasteDebug(settings.pasteDebug);
+        setUsageWidget(settings.usageWidget);
         setNewColor(pickPaletteColor(tagList));
         setAliases(aliasList);
         setLoaded(true);
@@ -148,6 +151,20 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       toastError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSavingPasteDebug(false);
+    }
+  };
+
+  const handleToggleUsageWidget = async (next: boolean) => {
+    setSavingUsageWidget(true);
+    try {
+      const updated = await settingsApi.updateSessionSettings({ usageWidget: next });
+      setUsageWidget(updated.usageWidget);
+      window.dispatchEvent(new Event('usage-widget:changed'));
+      toastSuccess(t('sessionSettings.saved'));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingUsageWidget(false);
     }
   };
 
@@ -318,6 +335,26 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         </div>
         <p className="mt-1 text-2xs" style={{ color: 'var(--color-text-muted)' }}>
           {t('sessionSettings.fontSize.hint')}
+        </p>
+      </section>
+
+      <section className="mb-7">
+        <h3 className="text-sm font-semibold text-warm-700 mb-2 flex items-center gap-1.5">
+          <Gauge size={14} />
+          {t('sessionSettings.usageWidget.title')}
+        </h3>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={usageWidget}
+            disabled={savingUsageWidget || !loaded}
+            onChange={(e) => handleToggleUsageWidget(e.target.checked)}
+            className="rounded-md border-warm-300"
+          />
+          <span className="text-sm text-warm-600">{t('sessionSettings.usageWidget.label')}</span>
+        </label>
+        <p className="mt-1 text-2xs ml-6" style={{ color: 'var(--color-text-muted)' }}>
+          {t('sessionSettings.usageWidget.hint')}
         </p>
       </section>
 

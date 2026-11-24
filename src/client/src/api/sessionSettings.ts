@@ -5,6 +5,7 @@ export interface SessionSettings {
   defaultFontSize: number;
   imeDebug: boolean;
   pasteDebug: boolean;
+  usageWidget: boolean;
 }
 
 export function getSessionSettings(): Promise<SessionSettings> {

@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { checkAllTools, clearCache } from '../services/cli-status.js';
 import { getAvailableShells } from '../services/cli-adapters.js';
 import { getCliUsage } from '../services/cli-usage.js';
+import { getSetting } from '../db/app-settings.js';
+import { KEY_USAGE_WIDGET } from './session-settings.js';
 
 const router = Router();
 
@@ -23,6 +25,11 @@ router.get('/shells', (_req: Request, res: Response) => {
 
 // GET /api/cli/usage - plan usage windows per CLI (server-cached 5 min; ?refresh=1 → 30s)
 router.get('/usage', async (req: Request, res: Response) => {
+  // Widget off (Settings → 터미널): empty snapshot, no Claude/Codex reads at all.
+  if (getSetting(KEY_USAGE_WIDGET) === '0') {
+    res.json({ claude: null, codex: null });
+    return;
+  }
   res.json(await getCliUsage(req.query.refresh === '1'));
 });
 

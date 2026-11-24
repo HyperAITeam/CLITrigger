@@ -7,6 +7,7 @@ const KEY_DEFAULT_USE_WORKTREE = 'session.default_use_worktree';
 const KEY_DEFAULT_FONT_SIZE = 'session.default_font_size';
 const KEY_IME_DEBUG = 'session.ime_debug';
 export const KEY_PASTE_DEBUG = 'session.paste_debug';
+export const KEY_USAGE_WIDGET = 'session.usage_widget'; // default on: only '0' hides it
 
 const FONT_MIN = 8;
 const FONT_MAX = 28;
@@ -17,6 +18,7 @@ interface SessionSettings {
   defaultFontSize: number;
   imeDebug: boolean;
   pasteDebug: boolean;
+  usageWidget: boolean;
 }
 
 function clampFontSize(n: number): number {
@@ -37,6 +39,7 @@ function readSettings(): SessionSettings {
     defaultFontSize: readFontSize(),
     imeDebug: getSetting(KEY_IME_DEBUG) === '1',
     pasteDebug: getSetting(KEY_PASTE_DEBUG) === '1',
+    usageWidget: getSetting(KEY_USAGE_WIDGET) !== '0',
   };
 }
 
@@ -62,6 +65,9 @@ router.put('/session-settings', (req: Request, res: Response) => {
     }
     if (req.body?.pasteDebug !== undefined) {
       setSetting(KEY_PASTE_DEBUG, req.body.pasteDebug ? '1' : '0');
+    }
+    if (req.body?.usageWidget !== undefined) {
+      setSetting(KEY_USAGE_WIDGET, req.body.usageWidget ? '1' : '0');
     }
     res.json(readSettings());
   } catch (err: unknown) {

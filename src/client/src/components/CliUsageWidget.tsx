@@ -39,7 +39,13 @@ export default function CliUsageWidget() {
   useEffect(() => {
     load(true);
     const timer = setInterval(() => load(false), REFRESH_MS);
-    return () => clearInterval(timer);
+    // Settings → 터미널 toggle: the server answers empty while off, so a reload hides/shows it.
+    const onToggle = () => load(true);
+    window.addEventListener('usage-widget:changed', onToggle);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('usage-widget:changed', onToggle);
+    };
   }, []);
 
   const rows = usage
