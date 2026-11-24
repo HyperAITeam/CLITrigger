@@ -38,6 +38,8 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
   const [loaded, setLoaded] = useState(false);
   const [savingWorktree, setSavingWorktree] = useState(false);
   const [savingImeDebug, setSavingImeDebug] = useState(false);
+  const [pasteDebug, setPasteDebug] = useState(false);
+  const [savingPasteDebug, setSavingPasteDebug] = useState(false);
   const fontSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [newName, setNewName] = useState('');
@@ -69,6 +71,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         setDefaultFontSize(settings.defaultFontSize);
         setGlobalDefaultFontSize(settings.defaultFontSize);
         setImeDebug(settings.imeDebug);
+        setPasteDebug(settings.pasteDebug);
         setNewColor(pickPaletteColor(tagList));
         setAliases(aliasList);
         setLoaded(true);
@@ -132,6 +135,19 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       toastError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSavingImeDebug(false);
+    }
+  };
+
+  const handleTogglePasteDebug = async (next: boolean) => {
+    setSavingPasteDebug(true);
+    try {
+      const updated = await settingsApi.updateSessionSettings({ pasteDebug: next });
+      setPasteDebug(updated.pasteDebug);
+      toastSuccess(t('sessionSettings.saved'));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingPasteDebug(false);
     }
   };
 
@@ -537,7 +553,7 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
       <section className="mt-7">
         <h3 className="text-sm font-semibold text-warm-700 mb-2 flex items-center gap-1.5">
           <Bug size={14} />
-          IME 디버그 로그
+          진단 로그
         </h3>
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -552,6 +568,20 @@ export default function SessionSettingsPanel({ onClose }: PanelProps) {
         <p className="mt-1 text-2xs ml-6" style={{ color: 'var(--color-text-muted)' }}>
           조합 창이 화면 좌상단에 뜨는 문제를 진단하기 위해 입력 시점 상태를 기록합니다.
           데스크톱 앱에서만 동작하며, 로그는 앱 데이터 폴더의 ime-debug.log에 저장됩니다.
+        </p>
+        <label className="mt-3 flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={pasteDebug}
+            disabled={savingPasteDebug || !loaded}
+            onChange={(e) => handleTogglePasteDebug(e.target.checked)}
+            className="rounded-md border-warm-300"
+          />
+          <span className="text-sm text-warm-600">이미지 붙여넣기 진단 로그 기록</span>
+        </label>
+        <p className="mt-1 text-2xs ml-6" style={{ color: 'var(--color-text-muted)' }}>
+          터미널에 이미지를 붙여넣을 때마다 세션 상태, 이미지 크기, 클립보드 쓰기 소요 시간과 실패 사유를 기록합니다.
+          로그는 앱 데이터 폴더의 paste-debug.log에 저장됩니다.
         </p>
       </section>
 

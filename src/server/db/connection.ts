@@ -9,10 +9,13 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 let db: Database.Database | null = null;
 
+export function getDatabasePath(): string {
+  return process.env.DB_PATH || path.join(PROJECT_ROOT, 'clitrigger.db');
+}
+
 export function getDatabase(): Database.Database {
   if (!db) {
-    const dbPath = process.env.DB_PATH || path.join(PROJECT_ROOT, 'clitrigger.db');
-    db = new Database(dbPath);
+    db = new Database(getDatabasePath());
     db.pragma('journal_mode = WAL');
     // WAL + NORMAL is crash-safe (a power loss can only drop the last few
     // commits). The default FULL fsyncs the WAL on every commit, and the

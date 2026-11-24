@@ -4,6 +4,7 @@ export interface SessionSettings {
   defaultUseWorktree: boolean;
   defaultFontSize: number;
   imeDebug: boolean;
+  pasteDebug: boolean;
 }
 
 export function getSessionSettings(): Promise<SessionSettings> {

@@ -8,6 +8,9 @@ import { sessionManager } from '../services/session-manager.js';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { worktreeManager } from '../services/worktree-manager.js';
 import { writeImageToClipboard } from '../services/clipboard-writer.js';
+import { getSetting } from '../db/app-settings.js';
+import { getDatabasePath } from '../db/connection.js';
+import { KEY_PASTE_DEBUG } from './session-settings.js';
 import { claudeManager } from '../services/claude-manager.js';
 import { getAdapter, getAvailableShells, type CliTool } from '../services/cli-adapters.js';
 import { createPtyFilterState, filterInteractivePtyOutput, stripAnsi } from '../services/pty-output-filter.js';
@@ -734,13 +737,30 @@ router.get('/sessions/:id/clipboard-image-path', (req: Request<{ id: string }>, 
 // shared OS clipboard (e.g. paste-B's write landing before paste-A's CLI
 // read fires, which would leak B's bitmap into A's [Image #N]). No file
 // is written to disk.
+// Settings → 터미널 → 진단 로그 toggle. JSON lines next to the DB
+// (userData in the desktop app, ~/.clitrigger for the npm CLI).
+function logPasteDebug(entry: Record<string, unknown>): void {
+  if (getSetting(KEY_PASTE_DEBUG) !== '1') return;
+  try {
+    fs.appendFileSync(
+      path.join(path.dirname(getDatabasePath()), 'paste-debug.log'),
+      `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`,
+    );
+  } catch { /* diagnostics must never break the paste */ }
+}
+
 router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, res: Response) => {
+  const startedAt = Date.now();
+  const debug: Record<string, unknown> = { sessionId: req.params.id };
   try {
     const session = queries.getSessionById(req.params.id);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
+    debug.cliTool = session.cli_tool;
+    debug.status = session.status;
+    debug.pid = session.process_pid;
     if (session.cli_tool === 'raw-shell') {
       res.status(400).json({ error: 'Image paste is only supported for AI CLI sessions' });
       return;
@@ -759,26 +779,34 @@ router.post('/sessions/:id/paste-image', async (req: Request<{ id: string }>, re
     }
 
     const buffer = Buffer.from(match[2], 'base64');
+    debug.mime = match[1];
+    debug.bytes = buffer.length;
     if (buffer.length > 10 * 1024 * 1024) {
       res.status(400).json({ error: 'Image exceeds 10MB limit' });
       return;
     }
 
     await writeImageToClipboard(buffer);
+    debug.clipboardMs = Date.now() - startedAt;
     // Mirror the websocket gate (`hasPendingPrompt`) so a paste during the
     // Send/Skip pre-flight banner doesn't leak ESC+v into a PTY that's
     // still waiting on the initial prompt.
+    debug.pendingPrompt = sessionManager.hasPendingPrompt(session.id);
+    debug.escV = false;
     if (
       session.process_pid &&
       session.status === 'running' &&
-      !sessionManager.hasPendingPrompt(session.id)
+      !debug.pendingPrompt
     ) {
-      claudeManager.writeStdinRaw(session.process_pid, '\x1bv');
+      debug.escV = claudeManager.writeStdinRaw(session.process_pid, '\x1bv');
     }
     res.json({ pasted: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    debug.error = message;
     res.status(500).json({ error: message });
+  } finally {
+    logPasteDebug({ ...debug, httpStatus: res.statusCode, ms: Date.now() - startedAt });
   }
 });
 
