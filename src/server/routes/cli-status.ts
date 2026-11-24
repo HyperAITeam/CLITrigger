@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { checkAllTools, clearCache } from '../services/cli-status.js';
 import { getAvailableShells } from '../services/cli-adapters.js';
+import { getCliUsage } from '../services/cli-usage.js';
 
 const router = Router();
 
@@ -18,6 +19,11 @@ router.get('/status', async (_req: Request, res: Response) => {
 // GET /api/cli/shells - shells offered in the session new-tab menu
 router.get('/shells', (_req: Request, res: Response) => {
   res.json(getAvailableShells().map(({ id, name }) => ({ id, name })));
+});
+
+// GET /api/cli/usage - plan usage windows per CLI (server-cached 5 min; ?refresh=1 → 30s)
+router.get('/usage', async (req: Request, res: Response) => {
+  res.json(await getCliUsage(req.query.refresh === '1'));
 });
 
 // POST /api/cli/status/refresh - force refresh (clear cache)

@@ -21,6 +21,7 @@ import GitStatusPanel from './GitStatusPanel';
 import SvnStatusPanel from './SvnStatusPanel';
 import DiscussionList from './DiscussionList';
 import SessionList from './SessionList';
+import CliUsageWidget from './CliUsageWidget';
 import SessionWindowsHost from './SessionWindowsHost';
 import PlannerWorkspace from './PlannerWorkspace';
 import WebPanel from './WebPanel';
@@ -963,6 +964,14 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
           onCleanupSession={handleCleanupSession}
           onReorderSessions={handleReorderSessions}
         />
+      )}
+      {activeTab === 'sessions' && (
+        <>
+          {/* Lets the last session card scroll clear of the fixed usage widget */}
+          <div className="hidden md:block h-16" aria-hidden />
+          {/* key: switching workspace remounts → immediate refresh */}
+          <CliUsageWidget key={id} />
+        </>
       )}
       {activeTab === 'automation' && automationSub === 'discussions' && id && (
         <DiscussionList

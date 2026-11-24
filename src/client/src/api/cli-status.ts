@@ -22,3 +22,11 @@ export function getShells(): Promise<ShellOption[]> {
 export function refreshCliStatus(): Promise<CliToolStatus[]> {
   return post('/api/cli/status/refresh');
 }
+
+export interface UsageWindow { percent: number; resetsAt: number }
+export interface CliUsage { fiveHour: UsageWindow | null; weekly: UsageWindow | null; updatedAt: number }
+export interface UsageSnapshot { claude: CliUsage | null; codex: CliUsage | null }
+
+export function getCliUsage(refresh = false): Promise<UsageSnapshot> {
+  return get(`/api/cli/usage${refresh ? '?refresh=1' : ''}`);
+}
