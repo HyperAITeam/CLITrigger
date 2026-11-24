@@ -23,3 +23,10 @@ export function collectLinkedPaths(edges: VaultEdge[], start: string): string[] 
   }
   return out;
 }
+
+// Default `@alias` for a linked doc folder (projects.vault_links): its folder
+// name, reduced to what the server accepts (letters, digits, _ . - ; max 40).
+export function linkAliasFromFolder(folderPath: string): string {
+  const folderName = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? '';
+  return folderName.replace(/[^\p{L}\p{N}_.-]+/gu, '-').slice(0, 40);
+}

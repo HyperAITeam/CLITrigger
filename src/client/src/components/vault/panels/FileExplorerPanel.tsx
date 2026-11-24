@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, Pin, PinOff, TerminalSquare, ListPlus, Square, SquareCheck,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, FolderSymlink, Pin, PinOff, TerminalSquare, ListPlus, Square, SquareCheck,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile, moveFile } from '../../../api/files';
 import type { FileEntry } from '../../../api/files';
+import { browseNativeFolder, getProject, updateProject } from '../../../api/projects';
 import { addPathToVaultIgnore, removePathFromVaultIgnore } from '../../../api/vault';
 import type { VaultEdge } from '../../../api/vault';
-import { collectLinkedPaths } from '../../../lib/vaultLinks';
+import { collectLinkedPaths, linkAliasFromFolder } from '../../../lib/vaultLinks';
+import CursorContextMenu, { ctxMenuItemClass } from '../../CursorContextMenu';
 import { useSessionWindowsOptional } from '../../SessionWindowsHost';
 import { useToast } from '../../../hooks/useToast';
 import { iconFor } from '../files-utils';
@@ -284,7 +286,7 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
+function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onLinkFolder, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
   state: ContextMenuState;
   projectId: string;
   // Path to copy: the real folder path for linked-folder entries.
@@ -293,6 +295,7 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
   onTogglePin: () => void;
   onHide: () => void;
   onUnhide: () => void;
+  onLinkFolder: () => void;
   onClose: () => void;
   // File-only actions; undefined onCreateTask hides that item.
   terminals: { sessionId: string; label: string }[];
@@ -549,6 +552,15 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
           <span>{t('files.hide')}</span>
         </button>
       )}
+      <div className="my-1 border-t border-warm-200" />
+      <button
+        type="button"
+        onClick={() => { onLinkFolder(); onClose(); }}
+        className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-warm-700 flex items-center gap-2"
+      >
+        <FolderSymlink className="w-3.5 h-3.5" />
+        <span>{t('files.linkFolder')}</span>
+      </button>
     </div>,
     document.body,
   );
@@ -581,6 +593,8 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     } catch { return []; }
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // Right-click on the header or empty space (not on a row).
+  const [backgroundMenu, setBackgroundMenu] = useState<{ x: number; y: number } | null>(null);
   // "Include linked docs" toggle for the send-to-terminal/task actions. Sticky
   // across right-clicks; the toggle row only shows when the target has links.
   const [includeLinks, setIncludeLinks] = useState(false);
@@ -683,6 +697,13 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     setContextMenu({ x: e.clientX, y: e.clientY, path: fullPath, entry });
   }, []);
 
+  // Rows preventDefault in handleContextMenu before the event bubbles here.
+  const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    setBackgroundMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
   const handleHide = useCallback(async (path: string, entry: FileEntry) => {
     try {
       await addPathToVaultIgnore(projectId, path, entry.type === 'directory');
@@ -718,7 +739,31 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     }
   }, [projectId, loadRoot, onVaultIgnoreChanged]);
 
-  const totalEntries = useMemo(() => rootEntries?.length ?? 0, [rootEntries]);
+  // Linked doc folders (`@alias`, projects.vault_links) come back in the root
+  // listing but are shown as their own section below the project tree.
+  const projectEntries = useMemo(() => rootEntries?.filter((e) => !e.linkPath) ?? null, [rootEntries]);
+  const linkedEntries = useMemo(() => rootEntries?.filter((e) => e.linkPath) ?? [], [rootEntries]);
+  const totalEntries = projectEntries?.length ?? 0;
+
+  // Pick a folder outside the project and link it as `@<folder name>`.
+  const handleLinkFolder = useCallback(async () => {
+    let picked: string | null;
+    try {
+      picked = (await browseNativeFolder()).path;
+    } catch { return; /* user cancelled */ }
+    if (!picked) return;
+    try {
+      // Append to the stored list, not the tree's copy — that is empty while the tree is loading or failed.
+      const stored = (await getProject(projectId)).vault_links;
+      const links: { alias: string; path: string }[] = stored ? JSON.parse(stored) : [];
+      await updateProject(projectId, { vault_links: JSON.stringify([...links, { alias: linkAliasFromFolder(picked), path: picked }]) });
+      await loadRoot();
+      onVaultIgnoreChanged?.();
+    } catch (err) {
+      // Rejected by the server (duplicate alias, overlaps the project folder) — say why.
+      if (err instanceof Error) toastError(err.message);
+    }
+  }, [projectId, loadRoot, onVaultIgnoreChanged, toastError]);
 
   // `@alias/...` paths of linked doc folders only mean something inside the
   // app; terminals and the clipboard get the real path.
@@ -743,6 +788,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           setDropTargetPath(null);
           if (from) handleMove(from, '');
         }}
+        onContextMenu={handleBackgroundContextMenu}
       >
         <span className="font-medium text-warm-700 truncate flex-1">{t('files.root')}</span>
         <span className="text-warm-400 shrink-0">{totalEntries}</span>
@@ -762,7 +808,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           <RefreshCw className={`w-3.5 h-3.5 ${rootLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto py-1">
+      <div className="flex-1 min-h-0 overflow-auto py-1" onContextMenu={handleBackgroundContextMenu}>
         <PinnedSection
           items={pinned}
           selectedPath={activeFile}
@@ -779,14 +825,14 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
             <AlertCircle className="w-3 h-3" /> {rootError}
           </div>
         )}
-        {rootEntries && rootEntries.length === 0 && !rootLoading && (
+        {projectEntries && projectEntries.length === 0 && !rootLoading && (
           <div className="text-xs text-warm-400 px-2 py-2">{t('files.empty')}</div>
         )}
-        {rootEntries && rootEntries.length > 0 && (
+        {projectEntries && projectEntries.length > 0 && (
           <TreeBranch
             projectId={projectId}
             parentPath=""
-            entries={rootEntries}
+            entries={projectEntries}
             depth={0}
             nodeStates={nodeStates}
             setNodeStates={setNodeStates}
@@ -799,7 +845,37 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
             setDropTargetPath={setDropTargetPath}
           />
         )}
+        {linkedEntries.length > 0 && (
+          <div className="mt-1 border-t border-warm-200 pt-1">
+            <div className="px-2 py-0.5 text-[10px] uppercase tracking-wider text-warm-400 font-medium">
+              {t('header.vaultLinksTitle')}
+            </div>
+            <TreeBranch
+              projectId={projectId}
+              parentPath=""
+              entries={linkedEntries}
+              depth={0}
+              nodeStates={nodeStates}
+              setNodeStates={setNodeStates}
+              showHidden={showHidden}
+              selectedPath={activeFile}
+              onSelect={handleSelect}
+              onContextMenu={handleContextMenu}
+              onMove={handleMove}
+              dropTargetPath={dropTargetPath}
+              setDropTargetPath={setDropTargetPath}
+            />
+          </div>
+        )}
       </div>
+      {backgroundMenu && (
+        <CursorContextMenu x={backgroundMenu.x} y={backgroundMenu.y} onClose={() => setBackgroundMenu(null)}>
+          <button type="button" className={ctxMenuItemClass} onClick={handleLinkFolder}>
+            <FolderSymlink className="w-3.5 h-3.5" />
+            <span>{t('files.linkFolder')}</span>
+          </button>
+        </CursorContextMenu>
+      )}
       {contextMenu && (
         <ContextMenu
           state={contextMenu}
@@ -809,6 +885,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onTogglePin={() => togglePin(contextMenu.path, contextMenu.entry)}
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
+          onLinkFolder={handleLinkFolder}
           onClose={() => setContextMenu(null)}
           linkedCount={linkedPaths.length}
           includeLinks={includeLinks}

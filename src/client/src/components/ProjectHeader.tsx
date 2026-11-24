@@ -14,6 +14,7 @@ import ProjectProcessesPanel from './ProjectProcessesPanel';
 import { Pencil, FolderOpen, Settings, BarChart3, RotateCcw, AlertTriangle, Terminal, GitBranch, X } from 'lucide-react';
 import IconButton from './IconButton';
 import { useToast } from '../hooks/useToast';
+import { linkAliasFromFolder } from '../lib/vaultLinks';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -90,12 +91,19 @@ export default function ProjectHeader({ project, todos, sessions, onProjectUpdat
     try {
       const { path } = await projectsApi.browseNativeFolder(vaultLinks[index].path || undefined);
       if (!path) return;
-      // Default the alias to the folder name (server allows letters, digits, _ . -).
-      const folderName = path.split(/[\\/]/).filter(Boolean).pop() ?? '';
-      const alias = vaultLinks[index].alias || folderName.replace(/[^\p{L}\p{N}_.-]+/gu, '-').slice(0, 40);
+      // Default the alias to the folder name.
+      const alias = vaultLinks[index].alias || linkAliasFromFolder(path);
       updateVaultLink(index, { path, alias });
     } catch { /* user cancelled */ }
   };
+  // The Documents tab's right-click menu also adds links, so re-read them when
+  // settings open — saving the list loaded at mount would drop those.
+  useEffect(() => {
+    if (!showSettings) return;
+    projectsApi.getProject(project.id)
+      .then((fresh) => setVaultLinks(fresh.vault_links ? JSON.parse(fresh.vault_links) : []))
+      .catch(() => { /* keep the list loaded at mount */ });
+  }, [showSettings, project.id]);
 
   // Default loop rule template: prefilled into new todos that turn the loop on
   const [loopDefaultsEnabled, setLoopDefaultsEnabled] = useState(!!parseLoopConfig(project.loop_defaults));
