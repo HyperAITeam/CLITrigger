@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Router, Request, Response } from 'express';
-import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, dismissReviewItems, type ReviewQueueRow } from '../db/queries.js';
+import { getReviewQueue, getReviewSummary, getTodoById, getProjectById, dismissReviewItems } from '../db/queries.js';
 import { createGit, resolveLocalBaseBranch } from '../lib/git.js';
 
 const router = Router();
@@ -8,18 +8,6 @@ const router = Router();
 const DEFAULT_STATUSES = ['completed', 'failed', 'stopped'];
 const DEFAULT_WINDOW_HOURS = 24;
 const MAX_WINDOW_HOURS = 24 * 30; // cap at 30 days
-
-interface ReviewItem extends ReviewQueueRow {
-  risk: 'low' | 'medium' | 'high';
-}
-
-function classifyRisk(row: ReviewQueueRow): 'low' | 'medium' | 'high' {
-  if (row.status === 'failed') return 'high';
-  const lines = row.diff_lines ?? 0;
-  if (lines > 300) return 'high';
-  if (lines >= 50) return 'medium';
-  return 'low';
-}
 
 function parseSinceQuery(req: Request): string {
   const sinceParam = (req.query.since as string | undefined)?.trim();
@@ -45,8 +33,7 @@ router.get('/queue', (req: Request, res: Response) => {
   try {
     const since = parseSinceQuery(req);
     const statuses = parseStatuses(req);
-    const rows = getReviewQueue(since, statuses);
-    const items: ReviewItem[] = rows.map((row) => ({ ...row, risk: classifyRisk(row) }));
+    const items = getReviewQueue(since, statuses);
     res.json({ since, statuses, items });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -21,12 +21,6 @@ interface ReviewCardProps {
   busy: boolean;
 }
 
-const RISK_STYLES: Record<ReviewItem['risk'], { dot: string; label: string }> = {
-  low:    { dot: 'bg-status-success', label: 'review.risk.low' },
-  medium: { dot: 'bg-status-warning', label: 'review.risk.medium' },
-  high:   { dot: 'bg-status-error',   label: 'review.risk.high' },
-};
-
 function formatCost(usd: number | null | undefined): string {
   if (!usd) return '$0.00';
   if (usd < 0.01) return '<$0.01';
@@ -77,7 +71,6 @@ export default function ReviewCard({
   const { t } = useI18n();
   const [showContinue, setShowContinue] = useState(false);
   const [continuePrompt, setContinuePrompt] = useState('');
-  const risk = RISK_STYLES[item.risk];
 
   const [diffData, setDiffData] = useState<ReviewDiffResponse | null>(null);
   const [filesLoading, setFilesLoading] = useState(false);
@@ -155,9 +148,8 @@ export default function ReviewCard({
         boxShadow: focused ? 'var(--shadow-soft)' : undefined,
       }}
     >
-      {/* Top row: project · title · risk */}
+      {/* Top row: project · title */}
       <div className="flex items-start gap-3">
-        <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${risk.dot}`} title={t(risk.label)} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-2xs tracking-wide mb-0.5" style={{ color: 'var(--color-text-muted)' }}>
             <FolderGit2 size={12} />

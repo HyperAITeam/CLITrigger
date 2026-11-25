@@ -89,7 +89,6 @@ export interface ReviewItem extends Todo {
   project_name: string;
   project_path: string;
   project_default_branch: string;
-  risk: 'low' | 'medium' | 'high';
 }
 
 export interface ReviewSummary {
