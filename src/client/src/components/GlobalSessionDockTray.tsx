@@ -44,6 +44,7 @@ import { useI18n } from '../i18n';
 import { useNotification } from '../hooks/useNotification';
 import { useAgentStates } from '../hooks/useAgentStates';
 import * as projectsApi from '../api/projects';
+import * as sessionsApi from '../api/sessions';
 import type { Project } from '../types';
 import type { WsEvent } from '../hooks/useWebSocket';
 import { resolveProjectColor } from '../lib/projectColor';
@@ -300,6 +301,30 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
     };
   }, [refresh]);
 
+  // Minimized chips whose sessions are all not running are hidden; the group
+  // stays persisted, so the chip returns when a session starts again.
+  // Status is fetched once per session id, then kept fresh over WS.
+  // ponytail: no refetch on WS reconnect, a missed transition sticks until the next one
+  const [sessionStatuses, setSessionStatuses] = useState<Record<string, string>>({});
+  const requestedStatusIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const chip of chips) {
+      for (const id of chip.sessionIds) {
+        if (requestedStatusIdsRef.current.has(id)) continue;
+        requestedStatusIdsRef.current.add(id);
+        sessionsApi.getSession(id)
+          // A WS update that landed while the fetch was in flight is newer.
+          .then((session) => setSessionStatuses((prev) => (id in prev ? prev : { ...prev, [id]: session.status })))
+          .catch(() => { /* unknown status keeps the chip visible */ });
+      }
+    }
+  }, [chips]);
+  useEffect(() => onEvent((event) => {
+    if (event.type !== 'session:status-changed' || !event.sessionId || !event.status) return;
+    const { sessionId, status } = event;
+    setSessionStatuses((prev) => ({ ...prev, [sessionId]: status }));
+  }), [onEvent]);
+
   // Route changes can affect which chips are "current project" (visual
   // emphasis) — re-read so chips that were just minimized in the new project
   // appear without waiting for a separate persist.
@@ -436,7 +461,12 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
 
   const positioned = trayLeft !== null;
 
-  if (chips.length === 0) return null;
+  // Popped chips stay: they are the only handle back to a live OS window.
+  const visibleChips = ordered.filter((chip) => chip.kind === 'popped' || chip.sessionIds.some((id) => {
+    const status = sessionStatuses[id];
+    return status === undefined || status === 'running';
+  }));
+  if (visibleChips.length === 0) return null;
 
   return createPortal(
     <div
@@ -469,7 +499,7 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
       >
         <GripVertical size={14} />
       </div>
-      {ordered.map((chip) => {
+      {visibleChips.map((chip) => {
         const labels = chip.sessionIds.map(id => chip.titles[id] || id);
         const label = labels.length === 1
           ? labels[0]
