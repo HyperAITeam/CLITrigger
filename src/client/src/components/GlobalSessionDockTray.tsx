@@ -33,7 +33,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GripVertical, X, ExternalLink, Maximize2 } from 'lucide-react';
+import { GripVertical, X, ExternalLink, Maximize2, MessageCircleQuestion, Check } from 'lucide-react';
 import { CMD, CMD_FONT } from './terminal-theme';
 import { allSessionIds, type LayoutNode } from './group/groupTree';
 import {
@@ -508,6 +508,9 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
         const isPopped = chip.kind === 'popped';
         const attentionId = isPopped ? undefined : chip.sessionIds.find((id) => attention.has(id));
         const attentionState = attentionId ? agentStates[attentionId] : undefined;
+        const attentionLabel = attentionState
+          ? t(attentionState === 'blocked' ? 'notification.sessionBlocked' : 'notification.sessionDone')
+          : '';
         return (
           <div
             key={`${chip.projectId}:${chip.groupId}`}
@@ -517,7 +520,7 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
             onDrop={(e) => { e.preventDefault(); handleChipDrop(chipKeyOf(chip)); }}
             onDragEnd={() => { dragKeyRef.current = null; }}
             onClick={() => handleRestore(chip)}
-            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}${isPopped ? ` — ${t('session.dock.poppedHint')}` : ''}${attentionState ? ` — ${attentionState}` : ''}`}
+            title={`${isOther ? `[${chip.projectId}] ` : ''}${labels.join(' · ')}${isPopped ? ` — ${t('session.dock.poppedHint')}` : ''}${attentionLabel ? ` — ${attentionLabel}` : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -547,14 +550,11 @@ export default function GlobalSessionDockTray({ onEvent }: GlobalSessionDockTray
               }}
             />
             {isPopped && <ExternalLink size={12} style={{ flexShrink: 0, color: 'rgb(167,139,250)' }} />}
-            {attentionState && (
-              <span
-                aria-label={attentionState}
-                style={{
-                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                  background: attentionState === 'blocked' ? CMD.warning : CMD.info,
-                }}
-              />
+            {attentionState === 'blocked' && (
+              <MessageCircleQuestion size={13} aria-label={attentionLabel} style={{ flexShrink: 0, color: CMD.warning }} />
+            )}
+            {attentionState === 'done' && (
+              <Check size={13} aria-label={attentionLabel} style={{ flexShrink: 0, color: CMD.info }} />
             )}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {label}
