@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, FolderSymlink, Pin, PinOff, TerminalSquare, ListPlus, Square, SquareCheck,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, RefreshCw, EyeOff, Eye, Copy, ExternalLink, FolderOpen, FolderSymlink, Pin, PinOff, TerminalSquare, ListPlus, Square, SquareCheck, Unlink,
 } from 'lucide-react';
 import { useI18n } from '../../../i18n';
 import { listFiles, openFile, moveFile } from '../../../api/files';
@@ -58,10 +58,13 @@ function TreeRow({
   dropTargetPath: string | null;
   setDropTargetPath: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
+  const { t } = useI18n();
   const isDir = entry.type === 'directory';
   const expanded = state?.expanded ?? false;
   const isSelected = selectedPath === fullPath;
   const isDropTarget = isDir && dropTargetPath === fullPath;
+  // The server keeps a linked folder it can't stat (deleted, unplugged drive) with mtime null.
+  const missingLink = !!entry.linkPath && entry.mtime === null;
 
   // Folders accept drops (move into); every row is draggable (move out).
   const dropProps = isDir ? {
@@ -103,7 +106,7 @@ function TreeRow({
           : isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
       }`}
       style={{ paddingLeft: 4 + depth * 12 }}
-      title={entry.name}
+      title={missingLink ? `${entry.name} — ${t('files.linkMissing')}` : entry.name}
     >
       {isDir ? (
         expanded
@@ -111,7 +114,8 @@ function TreeRow({
           : <ChevronRight className="w-3 h-3 shrink-0 text-warm-400" />
       ) : <span className="w-3 h-3 shrink-0" />}
       {iconFor(entry, expanded)}
-      <span className={`truncate ${entry.hidden ? 'opacity-60 italic' : ''}`}>{entry.name}</span>
+      <span className={`truncate ${entry.hidden ? 'opacity-60 italic' : ''} ${missingLink ? 'opacity-60 line-through' : ''}`}>{entry.name}</span>
+      {missingLink && <AlertCircle className="w-3 h-3 shrink-0 text-status-error" />}
     </button>
   );
 }
@@ -286,7 +290,7 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onLinkFolder, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
+function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onLinkFolder, onUnlinkFolder, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
   state: ContextMenuState;
   projectId: string;
   // Path to copy: the real folder path for linked-folder entries.
@@ -296,6 +300,7 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
   onHide: () => void;
   onUnhide: () => void;
   onLinkFolder: () => void;
+  onUnlinkFolder: () => void;
   onClose: () => void;
   // File-only actions; undefined onCreateTask hides that item.
   terminals: { sessionId: string; label: string }[];
@@ -532,8 +537,17 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
       {/* When the entry is hidden specifically by a .vaultignore pattern,
           offer to unhide (remove the pattern) instead of hide. Dotfiles /
           DEFAULT_HIDDEN aren't `ignored`, so they keep the plain "hide".
-          A linked folder's own `@alias` entry can't be hidden. */}
-      {state.entry.linkPath ? null : state.entry.ignored ? (
+          A linked folder's own `@alias` entry can't be hidden, only unlinked. */}
+      {state.entry.linkPath ? (
+        <button
+          type="button"
+          onClick={() => { onUnlinkFolder(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 hover:bg-warm-100 text-status-error flex items-center gap-2"
+        >
+          <Unlink className="w-3.5 h-3.5" />
+          <span>{t('files.unlinkFolder')}</span>
+        </button>
+      ) : state.entry.ignored ? (
         <button
           type="button"
           onClick={() => { onUnhide(); onClose(); }}
@@ -765,6 +779,19 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     }
   }, [projectId, loadRoot, onVaultIgnoreChanged, toastError]);
 
+  // Drop the `@alias` link only; the folder's files are left alone.
+  const handleUnlinkFolder = useCallback(async (entry: FileEntry) => {
+    try {
+      const stored = (await getProject(projectId)).vault_links;
+      const links: { alias: string; path: string }[] = stored ? JSON.parse(stored) : [];
+      await updateProject(projectId, { vault_links: JSON.stringify(links.filter((link) => `@${link.alias}` !== entry.name)) });
+      await loadRoot();
+      onVaultIgnoreChanged?.();
+    } catch (err) {
+      if (err instanceof Error) toastError(err.message);
+    }
+  }, [projectId, loadRoot, onVaultIgnoreChanged, toastError]);
+
   // `@alias/...` paths of linked doc folders only mean something inside the
   // app; terminals and the clipboard get the real path.
   const toRealPath = useCallback((p: string) => {
@@ -886,6 +913,7 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
           onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
           onLinkFolder={handleLinkFolder}
+          onUnlinkFolder={() => handleUnlinkFolder(contextMenu.entry)}
           onClose={() => setContextMenu(null)}
           linkedCount={linkedPaths.length}
           includeLinks={includeLinks}
