@@ -3,7 +3,7 @@ import path from 'path';
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
 import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
-import { logStreamer } from './log-streamer.js';
+import { logStreamer, type TokenUsage } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
 import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
 import { broadcaster } from '../websocket/broadcaster.js';
@@ -19,6 +19,19 @@ import * as queries from '../db/queries.js';
 const MAX_CONTEXT_SWITCHES = 3;
 
 const STALE_CHECK_INTERVAL_MS = 30_000; // 30 seconds
+
+// Task cost/token totals after a round. Round 1 (fresh start or Retry) replaces
+// them; later rounds (loop, Continue) add to them. Tokens count cache reads and
+// writes too: they are most of a Claude run and what the cost is billed on.
+export function taskUsageTotals(todo: Pick<queries.Todo, 'total_cost_usd' | 'total_tokens'>, usage: TokenUsage, roundNumber: number): { total_cost_usd: number | null; total_tokens: number | null } {
+  const carry = roundNumber > 1;
+  const roundTokens = (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0)
+    + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0);
+  return {
+    total_cost_usd: carry ? (todo.total_cost_usd ?? 0) + (usage.total_cost ?? 0) : usage.total_cost,
+    total_tokens: ((carry ? (todo.total_tokens ?? 0) : 0) + roundTokens) || null,
+  };
+}
 
 export class Orchestrator {
   private staleCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -717,8 +730,7 @@ Complete the task in the current directory.`;
               process_pid: 0,
               ...(tokenUsage ? {
                 token_usage: JSON.stringify(tokenUsage),
-                total_cost_usd: tokenUsage.total_cost ?? null,
-                total_tokens: ((tokenUsage.input_tokens ?? 0) + (tokenUsage.output_tokens ?? 0)) || null,
+                ...taskUsageTotals(currentTodo, tokenUsage, roundNumber),
               } : {}),
             });
           } catch {
@@ -732,13 +744,11 @@ Complete the task in the current directory.`;
         } else {
           // Success path
           const tokenUsage = logStreamer.getTokenUsage(todoId); // one-shot read: clears the streamer entry
-          const roundCost = tokenUsage?.total_cost ?? 0;
-          const roundTokens = (tokenUsage?.input_tokens ?? 0) + (tokenUsage?.output_tokens ?? 0);
-          // Loop rounds accumulate across rounds; a plain run records just this round
-          const totalCostUsd = loop ? (currentTodo.total_cost_usd ?? 0) + roundCost : (tokenUsage?.total_cost ?? null);
-          const totalTokens = ((loop ? (currentTodo.total_tokens ?? 0) : 0) + roundTokens) || null;
-          const usageUpdate = tokenUsage
-            ? { token_usage: JSON.stringify(tokenUsage), total_cost_usd: totalCostUsd, total_tokens: totalTokens }
+          const totals = tokenUsage ? taskUsageTotals(currentTodo, tokenUsage, roundNumber) : null;
+          // No usage this round (non-Claude CLI): the loop cost cap keeps the running total.
+          const totalCostUsd = totals ? totals.total_cost_usd : currentTodo.total_cost_usd;
+          const usageUpdate = tokenUsage && totals
+            ? { token_usage: JSON.stringify(tokenUsage), ...totals }
             : {};
 
           const evaluated = loop

@@ -562,6 +562,29 @@ export function initDatabase(db: Database.Database): void {
     })();
   }
 
+  // todos.total_tokens used to be input + output only, leaving out the cache
+  // reads/writes that make up most of a Claude run. Recount it from the stored
+  // token_usage once. Rows whose total no longer equals that round's input +
+  // output (accumulated over several rounds) are left as they are.
+  if (!db.prepare("SELECT 1 FROM app_settings WHERE key = 'migration.total_tokens_with_cache'").get()) {
+    try {
+      db.transaction(() => {
+        db.exec(`
+          UPDATE todos SET total_tokens =
+                COALESCE(json_extract(token_usage, '$.input_tokens'), 0)
+              + COALESCE(json_extract(token_usage, '$.output_tokens'), 0)
+              + COALESCE(json_extract(token_usage, '$.cache_read_input_tokens'), 0)
+              + COALESCE(json_extract(token_usage, '$.cache_creation_input_tokens'), 0)
+           WHERE json_valid(token_usage)
+             AND total_tokens = COALESCE(json_extract(token_usage, '$.input_tokens'), 0)
+                              + COALESCE(json_extract(token_usage, '$.output_tokens'), 0)`);
+        db.prepare("INSERT INTO app_settings (key, value) VALUES ('migration.total_tokens_with_cache', '1')").run();
+      })();
+    } catch {
+      // ignore — a malformed row aborts the recount; totals stay input + output only
+    }
+  }
+
   // Seed cli_models if empty
   const modelCount = db.prepare('SELECT COUNT(*) as count FROM cli_models').get() as { count: number };
   if (modelCount.count === 0) {
