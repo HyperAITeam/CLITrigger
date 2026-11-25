@@ -1909,6 +1909,33 @@ function setupMobileImeInput({ container, term, sessionId, sendMessage }: InputS
   };
   overlay.addEventListener('keydown', handleKeyDown);
 
+  // The idle overlay covers the terminal, so touch drags never reach xterm's
+  // viewport and the scrollback is unreachable. Scroll it ourselves.
+  // ponytail: no momentum, and alt-screen TUIs (no scrollback) still need a desktop wheel
+  let touchY: number | null = null;
+  let pendingPixels = 0;
+  const handleTouchStart = (e: TouchEvent) => {
+    touchY = e.touches.length === 1 ? e.touches[0].clientY : null;
+    pendingPixels = 0;
+  };
+  const handleTouchMove = (e: TouchEvent) => {
+    // baseY 0 = nothing above the screen; leave the page free to scroll.
+    if (touchY === null || e.touches.length !== 1 || term.buffer.active.baseY === 0) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    pendingPixels += touchY - y;
+    touchY = y;
+    const screenHeight = (container.querySelector('.xterm-screen') as HTMLElement | null)?.clientHeight ?? 0;
+    if (screenHeight <= 0 || term.rows <= 0) return;
+    const rowHeight = screenHeight / term.rows;
+    const lines = Math.trunc(pendingPixels / rowHeight);
+    if (lines === 0) return;
+    pendingPixels -= lines * rowHeight;
+    term.scrollLines(lines);
+  };
+  overlay.addEventListener('touchstart', handleTouchStart, { passive: true });
+  overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
+
   return () => {
     cancelFlushTimer();
     flushComposerAndSend();
