@@ -32,17 +32,19 @@ interface DailyStats {
   tokens: number;
 }
 
+// created_at is ISO ('…T…Z') while datetime() yields '… …'; compare through
+// datetime() or the 'T' sorts after every same-day time.
 function getPeriodFilter(period: string): string {
   switch (period) {
-    case '7d': return "AND t.created_at > datetime('now', '-7 days')";
-    case '30d': return "AND t.created_at > datetime('now', '-30 days')";
-    case '90d': return "AND t.created_at > datetime('now', '-90 days')";
+    case '7d': return "AND datetime(t.created_at) > datetime('now', '-7 days')";
+    case '30d': return "AND datetime(t.created_at) > datetime('now', '-30 days')";
+    case '90d': return "AND datetime(t.created_at) > datetime('now', '-90 days')";
     default: return '';
   }
 }
 
 // ponytail: created_at-based watermark — a todo created before Clear but finished after stays hidden.
-const CLEAR_FILTER = "AND t.created_at > COALESCE((SELECT analytics_cleared_at FROM projects WHERE id = t.project_id), '')";
+const CLEAR_FILTER = "AND datetime(t.created_at) > COALESCE((SELECT analytics_cleared_at FROM projects WHERE id = t.project_id), '')";
 
 // GET /api/projects/:id/analytics?period=7d|30d|90d|all
 router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Response) => {
@@ -76,18 +78,19 @@ router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Respon
       avgCostPerTask: totalTasks > 0 ? Math.round(((summaryRow?.totalCostUsd ?? 0) / totalTasks) * 10000) / 10000 : 0,
     };
 
-    // By CLI tool
+    // By CLI tool. A NULL todo cli_tool means "project default" (same rule as the review summary).
     const byCliTool = db.prepare(`
       SELECT
-        COALESCE(t.cli_tool, 'unknown') as cli_tool,
+        COALESCE(t.cli_tool, p.cli_tool, 'claude') as cli_tool,
         COUNT(*) as count,
         SUM(CASE WHEN t.status = 'completed' OR t.status = 'merged' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN t.status = 'failed' THEN 1 ELSE 0 END) as failed,
         COALESCE(SUM(t.total_cost_usd), 0) as totalCostUsd,
         COALESCE(SUM(t.total_tokens), 0) as totalTokens
       FROM todos t
+      JOIN projects p ON p.id = t.project_id
       WHERE t.project_id = ? AND t.status NOT IN ('pending') ${periodFilter}
-      GROUP BY COALESCE(t.cli_tool, 'unknown')
+      GROUP BY COALESCE(t.cli_tool, p.cli_tool, 'claude')
       ORDER BY count DESC
     `).all(projectId) as any[];
 
@@ -101,10 +104,10 @@ router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Respon
       totalTokens: row.totalTokens ?? 0,
     }));
 
-    // By date (daily aggregation)
+    // By date (daily aggregation), in the server's local day rather than UTC
     const byDate = db.prepare(`
       SELECT
-        date(t.created_at) as date,
+        date(t.created_at, 'localtime') as date,
         COUNT(*) as count,
         SUM(CASE WHEN t.status = 'completed' OR t.status = 'merged' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN t.status = 'failed' THEN 1 ELSE 0 END) as failed,
@@ -112,7 +115,7 @@ router.get('/projects/:id/analytics', (req: Request<{ id: string }>, res: Respon
         COALESCE(SUM(t.total_tokens), 0) as tokens
       FROM todos t
       WHERE t.project_id = ? AND t.status NOT IN ('pending') ${periodFilter}
-      GROUP BY date(t.created_at)
+      GROUP BY date(t.created_at, 'localtime')
       ORDER BY date ASC
     `).all(projectId) as any[];
 
