@@ -489,6 +489,7 @@ GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태
   - macOS 스타일의 titlebar로 드래그 가능, 8방향 리사이즈 (4 엣지 + 4 코너) 지원 (코너가 z-index 우선)
   - 최소 320×200, 위치와 크기는 per-session 저장
   - 모바일 (<768px)에서는 fullscreen 모드로 자동 전환
+  - 모바일에서는 터미널을 손가락으로 위아래로 끌어 스크롤백을 봄 (관성 스크롤 없음, 스크롤백이 없는 전체 화면 TUI는 대상 아님)
   - ❌ 버튼으로 닫을 수 있음 (실행 중이면 확인 요청)
 - **VS Code 스타일 윈도우 그룹화 / 도킹**:
   - 탭을 다른 윈도우로 드래그하면 5-zone 다이아몬드 (top/bottom/left/right/center) — 사이드 드롭은 분할 pane, center 드롭은 같은 stack에 탭으로 합침
@@ -499,6 +500,7 @@ GitHub 레포지토리의 이슈를 CLITrigger에서 직접 조회하고, AI 태
   - 뷰포트 가장자리 8px 내로 드래그 시 좌/우 절반 또는 4 코너 quarter로 스냅 (preview 표시 후 commit)
   - 윈도우 간 sticky 스냅 (10px threshold) — 인접 윈도우 엣지에 자석처럼
   - 타이틀바 minimize 버튼 → 좌하단 dock tray에 chip으로 보관, 클릭 시 restore (서버 PTY는 그대로 살아있음)
+  - 칩의 세션이 모두 실행 중이 아니면(대기·완료·실패·중지) 칩을 숨김. 창 배치는 저장돼 있어 세션을 다시 시작하면 칩이 돌아옴. 별도 창(popout) 칩은 항상 표시
   - dock tray의 칩은 드래그로 **재정렬**할 수 있고(`sessionDockOrder` 영속), 왼쪽 grip 핸들을 드래그해 트레이의 **가로 위치**를 옮길 수 있음(`sessionDockTray:left` 영속, 하단 고정 유지)
   - **멀티 윈도우(별도 창) 상태 표시 + 중앙으로 불러오기**: 윈도우를 별도 OS 창(popout)으로 빼내면 터미널 목록의 해당 행에 **별도 창** 배지가 뜨고, 행 클릭 또는 "중앙으로 불러오기" 버튼으로 메인 창 안 플로팅으로 복귀(re-dock, 세션 유지). 별도 창은 하단 dock tray에도 칩으로 표시되고(클릭 시 복귀), 팝아웃 무응답 시 1.5s 후 강제 회수 폴백
   - **팝아웃 내부 도킹**: 별도 창 안에서도 탭 드래그로 스플릿/탭 합치기 가능. 자기 스택의 가장자리에 드롭하면 그 자리에서 스플릿 생성 (탭 2개 이상일 때)
@@ -595,8 +597,18 @@ Planner는 CRUD + 태그 + 우선순위 기반의 경량 작업 관리 기능입
 - **상태 분포**: completed/failed/stopped 도넛 차트
 - **CLI 도구별 비용**: 스택드 바 차트
 - **일별 활동**: cost/tokens 탭 전환이 가능한 라인 차트
+- **초기화**: 작업은 그대로 두고, 초기화 이후 만든 작업만 집계
 
 비용/토큰은 `todos.total_cost_usd`/`total_tokens` 컬럼에 비정규화되어 있어 순수 SQL 집계로 빠르게 계산됩니다.
+
+#### 집계 기준
+
+- **비용**: Claude Code `result` 이벤트의 `total_cost_usd` — Claude Code가 API 정가로 계산한 추정치이며 구독 요금제의 실제 청구액이 아님
+- **토큰**: input + output + 캐시 읽기·쓰기 토큰 (비용과 같은 범위)
+- Codex·Antigravity는 사용량을 보고하지 않고 대화형 실행도 집계되지 않아 $0 / 0 토큰
+- 여러 라운드(루프 규칙, Continue)를 돈 작업은 모든 라운드를 합산. Retry 후 첫 라운드는 새로 셈
+- CLI를 따로 고르지 않은 작업은 현재 프로젝트 기본 CLI로 집계
+- 일별 차트는 서버 로컬 날짜 기준
 
 ### 17. CLI 설치 상태 체크
 
@@ -882,7 +894,7 @@ gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세
 #### 카드 구성
 
 각 카드는 한 todo에 해당하며 다음을 노출합니다:
-- 프로젝트 라벨, 제목, 상태 배지, risk 배지(low/medium/high)
+- 프로젝트 라벨, 제목, 상태 배지
 - 마지막 어시스턴트 메시지의 한 줄 요약(최대 240자)
 - 토큰 합계, diff files / lines
 - 마지막 갱신 시각
@@ -900,16 +912,8 @@ gstack은 MIT 라이선스 (Copyright 2026 Garry Tan)로 제공됩니다. 자세
 #### 필터
 
 - **시간 윈도우**: 12h / 24h / 7d
-- **필터 칩**: All / Risky / Quick wins / Failed
+- **필터 칩**: 전체 / 완료 / 실패 / 중지 (상태 기준)
 - **상단 토큰 리본**: 윈도우 내 총 토큰 + CLI별 K/M 분해 표기 (sticky)
-
-#### Risk 분류 기준
-
-서버에서 다음 규칙으로 자동 분류합니다:
-- `failed` 상태 → **high**
-- diff_lines > 300 → **high**
-- diff_lines ≥ 50 → **medium**
-- 그 외 → **low**
 
 > Review Queue는 새 mutating API를 추가하지 않습니다. merge/discard/continue 모두 기존 todo 엔드포인트(`/api/todos/:id/merge`, `/api/projects/:id/worktree-cleanup`, `/api/todos/:id/continue`)를 그대로 사용합니다.
 
@@ -1031,6 +1035,7 @@ Codex의 경우 프로젝트가 `~/.codex/config.toml`의 trusted 목록에 없�
 | 파일/폴더 핀-투-탑 | 트리에서 우클릭 → `Pin to top`. 핀된 항목은 트리 상단의 별도 섹션에 amber 핀 아이콘과 함께 표시됨. 다시 우클릭 → `Unpin`으로 해제. 프로젝트별 localStorage 영속화 |
 | 파일/폴더 이동 | 트리 항목을 다른 폴더 위로 드래그앤드롭하면 그 폴더 안으로 이동(드래그 오버 시 accent 하이라이트). "Vault root" 헤더로 드롭하면 루트로 이동. 폴더는 하위 트리 통째로 이동(`POST /files/move`) |
 | 볼트에서 숨기기 / 다시 보이기 | 우클릭 → `Hide from Vault` → `.vaultignore`에 경로 추가. `Show hidden files`로 보면 숨긴 파일이 흐리게 표시되며, 그 위에서 우클릭 → `Show in Vault`로 `.vaultignore`에서 제거(점파일/기본 hide 항목은 대상 아님) |
+| 외부 문서 폴더 연결 / 해제 | 우클릭 → `외부 폴더 연결…`로 프로젝트 밖 폴더를 `@폴더이름`으로 연결해 트리 아래 **연결된 문서 폴더** 구역에 표시. `@별칭` 폴더 우클릭 → `연결 해제`로 연결만 제거(파일은 그대로). 원본 폴더를 찾을 수 없으면(삭제·드라이브 분리) 취소선과 경고 아이콘으로 표시하며 자동 삭제하지 않음 |
 | 에디터/프리뷰 Ctrl+휠 줌 | 미리보기/CodeMirror 위에서 `Ctrl/Cmd + 마우스 휠`로 폰트 8-28px 조정 (브라우저 페이지 줌은 가로채서 차단). 좌/우 사이드바는 영향 없음. 프로젝트별 localStorage 영속화 |
 
 #### 트리 상태 영속화
@@ -1127,7 +1132,7 @@ Vault 마크다운 프리뷰는 정적 뷰어가 아니라 가벼운 인터랙�
 
 ### 35. 루프 규칙 (Loop)
 
-"테스트 전부 통과시키기"처럼 한 번에 끝나지 않는 작업을 종료 규칙이 만족될 때까지 반복합니다. TODO 폼의 **루프** 섹션에서 켭니다.
+"테스트 전부 통과시키기"처럼 한 번에 끝나지 않는 작업을 종료 규칙이 만족될 때까지 반복합니다. TODO 폼의 **종료 규칙이 만족될 때까지 반복 (루프)** 체크박스로 켭니다. 루프 작업도 별도 탭 없이 **자동 작업** 목록에 라운드 배지와 함께 표시됩니다.
 
 라운드가 끝날 때마다 종료 규칙을 검사하고, 미달이면 검증 출력을 넘겨 같은 워크트리에서 다시 실행합니다.
 
@@ -1418,7 +1423,7 @@ git worktree prune   # 깨진 worktree 정리
 | GET | /api/projects/:id/planner/tags | Planner 태그 목록 |
 | GET | /api/projects/:id/planner/export | Planner 상태를 Markdown으로 Export |
 | POST | /api/projects/:id/planner/import | Planner Markdown Import (원자적 삽입, `text/markdown` 본문) |
-| GET | /api/review/queue | 크로스-프로젝트 todo 큐 (since/hours, statuses 필터 + risk 분류) |
+| GET | /api/review/queue | 크로스-프로젝트 todo 큐 (since/hours, statuses 필터) |
 | GET | /api/review/summary | 윈도우 내 토큰/CLI별 분해 요약 |
 | GET | /api/review/diff/:todoId | todo 변경 파일 목록 + 통계 (워크트리/브랜치 폴백) |
 | GET | /api/review/diff/:todoId/file | 특정 파일의 raw diff (path 화이트리스트) |
