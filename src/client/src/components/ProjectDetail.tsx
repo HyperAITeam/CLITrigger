@@ -59,8 +59,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   // Tasks/Discussions/Schedules are unified under one "automation" hub tab
   // with inner sub-tabs. The URL `tab` param still stores the sub value
   // (tasks → no param) so existing deep links keep working.
-  const AUTOMATION_SUBS = ['tasks', 'loops', 'discussions', 'schedules', 'analytics'];
-  const rawTab = searchParams.get('tab') || 'tasks';
+  const AUTOMATION_SUBS = ['tasks', 'discussions', 'schedules', 'analytics'];
+  // The old Loops sub-tab (?tab=loops) was merged back into Tasks.
+  const rawTab = searchParams.get('tab') === 'loops' ? 'tasks' : (searchParams.get('tab') || 'tasks');
   const [activeTab, _setActiveTab] = useState<string>(
     AUTOMATION_SUBS.includes(rawTab) ? 'automation' : rawTab
   );
@@ -101,8 +102,6 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [interactiveTodos, setInteractiveTodos] = useState<Set<string>>(new Set());
-  const loopTodos = todos.filter((todo) => !!todo.loop_config);
-  const plainTodos = todos.filter((todo) => !todo.loop_config);
   const [gitRefreshTrigger, setGitRefreshTrigger] = useState(0);
   const { t } = useI18n();
   const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
@@ -880,8 +879,7 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
       {activeTab === 'automation' && (
         <div role="tablist" aria-label={t('tabs.automation')} className="flex gap-0.5 mb-4 p-1 rounded-xl w-fit overflow-x-auto" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
           {[
-            { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: plainTodos.length },
-            { key: 'loops', label: t('tabs.loops'), help: t('tabs.loops.help'), count: loopTodos.length },
+            { key: 'tasks', label: t('tabs.tasks'), help: t('tabs.tasks.help'), count: todos.length },
             { key: 'discussions', label: t('tabs.discussions'), help: t('tabs.discussions.help'), count: discussions.length },
             { key: 'schedules', label: t('tabs.schedules'), help: t('tabs.schedules.help'), count: schedules.length },
             { key: 'analytics', label: t('tabs.analytics'), help: t('tabs.analytics.help') },
@@ -911,13 +909,9 @@ export default function ProjectDetail({ onEvent, connected, sendMessage, subscri
         </div>
       )}
 
-      {/* Tasks and Loops share the list UI; the loops tab shows todos that carry loop rules.
-          The key remounts the list so its form/filter state does not leak across tabs. */}
-      {activeTab === 'automation' && (automationSub === 'tasks' || automationSub === 'loops') && (
+      {activeTab === 'automation' && automationSub === 'tasks' && (
         <TodoList
-          key={automationSub}
-          todos={automationSub === 'loops' ? loopTodos : plainTodos}
-          loopMode={automationSub === 'loops' ? 'always' : 'none'}
+          todos={todos}
           projectId={id}
           projectCliTool={project.cli_tool}
           projectIsGitRepo={!!project.is_git_repo}

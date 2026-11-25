@@ -719,12 +719,7 @@ const translations = {
 
     // Tab tooltips (hover help)
     'tabs.planner.help': 'Lightweight task notes with tags, priorities, and image attachments. Promote favorites into auto tasks or routines, or import/export as Markdown.',
-    'tabs.tasks.help': 'A task queue: each TODO runs in its own isolated git worktree (Claude/Antigravity/Codex), in parallel up to the concurrency limit, with dependency chains, multi-round continue, and merge automation.',
-    'tabs.loops': 'Loops',
-    'tabs.loops.help': 'Tasks that repeat until a done rule is satisfied: a verification command passes or a done phrase appears. Stop rules (max rounds, cost cap, no-commit rounds) keep them bounded.',
-    'loops.empty': 'No loops yet',
-    'loops.emptyHint': 'Create a loop to keep an agent iterating until your verification command passes.',
-    'todoForm.loopRulesTitle': 'Loop rules',
+    'tabs.tasks.help': 'A task queue: each TODO runs in its own isolated git worktree (Claude/Antigravity/Codex), in parallel up to the concurrency limit, with dependency chains, multi-round continue, and merge automation. Turn on loop rules in a task to rerun it until a verification command passes.',
     'tabs.sessions.help': 'Drive Claude/Antigravity/Codex interactively in a floating window. Unlike auto tasks (fire-and-forget), terminals stay live so you can type, observe, and steer the CLI in real time.',
     'tabs.discussions.help': 'Multi-agent AI discussions over rounds, then optional implementation. Extract action items into the planner when finished.',
     'tabs.schedules.help': 'Trigger auto tasks on cron or one-off routines. Supports auto-restart at rate-limit reset times.',
@@ -2176,12 +2171,7 @@ const translations = {
 
     // Tab tooltips (hover help)
     'tabs.planner.help': '가벼운 작업 메모. 태그·우선순위·이미지 첨부가 가능하고, 마음에 드는 항목은 자동 작업이나 루틴으로 변환하거나 Markdown으로 내보내기/가져오기 할 수 있습니다.',
-    'tabs.tasks.help': '작업 큐입니다. 각 TODO는 독립된 git worktree에서 Claude/Antigravity/Codex로 실행되고, 동시 실행 한도까지 병렬 처리되며 의존성 체이닝·멀티 라운드 continue·머지 자동화를 지원합니다.',
-    'tabs.loops': '루프',
-    'tabs.loops.help': '종료 규칙이 만족될 때까지 반복 실행되는 작업입니다. 검증 명령 통과나 완료 문구 출력으로 끝나고, 최대 라운드·비용 상한·커밋 없음 중단 규칙으로 폭주를 막습니다.',
-    'loops.empty': '루프가 없습니다',
-    'loops.emptyHint': '검증 명령이 통과할 때까지 에이전트가 반복 작업하도록 루프를 만들어 보세요.',
-    'todoForm.loopRulesTitle': '루프 규칙',
+    'tabs.tasks.help': '작업 큐입니다. 각 TODO는 독립된 git worktree에서 Claude/Antigravity/Codex로 실행되고, 동시 실행 한도까지 병렬 처리되며 의존성 체이닝·멀티 라운드 continue·머지 자동화를 지원합니다. 작업에서 루프 규칙을 켜면 검증 명령이 통과할 때까지 다시 실행합니다.',
     'tabs.sessions.help': 'Claude/Antigravity/Codex를 플로팅 창에서 직접 조작하는 대화형 모드입니다. 자동 작업(fire-and-forget)과 달리 터미널은 계속 살아 있어서 실시간으로 입력하고 결과를 보면서 CLI를 직접 컨트롤할 수 있습니다.',
     'tabs.discussions.help': '여러 AI 에이전트가 라운드별로 토론한 뒤 합의를 코드로 구현. 결과를 플래너 항목으로 추출할 수도 있습니다.',
     'tabs.schedules.help': 'cron 또는 일회성 예약으로 자동 작업을 트리거. 레이트 리밋 리셋 시점 자동 재시작도 지원합니다.',
