@@ -46,9 +46,9 @@ Open `http://localhost:3000`, set a password, add a project, write a few tasks, 
 
 You already run Claude Code, Codex, or Antigravity from a terminal. They're good. The catch is that they only work while you're sitting in front of them. You hit a rate limit at 11pm and the next five hours of quota go to waste. You close the laptop and nothing happens until you open it again.
 
-CLITrigger puts those same CLIs on a queue. You write tasks. Each task gets its own git worktree. The agents run them in parallel while you're asleep, at dinner, or in a meeting. If a run hits a rate limit, one click parks it until the reset time. If a CLI runs out of context, the next one in your fallback chain takes over. In the morning you open one review queue, press `m` to merge or `d` to throw it away, and get on with your day.
+CLITrigger puts those same CLIs on a queue. In Git projects, auto tasks run in separate worktrees by default and can run in parallel while you're away. When CLITrigger detects a rate-limit reset time, you can schedule a run for that time. If a CLI runs out of context, a configured fallback chain can restart the task with the next CLI. In the morning, open the review queue to inspect changes, merge completed branches, or discard runs.
 
-During the day it's your terminal: the same CLIs in dockable floating windows, each on its own worktree branch. At night the same app becomes the task queue.
+During the day, run the same CLIs in dockable floating windows. Enable worktree isolation for sessions that need their own branch.
 
 It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 
@@ -63,15 +63,15 @@ It runs on your own machine. Point a Cloudflare tunnel at it and you can check o
 
 **6:00pm.** You write five tasks in the project. Two of them depend on a third, so you chain them. One is "make the test suite pass", so you give it a loop rule: run `npm test` after every round, stop at exit code 0, cap it at 8 rounds and $5. You pull two files from the project docs into the prompt so the agent knows the conventions. You hit Start All.
 
-**6:01pm.** Five worktrees spin up under `.worktrees/` inside the project. Three tasks start right away. The two dependents wait.
+**6:01pm.** Three tasks start in separate worktrees under `.worktrees/` inside the project. The two dependents wait for their prerequisite.
 
 **9:40pm.** The first task finishes and commits. Its two dependents start, each with the parent branch squash-merged in. The project has an auto-delegate rule, so a second CLI gets a fresh task: review the first one's diff.
 
-**11:15pm.** Claude hits its five-hour limit. The task is marked, and the reset time is recorded. You tap the tunnel URL on your phone, hit "schedule on reset", and go to sleep. Or you had a fallback chain set, and Codex already picked it up.
+**11:15pm.** Claude hits its five-hour limit and reports a reset time. You open the task on your phone and use **Run on Reset** to schedule another run.
 
 **4:10am.** The reset passes. The parked task runs.
 
-**7:30am.** You open the review queue. Five cards. Two are quick wins under 50 lines, merged in two keystrokes. One is flagged risky at 400 lines, you open the diff inline and read it properly. One failed, you read the log, press Continue with one more sentence of instruction. One is wrong, `d`, worktree gone.
+**7:30am.** You open the review queue, expand a completed task’s diff, and press `m` to merge. For a failed task, you open its log with `Enter` and use Continue to send a follow-up.
 
 That's a normal Tuesday.
 
@@ -81,9 +81,9 @@ That's a normal Tuesday.
 
 ### Before you leave
 
-**Tasks and worktrees.** Every task runs in its own git worktree on its own branch. Set a concurrency limit per project. Tasks commit on completion. Chain tasks with dependencies and the child starts with the parent's branch merged in. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#parallel-worktree-execution)
+**Tasks and worktrees.** Auto tasks in Git projects use a dedicated worktree by default. Configure isolation per project or per task, and set the project’s concurrency limit. Dependent tasks start with the parent’s changes squash-merged in. Project settings control whether leftover worktree changes are auto-committed. [Wiki →](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#parallel-worktree-execution)
 
-**Loop rules.** Turn a task into a loop. Give it a verification command (exit 0 means done), or a done phrase to look for in the agent's last message. Add a max round count, a cost cap in USD, and a "stop if a round makes no commits" guard so a confused agent can't burn your budget. Rules you type in the box get appended to every round's prompt.
+**Loop rules.** In Automation → Auto Tasks, enable **Repeat until a done rule is satisfied (loop)** in the task form. Turn a task into a loop. Give it a verification command (exit 0 means done), or a done phrase to look for in the agent's last message. Add a max round count, a cost cap in USD, and a "stop if a round makes no commits" guard so a confused agent can't burn your budget. Rules you type in the box get appended to every round's prompt.
 
 **Schedules.** Cron for recurring runs, one-off for a specific time, and a "run when the rate limit resets" button that reads the reset timestamp straight from the CLI output. Skip-if-running is on by default so a slow run doesn't stack up. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#scheduled-execution)
 
@@ -93,9 +93,9 @@ That's a normal Tuesday.
 
 **Fallback chain.** Order your CLIs, say Claude then Antigravity then Codex. When one runs out of context window, or Antigravity reports its quota is gone three times in a minute, the process is killed and the next CLI starts on the same task. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-cli--sandbox-mode)
 
-**Auto-delegate.** A project rule like "when Claude finishes, have Codex review it". The review runs as a chained task on the same branch. Delegated tasks never delegate again, so no loops.
+**Auto Reviewer.** When the chosen worker CLI completes a task, CLITrigger creates a dependent task for the reviewer CLI. The review starts with the worker’s changes merged in.
 
-**Sandbox mode.** Strict mode writes the CLI's permission file so it can only touch the worktree. Nothing outside it. Terminal sessions start sandboxed too, so the CLI asks before anything risky, unless you switch that off per project. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#sandbox-mode)
+**Sandbox mode.** Strict mode uses directory-scoped tool permissions for Claude and a write sandbox for Codex. Antigravity auto tasks receive path guidance in the prompt. Configure terminal-session permissions separately in project settings. [Wiki →](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#sandbox-mode)
 
 **Docs.** A per-project folder of markdown with `[[wikilinks]]` and a graph view, grouped by folder or by tag, with tags you can put on any file or folder without touching it. Pick files and they go into the prompt, whichever CLI you're using. Lessons from past runs are saved as plain markdown in the same folder, so there's no separate wiki to keep in sync. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
@@ -133,12 +133,13 @@ That's a normal Tuesday.
 
 ### The next morning
 
-**Review queue.** One screen for every project's recent tasks. Cards show the project, a one-line summary of the agent's last message, token totals, and diff size. Risk is auto-tagged: failed or over 300 lines is high, over 50 is medium. Filter by Risky, Quick wins, or Failed. Time window of 12h, 24h, or 7d. `j`/`k` to move, `Space` to expand the diff inline, `Enter` for the full log, `m` to merge, `d` to discard. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
+**Review queue.** See recent auto tasks across projects. Choose 12h, 24h, or 7d and filter by All, Done, Failed, or Stopped. Cards show summaries, token totals, and diff stats. Use `j`/`k` to move, `Space` to expand changes, `Enter` for logs, `m` to merge, or `d` to discard. [Wiki →](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#morning-review-queue)
 
 **Git client.** Stage, commit, push, branches, commit graph, file diffs, and a conflict resolver. All inside CLITrigger, so you can land an agent's branch from the same screen you reviewed it on. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#built-in-git-client)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-git.png" alt="Git client" width="800">
+  <img src="docs/images/git-history-guide.png" alt="Git workspace controls for File Status and History, with the commit graph open" width="800">
+  <p><em>Use File Status to select changed files and History to inspect branches and commits.</em></p>
 </div>
 
 **SVN too.** If the project is a Subversion working copy, turn on the SVN panel: status, log, diff, commit, externals, and properties. Same diff viewer as git.
