@@ -8,7 +8,7 @@
 
 **Your coding agents work the night shift.**
 
-*Queue the work before you leave. Review the diffs over coffee.*
+*Drive several wiki-aware agents from one screen, hand the leftovers to auto tasks, review the diffs over coffee.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -27,6 +27,8 @@
 <br>
 
 <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="Wiki docs as a knowledge graph, four terminals docked into a 2x2 grid with three Claude agents working in parallel, leftover work handed to auto tasks over MCP, then a Git commit" width="800">
+
+<sub>Wiki graph → four docked terminals → three Claude agents in parallel → leftovers handed to auto tasks over MCP → Git commit</sub>
 
 <br><br>
 
@@ -48,7 +50,7 @@ You already run Claude Code, Codex, or Antigravity from a terminal. They're good
 
 CLITrigger puts those same CLIs on a queue. In Git projects, auto tasks run in separate worktrees by default and can run in parallel while you're away. When CLITrigger detects a rate-limit reset time, you can schedule a run for that time. If a CLI runs out of context, a configured fallback chain can restart the task with the next CLI. In the morning, open the review queue to inspect changes, merge completed branches, or discard runs.
 
-During the day, run the same CLIs in dockable floating windows. Enable worktree isolation for sessions that need their own branch.
+During the day, open several of the same CLIs as floating terminals, drag them into a 2×2 dock VS Code style, and direct them all from one screen. Project docs (a markdown wiki) show up as a link graph, and you can inject them into a terminal's prompt when you create it. When a conversation leaves work unfinished, one "To auto tasks" click has Claude split it into auto tasks through the clitrigger MCP. Review the diff in the Git tab and commit right there. Enable worktree isolation for sessions that need their own branch.
 
 It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 

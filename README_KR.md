@@ -8,7 +8,7 @@
 
 **퇴근하면 AI 코딩 에이전트가 야근을 시작한다.**
 
-*퇴근 전에 할 일을 쌓아두고, 아침엔 diff만 본다.*
+*위키를 읽은 에이전트 여러 개를 한 화면에서 부리고, 남은 일은 자동 작업에 넘기고, 아침엔 diff만 본다.*
 
 <p align="center">
   <a href="https://github.com/HyperAITeam/CLITrigger/blob/main/README.md">English</a> ·
@@ -27,6 +27,8 @@
 <br>
 
 <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="위키 문서를 그래프 지식베이스로 보고, 터미널 4개를 2×2로 도킹해 Claude 3개에게 동시에 지시한 뒤, 남은 일을 MCP로 자동 작업에 넘기고 Git으로 커밋하는 과정" width="800">
+
+<sub>위키 그래프 → 터미널 4개 멀티 독 → Claude 3개 병렬 지시 → 남은 일은 MCP로 자동 작업에 → Git 커밋</sub>
 
 <br><br>
 
@@ -48,7 +50,7 @@ Claude Code, Codex, Antigravity를 터미널에서 이미 쓰고 있을 것이�
 
 CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자동 작업은 기본적으로 별도 워크트리에서 병렬로 실행할 수 있다. 사용량 한도 초기화 시각을 감지하면 그 시각에 실행을 예약할 수 있다. 컨텍스트가 바닥나면 설정한 폴백 체인의 다음 CLI로 작업을 다시 실행할 수 있다. 아침에는 리뷰 큐에서 변경을 검토하고 완료된 브랜치를 머지하거나 실행 결과를 폐기한다.
 
-낮에는 같은 CLI들을 도킹할 수 있는 플로팅 창에 띄운다. 별도 브랜치가 필요한 세션은 워크트리 격리를 켠다.
+낮에는 같은 CLI들을 플로팅 터미널로 여러 개 띄우고, VS Code처럼 끌어다 2×2로 도킹해 한 화면에서 동시에 지시한다. 프로젝트 문서(md 위키)는 링크 그래프로 보이고, 터미널을 만들 때 그 문서를 프롬프트에 주입할 수 있다. 대화하다 남은 일은 "자동 작업으로" 버튼 하나로 Claude가 clitrigger MCP를 통해 자동 작업으로 쪼개 만들어 둔다. 결과는 Git 탭에서 diff를 보고 바로 커밋한다. 별도 브랜치가 필요한 세션은 워크트리 격리를 켠다.
 
 전부 내 컴퓨터에서 돈다. Cloudflare 터널만 붙이면 폰에서도 들여다볼 수 있다.
 
