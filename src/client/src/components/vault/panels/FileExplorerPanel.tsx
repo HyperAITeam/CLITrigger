@@ -13,7 +13,8 @@ import { collectLinkedPaths, linkAliasFromFolder } from '../../../lib/vaultLinks
 import CursorContextMenu, { ctxMenuItemClass } from '../../CursorContextMenu';
 import { useSessionWindowsOptional } from '../../SessionWindowsHost';
 import { useToast } from '../../../hooks/useToast';
-import { iconFor } from '../files-utils';
+import { iconFor, visibleTreeItems, treeRange } from '../files-utils';
+import type { TreeItem } from '../files-utils';
 
 // Shell-safe when injected into a raw terminal: quote paths containing spaces.
 const quoteIfSpace = (p: string) => (/\s/.test(p) ? `"${p}"` : p);
@@ -43,16 +44,17 @@ interface Props {
 const DND_PATH_TYPE = 'application/x-vault-path';
 
 function TreeRow({
-  entry, depth, state, fullPath, selectedPath, onToggle, onSelect, onContextMenu,
+  entry, depth, state, fullPath, selectedPaths, onToggle, onSelect, onPick, onContextMenu,
   onMove, dropTargetPath, setDropTargetPath,
 }: {
   entry: FileEntry;
   depth: number;
   state?: TreeNodeState;
   fullPath: string;
-  selectedPath: string | null;
+  selectedPaths: Set<string>;
   onToggle: (path: string, entry: FileEntry) => void;
   onSelect: (path: string, entry: FileEntry) => void;
+  onPick: (e: React.MouseEvent, path: string, entry: FileEntry) => boolean;
   onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
   onMove: (from: string, destFolder: string) => void;
   dropTargetPath: string | null;
@@ -61,7 +63,7 @@ function TreeRow({
   const { t } = useI18n();
   const isDir = entry.type === 'directory';
   const expanded = state?.expanded ?? false;
-  const isSelected = selectedPath === fullPath;
+  const isSelected = selectedPaths.has(fullPath);
   const isDropTarget = isDir && dropTargetPath === fullPath;
   // The server keeps a linked folder it can't stat (deleted, unplugged drive) with mtime null.
   const missingLink = !!entry.linkPath && entry.mtime === null;
@@ -94,7 +96,8 @@ function TreeRow({
       }}
       onDragEnd={() => setDropTargetPath(null)}
       {...dropProps}
-      onClick={() => {
+      onClick={(e) => {
+        if (onPick(e, fullPath, entry)) return;
         if (isDir) onToggle(fullPath, entry);
         else onSelect(fullPath, entry);
       }}
@@ -121,7 +124,7 @@ function TreeRow({
 }
 
 function TreeBranch({
-  projectId, parentPath, entries, depth, nodeStates, setNodeStates, showHidden, selectedPath, onSelect, onContextMenu,
+  projectId, parentPath, entries, depth, nodeStates, setNodeStates, showHidden, selectedPaths, onSelect, onPick, onContextMenu,
   onMove, dropTargetPath, setDropTargetPath,
 }: {
   projectId: string;
@@ -131,8 +134,9 @@ function TreeBranch({
   nodeStates: Map<string, TreeNodeState>;
   setNodeStates: React.Dispatch<React.SetStateAction<Map<string, TreeNodeState>>>;
   showHidden: boolean;
-  selectedPath: string | null;
+  selectedPaths: Set<string>;
   onSelect: (path: string, entry: FileEntry) => void;
+  onPick: (e: React.MouseEvent, path: string, entry: FileEntry) => boolean;
   onContextMenu: (e: React.MouseEvent, fullPath: string, entry: FileEntry) => void;
   onMove: (from: string, destFolder: string) => void;
   dropTargetPath: string | null;
@@ -190,9 +194,10 @@ function TreeBranch({
               depth={depth}
               state={state}
               fullPath={full}
-              selectedPath={selectedPath}
+              selectedPaths={selectedPaths}
               onToggle={toggle}
               onSelect={onSelect}
+              onPick={onPick}
               onContextMenu={onContextMenu}
               onMove={onMove}
               dropTargetPath={dropTargetPath}
@@ -220,8 +225,9 @@ function TreeBranch({
                     nodeStates={nodeStates}
                     setNodeStates={setNodeStates}
                     showHidden={showHidden}
-                    selectedPath={selectedPath}
+                    selectedPaths={selectedPaths}
                     onSelect={onSelect}
+                    onPick={onPick}
                     onContextMenu={onContextMenu}
                     onMove={onMove}
                     dropTargetPath={dropTargetPath}
@@ -242,6 +248,8 @@ interface ContextMenuState {
   y: number;
   path: string;
   entry: FileEntry;
+  // Rows the actions apply to: the whole multi-selection when the clicked row is part of it, else just that row.
+  targets: TreeItem[];
 }
 
 interface PinnedItem {
@@ -251,11 +259,12 @@ interface PinnedItem {
 }
 
 function PinnedSection({
-  items, selectedPath, onSelect, onContextMenu,
+  items, selectedPaths, onSelect, onPick, onContextMenu,
 }: {
   items: PinnedItem[];
-  selectedPath: string | null;
+  selectedPaths: Set<string>;
   onSelect: (path: string, entry: FileEntry) => void;
+  onPick: (e: React.MouseEvent, path: string, entry: FileEntry) => boolean;
   onContextMenu: (e: React.MouseEvent, path: string, entry: FileEntry) => void;
 }) {
   const { t } = useI18n();
@@ -267,12 +276,12 @@ function PinnedSection({
       </div>
       {items.map((item) => {
         const entry: FileEntry = { name: item.name, type: item.type, size: null, mtime: null, hidden: false };
-        const isSelected = selectedPath === item.path;
+        const isSelected = selectedPaths.has(item.path);
         return (
           <button
             key={item.path}
             type="button"
-            onClick={() => onSelect(item.path, entry)}
+            onClick={(e) => { if (!onPick(e, item.path, entry)) onSelect(item.path, entry); }}
             onContextMenu={(e) => onContextMenu(e, item.path, entry)}
             className={`w-full flex items-center gap-1.5 py-0.5 px-1 text-xs text-left rounded-md transition-colors ${
               isSelected ? 'bg-accent/15 text-warm-800' : 'hover:bg-warm-100 text-warm-700'
@@ -290,11 +299,11 @@ function PinnedSection({
   );
 }
 
-function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide, onUnhide, onLinkFolder, onUnlinkFolder, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
+function ContextMenu({ state, projectId, realPaths, isPinned, onTogglePin, onHide, onUnhide, onLinkFolder, onUnlinkFolder, onClose, terminals, onSendToTerminal, onSendToNewTerminal, onCreateTask, linkedCount, includeLinks, onToggleIncludeLinks }: {
   state: ContextMenuState;
   projectId: string;
-  // Path to copy: the real folder path for linked-folder entries.
-  realPath: string;
+  // Paths to copy: the real folder path for linked-folder entries.
+  realPaths: string[];
   isPinned: boolean;
   onTogglePin: () => void;
   onHide: () => void;
@@ -392,13 +401,15 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
     };
   }, [onClose]);
 
-  const isDir = state.entry.type === 'directory';
+  const isDir = state.targets.every((target) => target.entry.type === 'directory');
+  // File-only actions (send to terminal/task) show only when no folder is selected.
+  const hasDir = state.targets.some((target) => target.entry.type === 'directory');
   const callOpen = (mode: 'open' | 'reveal') => {
-    openFile(projectId, state.path, mode).catch(() => { /* swallow */ });
+    for (const target of state.targets) openFile(projectId, target.path, mode).catch(() => { /* swallow */ });
     onClose();
   };
   const copyPath = () => {
-    navigator.clipboard.writeText(realPath).catch(() => { /* swallow */ });
+    navigator.clipboard.writeText(realPaths.join('\n')).catch(() => { /* swallow */ });
     onClose();
   };
 
@@ -415,6 +426,11 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
         border: '1px solid var(--color-border)',
       }}
     >
+      {state.targets.length > 1 && (
+        <div className="px-3 pt-0.5 pb-1 text-[10px] text-warm-400">
+          {t('files.selectedCount').replace('{count}', String(state.targets.length))}
+        </div>
+      )}
       {isDir ? (
         <button
           type="button"
@@ -463,7 +479,7 @@ function ContextMenu({ state, projectId, realPath, isPinned, onTogglePin, onHide
         <Copy className="w-3.5 h-3.5" />
         <span>{t('files.copyPath')}</span>
       </button>
-      {!isDir && (
+      {!hasDir && (
         <>
           <div className="my-1 border-t border-warm-200" />
           <button
@@ -612,10 +628,18 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
   // "Include linked docs" toggle for the send-to-terminal/task actions. Sticky
   // across right-clicks; the toggle row only shows when the target has links.
   const [includeLinks, setIncludeLinks] = useState(false);
-  const linkedPaths = useMemo(
-    () => (contextMenu ? collectLinkedPaths(edges, contextMenu.path) : []),
-    [contextMenu, edges],
-  );
+  // Docs linked from any of the menu targets, minus the targets themselves.
+  const linkedPaths = useMemo(() => {
+    if (!contextMenu) return [];
+    const targetPaths = new Set(contextMenu.targets.map((target) => target.path));
+    const linked = new Set(contextMenu.targets.flatMap((target) => collectLinkedPaths(edges, target.path)));
+    return [...linked].filter((path) => !targetPaths.has(path));
+  }, [contextMenu, edges]);
+  // Ctrl/Shift-click multi-selection, in click order. Empty = only the open
+  // file is highlighted; a plain click empties it and sets the Shift anchor.
+  const [selection, setSelection] = useState<Map<string, FileEntry>>(new Map());
+  const anchorRef = useRef<string | null>(null);
+  useEffect(() => { setSelection(new Map()); anchorRef.current = activeFile; }, [activeFile]);
   // Folder path currently hovered as a drag-and-drop target ('' = root header).
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
@@ -625,10 +649,16 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
 
   const pinnedPaths = useMemo(() => new Set(pinned.map(p => p.path)), [pinned]);
 
-  const togglePin = useCallback((path: string, entry: FileEntry) => {
+  // All targets already pinned → unpin them all; otherwise pin the rest.
+  const togglePin = useCallback((targets: TreeItem[]) => {
     setPinned((prev) => {
-      if (prev.some(p => p.path === path)) return prev.filter(p => p.path !== path);
-      return [...prev, { path, type: entry.type, name: entry.name }];
+      const pinnedSet = new Set(prev.map(p => p.path));
+      if (targets.every(target => pinnedSet.has(target.path))) {
+        const targetPaths = new Set(targets.map(target => target.path));
+        return prev.filter(p => !targetPaths.has(p.path));
+      }
+      return [...prev, ...targets.filter(target => !pinnedSet.has(target.path))
+        .map(target => ({ path: target.path, type: target.entry.type, name: target.entry.name }))];
     });
   }, []);
 
@@ -706,10 +736,42 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     if (entry.type === 'file') onSelectFile(path);
   }, [onSelectFile]);
 
+  // Returns true when a Ctrl/Shift click only changed the selection (row skips open/toggle).
+  const handlePick = useCallback((e: React.MouseEvent, path: string, entry: FileEntry) => {
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      anchorRef.current = path;
+      setSelection(new Map());
+      return false;
+    }
+    // Render order: project tree first, linked `@alias` folders in their own section below.
+    const roots = rootEntries ?? [];
+    const items = visibleTreeItems([...roots.filter((r) => !r.linkPath), ...roots.filter((r) => r.linkPath)], (p) => {
+      const state = nodeStates.get(p);
+      return state?.expanded ? state.children : undefined;
+    });
+    if (e.shiftKey) {
+      const range = treeRange(items, anchorRef.current, path);
+      setSelection(new Map((range.length ? range : [{ path, entry }]).map((item) => [item.path, item.entry])));
+      return true;
+    }
+    // Ctrl-click toggles; the first one starts from the open file, which is what's highlighted.
+    const active = items.find((item) => item.path === activeFile);
+    setSelection((prev) => {
+      const next = new Map(prev.size || !active ? prev : [[active.path, active.entry]]);
+      if (next.has(path)) next.delete(path); else next.set(path, entry);
+      return next;
+    });
+    anchorRef.current = path;
+    return true;
+  }, [rootEntries, nodeStates, activeFile]);
+
   const handleContextMenu = useCallback((e: React.MouseEvent, fullPath: string, entry: FileEntry) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, path: fullPath, entry });
-  }, []);
+    const inSelection = selection.has(fullPath);
+    if (!inSelection) setSelection(new Map());
+    const targets = inSelection ? [...selection].map(([path, selectedEntry]) => ({ path, entry: selectedEntry })) : [{ path: fullPath, entry }];
+    setContextMenu({ x: e.clientX, y: e.clientY, path: fullPath, entry, targets });
+  }, [selection]);
 
   // Rows preventDefault in handleContextMenu before the event bubbles here.
   const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
@@ -718,17 +780,18 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     setBackgroundMenu({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const handleHide = useCallback(async (path: string, entry: FileEntry) => {
+  // Sequential: each call rewrites .vaultignore on the server.
+  const handleHide = useCallback(async (targets: TreeItem[]) => {
     try {
-      await addPathToVaultIgnore(projectId, path, entry.type === 'directory');
+      for (const target of targets) await addPathToVaultIgnore(projectId, target.path, target.entry.type === 'directory');
       await loadRoot();
       onVaultIgnoreChanged?.();
     } catch { /* swallow */ }
   }, [projectId, loadRoot, onVaultIgnoreChanged]);
 
-  const handleUnhide = useCallback(async (path: string, entry: FileEntry) => {
+  const handleUnhide = useCallback(async (targets: TreeItem[]) => {
     try {
-      await removePathFromVaultIgnore(projectId, path, entry.type === 'directory');
+      for (const target of targets) await removePathFromVaultIgnore(projectId, target.path, target.entry.type === 'directory');
       await loadRoot();
       onVaultIgnoreChanged?.();
     } catch { /* swallow */ }
@@ -780,11 +843,12 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
   }, [projectId, loadRoot, onVaultIgnoreChanged, toastError]);
 
   // Drop the `@alias` link only; the folder's files are left alone.
-  const handleUnlinkFolder = useCallback(async (entry: FileEntry) => {
+  const handleUnlinkFolder = useCallback(async (entries: FileEntry[]) => {
+    const names = new Set(entries.map((entry) => entry.name));
     try {
       const stored = (await getProject(projectId)).vault_links;
       const links: { alias: string; path: string }[] = stored ? JSON.parse(stored) : [];
-      await updateProject(projectId, { vault_links: JSON.stringify(links.filter((link) => `@${link.alias}` !== entry.name)) });
+      await updateProject(projectId, { vault_links: JSON.stringify(links.filter((link) => !names.has(`@${link.alias}`))) });
       await loadRoot();
       onVaultIgnoreChanged?.();
     } catch (err) {
@@ -800,6 +864,14 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
     const linkPath = rootEntries?.find((e) => e.linkPath && e.name === head)?.linkPath;
     return linkPath ? linkPath + (slash < 0 ? '' : p.slice(slash)) : p;
   }, [rootEntries]);
+
+  const highlightedPaths = useMemo(
+    () => new Set(selection.size ? selection.keys() : activeFile ? [activeFile] : []),
+    [selection, activeFile],
+  );
+  const menuTargets = contextMenu?.targets ?? [];
+  // Menu targets first, then (when toggled) the docs they link to.
+  const sendPaths = [...menuTargets.map((target) => target.path), ...(includeLinks ? linkedPaths : [])];
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -835,11 +907,12 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           <RefreshCw className={`w-3.5 h-3.5 ${rootLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto py-1" onContextMenu={handleBackgroundContextMenu}>
+      <div className="flex-1 min-h-0 overflow-auto py-1 select-none" onContextMenu={handleBackgroundContextMenu}>
         <PinnedSection
           items={pinned}
-          selectedPath={activeFile}
+          selectedPaths={highlightedPaths}
           onSelect={handleSelect}
+          onPick={handlePick}
           onContextMenu={handleContextMenu}
         />
         {rootLoading && !rootEntries && (
@@ -864,8 +937,9 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
             nodeStates={nodeStates}
             setNodeStates={setNodeStates}
             showHidden={showHidden}
-            selectedPath={activeFile}
+            selectedPaths={highlightedPaths}
             onSelect={handleSelect}
+            onPick={handlePick}
             onContextMenu={handleContextMenu}
             onMove={handleMove}
             dropTargetPath={dropTargetPath}
@@ -885,8 +959,9 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
               nodeStates={nodeStates}
               setNodeStates={setNodeStates}
               showHidden={showHidden}
-              selectedPath={activeFile}
+              selectedPaths={highlightedPaths}
               onSelect={handleSelect}
+              onPick={handlePick}
               onContextMenu={handleContextMenu}
               onMove={handleMove}
               dropTargetPath={dropTargetPath}
@@ -907,13 +982,13 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
         <ContextMenu
           state={contextMenu}
           projectId={projectId}
-          realPath={toRealPath(contextMenu.path)}
-          isPinned={pinnedPaths.has(contextMenu.path)}
-          onTogglePin={() => togglePin(contextMenu.path, contextMenu.entry)}
-          onHide={() => handleHide(contextMenu.path, contextMenu.entry)}
-          onUnhide={() => handleUnhide(contextMenu.path, contextMenu.entry)}
+          realPaths={menuTargets.map((target) => toRealPath(target.path))}
+          isPinned={menuTargets.every((target) => pinnedPaths.has(target.path))}
+          onTogglePin={() => togglePin(menuTargets)}
+          onHide={() => handleHide(menuTargets.filter((target) => !target.entry.linkPath && !target.entry.ignored))}
+          onUnhide={() => handleUnhide(menuTargets.filter((target) => target.entry.ignored))}
           onLinkFolder={handleLinkFolder}
-          onUnlinkFolder={() => handleUnlinkFolder(contextMenu.entry)}
+          onUnlinkFolder={() => handleUnlinkFolder(menuTargets.filter((target) => target.entry.linkPath).map((target) => target.entry))}
           onClose={() => setContextMenu(null)}
           linkedCount={linkedPaths.length}
           includeLinks={includeLinks}
@@ -921,18 +996,17 @@ export function FileExplorerPanel({ projectId, activeFile, onSelectFile, onVault
           terminals={windows?.listOpenTerminals() ?? []}
           onSendToTerminal={(sessionId) => {
             if (!windows) return;
-            const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
-            windows.sendToSession(sessionId, paths.map(toRealPath).map(quoteIfSpace).join(' '));
+            windows.sendToSession(sessionId, sendPaths.map(toRealPath).map(quoteIfSpace).join(' '));
             success(t('files.sentToTerminal'));
           }}
           onSendToNewTerminal={() => {
             if (!windows) return;
-            const paths = includeLinks ? [contextMenu.path, ...linkedPaths] : [contextMenu.path];
-            windows.sendToNewTerminal(paths.map(toRealPath).map(quoteIfSpace).join(' '), contextMenu.entry.name).catch(() => { /* swallow — createSession error */ });
+            windows.sendToNewTerminal(sendPaths.map(toRealPath).map(quoteIfSpace).join(' '), contextMenu.entry.name).catch(() => { /* swallow — createSession error */ });
             success(t('files.sentToTerminal'));
           }}
           onCreateTask={onCreateTask ? async () => {
-            try { await onCreateTask(contextMenu.path, includeLinks ? linkedPaths : []); success(t('files.taskCreated')); }
+            // One task referencing every target; it's named after the first.
+            try { await onCreateTask(sendPaths[0], sendPaths.slice(1)); success(t('files.taskCreated')); }
             catch { toastError(t('files.taskCreateFailed')); }
           } : undefined}
         />

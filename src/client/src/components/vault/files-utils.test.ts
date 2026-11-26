@@ -1,5 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { resolveVaultRelative } from './files-utils';
+import { resolveVaultRelative, visibleTreeItems, treeRange } from './files-utils';
+import type { FileEntry } from '../../api/files';
+
+describe('visibleTreeItems / treeRange', () => {
+  const dir = (name: string): FileEntry => ({ name, type: 'directory', size: null, mtime: null, hidden: false });
+  const file = (name: string): FileEntry => ({ name, type: 'file', size: null, mtime: null, hidden: false });
+  const children: Record<string, FileEntry[]> = { docs: [file('a.md'), dir('sub')], 'docs/sub': [file('b.md')], closed: [file('x.md')] };
+  // `closed` has loaded children but is collapsed, so childrenOf skips it.
+  const items = visibleTreeItems([dir('docs'), dir('closed'), file('c.md')], (path) => (path === 'closed' ? undefined : children[path]));
+
+  it('lists expanded folders depth-first in render order', () => {
+    expect(items.map((item) => item.path)).toEqual(['docs', 'docs/a.md', 'docs/sub', 'docs/sub/b.md', 'closed', 'c.md']);
+  });
+
+  it('selects the rows between anchor and target in either direction', () => {
+    expect(treeRange(items, 'docs/a.md', 'closed').map((item) => item.path)).toEqual(['docs/a.md', 'docs/sub', 'docs/sub/b.md', 'closed']);
+    expect(treeRange(items, 'c.md', 'docs/sub').map((item) => item.path)).toEqual(['docs/sub', 'docs/sub/b.md', 'closed', 'c.md']);
+  });
+
+  it('falls back to the clicked row when the anchor is not visible', () => {
+    expect(treeRange(items, 'closed/x.md', 'c.md').map((item) => item.path)).toEqual(['c.md']);
+    expect(treeRange(items, null, 'c.md').map((item) => item.path)).toEqual(['c.md']);
+    expect(treeRange(items, 'c.md', 'missing.md')).toEqual([]);
+  });
+});
 
 describe('resolveVaultRelative', () => {
   it('resolves against the document directory', () => {

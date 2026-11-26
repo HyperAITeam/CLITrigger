@@ -84,6 +84,30 @@ export function iconFor(entry: FileEntry, expanded: boolean) {
   return <FileText className="w-4 h-4 text-warm-400 shrink-0" />;
 }
 
+export interface TreeItem {
+  path: string;
+  entry: FileEntry;
+}
+
+// Rows in the order the explorer tree renders them; `childrenOf` returns an
+// expanded folder's loaded children (undefined = collapsed / not loaded).
+export function visibleTreeItems(entries: FileEntry[], childrenOf: (path: string) => FileEntry[] | undefined, parentPath = ''): TreeItem[] {
+  return entries.flatMap((entry) => {
+    const path = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+    const children = entry.type === 'directory' ? childrenOf(path) : undefined;
+    return [{ path, entry }, ...(children ? visibleTreeItems(children, childrenOf, path) : [])];
+  });
+}
+
+// Shift-click range: every row from the anchor to the clicked row, either direction.
+export function treeRange(items: TreeItem[], anchorPath: string | null, path: string): TreeItem[] {
+  const to = items.findIndex((item) => item.path === path);
+  if (to < 0) return [];
+  const from = items.findIndex((item) => item.path === anchorPath);
+  if (from < 0) return [items[to]];
+  return items.slice(Math.min(from, to), Math.max(from, to) + 1);
+}
+
 export function entryFromPath(path: string): FileEntry {
   const name = path.split('/').pop() || path;
   return { name, type: 'file', size: null, mtime: null, hidden: false };
