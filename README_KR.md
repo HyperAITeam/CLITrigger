@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="자동 작업의 루프를 켜고 검증 명령으로 npm test를 입력하는 과정" width="800">
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="위키 문서를 그래프 지식베이스로 보고, 터미널 4개를 2×2로 도킹해 Claude 3개에게 동시에 지시한 뒤, 남은 일을 MCP로 자동 작업에 넘기고 Git으로 커밋하는 과정" width="800">
 
 <br><br>
 
@@ -149,7 +149,7 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 **세션.** 플로팅 창에서 돌아가는 장시간 인터랙티브 CLI 세션. VS Code처럼 나란히 도킹하고, 별도 창으로 빼고, 태그와 별칭을 붙인다. node-pty 위의 진짜 xterm.js 터미널이다. 세션마다 자기 worktree 브랜치를 가질 수 있다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#인터랙티브-세션)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="CLI와 브랜치가 표시된 실행 중인 터미널 세션" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Claude 세션 3개와 셸을 2×2로 도킹한 화면. 한 세션은 clitrigger MCP로 자동 작업을 만들고 있다" width="800">
 </div>
 
 **연동.** Jira, GitHub Issues, Notion이 플러그인으로 붙는다. gstack 스킬은 실행 훅으로. Harness 패널에서는 각 CLI의 설정, 메모리, MCP config를 고치고 스킬, 훅, 플러그인을 켜고 끌 수 있다. dotfile을 열 필요가 없다.

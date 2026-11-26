@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="Enable an auto-task loop and enter npm test as its verification command" width="800">
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="Wiki docs as a knowledge graph, four terminals docked into a 2x2 grid with three Claude agents working in parallel, leftover work handed to auto tasks over MCP, then a Git commit" width="800">
 
 <br><br>
 
@@ -149,7 +149,7 @@ That's a normal Tuesday.
 **Sessions.** Long-lived interactive CLI sessions in floating windows. Dock them side by side VS Code style, pop one out to a separate window, tag and alias them. Real xterm.js terminals on node-pty. Each session can live on its own worktree branch. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#interactive-sessions)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Running terminal sessions with CLI and branch labels" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Three Claude sessions and a shell docked in a 2x2 grid, one creating auto tasks through the clitrigger MCP" width="800">
 </div>
 
 **Integrations.** Jira, GitHub Issues, and Notion as plugins. gstack skills as an execution hook. A Harness panel for editing each CLI's settings, memory, MCP config, and toggling skills, hooks, and plugins without opening the dotfiles.
