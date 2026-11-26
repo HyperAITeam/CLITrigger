@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger demo: tasks running in parallel worktrees overnight, then the morning review queue" width="800">
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="Enable an auto-task loop and enter npm test as its verification command" width="800">
 
 <br><br>
 
@@ -53,8 +53,8 @@ During the day, run the same CLIs in dockable floating windows. Enable worktree 
 It runs on your own machine. Point a Cloudflare tunnel at it and you can check on it from your phone.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Tasks running in parallel worktrees" width="800">
-  <p><em>Three CLIs, three worktrees, one screen</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="Loop rules, execution branch, and document injection in the task form" width="800">
+  <p><em>Choose how the loop stops and which branch the task runs on.</em></p>
 </div>
 
 ---
@@ -88,7 +88,7 @@ That's a normal Tuesday.
 **Schedules.** Cron for recurring runs, one-off for a specific time, and a "run when the rate limit resets" button that reads the reset timestamp straight from the CLI output. Skip-if-running is on by default so a slow run doesn't stack up. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#scheduled-execution)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Schedules" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="Daily routine with a time picker and overlap protection" width="800">
 </div>
 
 **Fallback chain.** Order your CLIs, say Claude then Antigravity then Codex. When one runs out of context window, or Antigravity reports its quota is gone three times in a minute, the process is killed and the next CLI starts on the same task. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-cli--sandbox-mode)
@@ -100,19 +100,19 @@ That's a normal Tuesday.
 **Docs.** A per-project folder of markdown with `[[wikilinks]]` and a graph view, grouped by folder or by tag, with tags you can put on any file or folder without touching it. Pick files and they go into the prompt, whichever CLI you're using. Lessons from past runs are saved as plain markdown in the same folder, so there's no separate wiki to keep in sync. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#vault)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Docs with wikilink graph" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="Markdown preview in Documents" width="800">
 </div>
 
 **Planner and calendar.** A plain list for ideas that aren't tasks yet. Turn any line into a task, a schedule, or a session with one click. My Schedule overlays your memos, every project's schedules, planner due dates, and assigned Jira issues on one calendar. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize#planner)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="Planner calendar and page navigation" width="800">
 </div>
 
 **Multi-agent discussion.** For the tasks you don't want to just fire off: an architect, a developer, and a reviewer argue about the approach first. The outcome can be committed as code or sent to the planner as action items. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#multi-agent-discussion)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Multi-agent discussion" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="Participant roles, speaking order, and round limit" width="800">
 </div>
 
 ### While you're out
@@ -128,7 +128,7 @@ That's a normal Tuesday.
 **Analytics.** Cost and tokens per project, split by CLI, status, and date. Useful for noticing that one loop task ate half the month. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship#analytics)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="Analytics summary and period filters before the first run" width="800">
 </div>
 
 ### The next morning
@@ -149,7 +149,7 @@ That's a normal Tuesday.
 **Sessions.** Long-lived interactive CLI sessions in floating windows. Dock them side by side VS Code style, pop one out to a separate window, tag and alias them. Real xterm.js terminals on node-pty. Each session can live on its own worktree branch. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI#interactive-sessions)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Docked sessions" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="Running terminal sessions with CLI and branch labels" width="800">
 </div>
 
 **Integrations.** Jira, GitHub Issues, and Notion as plugins. gstack skills as an execution hook. A Harness panel for editing each CLI's settings, memory, MCP config, and toggling skills, hooks, and plugins without opening the dotfiles.

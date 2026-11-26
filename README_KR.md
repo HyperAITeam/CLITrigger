@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="CLITrigger 데모: 밤새 worktree에서 병렬로 돌아가는 작업들, 그리고 아침 리뷰 큐" width="800">
+<img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/demo.gif" alt="자동 작업의 루프를 켜고 검증 명령으로 npm test를 입력하는 과정" width="800">
 
 <br><br>
 
@@ -53,8 +53,8 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 전부 내 컴퓨터에서 돈다. Cloudflare 터널만 붙이면 폰에서도 들여다볼 수 있다.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="병렬 worktree에서 돌아가는 작업들" width="800">
-  <p><em>CLI 셋, worktree 셋, 화면 하나</em></p>
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-tasks.png" alt="자동 작업의 루프 규칙, 실행 브랜치, 문서 주입 설정" width="800">
+  <p><em>루프를 멈출 조건과 작업을 실행할 브랜치를 고른다.</em></p>
 </div>
 
 ---
@@ -88,7 +88,7 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 **예약 실행.** cron으로 반복, 일회성으로 특정 시각, 그리고 CLI 출력에서 읽은 리셋 시각에 바로 거는 "리셋 시점에 실행 예약" 버튼. 이전 실행이 아직 돌고 있으면 건너뛰는 옵션이 있어서 느린 작업이 쌓이지 않는다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#스케줄-실행)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="예약 실행" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-schedules.png" alt="매일 실행할 시각과 중복 실행 방지를 설정하는 루틴" width="800">
 </div>
 
 **폴백 체인.** CLI 순서를 정해둔다. 예를 들면 Claude, Antigravity, Codex 순. 하나가 컨텍스트 윈도우를 다 쓰거나 Antigravity가 1분 안에 세 번 쿼터 소진을 뱉으면, 프로세스를 죽이고 다음 CLI가 같은 작업을 이어받는다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#멀티-cli--샌드박스-모드)
@@ -100,19 +100,19 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 **문서.** 프로젝트별 마크다운 폴더에 `[[wikilink]]`와 그래프 뷰. 그래프는 폴더나 태그로 묶어 보고, 태그는 파일을 건드리지 않고 아무 파일·폴더에나 붙인다. 파일을 골라 프롬프트에 넣으면 어떤 CLI를 쓰든 똑같이 들어간다. 지난 실행에서 얻은 교훈도 같은 폴더에 평범한 마크다운으로 쌓이니, 따로 맞춰 둘 위키가 없다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize-KR#볼트)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="wikilink 그래프가 있는 문서" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-vault.png" alt="문서 탭에서 연 마크다운 미리보기" width="800">
 </div>
 
 **플래너와 캘린더.** 아직 작업이 아닌 생각들을 적어두는 목록. 어떤 줄이든 클릭 한 번으로 작업, 예약, 세션이 된다. 내 일정은 메모, 전 프로젝트 예약, 플래너 마감일, 내게 할당된 Jira 이슈를 캘린더 하나에 겹쳐 보여준다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Plan-&-Organize-KR#플래너)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="플래너" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-planer.png" alt="플래너의 월간 달력과 페이지 탐색 메뉴" width="800">
 </div>
 
 **다중 에이전트 토론.** 그냥 던지기엔 찜찜한 작업용. 아키텍트, 개발자, 리뷰어가 먼저 접근 방식을 두고 싸운다. 결론은 코드로 커밋하거나 플래너에 액션 아이템으로 보낸다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#멀티-에이전트-토론)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="다중 에이전트 토론" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-discussions.png" alt="토론 참여자 역할, 발언 순서와 최대 라운드" width="800">
 </div>
 
 ### 자리를 비운 동안
@@ -128,7 +128,7 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 **통계.** 프로젝트별 비용과 토큰을 CLI, 상태, 날짜로 나눠 본다. 루프 작업 하나가 한 달 예산 절반을 먹었다는 걸 알아채는 용도. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Review-&-Ship-KR#분석)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="통계" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-analytics.png" alt="첫 실행 전 통계 요약과 기간 필터" width="800">
 </div>
 
 ### 다음 날 아침
@@ -149,7 +149,7 @@ CLITrigger는 그 CLI들을 큐에 올려 실행한다. Git 프로젝트의 자�
 **세션.** 플로팅 창에서 돌아가는 장시간 인터랙티브 CLI 세션. VS Code처럼 나란히 도킹하고, 별도 창으로 빼고, 태그와 별칭을 붙인다. node-pty 위의 진짜 xterm.js 터미널이다. 세션마다 자기 worktree 브랜치를 가질 수 있다. [Wiki ↗](https://github.com/HyperAITeam/CLITrigger/wiki/Delegate-to-AI-KR#인터랙티브-세션)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="도킹된 세션들" width="800">
+  <img src="https://raw.githubusercontent.com/HyperAITeam/CLITrigger/main/docs/images/screenshot-sessions.png" alt="CLI와 브랜치가 표시된 실행 중인 터미널 세션" width="800">
 </div>
 
 **연동.** Jira, GitHub Issues, Notion이 플러그인으로 붙는다. gstack 스킬은 실행 훅으로. Harness 패널에서는 각 CLI의 설정, 메모리, MCP config를 고치고 스킬, 훅, 플러그인을 켜고 끌 수 있다. dotfile을 열 필요가 없다.
