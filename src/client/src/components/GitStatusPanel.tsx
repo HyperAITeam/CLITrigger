@@ -573,7 +573,7 @@ function ChangedFileRow({
   selected: boolean;
   checked: boolean;
   onClick: () => void;
-  onToggleCheck: (e: React.MouseEvent | React.ChangeEvent) => void;
+  onToggleCheck: (shift: boolean) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const status = pane === 'staged'
@@ -594,7 +594,8 @@ function ChangedFileRow({
       <input
         type="checkbox"
         checked={checked}
-        onChange={onToggleCheck}
+        // React dispatches checkbox onChange from the native click, so shiftKey is there
+        onChange={e => onToggleCheck((e.nativeEvent as MouseEvent).shiftKey)}
         onClick={e => e.stopPropagation()}
         className="h-3 w-3 shrink-0 cursor-pointer"
         aria-label={file.path}
@@ -606,6 +607,20 @@ function ChangedFileRow({
       </span>
       <span className="truncate flex-1" title={file.path}>{file.path}</span>
     </div>
+  );
+}
+
+function PaneCheckAll({ files, checked, onChange }: { files: GitStatusFile[]; checked: Set<string>; onChange: (next: Set<string>) => void }) {
+  const all = files.length > 0 && files.every(f => checked.has(f.path));
+  return (
+    <input
+      type="checkbox"
+      checked={all}
+      ref={el => { if (el) el.indeterminate = !all && checked.size > 0; }}
+      onChange={() => onChange(all ? new Set() : new Set(files.map(f => f.path)))}
+      disabled={files.length === 0}
+      className="h-3 w-3 shrink-0 cursor-pointer"
+    />
   );
 }
 
@@ -726,17 +741,18 @@ function WorkingChangesView({
     });
   }, [unstaged]);
 
-  const toggleStagedCheck = useCallback((path: string) => {
-    setStagedChecked(prev => {
+  // Shift+click checks/unchecks the whole range from the last clicked row in that pane
+  const checkAnchorRef = useRef<{ staged?: string; unstaged?: string }>({});
+  const toggleCheck = useCallback((pane: 'staged' | 'unstaged', list: GitStatusFile[], path: string, shift: boolean) => {
+    const anchor = checkAnchorRef.current[pane];
+    checkAnchorRef.current[pane] = path;
+    (pane === 'staged' ? setStagedChecked : setUnstagedChecked)(prev => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path); else next.add(path);
-      return next;
-    });
-  }, []);
-  const toggleUnstagedCheck = useCallback((path: string) => {
-    setUnstagedChecked(prev => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path); else next.add(path);
+      const on = !prev.has(path);
+      const b = list.findIndex(f => f.path === path);
+      const a = shift && anchor ? list.findIndex(f => f.path === anchor) : -1;
+      const range = a >= 0 ? list.slice(Math.min(a, b), Math.max(a, b) + 1) : [list[b]];
+      range.forEach(f => { if (on) next.add(f.path); else next.delete(f.path); });
       return next;
     });
   }, []);
@@ -895,9 +911,10 @@ function WorkingChangesView({
         {/* Staged pane */}
         <div className="flex flex-col min-h-0" style={{ flex: '1 1 0' }}>
           <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
-            <span className="text-xs font-semibold text-warm-700">
-              {t('git.stagedFiles')} <span className="text-warm-400 font-normal">({staged.length})</span>
-            </span>
+            <label className="flex items-center gap-2 text-xs font-semibold text-warm-700 cursor-pointer select-none">
+              <PaneCheckAll files={staged} checked={stagedChecked} onChange={setStagedChecked} />
+              <span>{t('git.stagedFiles')} <span className="text-warm-400 font-normal">({staged.length})</span></span>
+            </label>
             <button
               className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || staged.length === 0}
@@ -926,7 +943,7 @@ function WorkingChangesView({
                   selected={selectedKey === `staged::${f.path}`}
                   checked={stagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`staged::${f.path}`)}
-                  onToggleCheck={() => toggleStagedCheck(f.path)}
+                  onToggleCheck={shift => toggleCheck('staged', staged, f.path, shift)}
                   onContextMenu={e => openFileMenu(e, f)}
                 />
               ))
@@ -937,9 +954,10 @@ function WorkingChangesView({
         {/* Unstaged pane */}
         <div className="flex flex-col min-h-0 border-t border-warm-200" style={{ flex: '1 1 0' }}>
           <div className="px-3 py-2 border-b border-warm-200 flex items-center justify-between shrink-0 bg-warm-50">
-            <span className="text-xs font-semibold text-warm-700">
-              {t('git.unstagedFiles')} <span className="text-warm-400 font-normal">({unstaged.length})</span>
-            </span>
+            <label className="flex items-center gap-2 text-xs font-semibold text-warm-700 cursor-pointer select-none">
+              <PaneCheckAll files={unstaged} checked={unstagedChecked} onChange={setUnstagedChecked} />
+              <span>{t('git.unstagedFiles')} <span className="text-warm-400 font-normal">({unstaged.length})</span></span>
+            </label>
             <button
               className="text-2xs text-warm-500 hover:text-warm-700 disabled:opacity-40"
               disabled={busy || unstaged.length === 0}
@@ -968,7 +986,7 @@ function WorkingChangesView({
                   selected={selectedKey === `unstaged::${f.path}`}
                   checked={unstagedChecked.has(f.path)}
                   onClick={() => setSelectedKey(`unstaged::${f.path}`)}
-                  onToggleCheck={() => toggleUnstagedCheck(f.path)}
+                  onToggleCheck={shift => toggleCheck('unstaged', unstaged, f.path, shift)}
                   onContextMenu={e => openFileMenu(e, f)}
                 />
               ))
