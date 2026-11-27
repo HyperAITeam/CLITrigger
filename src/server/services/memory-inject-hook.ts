@@ -26,6 +26,16 @@ export function parseRawFilePaths(raw: string | null | undefined): string[] {
 }
 
 export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise<string | null> {
+  try {
+    return await injectVault(ctx);
+  } catch (err) {
+    // A vault scan can fail or time out (e.g. an offline network folder) — run without docs.
+    ctx.log('output', `[vault] injection skipped: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+async function injectVault(ctx: MemoryInjectionContext): Promise<string | null> {
   if (ctx.mode === 'none' || !ctx.project.path) return null;
 
   let effectiveMode: VaultInjectMode = ctx.mode;

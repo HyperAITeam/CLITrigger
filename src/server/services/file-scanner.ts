@@ -167,6 +167,10 @@ const SCAN_CONCURRENCY = 32;
 const MD_READ_CAP = 256 * 1024;
 const HTML_READ_CAP = 64 * 1024;
 const PREVIEW_SOURCE_CHARS = 4 * 1024;
+// Safety nets (mutable for tests): a scan stuck on an offline network folder
+// fails instead of pinning the root forever, and a watched result is not
+// trusted forever (some network folders never deliver fs.watch events).
+export const vaultScanLimits = { timeoutMs: 120_000, maxCacheAgeMs: 5 * 60_000 };
 
 interface CachedDoc { mtimeMs: number; size: number; file: VaultFile }
 interface RootState {
@@ -177,6 +181,8 @@ interface RootState {
   gen: number;                  // bumped on every change notice
   inflight: Promise<VaultFile[]> | null;
   inflightGen: number;          // gen the in-flight scan started at
+  run: number;                  // bumped per scan; a timed-out scan must not commit late
+  scannedAt: number;            // when `files` was produced
 }
 // ponytail: one state per (root, excludes) ever scanned, never evicted — fine for a few dozen projects
 const rootStates = new Map<string, RootState>();
@@ -306,7 +312,7 @@ async function parseVaultFile(abs: string, rel: string, stat: fs.Stats): Promise
   };
 }
 
-async function scanRoot(root: string, excludes: string[], state: RootState): Promise<VaultFile[]> {
+async function scanRoot(root: string, excludes: string[], state: RootState, run: number): Promise<VaultFile[]> {
   const rels = await walkDir(root, excludes, loadVaultIgnore(root));
   const next = new Map<string, CachedDoc>();
   const out: (VaultFile | null)[] = new Array(rels.length).fill(null);
@@ -323,6 +329,7 @@ async function scanRoot(root: string, excludes: string[], state: RootState): Pro
     next.set(rel, { mtimeMs: stat.mtimeMs, size: stat.size, file });
     out[i] = file;
   });
+  if (state.run !== run) return []; // superseded after a timeout — result is discarded anyway
   state.docs = next;
   const dirs = new Set<string>();
   for (const rel of next.keys()) {
@@ -345,10 +352,12 @@ export async function scanVault(projectRoot: string, excludePatterns?: string[])
   const key = resolved + '\0' + excludes.join('\0');
   let state = rootStates.get(key);
   if (!state) {
-    state = { docs: new Map(), dirs: new Set(), files: null, fresh: false, gen: 0, inflight: null, inflightGen: 0 };
+    state = { docs: new Map(), dirs: new Set(), files: null, fresh: false, gen: 0, inflight: null, inflightGen: 0, run: 0, scannedAt: 0 };
     rootStates.set(key, state);
   }
-  if (state.fresh && state.files) return cloneFiles(state.files);
+  if (state.fresh && state.files && Date.now() - state.scannedAt < vaultScanLimits.maxCacheAgeMs) {
+    return cloneFiles(state.files);
+  }
 
   // Single-flight: the docs tab fires files/graph/tags at once for one root.
   let inflight = state.inflight;
@@ -361,13 +370,25 @@ export async function scanVault(projectRoot: string, excludePatterns?: string[])
     const s = state;
     const gen = s.gen;
     s.inflightGen = gen;
-    inflight = s.inflight = scanRoot(resolved, excludes, s)
+    const run = ++s.run;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`vault scan timed out after ${Math.round(vaultScanLimits.timeoutMs / 1000)}s: ${resolved}`)),
+        vaultScanLimits.timeoutMs,
+      );
+    });
+    inflight = s.inflight = Promise.race([scanRoot(resolved, excludes, s, run), timeout])
       .then((files) => {
         s.files = files;
+        s.scannedAt = Date.now();
         s.fresh = (watchedRoots.get(resolved) ?? 0) > 0 && s.gen === gen;
         return files;
       })
-      .finally(() => { s.inflight = null; });
+      .finally(() => {
+        clearTimeout(timer);
+        if (s.run === run) s.inflight = null;
+      });
   }
   return cloneFiles(await inflight);
 }

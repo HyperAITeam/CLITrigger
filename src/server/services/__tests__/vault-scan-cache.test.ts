@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { scanVault, invalidateVaultRoot, setVaultRootWatched, touchesVaultDir } from '../file-scanner.js';
+import { scanVault, invalidateVaultRoot, setVaultRootWatched, touchesVaultDir, vaultScanLimits } from '../file-scanner.js';
 import { affectsVaultScan } from '../vault-watcher.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-scan-cache-'));
@@ -78,6 +78,27 @@ describe('scanVault cache', () => {
     expect(titles(x)).toEqual(titles(y));
     x[0].tags.push('mutated');
     expect((await scanVault(root))[0].tags).not.toContain('mutated');
+  });
+
+  it('a timed-out scan fails and does not pin the root', async () => {
+    const root = makeRoot('timeout');
+    const saved = vaultScanLimits.timeoutMs;
+    vaultScanLimits.timeoutMs = 0; // fires before any fs op completes
+    await expect(scanVault(root)).rejects.toThrow(/timed out/);
+    vaultScanLimits.timeoutMs = saved;
+    expect(titles(await scanVault(root))).toEqual(['a.md:Alpha', 'sub/b.md:b']);
+  });
+
+  it('does not trust a watched result past the max cache age', async () => {
+    const root = makeRoot('aged');
+    setVaultRootWatched(root, true);
+    await scanVault(root);
+    fs.writeFileSync(path.join(root, 'quiet.md'), 'no fs event');
+    const saved = vaultScanLimits.maxCacheAgeMs;
+    vaultScanLimits.maxCacheAgeMs = 0;
+    expect(titles(await scanVault(root))).toContain('quiet.md:quiet');
+    vaultScanLimits.maxCacheAgeMs = saved;
+    setVaultRootWatched(root, false);
   });
 
   it('returns [] for a missing root', async () => {
