@@ -20,7 +20,7 @@ export class TunnelManager extends EventEmitter {
 
   /**
    * Start a quick (unnamed) cloudflared tunnel.
-   * Runs: cloudflared tunnel --url http://localhost:<port>
+   * Runs: cloudflared tunnel --url http://127.0.0.1:<port>
    * Parses stderr for the generated trycloudflare.com URL.
    */
   async startTunnel(port: number): Promise<string> {
@@ -39,7 +39,7 @@ export class TunnelManager extends EventEmitter {
     this.url = null;
 
     return new Promise<string>((resolve, reject) => {
-      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`], {
+      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://127.0.0.1:${port}`], {
         stdio: ['ignore', 'pipe', 'pipe'],
         // Only a bare "cloudflared" (PATH fallback) needs a shell to resolve.
         // For an absolute .exe path, shell:true breaks on spaces / asar paths.
@@ -141,7 +141,7 @@ export class TunnelManager extends EventEmitter {
     this.url = null;
 
     return new Promise<string>((resolve, reject) => {
-      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://localhost:${port}`, 'run', tunnelName], {
+      const proc = spawn(this.cloudflaredPath, ['tunnel', '--url', `http://127.0.0.1:${port}`, 'run', tunnelName], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: this.cloudflaredPath === 'cloudflared',
       });
