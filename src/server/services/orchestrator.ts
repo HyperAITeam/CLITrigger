@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { worktreeManager } from './worktree-manager.js';
 import { claudeManager, type ClaudeMode } from './claude-manager.js';
-import { getAdapter, type CliTool, type SandboxMode } from './cli-adapters.js';
+import { getAdapter, detectRejectedFlag, type CliTool, type SandboxMode } from './cli-adapters.js';
+import { getToolStatus } from './cli-status.js';
 import { logStreamer, type TokenUsage } from './log-streamer.js';
 import { getTodoImagePaths } from '../routes/images.js';
 import { applyMemoryInjection, parseRawFilePaths, type MemoryInjectMode } from './memory-inject-hook.js';
@@ -722,8 +723,19 @@ Complete the task in the current directory.`;
             return;
           }
 
-          // Normal failure path
-          const failMsg = `${adapter.displayName} exited with code ${exitCode}.`;
+          // Normal failure path. Name a rejected flag when the CLI says so —
+          // otherwise a CLI update just shows up as a help dump + exit code.
+          const roundOutput = queries.getTaskLogsByTodoId(todoId)
+            // stderr lines like "Error: unknown option" are classified 'error'
+            .filter((l) => l.round_number === roundNumber && (l.log_type === 'output' || l.log_type === 'error'))
+            .slice(-400) // agy prints its ~45-line usage after the error line
+            .map((l) => l.message)
+            .join('\n');
+          const rejectedFlag = detectRejectedFlag(roundOutput);
+          const cliVersion = rejectedFlag ? (await getToolStatus(cliTool).catch(() => null))?.version : null;
+          const failMsg = rejectedFlag
+            ? `${adapter.displayName}${cliVersion ? ` ${cliVersion}` : ''} does not accept the flag ${rejectedFlag} (exit code ${exitCode}). The installed CLI likely changed its options in an update — update CLITrigger, or report this with the CLI version.`
+            : `${adapter.displayName} exited with code ${exitCode}.`;
           try {
             queries.updateTodoStatus(todoId, 'failed');
             queries.createTaskLog(todoId, 'error', failMsg, roundNumber);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAdapter, supportsInteractiveMode, parseHelpForModels } from '../cli-adapters.js';
+import { getAdapter, supportsInteractiveMode, parseHelpForModels, detectRejectedFlag } from '../cli-adapters.js';
 
 describe('cli-adapters', () => {
   it('uses non-interactive exec mode for Codex', () => {
@@ -53,6 +53,14 @@ describe('cli-adapters', () => {
     });
 
     expect(args).toEqual(['--dangerously-skip-permissions', '--print', 'Follow up', '--continue']);
+  });
+
+  it('names the flag a CLI rejected (messages captured from claude 2.1, codex, agy 1.5)', () => {
+    expect(detectRejectedFlag("error: unknown option '--bogus'")).toBe('--bogus');
+    expect(detectRejectedFlag("Error: unexpected argument '--headless' found\n\nUsage: codex exec")).toBe('--headless');
+    expect(detectRejectedFlag('flags provided but not defined: -headless\nUsage of agy.exe:')).toBe('-headless');
+    expect(detectRejectedFlag('flag needs an argument: -print')).toBe('-print');
+    expect(detectRejectedFlag('Error: Input must be provided either through stdin')).toBeNull();
   });
 
   it('omits exec subcommand for Codex in interactive mode', () => {

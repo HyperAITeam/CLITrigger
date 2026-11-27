@@ -74,6 +74,27 @@ async function probeViaHelp(command: string): Promise<ProbedModel[] | null> {
   }
 }
 
+/**
+ * The CLI rejected one of our flags — i.e. the user's CLI updated under us
+ * (agy 1.5 dropping --headless, --print turning into a value flag). Read from
+ * the run's output after a failed exit. Not checked up front against
+ * `--help`: CLIs hide valid flags there (claude 2.1 omits --max-turns), so a
+ * help-based gate would block working runs.
+ */
+export function detectRejectedFlag(output: string): string | null {
+  const patterns = [
+    /unknown option '(-[^']+)'/i, // claude (commander)
+    /unexpected argument '(-[^']+)' found/i, // codex (clap)
+    /flags? provided but not defined: (-\S+)/i, // agy (Go flag)
+    /flag needs an argument: (-\S+)/i, // agy (Go flag)
+  ];
+  for (const re of patterns) {
+    const m = output.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 // Allowed CLI option patterns (flags that are safe to pass through)
 const ALLOWED_OPTION_PATTERN = /^--?[a-zA-Z][a-zA-Z0-9_-]*(?:=\S+)?$/;
 
