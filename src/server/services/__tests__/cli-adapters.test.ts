@@ -27,7 +27,7 @@ describe('cli-adapters', () => {
     expect(getAdapter('antigravity').buildArgs(base)).toEqual([]);
     // Headless keeps the non-prompting modes.
     expect(getAdapter('claude').buildArgs({ ...base, mode: 'headless' })).toContain('dontAsk');
-    expect(getAdapter('antigravity').buildArgs({ ...base, mode: 'headless' })).toEqual(['--dangerously-skip-permissions', '--headless']);
+    expect(getAdapter('antigravity').buildArgs({ ...base, mode: 'headless' })).toEqual(['--dangerously-skip-permissions', '--print']);
   });
 
   it('adds headless flag for Antigravity in non-interactive mode', () => {
@@ -37,7 +37,7 @@ describe('cli-adapters', () => {
       prompt: 'Fix the login disclaimer',
     });
 
-    expect(args).toEqual(['--dangerously-skip-permissions', '--headless']);
+    expect(args).toEqual(['--dangerously-skip-permissions', '--print']);
   });
 
   it('uses --continue for Antigravity when continuing a session', () => {
@@ -48,7 +48,7 @@ describe('cli-adapters', () => {
       continueSession: true,
     });
 
-    expect(args).toEqual(['--dangerously-skip-permissions', '--headless', '--continue']);
+    expect(args).toEqual(['--dangerously-skip-permissions', '--print', '--continue']);
   });
 
   it('omits exec subcommand for Codex in interactive mode', () => {

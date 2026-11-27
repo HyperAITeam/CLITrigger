@@ -85,7 +85,7 @@ interface CliInvocation {
 function buildInvocation(cliTool: CliTool): CliInvocation {
   switch (cliTool) {
     case 'antigravity':
-      return { command: 'agy', args: ['--dangerously-skip-permissions', '--headless'], displayName: 'Antigravity' };
+      return { command: 'agy', args: ['--dangerously-skip-permissions', '--print'], displayName: 'Antigravity' };
     case 'codex':
       return { command: 'codex', args: ['exec'], displayName: 'Codex' };
     case 'claude':

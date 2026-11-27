@@ -3,7 +3,7 @@ import type { CliTool } from './cli-adapters.js';
 
 function buildInvocation(cliTool: CliTool): { command: string; args: string[] } {
   switch (cliTool) {
-    case 'antigravity': return { command: 'agy', args: ['--dangerously-skip-permissions', '--headless'] };
+    case 'antigravity': return { command: 'agy', args: ['--dangerously-skip-permissions', '--print'] };
     case 'codex': return { command: 'codex', args: ['exec'] };
     case 'claude':
     default: return { command: 'claude', args: ['--print'] };

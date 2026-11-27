@@ -293,14 +293,14 @@ const antigravityAdapter: CliAdapter = {
     //   --dangerously-skip-permissions auto-approves all tool actions (file writes, shell).
     //   Strict interactive sessions drop it so agy asks the user. Headless always
     //   keeps it: nobody can answer, and agy 1.1.20's --sandbox hangs headless on Windows.
-    //   --headless enables non-interactive mode; the actual prompt is delivered via stdin pipe.
+    //   --print (-p) enables non-interactive mode (agy 1.5 dropped --headless); the prompt is delivered via stdin pipe.
     //   --continue resumes the most recent conversation.
-    // PROVISIONAL: verify with `agy --help` that --headless reads the prompt from
+    // PROVISIONAL: verify with `agy --help` that --print reads the prompt from
     // stdin. If it instead requires `-p <prompt>` inline, move the prompt into
     // args here and make needsStdin(mode) return only mode === 'interactive'.
     const args: string[] = [];
     if (mode !== 'interactive' || sandboxMode !== 'strict') args.push('--dangerously-skip-permissions');
-    if (mode !== 'interactive') args.push('--headless');
+    if (mode !== 'interactive') args.push('--print');
     if (continueSession) args.push('--continue');
     if (model) args.push('--model', model);
     if (extraOptions) {
