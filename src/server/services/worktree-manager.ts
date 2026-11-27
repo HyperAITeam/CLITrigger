@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { isRealpathWithinRoot } from '../utils/path-safety.js';
 
 const execAsync = promisify(exec);
 
@@ -609,6 +610,8 @@ export class WorktreeManager {
     const root = path.resolve(dirPath);
     const abs = path.resolve(root, file);
     if (abs !== root && !abs.startsWith(root + path.sep)) throw new Error('Invalid file path');
+    // A conflicted path from a merged branch may be a symlink out of the repo.
+    if (!isRealpathWithinRoot(root, abs)) throw new Error('Invalid file path');
     return abs;
   }
 

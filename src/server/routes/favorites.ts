@@ -167,8 +167,9 @@ router.post('/favorites/:id/launch', (req: Request<{ id: string }>, res: Respons
       }
       const target = favorite.target;
       if (process.platform === 'win32') {
-        // start "" "<url>" via cmd to launch default browser
-        const child = spawn('cmd.exe', ['/c', 'start', '""', target], { detached: true, stdio: 'ignore' });
+        // Default browser without cmd.exe: `cmd /c start` parsed `&`/`|` in the
+        // URL as command separators (https://x/?a=1&calc ran calc).
+        const child = spawn('rundll32.exe', ['url.dll,FileProtocolHandler', target], { detached: true, stdio: 'ignore' });
         child.on('error', () => { /* swallow */ });
         child.unref();
       } else if (process.platform === 'darwin') {

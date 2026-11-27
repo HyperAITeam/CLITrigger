@@ -33,6 +33,12 @@ function validateProjectPath(inputPath: string): { valid: boolean; error?: strin
     return { valid: false, error: 'Path traversal (..) is not allowed' };
   }
 
+  // The path reaches CLI argv (e.g. Codex --add-dir), which on Windows goes
+  // through cmd.exe to resolve .cmd shims — cmd would run `&calc` in a path.
+  if (/[&|<>^%"]/.test(inputPath)) {
+    return { valid: false, error: 'Path must not contain & | < > ^ % or "' };
+  }
+
   // Must be an absolute path
   if (!nodePath.isAbsolute(inputPath)) {
     return { valid: false, error: 'Path must be absolute' };
@@ -411,8 +417,19 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
       }
     }
 
+    // Same rules as creation — the path was stored unvalidated here.
+    let safePath: string | undefined;
+    if (path !== undefined) {
+      const pathCheck = validateProjectPath(path);
+      if (!pathCheck.valid) {
+        res.status(400).json({ error: pathCheck.error });
+        return;
+      }
+      safePath = pathCheck.resolved;
+    }
+
     const project = updateProject(req.params.id, {
-      name, path, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, session_sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, hidden_tabs, color,
+      name, path: safePath, default_branch, max_concurrent, claude_options, cli_tool, cli_fallback_chain, default_max_turns, sandbox_mode, session_sandbox_mode, debug_logging, use_worktree, auto_commit, show_token_usage, npm_auto_install, auto_delegate, loop_defaults, hidden_tabs, color,
       ...(svn_enabled !== undefined ? { svn_enabled: Number(svn_enabled) } : {}),
       ...(vcsTypePatch !== undefined ? { vcs_type: vcsTypePatch } : {}),
       ...(vaultLinksPatch !== undefined ? { vault_links: vaultLinksPatch } : {}),

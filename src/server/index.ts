@@ -76,15 +76,28 @@ app.use(cors((req, callback) => {
   // instead of throwing — a 500 here broke same-origin asset loads entirely.
   callback(null, { origin: isAllowedOrigin(req.headers.origin, req.headers.host), credentials: true });
 }));
+// CSP hashes for the built index.html's inline <script>s (the theme
+// bootstrap), so script-src needs neither 'unsafe-inline' nor 'unsafe-eval'.
+function inlineScriptHashes(): string[] {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const dir of [path.resolve(here, '../client'), path.resolve(here, '../../src/client/dist')]) {
+    let html: string;
+    try { html = fs.readFileSync(path.join(dir, 'index.html'), 'utf-8'); } catch { continue; }
+    return [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+      .map((m) => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
+  }
+  return [];
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
-      // 'unsafe-inline'/'unsafe-eval' kept for the Vite SPA (inline theme
-      // bootstrap + inline style attrs). Tighten to nonces later. The real
-      // wins here are object/base/frame-ancestors/form-action + connect scope.
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      // No 'unsafe-inline'/'unsafe-eval': an HTML-injection bug must not be able
+      // to run script in the app origin (which can open shell sessions).
+      scriptSrc: ["'self'", ...inlineScriptHashes()],
+      // Inline style attrs (React `style={…}`) still need 'unsafe-inline'.
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
       // Planner page video blocks: served from /api ('self') + blob previews.

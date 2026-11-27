@@ -216,10 +216,16 @@ function createWindow(port) {
     },
   });
 
-  const localOrigins = [
-    `http://127.0.0.1:${port}`,
-    `http://localhost:${port}`,
-  ];
+  // Our own pages only. Compare the parsed host — a string prefix test let
+  // `http://127.0.0.1:3737@evil.example/popout/x` (host evil.example) and other
+  // local ports through, opening attacker pages in a preload-attached window.
+  const localHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+  const isLocalAppUrl = (url) => {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'http:' && localHosts.has(u.host) && !u.username && !u.password;
+    } catch { return false; }
+  };
   // Parse a `features` CSV string like "popup,width=800,height=540,left=120,top=80"
   // into numeric x/y/width/height we can forward into Electron's
   // overrideBrowserWindowOptions. Electron drops the features-derived sizing
@@ -244,8 +250,7 @@ function createWindow(port) {
   };
 
   mainWindow.webContents.setWindowOpenHandler(({ url, features }) => {
-    const isLocal = localOrigins.some((o) => url.startsWith(o));
-    if (!isLocal) {
+    if (!isLocalAppUrl(url)) {
       // Only hand safe schemes to the OS — never file:/smb:/custom handlers.
       try {
         const proto = new URL(url).protocol;
@@ -305,7 +310,7 @@ function createWindow(port) {
   // can't load a remote page inside the trusted, preload-attached window.
   const blockOffOriginNav = (contents) => {
     contents.on('will-navigate', (e, navUrl) => {
-      if (!localOrigins.some((o) => navUrl.startsWith(o))) e.preventDefault();
+      if (!isLocalAppUrl(navUrl)) e.preventDefault();
     });
   };
   blockOffOriginNav(mainWindow.webContents);
@@ -323,6 +328,12 @@ function createWindow(port) {
   mainWindow.webContents.on('will-attach-webview', (e, prefs, params) => {
     delete prefs.preload;
     prefs.nodeIntegration = false;
+    prefs.nodeIntegrationInSubFrames = false;
+    prefs.contextIsolation = true;
+    prefs.sandbox = true;
+    prefs.webSecurity = true;
+    // Only the web panel's own partition — never the app's session/cookies.
+    if (params.partition !== 'persist:webpanel') e.preventDefault();
     if (!isWebScheme(params.src)) e.preventDefault();
   });
   mainWindow.webContents.on('did-attach-webview', (_e, guest) => {
