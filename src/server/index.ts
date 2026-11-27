@@ -81,10 +81,14 @@ app.use(cors((req, callback) => {
 function inlineScriptHashes(): string[] {
   const here = path.dirname(fileURLToPath(import.meta.url));
   for (const dir of [path.resolve(here, '../client'), path.resolve(here, '../../src/client/dist')]) {
+    // Same rule as static serving below: only a built dir has assets/ (in dev,
+    // ../client is the Vite source folder, whose index.html differs).
+    if (!fs.existsSync(path.join(dir, 'assets'))) continue;
     let html: string;
     try { html = fs.readFileSync(path.join(dir, 'index.html'), 'utf-8'); } catch { continue; }
     return [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
-      .map((m) => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
+      // The HTML parser turns CRLF into LF before the browser hashes the script.
+      .map((m) => `'sha256-${crypto.createHash('sha256').update(m[1].replace(/\r\n?/g, '\n')).digest('base64')}'`);
   }
   return [];
 }

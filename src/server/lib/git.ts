@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
+import { simpleGit, type SimpleGit, type SimpleGitOptions } from 'simple-git';
 
 // core.quotePath=false prevents git from C-escaping non-ASCII (e.g. Korean,
 // CJK, emoji) filenames in command output like `diff --name-status`.
