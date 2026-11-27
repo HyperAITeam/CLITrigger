@@ -56,9 +56,9 @@ function resolveDoc(project: queries.Project, relativePath: unknown, allowHtml =
 
 // GET /api/projects/:id/vault/files
 router.get('/projects/:id/vault/files', async (req: Request, res: Response) => {
-  const project = getProject(req, res);
-  if (!project) return;
   try {
+    const project = getProject(req, res);
+    if (!project) return;
     const files = await scanProjectVault(project);
     res.json({ files });
   } catch (err) {
@@ -68,9 +68,9 @@ router.get('/projects/:id/vault/files', async (req: Request, res: Response) => {
 
 // GET /api/projects/:id/vault/graph
 router.get('/projects/:id/vault/graph', async (req: Request, res: Response) => {
-  const project = getProject(req, res);
-  if (!project) return;
   try {
+    const project = getProject(req, res);
+    if (!project) return;
     const graph = buildVaultGraph(await scanProjectVault(project));
     res.json(graph);
   } catch (err) {
@@ -280,40 +280,38 @@ router.put('/projects/:id/vault/tags/color', (req: Request, res: Response) => {
 
 // POST /api/projects/:id/vault/preview
 router.post('/projects/:id/vault/preview', async (req: Request, res: Response) => {
-  const project = getProject(req, res);
-  if (!project) return;
-  const { mode, filePaths } = req.body;
-  if (!mode || !['all', 'selected'].includes(mode)) {
-    res.status(400).json({ error: 'mode must be "all" or "selected"' });
-    return;
-  }
-  const sanitizedPaths = Array.isArray(filePaths)
-    ? filePaths.filter((p: unknown): p is string => typeof p === 'string' && resolveDoc(project, p, true) !== null)
-    : [];
-  let result: Awaited<ReturnType<typeof buildVaultBlock>>;
   try {
-    result = await buildVaultBlock({
+    const project = getProject(req, res);
+    if (!project) return;
+    const { mode, filePaths } = req.body;
+    if (!mode || !['all', 'selected'].includes(mode)) {
+      res.status(400).json({ error: 'mode must be "all" or "selected"' });
+      return;
+    }
+    const sanitizedPaths = Array.isArray(filePaths)
+      ? filePaths.filter((p: unknown): p is string => typeof p === 'string' && resolveDoc(project, p, true) !== null)
+      : [];
+    const result = await buildVaultBlock({
       project,
       mode,
       filePaths: sanitizedPaths,
     });
+    res.json({
+      block: result?.block ?? '',
+      fileCount: result?.fileCount ?? 0,
+      charCount: result?.block?.length ?? 0,
+    });
   } catch {
     res.status(500).json({ error: 'Failed to build vault preview' });
-    return;
   }
-  res.json({
-    block: result?.block ?? '',
-    fileCount: result?.fileCount ?? 0,
-    charCount: result?.block?.length ?? 0,
-  });
 });
 
 // GET /api/projects/:id/vault/search?q=...
 router.get('/projects/:id/vault/search', async (req: Request, res: Response) => {
-  const project = getProject(req, res);
-  if (!project) return;
-  const q = (req.query.q as string) ?? '';
   try {
+    const project = getProject(req, res);
+    if (!project) return;
+    const q = (req.query.q as string) ?? '';
     const results = q.trim() ? searchVault(await scanProjectVault(project), q) : [];
     res.json({ files: results });
   } catch {

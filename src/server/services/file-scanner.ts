@@ -171,10 +171,12 @@ const PREVIEW_SOURCE_CHARS = 4 * 1024;
 interface CachedDoc { mtimeMs: number; size: number; file: VaultFile }
 interface RootState {
   docs: Map<string, CachedDoc>; // rel → parsed doc, pruned to the last scan
+  dirs: Set<string>;            // every folder holding a doc in the last scan
   files: VaultFile[] | null;    // last full result
   fresh: boolean;               // result still valid (watched, no change since)
   gen: number;                  // bumped on every change notice
   inflight: Promise<VaultFile[]> | null;
+  inflightGen: number;          // gen the in-flight scan started at
 }
 // ponytail: one state per (root, excludes) ever scanned, never evicted — fine for a few dozen projects
 const rootStates = new Map<string, RootState>();
@@ -230,7 +232,7 @@ async function mapPool(count: number, limit: number, fn: (i: number) => Promise<
 async function readHead(abs: string, cap: number): Promise<string> {
   const fh = await fs.promises.open(abs, 'r');
   try {
-    const buf = Buffer.allocUnsafe(cap);
+    const buf = Buffer.allocUnsafe(cap); // cap is already min(limit, file size)
     const { bytesRead } = await fh.read(buf, 0, cap, 0);
     return buf.toString('utf8', 0, bytesRead);
   } finally {
@@ -254,7 +256,7 @@ async function parseVaultFile(abs: string, rel: string, stat: fs.Stats): Promise
   let bodyFlat = '';
 
   if (kind === 'md') {
-    const content = await readHead(abs, MD_READ_CAP);
+    const content = await readHead(abs, Math.min(MD_READ_CAP, stat.size));
     const { frontmatter, body } = parseFrontmatter(content);
     if (frontmatter?.tags) {
       const raw = frontmatter.tags;
@@ -270,12 +272,14 @@ async function parseVaultFile(abs: string, rel: string, stat: fs.Stats): Promise
     bodyFlat = body.slice(0, PREVIEW_SOURCE_CHARS).replace(/\s+/g, ' ').trim();
     title = (frontmatter?.title as string) || stem;
   } else if (kind === 'html') {
-    const content = await readHead(abs, HTML_READ_CAP);
+    const content = await readHead(abs, Math.min(HTML_READ_CAP, stat.size));
     const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
     if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
     const stripped = content
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      // A <script>/<style> still open at the read cap would leak CSS/JS into the preview.
+      .replace(/<(script|style)\b[\s\S]*$/i, ' ')
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
@@ -320,11 +324,16 @@ async function scanRoot(root: string, excludes: string[], state: RootState): Pro
     out[i] = file;
   });
   state.docs = next;
+  const dirs = new Set<string>();
+  for (const rel of next.keys()) {
+    for (let i = rel.lastIndexOf('/'); i > 0; i = rel.lastIndexOf('/', i - 1)) dirs.add(rel.slice(0, i));
+  }
+  state.dirs = dirs;
   return out.filter((f): f is VaultFile => f !== null);
 }
 
-// Callers may reassign fields (e.g. merged tags); never hand out cached objects.
-const cloneFiles = (files: VaultFile[]) => files.map(f => ({ ...f }));
+// Callers may reassign or mutate fields (e.g. merged tags); never hand out cached objects.
+const cloneFiles = (files: VaultFile[]) => files.map(f => ({ ...f, tags: [...f.tags], wikilinks: [...f.wikilinks] }));
 
 export async function scanVault(projectRoot: string, excludePatterns?: string[]): Promise<VaultFile[]> {
   const resolved = path.resolve(projectRoot);
@@ -336,17 +345,22 @@ export async function scanVault(projectRoot: string, excludePatterns?: string[])
   const key = resolved + '\0' + excludes.join('\0');
   let state = rootStates.get(key);
   if (!state) {
-    state = { docs: new Map(), files: null, fresh: false, gen: 0, inflight: null };
+    state = { docs: new Map(), dirs: new Set(), files: null, fresh: false, gen: 0, inflight: null, inflightGen: 0 };
     rootStates.set(key, state);
   }
   if (state.fresh && state.files) return cloneFiles(state.files);
 
   // Single-flight: the docs tab fires files/graph/tags at once for one root.
-  // ponytail: a change landing mid-scan is only picked up by the next request (fresh stays false)
   let inflight = state.inflight;
+  if (inflight && state.inflightGen !== state.gen) {
+    // That scan started before a change — its result may miss it. Wait it out
+    // (one scanRoot per state at a time: it swaps state.docs) and scan again.
+    return inflight.catch(() => undefined).then(() => scanVault(projectRoot, excludePatterns));
+  }
   if (!inflight) {
     const s = state;
     const gen = s.gen;
+    s.inflightGen = gen;
     inflight = s.inflight = scanRoot(resolved, excludes, s)
       .then((files) => {
         s.files = files;
@@ -364,6 +378,26 @@ export function invalidateVaultRoot(root: string): void {
   for (const [key, s] of rootStates) {
     if (key.startsWith(prefix)) { s.fresh = false; s.gen++; }
   }
+}
+
+/**
+ * For a changed name the doc filter can't classify (a dotted folder like
+ * "v1.2" renamed/moved/deleted reports just that name): did it hold docs in
+ * the last scan, or is it a directory now? Only consulted while a result is
+ * cached, so build churn costs one stat per event at most.
+ */
+export function touchesVaultDir(root: string, filename: string): boolean {
+  const r = path.resolve(root);
+  const rel = filename.replace(/\\/g, '/').replace(/\/+$/, '');
+  const prefix = r + '\0';
+  let cached = false;
+  for (const [key, s] of rootStates) {
+    if (!key.startsWith(prefix) || !s.fresh) continue;
+    cached = true;
+    if (s.dirs.has(rel)) return true;
+  }
+  if (!cached) return false;
+  try { return fs.statSync(path.join(r, rel)).isDirectory(); } catch { return false; }
 }
 
 /** vault-watcher hook: a cached root result is only trusted while the root is watched. */

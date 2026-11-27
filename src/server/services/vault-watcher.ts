@@ -3,7 +3,7 @@ import path from 'path';
 import type { WebSocket } from 'ws';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { getProjectById, type Project } from '../db/queries.js';
-import { DEFAULT_EXCLUDES, invalidateVaultRoot, setVaultRootWatched } from './file-scanner.js';
+import { DEFAULT_EXCLUDES, invalidateVaultRoot, setVaultRootWatched, touchesVaultDir } from './file-scanner.js';
 import { parseVaultLinks } from './vault-roots.js';
 
 // Throttle window for change broadcasts. Clients rescan the whole tree on
@@ -145,7 +145,7 @@ class FsChangeWatcher {
 // as changes because the explorer shows them as hidden entries.
 // Only docs, .vaultignore and (extension-less) directories can change a scan
 // result; build churn (.obj, .uasset, Library/…) must not drop the scan cache.
-// ponytail: a renamed dir with a dot in its name (".github", "v1.2") isn't seen; the next unwatched scan catches it
+// Dotted folder names ("v1.2") fall through to touchesVaultDir in the hook below.
 export function affectsVaultScan(filename: string | null): boolean {
   if (!filename) return true;
   const base = path.basename(filename).toLowerCase();
@@ -159,7 +159,9 @@ export const vaultWatcher = new FsChangeWatcher(
   {
     opened: (roots) => roots.forEach((r) => setVaultRootWatched(r, true)),
     closed: (roots) => roots.forEach((r) => setVaultRootWatched(r, false)),
-    changed: (root, filename) => { if (affectsVaultScan(filename)) invalidateVaultRoot(root); },
+    changed: (root, filename) => {
+      if (affectsVaultScan(filename) || touchesVaultDir(root, filename!)) invalidateVaultRoot(root);
+    },
   },
 );
 

@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { scanVault, invalidateVaultRoot, setVaultRootWatched } from '../file-scanner.js';
+import { scanVault, invalidateVaultRoot, setVaultRootWatched, touchesVaultDir } from '../file-scanner.js';
 import { affectsVaultScan } from '../vault-watcher.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-scan-cache-'));
@@ -44,22 +44,59 @@ describe('scanVault cache', () => {
 
   it('re-parses only files whose mtime/size changed', async () => {
     const root = makeRoot('incremental');
+    const a = path.join(root, 'a.md');
+    const t = new Date('2024-01-01T00:00:00Z'); // whole seconds: utimes can't restore sub-ms NTFS mtimes
+    fs.utimesSync(a, t, t);
     await scanVault(root);
-    fs.writeFileSync(path.join(root, 'a.md'), '---\ntitle: Alpha two\n---\nchanged');
-    const files = await scanVault(root);
-    expect(files.find((f) => f.relativePath === 'a.md')!.title).toBe('Alpha two');
+    // Same size + same mtime → the cached parse is kept (proves no re-read)…
+    fs.writeFileSync(a, fs.readFileSync(a, 'utf-8').replace('Alpha', 'Omega'));
+    fs.utimesSync(a, t, t);
+    expect((await scanVault(root)).find((f) => f.relativePath === 'a.md')!.title).toBe('Alpha');
+    // …while a real change is picked up.
+    fs.writeFileSync(a, '---\ntitle: Alpha two\n---\nchanged');
+    expect((await scanVault(root)).find((f) => f.relativePath === 'a.md')!.title).toBe('Alpha two');
+  });
+
+  it('a change during an in-flight scan is not lost by requests joining it', async () => {
+    const root = makeRoot('inflight');
+    setVaultRootWatched(root, true);
+    await scanVault(root);
+    invalidateVaultRoot(root);
+    const first = scanVault(root);
+    for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+    fs.writeFileSync(path.join(root, 'late.md'), 'late');
+    invalidateVaultRoot(root);
+    const second = await scanVault(root);
+    await first;
+    expect(titles(second)).toContain('late.md:late');
+    setVaultRootWatched(root, false);
   });
 
   it('coalesces concurrent scans of one root and hands out independent copies', async () => {
     const root = makeRoot('flight');
     const [x, y] = await Promise.all([scanVault(root), scanVault(root)]);
     expect(titles(x)).toEqual(titles(y));
-    x[0].tags = ['mutated'];
-    expect((await scanVault(root))[0].tags).not.toEqual(['mutated']);
+    x[0].tags.push('mutated');
+    expect((await scanVault(root))[0].tags).not.toContain('mutated');
   });
 
   it('returns [] for a missing root', async () => {
     expect(await scanVault(path.join(tmp, 'nope'))).toEqual([]);
+  });
+});
+
+describe('touchesVaultDir', () => {
+  it('catches dotted folders that held docs or are directories now', async () => {
+    const root = path.join(tmp, 'dotted');
+    fs.mkdirSync(path.join(root, 'v1.2'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'v1.2', 'notes.md'), 'n');
+    setVaultRootWatched(root, true);
+    await scanVault(root); // cached + fresh
+    expect(touchesVaultDir(root, 'v1.2')).toBe(true);
+    fs.renameSync(path.join(root, 'v1.2'), path.join(root, 'v1.3'));
+    expect(touchesVaultDir(root, 'v1.3')).toBe(true);
+    expect(touchesVaultDir(root, 'build.obj')).toBe(false);
+    setVaultRootWatched(root, false);
   });
 });
 
