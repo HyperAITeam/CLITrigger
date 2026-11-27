@@ -17,6 +17,9 @@ jobs:
   npm-release:
     name: npm + tarball
     runs-on: ubuntu-latest
+    # Publishing waits for a maintainer's approval (Settings → Environments →
+    # release → required reviewers). `desktop` needs this job, so it is gated too.
+    environment: release
     permissions:
       contents: write
       id-token: write
