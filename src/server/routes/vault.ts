@@ -11,6 +11,7 @@ import {
   renameVaultFile,
   searchVault,
   unhideInVaultIgnore,
+  invalidateVaultRoot,
 } from '../services/file-scanner.js';
 import { buildVaultBlock } from '../services/vault-injector.js';
 import {
@@ -54,11 +55,11 @@ function resolveDoc(project: queries.Project, relativePath: unknown, allowHtml =
 }
 
 // GET /api/projects/:id/vault/files
-router.get('/projects/:id/vault/files', (req: Request, res: Response) => {
+router.get('/projects/:id/vault/files', async (req: Request, res: Response) => {
   const project = getProject(req, res);
   if (!project) return;
   try {
-    const files = scanProjectVault(project);
+    const files = await scanProjectVault(project);
     res.json({ files });
   } catch (err) {
     res.status(500).json({ error: 'Failed to scan vault' });
@@ -66,11 +67,11 @@ router.get('/projects/:id/vault/files', (req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id/vault/graph
-router.get('/projects/:id/vault/graph', (req: Request, res: Response) => {
+router.get('/projects/:id/vault/graph', async (req: Request, res: Response) => {
   const project = getProject(req, res);
   if (!project) return;
   try {
-    const graph = buildVaultGraph(scanProjectVault(project));
+    const graph = buildVaultGraph(await scanProjectVault(project));
     res.json(graph);
   } catch (err) {
     res.status(500).json({ error: 'Failed to build vault graph' });
@@ -278,7 +279,7 @@ router.put('/projects/:id/vault/tags/color', (req: Request, res: Response) => {
 });
 
 // POST /api/projects/:id/vault/preview
-router.post('/projects/:id/vault/preview', (req: Request, res: Response) => {
+router.post('/projects/:id/vault/preview', async (req: Request, res: Response) => {
   const project = getProject(req, res);
   if (!project) return;
   const { mode, filePaths } = req.body;
@@ -289,11 +290,17 @@ router.post('/projects/:id/vault/preview', (req: Request, res: Response) => {
   const sanitizedPaths = Array.isArray(filePaths)
     ? filePaths.filter((p: unknown): p is string => typeof p === 'string' && resolveDoc(project, p, true) !== null)
     : [];
-  const result = buildVaultBlock({
-    project,
-    mode,
-    filePaths: sanitizedPaths,
-  });
+  let result: Awaited<ReturnType<typeof buildVaultBlock>>;
+  try {
+    result = await buildVaultBlock({
+      project,
+      mode,
+      filePaths: sanitizedPaths,
+    });
+  } catch {
+    res.status(500).json({ error: 'Failed to build vault preview' });
+    return;
+  }
   res.json({
     block: result?.block ?? '',
     fileCount: result?.fileCount ?? 0,
@@ -302,12 +309,16 @@ router.post('/projects/:id/vault/preview', (req: Request, res: Response) => {
 });
 
 // GET /api/projects/:id/vault/search?q=...
-router.get('/projects/:id/vault/search', (req: Request, res: Response) => {
+router.get('/projects/:id/vault/search', async (req: Request, res: Response) => {
   const project = getProject(req, res);
   if (!project) return;
   const q = (req.query.q as string) ?? '';
-  const results = q.trim() ? searchVault(scanProjectVault(project), q) : [];
-  res.json({ files: results });
+  try {
+    const results = q.trim() ? searchVault(await scanProjectVault(project), q) : [];
+    res.json({ files: results });
+  } catch {
+    res.status(500).json({ error: 'Failed to search vault' });
+  }
 });
 
 // GET /api/projects/:id/vault/ignore
@@ -355,6 +366,7 @@ router.post('/projects/:id/vault/ignore/hide', (req: Request, res: Response) => 
   const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
   try {
     fs.writeFileSync(igPath, content + sep + pattern + '\n', 'utf-8');
+    invalidateVaultRoot(target.root);
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Failed to write .vaultignore' });
@@ -383,6 +395,7 @@ router.post('/projects/:id/vault/ignore/unhide', (req: Request, res: Response) =
   const next = unhideInVaultIgnore(content, target.rel, isDir);
   try {
     fs.writeFileSync(igPath, next, 'utf-8');
+    invalidateVaultRoot(target.root);
     res.json({ success: true, content: next });
   } catch {
     res.status(500).json({ error: 'Failed to write .vaultignore' });
@@ -400,6 +413,7 @@ router.put('/projects/:id/vault/ignore', (req: Request, res: Response) => {
   }
   try {
     fs.writeFileSync(pathModule.join(project.path, '.vaultignore'), content, 'utf-8');
+    invalidateVaultRoot(project.path);
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Failed to write .vaultignore' });

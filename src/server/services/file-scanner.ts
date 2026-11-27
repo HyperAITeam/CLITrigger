@@ -155,118 +155,224 @@ export function unhideInVaultIgnore(content: string, relPath: string, isDir: boo
   return next;
 }
 
-function walkDir(dir: string, root: string, excludes: string[], ig: Ignore, results: string[]): void {
-  let entries: fs.Dirent[];
+// ── Scanning ──
+// Async with bounded parallelism: a huge root (e.g. a whole work drive) used
+// to run fully synchronously and stall every request and terminal for 15–30s.
+// Parsed docs are cached per file (mtime+size), and a root's whole result is
+// reused while vault-watcher watches that root and reports no change.
+
+const SCAN_CONCURRENCY = 32;
+// .md is read up to this for inline #tags / [[wikilinks]] (real-world: 3 of
+// ~6.8k docs exceed it); HTML only yields <title> and a preview.
+const MD_READ_CAP = 256 * 1024;
+const HTML_READ_CAP = 64 * 1024;
+const PREVIEW_SOURCE_CHARS = 4 * 1024;
+
+interface CachedDoc { mtimeMs: number; size: number; file: VaultFile }
+interface RootState {
+  docs: Map<string, CachedDoc>; // rel → parsed doc, pruned to the last scan
+  files: VaultFile[] | null;    // last full result
+  fresh: boolean;               // result still valid (watched, no change since)
+  gen: number;                  // bumped on every change notice
+  inflight: Promise<VaultFile[]> | null;
+}
+// ponytail: one state per (root, excludes) ever scanned, never evicted — fine for a few dozen projects
+const rootStates = new Map<string, RootState>();
+const watchedRoots = new Map<string, number>(); // resolved root → watcher refcount
+
+/** Bounded-parallel directory walk; returns root-relative doc paths, sorted. */
+function walkDir(root: string, excludes: string[], ig: Ignore): Promise<string[]> {
+  const results: string[] = [];
+  const queue: string[] = [root];
+  let active = 0;
+  return new Promise((resolve) => {
+    const visit = (dir: string, entries: fs.Dirent[]) => {
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const rel = path.relative(root, fullPath).replace(/\\/g, '/');
+
+        if (shouldExclude(rel, excludes)) continue;
+
+        const matchPath = entry.isDirectory() ? rel + '/' : rel;
+        if (ig.ignores(matchPath)) continue;
+
+        if (entry.isDirectory()) {
+          queue.push(fullPath);
+        } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm') || entry.name.endsWith('.pdf'))) {
+          results.push(rel);
+        }
+      }
+    };
+    const pump = () => {
+      while (active < SCAN_CONCURRENCY && queue.length > 0) {
+        const dir = queue.pop()!;
+        active++;
+        fs.promises.readdir(dir, { withFileTypes: true })
+          .then((entries) => visit(dir, entries))
+          .catch(() => { /* unreadable dir — skip */ })
+          .finally(() => {
+            active--;
+            if (active === 0 && queue.length === 0) resolve(results.sort());
+            else pump();
+          });
+      }
+    };
+    pump();
+  });
+}
+
+async function mapPool(count: number, limit: number, fn: (i: number) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => { while (next < count) await fn(next++); };
+  await Promise.all(Array.from({ length: Math.min(limit, count) }, worker));
+}
+
+async function readHead(abs: string, cap: number): Promise<string> {
+  const fh = await fs.promises.open(abs, 'r');
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    const rel = path.relative(root, fullPath).replace(/\\/g, '/');
-
-    if (shouldExclude(rel, excludes)) continue;
-
-    const matchPath = entry.isDirectory() ? rel + '/' : rel;
-    if (ig.ignores(matchPath)) continue;
-
-    if (entry.isDirectory()) {
-      walkDir(fullPath, root, excludes, ig, results);
-    } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.htm') || entry.name.endsWith('.pdf'))) {
-      results.push(rel);
-    }
+    const buf = Buffer.allocUnsafe(cap);
+    const { bytesRead } = await fh.read(buf, 0, cap, 0);
+    return buf.toString('utf8', 0, bytesRead);
+  } finally {
+    await fh.close();
   }
 }
 
-export function scanVault(projectRoot: string, excludePatterns?: string[]): VaultFile[] {
-  const resolved = path.resolve(projectRoot);
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) return [];
+async function parseVaultFile(abs: string, rel: string, stat: fs.Stats): Promise<VaultFile> {
+  const lower = rel.toLowerCase();
+  const kind: VaultFileKind = lower.endsWith('.md') ? 'md'
+    : lower.endsWith('.pdf') ? 'pdf'
+    : 'html';
+  const ext = kind === 'md' ? '.md'
+    : kind === 'pdf' ? '.pdf'
+    : (lower.endsWith('.html') ? '.html' : '.htm');
+  const stem = path.basename(rel, ext);
 
-  const excludes = excludePatterns ?? DEFAULT_EXCLUDES;
-  const ig = loadVaultIgnore(resolved);
-  const relativePaths: string[] = [];
-  walkDir(resolved, resolved, excludes, ig, relativePaths);
+  let title = stem;
+  const tags: string[] = [];
+  let wikilinks: string[] = [];
+  let bodyFlat = '';
 
-  const files: VaultFile[] = [];
-  for (const rel of relativePaths) {
-    const abs = path.join(resolved, rel);
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(abs);
-    } catch { continue; }
-
-    const lower = rel.toLowerCase();
-    const kind: VaultFileKind = lower.endsWith('.md') ? 'md'
-      : lower.endsWith('.pdf') ? 'pdf'
-      : 'html';
-    const ext = kind === 'md' ? '.md'
-      : kind === 'pdf' ? '.pdf'
-      : (lower.endsWith('.html') ? '.html' : '.htm');
-    const stem = path.basename(rel, ext);
-
-    let title = stem;
-    const tags: string[] = [];
-    let wikilinks: string[] = [];
-    let bodyFlat = '';
-
-    if (kind === 'pdf') {
-      // Binary — graph node only; no text parsing.
-    } else {
-      let content: string;
-      try {
-        content = fs.readFileSync(abs, 'utf-8');
-      } catch { continue; }
-
-      if (kind === 'md') {
-        const { frontmatter, body } = parseFrontmatter(content);
-        if (frontmatter?.tags) {
-          const raw = frontmatter.tags;
-          if (Array.isArray(raw)) {
-            tags.push(...raw.map(String).filter(Boolean));
-          } else if (typeof raw === 'string') {
-            tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
-          }
-        }
-        tags.push(...parseInlineTags(body));
-        const refs = parseWikilinks(body);
-        wikilinks = [...new Set(refs.map(r => r.title))];
-        bodyFlat = body.replace(/\s+/g, ' ').trim();
-        title = (frontmatter?.title as string) || stem;
-      } else {
-        const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
-        if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
-        const stripped = content
-          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>');
-        bodyFlat = stripped.replace(/\s+/g, ' ').trim();
+  if (kind === 'md') {
+    const content = await readHead(abs, MD_READ_CAP);
+    const { frontmatter, body } = parseFrontmatter(content);
+    if (frontmatter?.tags) {
+      const raw = frontmatter.tags;
+      if (Array.isArray(raw)) {
+        tags.push(...raw.map(String).filter(Boolean));
+      } else if (typeof raw === 'string') {
+        tags.push(...raw.split(',').map(s => s.trim()).filter(Boolean));
       }
     }
-
-    const bodyPreview = bodyFlat.length > BODY_PREVIEW_LEN
-      ? bodyFlat.slice(0, BODY_PREVIEW_LEN) + '…'
-      : bodyFlat;
-
-    files.push({
-      relativePath: rel,
-      stem,
-      title,
-      tags: [...new Set(tags)],
-      wikilinks,
-      size: stat.size,
-      mtime: stat.mtime.toISOString(),
-      bodyPreview,
-      kind,
-    });
+    tags.push(...parseInlineTags(body));
+    const refs = parseWikilinks(body);
+    wikilinks = [...new Set(refs.map(r => r.title))];
+    bodyFlat = body.slice(0, PREVIEW_SOURCE_CHARS).replace(/\s+/g, ' ').trim();
+    title = (frontmatter?.title as string) || stem;
+  } else if (kind === 'html') {
+    const content = await readHead(abs, HTML_READ_CAP);
+    const titleMatch = content.match(/<title>([\s\S]*?)<\/title>/i);
+    if (titleMatch && titleMatch[1].trim()) title = titleMatch[1].trim();
+    const stripped = content
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    bodyFlat = stripped.replace(/\s+/g, ' ').trim();
   }
+  // pdf: binary — graph node only; no text parsing.
 
-  return files;
+  const bodyPreview = bodyFlat.length > BODY_PREVIEW_LEN
+    ? bodyFlat.slice(0, BODY_PREVIEW_LEN) + '…'
+    : bodyFlat;
+
+  return {
+    relativePath: rel,
+    stem,
+    title,
+    tags: [...new Set(tags)],
+    wikilinks,
+    size: stat.size,
+    mtime: stat.mtime.toISOString(),
+    bodyPreview,
+    kind,
+  };
+}
+
+async function scanRoot(root: string, excludes: string[], state: RootState): Promise<VaultFile[]> {
+  const rels = await walkDir(root, excludes, loadVaultIgnore(root));
+  const next = new Map<string, CachedDoc>();
+  const out: (VaultFile | null)[] = new Array(rels.length).fill(null);
+  await mapPool(rels.length, SCAN_CONCURRENCY, async (i) => {
+    const rel = rels[i];
+    const abs = path.join(root, rel);
+    let stat: fs.Stats;
+    try { stat = await fs.promises.stat(abs); } catch { return; }
+    const prev = state.docs.get(rel);
+    let file = prev && prev.mtimeMs === stat.mtimeMs && prev.size === stat.size ? prev.file : null;
+    if (!file) {
+      try { file = await parseVaultFile(abs, rel, stat); } catch { return; }
+    }
+    next.set(rel, { mtimeMs: stat.mtimeMs, size: stat.size, file });
+    out[i] = file;
+  });
+  state.docs = next;
+  return out.filter((f): f is VaultFile => f !== null);
+}
+
+// Callers may reassign fields (e.g. merged tags); never hand out cached objects.
+const cloneFiles = (files: VaultFile[]) => files.map(f => ({ ...f }));
+
+export async function scanVault(projectRoot: string, excludePatterns?: string[]): Promise<VaultFile[]> {
+  const resolved = path.resolve(projectRoot);
+  try {
+    if (!(await fs.promises.stat(resolved)).isDirectory()) return [];
+  } catch { return []; }
+
+  const excludes = excludePatterns ?? DEFAULT_EXCLUDES;
+  const key = resolved + '\0' + excludes.join('\0');
+  let state = rootStates.get(key);
+  if (!state) {
+    state = { docs: new Map(), files: null, fresh: false, gen: 0, inflight: null };
+    rootStates.set(key, state);
+  }
+  if (state.fresh && state.files) return cloneFiles(state.files);
+
+  // Single-flight: the docs tab fires files/graph/tags at once for one root.
+  // ponytail: a change landing mid-scan is only picked up by the next request (fresh stays false)
+  let inflight = state.inflight;
+  if (!inflight) {
+    const s = state;
+    const gen = s.gen;
+    inflight = s.inflight = scanRoot(resolved, excludes, s)
+      .then((files) => {
+        s.files = files;
+        s.fresh = (watchedRoots.get(resolved) ?? 0) > 0 && s.gen === gen;
+        return files;
+      })
+      .finally(() => { s.inflight = null; });
+  }
+  return cloneFiles(await inflight);
+}
+
+/** Drop the cached result for `root` (all exclude variants). Per-file parses stay, keyed by mtime+size. */
+export function invalidateVaultRoot(root: string): void {
+  const prefix = path.resolve(root) + '\0';
+  for (const [key, s] of rootStates) {
+    if (key.startsWith(prefix)) { s.fresh = false; s.gen++; }
+  }
+}
+
+/** vault-watcher hook: a cached root result is only trusted while the root is watched. */
+export function setVaultRootWatched(root: string, watched: boolean): void {
+  const r = path.resolve(root);
+  const n = (watchedRoots.get(r) ?? 0) + (watched ? 1 : -1);
+  if (n > 0) watchedRoots.set(r, n);
+  else watchedRoots.delete(r);
+  invalidateVaultRoot(r); // anything that changed while unwatched was missed
 }
 
 export function buildVaultGraph(files: VaultFile[]): VaultGraph {
@@ -337,6 +443,7 @@ export function writeVaultFile(projectRoot: string, relativePath: string, conten
   try {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content, 'utf-8');
+    invalidateVaultRoot(resolved);
     return true;
   } catch {
     return false;
@@ -350,6 +457,7 @@ export function deleteVaultFile(projectRoot: string, relativePath: string): bool
   if (!abs.endsWith('.md')) return false;
   try {
     fs.unlinkSync(abs);
+    invalidateVaultRoot(resolved);
     return true;
   } catch {
     return false;
@@ -366,6 +474,7 @@ export function renameVaultFile(projectRoot: string, oldPath: string, newPath: s
   try {
     fs.mkdirSync(path.dirname(absNew), { recursive: true });
     fs.renameSync(absOld, absNew);
+    invalidateVaultRoot(resolved);
     return true;
   } catch {
     return false;

@@ -1,8 +1,9 @@
 import fs from 'fs';
+import path from 'path';
 import type { WebSocket } from 'ws';
 import { broadcaster } from '../websocket/broadcaster.js';
 import { getProjectById, type Project } from '../db/queries.js';
-import { DEFAULT_EXCLUDES } from './file-scanner.js';
+import { DEFAULT_EXCLUDES, invalidateVaultRoot, setVaultRootWatched } from './file-scanner.js';
 import { parseVaultLinks } from './vault-roots.js';
 
 // Throttle window for change broadcasts. Clients rescan the whole tree on
@@ -11,8 +12,16 @@ const BROADCAST_DELAY_MS = 500;
 
 interface WatchEntry {
   watchers: fs.FSWatcher[];
+  roots: string[]; // roots actually being watched
   clients: Set<WebSocket>;
   timer: NodeJS.Timeout | null;
+}
+
+interface WatchHooks {
+  opened(roots: string[]): void;
+  closed(roots: string[]): void;
+  /** An accepted change under `root`, before broadcast throttling. */
+  changed(root: string, filename: string | null): void;
 }
 
 // Watches project roots and broadcasts a coalesced change event. Two
@@ -29,6 +38,7 @@ class FsChangeWatcher {
     private accepts: (parts: string[]) => boolean,
     // Folders to watch; the first is the project root.
     private roots: (project: Project) => string[] = (project) => [project.path],
+    private hooks?: WatchHooks,
   ) {}
 
   /** Start watching a project's root for this client. Silently no-ops when
@@ -37,9 +47,9 @@ class FsChangeWatcher {
   watch(projectId: string, ws: WebSocket): void {
     let entry = this.entries.get(projectId);
     if (!entry) {
-      const watchers = this.openWatchers(projectId);
-      if (!watchers) return;
-      entry = { watchers, clients: new Set(), timer: null };
+      const opened = this.openWatchers(projectId);
+      if (!opened) return;
+      entry = { ...opened, clients: new Set(), timer: null };
       this.entries.set(projectId, entry);
     }
     entry.clients.add(ws);
@@ -50,22 +60,23 @@ class FsChangeWatcher {
     const entry = this.entries.get(projectId);
     if (!entry) return;
     this.closeWatchers(entry);
-    const watchers = this.openWatchers(projectId);
-    if (watchers) entry.watchers = watchers;
+    const opened = this.openWatchers(projectId);
+    if (opened) Object.assign(entry, opened);
     else this.dispose(projectId);
   }
 
   // Null when the project is unknown or its root can't be watched; other
   // roots (linked folders on an unplugged drive) are skipped.
-  private openWatchers(projectId: string): fs.FSWatcher[] | null {
+  private openWatchers(projectId: string): { watchers: fs.FSWatcher[]; roots: string[] } | null {
     const project = getProjectById(projectId);
     if (!project) return null;
     const watchers: fs.FSWatcher[] = [];
+    const roots: string[] = [];
     for (const [i, root] of this.roots(project).entries()) {
       let watcher: fs.FSWatcher;
       try {
         watcher = fs.watch(root, { recursive: true }, (_event, filename) => {
-          this.onChange(projectId, filename);
+          this.onChange(projectId, root, filename);
         });
       } catch {
         if (i === 0) return null;
@@ -73,8 +84,10 @@ class FsChangeWatcher {
       }
       watcher.on('error', () => this.dispose(projectId));
       watchers.push(watcher);
+      roots.push(root);
     }
-    return watchers;
+    this.hooks?.opened(roots);
+    return { watchers, roots };
   }
 
   private closeWatchers(entry: WatchEntry): void {
@@ -83,6 +96,9 @@ class FsChangeWatcher {
         watcher.close();
       } catch { /* already closed */ }
     }
+    this.hooks?.closed(entry.roots);
+    entry.watchers = [];
+    entry.roots = [];
   }
 
   unwatch(projectId: string, ws: WebSocket): void {
@@ -108,11 +124,13 @@ class FsChangeWatcher {
     this.closeWatchers(entry);
   }
 
-  private onChange(projectId: string, filename: string | Buffer | null): void {
-    if (filename) {
-      const parts = filename.toString().split(/[\\/]/);
+  private onChange(projectId: string, root: string, filename: string | Buffer | null): void {
+    const name = filename ? filename.toString() : null;
+    if (name) {
+      const parts = name.split(/[\\/]/);
       if (!this.accepts(parts)) return;
     }
+    this.hooks?.changed(root, name);
     const entry = this.entries.get(projectId);
     if (!entry || entry.timer) return;
     entry.timer = setTimeout(() => {
@@ -125,10 +143,24 @@ class FsChangeWatcher {
 // Skip churn in build/VCS directories (npm install, git operations, …).
 // ponytail: coarse segment filter only — .vaultignore'd paths still count
 // as changes because the explorer shows them as hidden entries.
+// Only docs, .vaultignore and (extension-less) directories can change a scan
+// result; build churn (.obj, .uasset, Library/…) must not drop the scan cache.
+// ponytail: a renamed dir with a dot in its name (".github", "v1.2") isn't seen; the next unwatched scan catches it
+export function affectsVaultScan(filename: string | null): boolean {
+  if (!filename) return true;
+  const base = path.basename(filename).toLowerCase();
+  return base === '.vaultignore' || !base.includes('.') || /\.(md|html?|pdf)$/.test(base);
+}
+
 export const vaultWatcher = new FsChangeWatcher(
   'vault:changed',
   (parts) => !parts.some((part) => DEFAULT_EXCLUDES.includes(part)),
   (project) => [project.path, ...parseVaultLinks(project.vault_links).map((link) => link.path)],
+  {
+    opened: (roots) => roots.forEach((r) => setVaultRootWatched(r, true)),
+    closed: (roots) => roots.forEach((r) => setVaultRootWatched(r, false)),
+    changed: (root, filename) => { if (affectsVaultScan(filename)) invalidateVaultRoot(root); },
+  },
 );
 
 // Git filter: unlike vault, `.worktrees` counts (session worktrees are

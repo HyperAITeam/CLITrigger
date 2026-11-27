@@ -23,13 +23,13 @@ function escapeAttr(s: string): string {
   return s.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function buildVaultBlock(req: VaultInjectionRequest): VaultInjectionResult | null {
+export async function buildVaultBlock(req: VaultInjectionRequest): Promise<VaultInjectionResult | null> {
   if (req.mode === 'none') return null;
 
   let files: { relativePath: string; tags: string[]; content: string; kind: 'md' | 'html' }[];
 
   if (req.mode === 'all') {
-    const vaultFiles = scanProjectVault(req.project, req.excludePatterns);
+    const vaultFiles = await scanProjectVault(req.project, req.excludePatterns);
     files = readFileContents(req.project, vaultFiles.map(f => f.relativePath));
   } else {
     const paths = (req.filePaths ?? []).filter(Boolean);

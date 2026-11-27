@@ -49,7 +49,7 @@ export async function applyMemoryInjection(ctx: MemoryInjectionContext): Promise
     effectivePaths = res.selectedPaths;
   }
 
-  const result = buildVaultBlock({
+  const result = await buildVaultBlock({
     project: ctx.project,
     mode: effectiveMode,
     filePaths: effectivePaths,

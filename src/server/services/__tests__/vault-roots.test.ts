@@ -45,8 +45,8 @@ describe('linked doc folders', () => {
     expect(resolveVaultPath(a, '@other/x.md')!.root).toBe(path.resolve(projA));
   });
 
-  it('scans linked docs under @alias with the folder\'s own .vaultignore', () => {
-    expect(scanProjectVault(a).map((f) => f.relativePath).sort()).toEqual(['@team/spec.md', 'own.md']);
+  it('scans linked docs under @alias with the folder\'s own .vaultignore', async () => {
+    expect((await scanProjectVault(a)).map((f) => f.relativePath).sort()).toEqual(['@team/spec.md', 'own.md']);
   });
 
   it('shares app tags between every project linking the folder', () => {

@@ -63,13 +63,17 @@ export function resolveVaultPath(project: VaultProject, vaultPath: string): Reso
 }
 
 /** Project docs plus every linked folder's docs (paths prefixed `@alias/`). */
-export function scanProjectVault(project: VaultProject, excludePatterns?: string[]): VaultFile[] {
-  const files = scanVault(project.path, excludePatterns);
-  for (const link of parseVaultLinks(project.vault_links)) {
-    for (const f of scanVault(link.path, excludePatterns)) {
+export async function scanProjectVault(project: VaultProject, excludePatterns?: string[]): Promise<VaultFile[]> {
+  const links = parseVaultLinks(project.vault_links);
+  const [files, ...linked] = await Promise.all([
+    scanVault(project.path, excludePatterns),
+    ...links.map((link) => scanVault(link.path, excludePatterns)),
+  ]);
+  links.forEach((link, i) => {
+    for (const f of linked[i]) {
       files.push({ ...f, relativePath: `${LINK_PREFIX}${link.alias}/${f.relativePath}` });
     }
-  }
+  });
   return files;
 }
 

@@ -87,7 +87,7 @@ export async function selectRelevantFiles(
   const trimmedQuery = (taskQuery || '').trim();
   if (!trimmedQuery) return { selectedPaths: [], candidateCount: 0, reason: 'no-query' };
 
-  const candidates = scanProjectVault(project, excludePatterns);
+  const candidates = await scanProjectVault(project, excludePatterns);
   if (candidates.length === 0) return { selectedPaths: [], candidateCount: 0, reason: 'no-candidates' };
   // Same order as the docs graph: app-DB tags first, then the file's own tags.
   const appTags = getProjectVaultTags(project).files;
