@@ -1,6 +1,6 @@
-import { spawn } from 'child_process';
 import * as queries from '../db/queries.js';
 import type { CliTool } from './cli-adapters.js';
+import { runHeadless } from './headless-cli.js';
 
 export interface ExtractedActionItem {
   title: string;
@@ -76,78 +76,6 @@ function safeParseItems(raw: string): ExtractedActionItem[] {
   return items;
 }
 
-interface CliInvocation {
-  command: string;
-  args: string[];
-  displayName: string;
-}
-
-function buildInvocation(cliTool: CliTool): CliInvocation {
-  switch (cliTool) {
-    case 'antigravity':
-      return { command: 'agy', args: ['--dangerously-skip-permissions', '--print'], displayName: 'Antigravity' };
-    case 'codex':
-      return { command: 'codex', args: ['exec'], displayName: 'Codex' };
-    case 'claude':
-    default:
-      return { command: 'claude', args: ['--print'], displayName: 'Claude' };
-  }
-}
-
-function runHeadless(cliTool: CliTool, prompt: string, timeoutMs = 120_000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const { command, args, displayName } = buildInvocation(cliTool);
-    const isWin = process.platform === 'win32';
-    const spawnCmd = isWin ? 'cmd.exe' : command;
-    const spawnArgs = isWin ? ['/c', command, ...args] : args;
-
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const proc = spawn(spawnCmd, spawnArgs, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-      cwd: process.env.HOME || process.env.USERPROFILE || '.',
-    });
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try { proc.kill(); } catch { /* ignore */ }
-      reject(new Error(`${displayName} extraction timed out`));
-    }, timeoutMs);
-
-    proc.stdout.on('data', (c: Buffer) => { stdout += c.toString('utf8'); });
-    proc.stderr.on('data', (c: Buffer) => { stderr += c.toString('utf8'); });
-    proc.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-    proc.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code === 0) resolve(stdout);
-      else reject(new Error(`${displayName} exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
-    });
-
-    // Deliver prompt via stdin pipe to bypass Windows command-line length limits.
-    try {
-      proc.stdin.write(prompt + '\n');
-      proc.stdin.end();
-    } catch (err) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try { proc.kill(); } catch { /* ignore */ }
-      reject(err instanceof Error ? err : new Error(String(err)));
-    }
-  });
-}
-
 function resolveCliTool(value: unknown): CliTool {
   if (value === 'claude' || value === 'antigravity' || value === 'codex') return value;
   if (value) console.warn(`[discussion-extractor] Unknown cli_tool "${String(value)}", falling back to claude`);
@@ -162,6 +90,6 @@ export async function extractActionItems(discussionId: string): Promise<Extracte
 
   const transcript = buildTranscript(discussionId);
   const prompt = PROMPT_HEADER + transcript;
-  const raw = await runHeadless(cliTool, prompt);
+  const raw = await runHeadless(cliTool, prompt, 120_000);
   return safeParseItems(raw);
 }

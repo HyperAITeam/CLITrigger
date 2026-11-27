@@ -26,6 +26,9 @@ beforeAll(async () => {
   app.post('/api/sessions/:id/input', (req, res) => {
     res.json({ id: req.params.id, body: req.body });
   });
+  app.get('/api/sessions/:id', (req, res) => {
+    res.json({ id: req.params.id, project_id: 'p1', cli_tool: req.params.id === 'shell1' ? 'raw-shell' : 'claude' });
+  });
   app.post('/api/projects/:id/sessions', (req, res) => {
     lastCreatedSessionBody = req.body;
     if (req.body.parent_session_id === 'missing') {
@@ -148,6 +151,18 @@ describe('MCP endpoint', () => {
     const handoff = catalog.prompts.find((prompt) => prompt.name === 'handoff');
     expect(handoff?.title).toBe('새 세션으로 넘기기');
     expect(handoff?.arguments.map((argument) => argument.name)).toEqual(['instruction']);
+  });
+
+  it('send_session_input refuses raw shell sessions', async () => {
+    const { client, transport } = makeClient(TOKEN);
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: 'send_session_input',
+      arguments: { session_id: 'shell1', text: 'calc', submit: true },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain('not allowed on raw shell sessions');
+    await client.close();
   });
 
   it('send_session_input forwards text/submit to the input route', async () => {

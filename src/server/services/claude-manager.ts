@@ -13,6 +13,8 @@ export type ClaudeMode = CliMode;
 
 // ponytail: calibration knob; raise if a CLI still leaves the first prompt unsent at startup
 const STDIN_SUBMIT_DELAY_MS = 300;
+const AUTO_RESPOND_GRACE_MS = 10_000;
+const AUTO_RESPOND_NO_PROMPT_MS = 60_000;
 
 // Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
 // server-only secrets so an agent or raw-shell can't read them — otherwise a
@@ -203,12 +205,21 @@ export class ClaudeManager {
       // Trust prompt tracking: block stdin delivery only while trust prompt is visible
       let trustPending = false;
 
+      // Auto-respond rules exist for startup dialogs (folder trust, update
+      // notices). Matched for the whole session, agent output that merely
+      // contains e.g. "Yes, I trust this" pressed Enter in a later permission
+      // dialog. So they stay armed only until shortly after the initial prompt
+      // is delivered (a re-delivery after Antigravity's restart re-arms), or for
+      // a startup window when there is no prompt.
+      let autoRespondUntil = stdinPrompt ? Infinity : Date.now() + AUTO_RESPOND_NO_PROMPT_MS;
+
       // Text and submit key as separate writes: Claude Code 2.1.327 strips a CR
       // that arrives in the same chunk as the text while it is still starting up
       // ("Removed 1 invisible character from your prompt"), leaving the prompt unsent.
       const deliverStdinPrompt = (): void => {
         if (!stdinPrompt) return;
         stdinDelivered = true;
+        autoRespondUntil = Date.now() + AUTO_RESPOND_GRACE_MS;
         try { ptyProcess.write(stdinPrompt.replace(/\n$/, '')); } catch { /* PTY may have exited */ }
         setTimeout(() => {
           if (exited) return;
@@ -233,7 +244,8 @@ export class ClaudeManager {
         // Blocking rules (trust dialogs) pin trustPending so the initial prompt is
         // deferred until the ready indicator reappears. Non-blocking rules (update
         // notices) dismiss themselves inline without holding back the main prompt.
-        for (const rule of autoRespondRules) {
+        const autoRespondArmed = Date.now() < autoRespondUntil;
+        for (const rule of autoRespondArmed ? autoRespondRules : []) {
           if (!rule.pattern.test(clean)) continue;
           if (rule.blocksInitialPrompt) {
             if (!trustPending && !exited) {

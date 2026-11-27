@@ -93,7 +93,7 @@ function buildServer(baseUrl: string): McpServer {
     'create_todo',
     {
       description:
-        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 검증 명령(check)이 exit 0이 되거나 done_phrase가 출력될 때까지 최대 max_rounds회 자동 반복합니다. memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정). cli_tool을 생략하면 프로젝트 기본 CLI로 실행합니다. model은 그 CLI의 --model에 그대로 넘어가며(예: claude는 opus·sonnet·haiku 또는 전체 모델 ID), 모델 이름은 CLI마다 다르므로 model을 주면 cli_tool도 함께 주세요. 생략하면 CLI 기본 모델이고, 없는 모델이면 실행할 때 CLI가 오류를 냅니다.",
+        "자동 작업(Auto Task)을 생성합니다. 시작하면 격리된 git worktree에서 CLI(Claude/Antigravity/Codex)가 자율 실행됩니다. 사용자가 '작업/할일 추가', '이거 실행해줘'라고 하면 대개 이 툴입니다. 단순히 계획만 적어두려면 create_planner_item을 쓰세요. loop를 주면 done_phrase가 출력되거나 변경이 없을 때까지 최대 max_rounds회 자동 반복합니다(검증 명령 check는 셸로 실행되므로 사용자가 UI에서만 설정합니다). memory_inject_mode='auto'면 실행할 때 작업 내용과 관련된 프로젝트 문서(Vault)를 골라 프롬프트에 넣습니다(기본 none). use_worktree=false면 worktree 없이 프로젝트 작업본에서 실행해 커밋하지 않은 변경을 그대로 봅니다. 이런 작업은 다른 작업과 동시에 돌지 않고 하나씩 실행됩니다(생략 시 프로젝트 설정). cli_tool을 생략하면 프로젝트 기본 CLI로 실행합니다. model은 그 CLI의 --model에 그대로 넘어가며(예: claude는 opus·sonnet·haiku 또는 전체 모델 ID), 모델 이름은 CLI마다 다르므로 model을 주면 cli_tool도 함께 주세요. 생략하면 CLI 기본 모델이고, 없는 모델이면 실행할 때 CLI가 오류를 냅니다.",
       inputSchema: z.object({
         project_id: z.string(),
         title: z.string(),
@@ -105,7 +105,6 @@ function buildServer(baseUrl: string): McpServer {
         use_worktree: z.boolean().optional(),
         loop: z.object({
           max_rounds: z.number().int().min(1).max(50),
-          check: z.string().optional(),
           done_phrase: z.string().optional(),
           rules: z.string().optional(),
           max_cost_usd: z.number().positive().optional(),
@@ -123,7 +122,6 @@ function buildServer(baseUrl: string): McpServer {
         ...(loop ? {
           loop_config: {
             maxRounds: loop.max_rounds,
-            check: loop.check,
             donePhrase: loop.done_phrase,
             rules: loop.rules,
             maxCostUsd: loop.max_cost_usd,
@@ -190,7 +188,6 @@ function buildServer(baseUrl: string): McpServer {
         npm_auto_install: z.boolean().optional(),
         loop_defaults: z.object({
           max_rounds: z.number().int().min(1).max(50).optional(),
-          check: z.string().optional(),
           done_phrase: z.string().optional(),
           rules: z.string().optional(),
           max_cost_usd: z.number().min(0).optional(),
@@ -212,7 +209,6 @@ function buildServer(baseUrl: string): McpServer {
           const stored = (current.data as { loop_defaults: string | null }).loop_defaults;
           const patch = Object.entries({
             maxRounds: loop_defaults.max_rounds,
-            check: loop_defaults.check,
             donePhrase: loop_defaults.done_phrase,
             rules: loop_defaults.rules,
             maxCostUsd: loop_defaults.max_cost_usd,
@@ -278,7 +274,7 @@ function buildServer(baseUrl: string): McpServer {
         schedule_type: z.enum(['once', 'recurring']).optional(),
         cron_expression: z.string().optional(),
         run_at: z.string().optional(),
-        cli_tool: z.string().optional(),
+        cli_tool: z.enum(['claude', 'codex', 'antigravity']).optional(),
       }),
     },
     ({ project_id, ...body }) =>
@@ -304,7 +300,7 @@ function buildServer(baseUrl: string): McpServer {
         project_id: z.string(),
         title: z.string().optional(),
         description: z.string().optional(),
-        cli_tool: z.string().optional(),
+        cli_tool: z.enum(['claude', 'codex', 'antigravity']).optional(),
         use_worktree: z.boolean().optional(),
       }),
     },
@@ -384,7 +380,23 @@ function buildServer(baseUrl: string): McpServer {
       }),
     },
     ({ session_id, ...body }) =>
-      run(() => callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/input`, body)),
+      run(async () => {
+        // Typing into a raw OS shell is arbitrary command execution outside any
+        // CLI sandbox — agents may only drive AI CLI sessions.
+        const sess = await callApi(baseUrl, token, 'GET', `/api/sessions/${session_id}`);
+        if (!sess.ok) return sess;
+        const { cli_tool, project_id } = sess.data as { cli_tool: string | null; project_id: string };
+        let tool = cli_tool;
+        if (!tool) {
+          const proj = await callApi(baseUrl, token, 'GET', `/api/projects/${project_id}`);
+          if (!proj.ok) return proj;
+          tool = (proj.data as { cli_tool: string | null }).cli_tool;
+        }
+        if (tool === 'raw-shell') {
+          return { ok: false, status: 403, data: { error: 'send_session_input is not allowed on raw shell sessions' } };
+        }
+        return callApi(baseUrl, token, 'POST', `/api/sessions/${session_id}/input`, body);
+      }),
   );
 
   server.registerTool(
@@ -500,7 +512,7 @@ function buildServer(baseUrl: string): McpServer {
    - 하나로 충분하면 억지로 나누지 않는다.
 4. 작업마다 create_todo(project_id, title, description, memory_inject_mode="auto")를 호출한다.
    - description은 이것만 읽고 작업할 수 있게 쓴다: 목표, 고칠 파일 경로와 위치, 지켜야 할 결정과 주의점, 완료 조건. 코드 전문은 넣지 않는다.
-   - 결과를 확인할 명령(테스트, 타입체크, 빌드)이 프로젝트 파일(package.json 스크립트 등)에 있으면 loop={ max_rounds: 3, check: "<그 명령>", stop_when_no_changes: true }를 준다. 파일에서 확인하지 못한 명령은 쓰지 않는다.
+   - 결과를 확인할 명령(테스트, 타입체크, 빌드)이 프로젝트 파일(package.json 스크립트 등)에 있으면 loop={ max_rounds: 3, stop_when_no_changes: true }를 주고, 그 명령을 description의 완료 조건에 적는다. 검증 명령(check)은 MCP로 설정할 수 없다 — 셸에서 그대로 실행되므로 사용자가 UI에서 직접 넣는다.
 5. start_todo는 호출하지 않는다. 사용자가 CLITrigger에서 확인하고 시작한다. 만든 작업 제목 목록과, 나누지 않고 남긴 일을 알려주고 끝낸다. use_worktree=false로 만들었으면 작업본에서 하나씩 실행된다는 점과, 그동안 이 세션에서 같은 파일을 고치면 서로 덮어쓴다는 점도 알려준다.${scope ? `\n\n나눌 범위: ${scope}` : ''}`),
   );
 

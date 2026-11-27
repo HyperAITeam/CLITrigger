@@ -300,7 +300,8 @@ export class DiscussionOrchestrator {
               'Bash(*)','Glob(*)','Grep(*)',
               'TodoRead','TodoWrite','WebFetch(*)',
             ],
-            deny: [],
+            // Keep the repo's own deny rules — replacing `permissions` used to drop them.
+            deny: Array.isArray(existingSettings.permissions?.deny) ? existingSettings.permissions.deny : [],
           };
           fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
         } catch {

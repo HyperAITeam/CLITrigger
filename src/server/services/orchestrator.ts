@@ -551,7 +551,8 @@ Complete the task in the current directory.`;
             'Bash(*)','Glob(*)','Grep(*)',
             'TodoRead','TodoWrite','WebFetch(*)',
           ],
-          deny: [],
+          // Keep the repo's own deny rules — replacing `permissions` used to drop them.
+          deny: Array.isArray(existingSettings.permissions?.deny) ? existingSettings.permissions.deny : [],
         };
         fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
         queries.createTaskLog(todoId, 'output', `[sandbox] Configured .claude/settings.json with directory-scoped permissions`);
