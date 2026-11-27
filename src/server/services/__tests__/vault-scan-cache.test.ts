@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -83,9 +83,16 @@ describe('scanVault cache', () => {
   it('a timed-out scan fails and does not pin the root', async () => {
     const root = makeRoot('timeout');
     const saved = vaultScanLimits.timeoutMs;
-    vaultScanLimits.timeoutMs = 0; // fires before any fs op completes
-    await expect(scanVault(root)).rejects.toThrow(/timed out/);
-    vaultScanLimits.timeoutMs = saved;
+    // A readdir that never settles (an offline network folder) — deterministic,
+    // unlike racing a 0ms timer against real fs calls (Linux fs won that race).
+    const stall = vi.spyOn(fs.promises, 'readdir').mockImplementation(() => new Promise(() => {}));
+    try {
+      vaultScanLimits.timeoutMs = 50;
+      await expect(scanVault(root)).rejects.toThrow(/timed out/);
+    } finally {
+      stall.mockRestore();
+      vaultScanLimits.timeoutMs = saved;
+    }
     expect(titles(await scanVault(root))).toEqual(['a.md:Alpha', 'sub/b.md:b']);
   });
 
@@ -95,10 +102,13 @@ describe('scanVault cache', () => {
     await scanVault(root);
     fs.writeFileSync(path.join(root, 'quiet.md'), 'no fs event');
     const saved = vaultScanLimits.maxCacheAgeMs;
-    vaultScanLimits.maxCacheAgeMs = 0;
-    expect(titles(await scanVault(root))).toContain('quiet.md:quiet');
-    vaultScanLimits.maxCacheAgeMs = saved;
-    setVaultRootWatched(root, false);
+    try {
+      vaultScanLimits.maxCacheAgeMs = 0;
+      expect(titles(await scanVault(root))).toContain('quiet.md:quiet');
+    } finally {
+      vaultScanLimits.maxCacheAgeMs = saved;
+      setVaultRootWatched(root, false);
+    }
   });
 
   it('returns [] for a missing root', async () => {
