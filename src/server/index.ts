@@ -379,11 +379,16 @@ if (process.env.DISABLE_AUTH === 'true' && process.env.TUNNEL_ENABLED === 'true'
   console.error('[security] Refusing to start: DISABLE_AUTH=true with TUNNEL_ENABLED=true would expose an unauthenticated server. Disable one of them.');
   process.exit(1);
 }
-// Bind to loopback when auth is disabled (plugin/headless mode); otherwise all
-// interfaces, or BIND_HOST when explicitly set for intentional LAN sharing.
+// Loopback by default: this machine's browser/app and the Cloudflare tunnel
+// (which connects locally) are all that need it. Listening on all interfaces
+// used to expose the login page to the LAN — or the internet on a machine with
+// a public IP — and made Windows ask to open the firewall on first run.
+// LAN access is opt-in: BIND_HOST=0.0.0.0 (config: `bindHost`, or
+// `clitrigger config lan on`). Auth-disabled mode is always loopback.
 const bindHost = process.env.DISABLE_AUTH === 'true'
   ? '127.0.0.1'
-  : (process.env.BIND_HOST || '0.0.0.0');
+  : (process.env.BIND_HOST || '127.0.0.1');
+const lanShared = bindHost !== '127.0.0.1' && bindHost !== 'localhost' && bindHost !== '::1';
 
 function tryListen(port: number, attempt: number) {
   server.listen(port, bindHost, () => {
@@ -394,6 +399,9 @@ function tryListen(port: number, attempt: number) {
     console.log(`    Open on this computer  →  http://localhost:${port}`);
     if (port !== requestedPort) {
       console.log(`                              (port ${requestedPort} was in use, using ${port} instead)`);
+    }
+    if (lanShared) {
+      console.log(`    Other devices          →  listening on ${bindHost} (LAN access on — password is the only guard)`);
     }
     if (tunnelEnabled) {
       console.log('    Share with others      →  (tunnel starting…)');

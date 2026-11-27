@@ -183,6 +183,9 @@ async function bootServer() {
   if (config.tunnel) process.env.TUNNEL_ENABLED = 'true';
   if (config.tunnelName) process.env.TUNNEL_NAME = config.tunnelName;
   if (config.tunnelHostname) process.env.TUNNEL_HOSTNAME = config.tunnelHostname;
+  // LAN sharing is opt-in ("bindHost": "0.0.0.0" in config.json); the server
+  // otherwise listens on this computer only. An explicit BIND_HOST env wins.
+  if (config.bindHost && !process.env.BIND_HOST) process.env.BIND_HOST = config.bindHost;
 
   const serverEntry = resolveServerEntry();
   if (!serverEntry) {

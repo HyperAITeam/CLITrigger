@@ -61,6 +61,11 @@ async function startServer() {
   if (config.tunnelHostname) {
     process.env.TUNNEL_HOSTNAME = config.tunnelHostname;
   }
+  // LAN sharing is opt-in (server default: this computer only). An explicit
+  // BIND_HOST env var still wins.
+  if (config.bindHost && !process.env.BIND_HOST) {
+    process.env.BIND_HOST = config.bindHost;
+  }
 
   // 서버 시작
   await import('../dist/server/index.js');
@@ -191,11 +196,26 @@ async function handleConfig(args) {
     } else {
       console.log('Usage: clitrigger config tunnel [on [name] | off | hostname <host>|clear]');
     }
+  } else if (args[0] === 'lan') {
+    if (args[1] === 'on') {
+      config.bindHost = '0.0.0.0';
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+      console.log('LAN access enabled: other devices on your network can reach the server (restart to apply).');
+      console.log('Your password is then the only guard — keep it strong.');
+    } else if (args[1] === 'off') {
+      delete config.bindHost;
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+      console.log('LAN access disabled: only this computer (and the tunnel) can reach the server (restart to apply).');
+    } else {
+      console.log(`LAN access: ${config.bindHost ? `on (${config.bindHost})` : 'off (this computer only)'}`);
+      console.log('Usage: clitrigger config lan [on | off]');
+    }
   } else {
     console.log(`Config (${CONFIG_FILE}):`);
     console.log(`  Port:     ${config.port || 3000}`);
     console.log(`  Password: managed in web UI (Settings → Account)`);
     console.log(`  Tunnel:   ${config.tunnel ? 'enabled' : 'disabled'}`);
+    console.log(`  LAN:      ${config.bindHost ? `on (${config.bindHost})` : 'off (this computer only)'}`);
     if (config.tunnelName)     console.log(`  Tunnel name:     ${config.tunnelName}`);
     if (config.tunnelHostname) console.log(`  Tunnel hostname: ${config.tunnelHostname}`);
   }
@@ -253,6 +273,8 @@ Usage:
                                       Set custom domain for named tunnel
   clitrigger config tunnel hostname clear
                                       Clear custom domain
+  clitrigger config lan on|off        Allow/deny other devices on your network
+                                      (default off: this computer + tunnel only)
   clitrigger config path              Print config directory path
   clitrigger config clear             Delete all config and data
   clitrigger reset-password           Clear the web UI password (forgot it?)
