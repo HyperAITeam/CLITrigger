@@ -50,33 +50,31 @@ import { logStreamer } from './services/log-streamer.js';
 import { checkAllTools } from './services/cli-status.js';
 import { registerPlugin, mountPluginRoutes } from './plugins/registry.js';
 import { harnessPlugin } from './plugins/harness/index.js';
+import { isAllowedHost, isAllowedOrigin } from './middleware/request-origin.js';
 
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Trust proxy (needed for Cloudflare Tunnel / X-Forwarded-For)
-app.set('trust proxy', 1);
+// Trust X-Forwarded-* only from a proxy on this machine (cloudflared). With a
+// blanket `1`, any LAN client could spoof X-Forwarded-For and dodge the login
+// rate limit.
+app.set('trust proxy', 'loopback');
 
-// Middleware
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
+// DNS rebinding guard: refuse Hosts we don't serve (see request-origin.ts).
+app.use((req, res, next) => {
+  if (isAllowedHost(req.headers.host)) return next();
+  res.status(421).json({ error: 'Host not allowed' });
+});
+
+// Same-origin requests can still carry an Origin header (Vite's `crossorigin`
+// asset tags, POST fetches); isAllowedOrigin matches it against the request's
+// own Host so the desktop app's dynamic port (3737+), LAN access and the
+// tunnel hostname work. Other origins need CORS_ORIGIN.
 app.use(cors((req, callback) => {
-  const origin = req.headers.origin;
-  // Same-origin requests can still carry an Origin header (Vite's
-  // `crossorigin` asset tags, POST fetches) — match against the request's
-  // own Host so the desktop app's dynamic port (3737+) and LAN access work.
-  const sameOrigin = !!origin &&
-    (origin === `http://${req.headers.host}` || origin === `https://${req.headers.host}`);
-  const allowed = !origin // no Origin header (curl, top-level navigation)
-    || sameOrigin
-    || allowedOrigins.includes(origin)
-    // Cloudflare Tunnel origins (*.trycloudflare.com)
-    || /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin);
   // origin:false just omits CORS headers (browser blocks cross-origin reads)
   // instead of throwing — a 500 here broke same-origin asset loads entirely.
-  callback(null, { origin: allowed, credentials: true });
+  callback(null, { origin: isAllowedOrigin(req.headers.origin, req.headers.host), credentials: true });
 }));
 app.use(helmet({
   contentSecurityPolicy: {
@@ -103,14 +101,6 @@ app.use(helmet({
     },
   },
 }));
-// Only base64 image uploads carry multi-MB bodies. body-parser skips a request
-// an earlier json parser already consumed, so the big limit stays on those paths.
-app.use(
-  ['/api/todos/:id/images', '/api/planner/:id/images', '/api/planner/pages/:pageId/files', '/api/personal-items/:id/images', '/api/sessions/:id/paste-image'],
-  express.json({ limit: '50mb' }),
-);
-app.use(express.json({ limit: '5mb' }));
-
 // Initialize database
 getDatabase();
 
@@ -236,6 +226,17 @@ if (!getAppSetting('mcp.token')) {
 
 // Auth middleware
 initAuth(app);
+
+// Body parsing after auth, so an unauthenticated client can't make us buffer
+// 50MB. Only base64 image uploads carry multi-MB bodies. body-parser skips a
+// request an earlier json parser already consumed, so the big limit stays on
+// those paths.
+app.use(
+  ['/api/todos/:id/images', '/api/planner/:id/images', '/api/planner/pages/:pageId/files', '/api/personal-items/:id/images', '/api/sessions/:id/paste-image'],
+  express.json({ limit: '50mb' }),
+);
+app.use(express.json({ limit: '5mb' }));
+
 app.use('/api/auth', authRouter);
 
 // --- Plugins ---

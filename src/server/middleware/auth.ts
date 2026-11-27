@@ -1,15 +1,16 @@
 import crypto from 'crypto';
 import session from 'express-session';
 import type { RequestHandler, Express } from 'express';
+import type { IncomingMessage } from 'http';
 import { getSetting, setSetting } from '../db/app-settings.js';
 import { getDatabase } from '../db/connection.js';
+import { isDirectLoopback } from './request-origin.js';
 
 // Session-based password authentication middleware.
 // Secret and sessions are persisted in SQLite so "remember me" survives
 // server restarts (default MemoryStore + per-process random secret both
 // invalidated every session on restart).
 
-const isProduction = process.env.NODE_ENV === 'production';
 const DEFAULT_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Minimal express-session store backed by the existing better-sqlite3 DB.
@@ -95,7 +96,9 @@ export const sessionMiddleware: RequestHandler = (req, res, next) => {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: isProduction,
+        // Secure over https (the tunnel; trust proxy=loopback makes req.secure see it),
+        // plain on http://localhost and LAN where a Secure cookie would never be sent.
+        secure: 'auto',
         sameSite: 'strict',
         maxAge: DEFAULT_MAX_AGE,
       },
@@ -106,8 +109,11 @@ export const sessionMiddleware: RequestHandler = (req, res, next) => {
 
 // Validate an `Authorization: Bearer <token>` header against the locally
 // generated MCP token. Used both by the /mcp endpoint guard and by the MCP
-// tools' loopback calls into /api/*.
-export function matchesMcpToken(req: { headers: Record<string, unknown> }): boolean {
+// tools' loopback calls into /api/*. Only honoured on a direct connection from
+// this machine: MCP clients are local, and a leaked token must not be a
+// master key over the tunnel or LAN.
+export function matchesMcpToken(req: IncomingMessage): boolean {
+  if (!isDirectLoopback(req)) return false;
   const header = req.headers['authorization'];
   if (typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
   const provided = header.slice(7).trim();
@@ -120,8 +126,8 @@ export function matchesMcpToken(req: { headers: Record<string, unknown> }): bool
 
 // Auth check middleware - skip for /api/auth/* routes
 export const authMiddleware: RequestHandler = (req, res, next) => {
-  // Skip auth for login/status endpoints
-  if (req.path.startsWith('/api/auth') || req.path.startsWith('/auth')) {
+  // Skip auth for login/status endpoints (exact segment: `/authors` must not match)
+  if (req.path === '/auth' || req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) {
     return next();
   }
   // Skip auth for health check

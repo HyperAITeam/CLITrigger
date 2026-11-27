@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { getSetting, setSetting } from '../db/app-settings.js';
+import crypto from 'crypto';
+import type { Request } from 'express';
 import { hashPassword, verifyPassword } from '../utils/password.js';
+import { isDirectLoopback } from '../middleware/request-origin.js';
+import { closeSocketsAfterAuthChange } from '../websocket/index.js';
 
 const router = Router();
 
@@ -38,6 +42,11 @@ function markPasswordChanged(): void {
   setSetting(CHANGED_AT_KEY, String(Date.now()));
 }
 
+// New session id on privilege change (login/setup) — no session fixation.
+function regenerate(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => req.session.regenerate((err) => (err ? reject(err) : resolve())));
+}
+
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res) => {
   const { password } = req.body ?? {};
@@ -61,6 +70,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   if (ok) {
+    await regenerate(req);
     req.session.authenticated = true;
     req.session.createdAt = Date.now();
     if (remember) {
@@ -80,6 +90,13 @@ router.post('/setup', authLimiter, async (req, res) => {
     res.status(409).json({ error: 'already_initialized' });
     return;
   }
+  // Whoever sets the first password owns the instance. The server listens on
+  // the LAN and may sit behind a tunnel, so only the person at this machine
+  // may claim it.
+  if (!isDirectLoopback(req)) {
+    res.status(403).json({ error: 'Initial setup must be done on this computer (http://localhost).' });
+    return;
+  }
   const { password, confirmPassword } = req.body ?? {};
   const validation = validatePasswordPair(password, confirmPassword);
   if (!validation.ok) {
@@ -91,6 +108,7 @@ router.post('/setup', authLimiter, async (req, res) => {
   setSetting(HASH_KEY, hash);
   markPasswordChanged();
 
+  await regenerate(req);
   req.session.authenticated = true;
   req.session.createdAt = Date.now();
   res.json({ success: true });
@@ -139,12 +157,18 @@ router.put('/password', authLimiter, async (req, res) => {
   // timestamp does not invalidate the requester. Other sessions (older
   // createdAt) will be rejected on their next request by authMiddleware.
   req.session.createdAt = Date.now();
+  // Rotate the MCP token too — registered MCP clients show as "stale" in the
+  // MCP card until re-registered — and drop sockets opened before the change.
+  setSetting('mcp.token', crypto.randomBytes(32).toString('hex'));
+  closeSocketsAfterAuthChange();
   res.json({ success: true });
 });
 
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
+  const sid = req.sessionID;
   req.session.destroy((err) => {
+    closeSocketsAfterAuthChange(sid);
     if (err) {
       res.status(500).json({ error: 'Failed to logout' });
       return;

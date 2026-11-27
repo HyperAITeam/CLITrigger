@@ -8,12 +8,31 @@ import { sessionManager } from '../services/session-manager.js';
 import { vaultWatcher, gitWatcher } from '../services/vault-watcher.js';
 import { getTodoById, createTaskLog, getSessionById, createSessionLog, getSessionRawChunks } from '../db/queries.js';
 import { getSetting } from '../db/app-settings.js';
+import { isAllowedHost, isAllowedOrigin } from '../middleware/request-origin.js';
+import type { WebSocket } from 'ws';
+
+// Which login session each authenticated socket rode in on, so a password
+// change or logout can close sockets that were opened before it (the
+// stale-session check otherwise only runs at upgrade time).
+const socketAuth = new WeakMap<WebSocket, { sid: string; createdAt: number }>();
+let wssRef: WebSocketServer | null = null;
+
+/** Close sockets of `sid` (logout) and any opened before the last password change. */
+export function closeSocketsAfterAuthChange(sid?: string): void {
+  if (!wssRef) return;
+  const changedAt = Number(getSetting('auth.password_changed_at') || 0);
+  for (const ws of wssRef.clients) {
+    const a = socketAuth.get(ws);
+    if (!a) continue;
+    if ((sid && a.sid === sid) || (changedAt && a.createdAt < changedAt)) ws.close(4001, 'auth changed');
+  }
+}
 
 export function initWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
+  wssRef = wss;
 
   // Handle upgrade manually to validate session auth
-  const isDev = process.env.NODE_ENV !== 'production';
 
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     // Only handle /ws path
@@ -22,18 +41,13 @@ export function initWebSocket(server: Server): void {
       return;
     }
 
-    // Validate Origin header to prevent cross-origin WebSocket hijacking
-    const origin = req.headers.origin;
-    if (origin && !isDev) {
-      const allowedOrigins = process.env.CORS_ORIGIN
-        ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-        : ['http://localhost:5173', 'http://localhost:3000'];
-      const isTrycloudflare = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin);
-      if (!allowedOrigins.includes(origin) && !isTrycloudflare) {
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();
-        return;
-      }
+    // Cross-site WebSocket hijacking + DNS rebinding guard. Always on: it used
+    // to be skipped unless NODE_ENV=production, which no launcher sets — so any
+    // web page could open /ws (and, with auth disabled, type into shells).
+    if (!isAllowedHost(req.headers.host) || !isAllowedOrigin(req.headers.origin, req.headers.host)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
     }
 
     // Skip auth when DISABLE_AUTH is set (plugin/headless mode)
@@ -68,6 +82,7 @@ export function initWebSocket(server: Server): void {
       }
 
       wss.handleUpgrade(req, socket, head, (ws) => {
+        socketAuth.set(ws, { sid: (req as any).sessionID, createdAt: session.createdAt ?? 0 });
         wss.emit('connection', ws, req);
       });
     });
