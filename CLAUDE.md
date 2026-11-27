@@ -68,7 +68,7 @@ Checklist:
 ## Environment
 
 Config via `.env` (see `.env.example`), `~/.clitrigger/config.json`, or Electron `userData/config.json`.
-Key vars: `PORT` (default 3000), `DB_PATH`, `TUNNEL_ENABLED`, `HEADLESS`, `DISABLE_AUTH`.
+Key vars: `PORT` (default 3000), `DB_PATH`, `TUNNEL_ENABLED`, `HEADLESS`, `DISABLE_AUTH`, `BIND_HOST` (default 127.0.0.1 — LAN access is opt-in).
 
 ## Language
 
