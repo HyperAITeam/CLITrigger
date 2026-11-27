@@ -15,6 +15,7 @@ export type ClaudeMode = CliMode;
 const STDIN_SUBMIT_DELAY_MS = 300;
 const AUTO_RESPOND_GRACE_MS = 10_000;
 const AUTO_RESPOND_NO_PROMPT_MS = 60_000;
+const ARGV_PROMPT_MAX_CHARS = 30_000;
 
 // Environment handed to spawned CLIs / PTYs. Inherits the process env but strips
 // server-only secrets so an agent or raw-shell can't read them — otherwise a
@@ -355,13 +356,20 @@ export class ClaudeManager {
       let child: ChildProcess;
       const needsStdin = adapter.needsStdin(mode);
 
+      // Prompt in argv (spawnDirect): stay under the Windows 32K command line.
+      if (adapter.spawnDirect && args.reduce((n, a) => n + a.length + 3, adapter.command.length) > ARGV_PROMPT_MAX_CHARS) {
+        reject(new Error(`${adapter.displayName}: prompt too long to pass on the command line (limit ~${ARGV_PROMPT_MAX_CHARS} chars) — shorten the task or memory injection`));
+        return;
+      }
+
       try {
         child = spawn(adapter.command, args, {
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
-          // shell needed on Windows to resolve .cmd shims (claude.cmd, agy.cmd)
-          // Safe: prompts are delivered via stdin, not as command-line arguments
-          shell: process.platform === 'win32',
+          // shell needed on Windows to resolve .cmd shims (claude.cmd, codex.cmd).
+          // Safe there: those prompts go via stdin. spawnDirect CLIs carry the
+          // prompt in argv, so they must never pass through cmd.exe.
+          shell: process.platform === 'win32' && !adapter.spawnDirect,
           windowsHide: true,
           env: childEnv(),
         });

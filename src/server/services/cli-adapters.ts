@@ -140,6 +140,12 @@ export interface CliAdapter {
   formatStdinPrompt(prompt: string, mode?: CliMode): string;
   /** Whether this CLI requires a TTY (pseudo-terminal) to run */
   requiresTty?: boolean;
+  /**
+   * Headless spawn runs the binary itself, never through cmd.exe: set when the
+   * prompt travels in argv, where a shell would parse `&`/`|` in task text.
+   * Requires a real executable on PATH (not a .cmd shim).
+   */
+  spawnDirect?: boolean;
   /** Output format: 'stream-json' for structured JSON lines, 'text' for plain text */
   outputFormat?: 'text' | 'stream-json';
   /**
@@ -265,6 +271,7 @@ const antigravityAdapter: CliAdapter = {
   command: 'agy',
   displayName: 'Antigravity CLI',
   supportsInteractive: true,
+  spawnDirect: true,
   delayStdinUntilReady: true,
   // PROVISIONAL (agy not yet installed for verification): Antigravity's TUI is
   // an Ink-based rewrite like Gemini's, so \r\n is the likely Enter sequence.
@@ -293,14 +300,13 @@ const antigravityAdapter: CliAdapter = {
     //   --dangerously-skip-permissions auto-approves all tool actions (file writes, shell).
     //   Strict interactive sessions drop it so agy asks the user. Headless always
     //   keeps it: nobody can answer, and agy 1.1.20's --sandbox hangs headless on Windows.
-    //   --print (-p) enables non-interactive mode (agy 1.5 dropped --headless); the prompt is delivered via stdin pipe.
+    //   --print <prompt> runs one turn non-interactively (agy 1.5 dropped --headless).
+    //   Verified on agy 1.5.18: --print takes the prompt as its value and ignores
+    //   stdin, so the prompt goes in argv — hence spawnDirect (no cmd.exe).
     //   --continue resumes the most recent conversation.
-    // PROVISIONAL: verify with `agy --help` that --print reads the prompt from
-    // stdin. If it instead requires `-p <prompt>` inline, move the prompt into
-    // args here and make needsStdin(mode) return only mode === 'interactive'.
     const args: string[] = [];
     if (mode !== 'interactive' || sandboxMode !== 'strict') args.push('--dangerously-skip-permissions');
-    if (mode !== 'interactive') args.push('--print');
+    if (mode !== 'interactive') args.push('--print', prompt);
     if (continueSession) args.push('--continue');
     if (model) args.push('--model', model);
     if (extraOptions) {
@@ -308,8 +314,8 @@ const antigravityAdapter: CliAdapter = {
     }
     return args;
   },
-  needsStdin(_mode) {
-    return true;
+  needsStdin(mode) {
+    return mode === 'interactive';
   },
   formatStdinPrompt(prompt) {
     return prompt + '\n';
